@@ -67,11 +67,6 @@ impl DirectoryArchetype {
 
         Ok(())
     }
-
-    fn render(&self, contents: &str, context: &Context) {
-        let context = context.clone();
-        let renderer = Renderer::new()
-    }
 }
 
 impl Archetype for DirectoryArchetype {
