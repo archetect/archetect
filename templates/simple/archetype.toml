@@ -1,0 +1,20 @@
+[[variables]]
+prompt = 'Application Name: '
+name = 'name'
+
+[[variables]]
+prompt = 'Author: '
+name = 'author'
+default = 'Jimmie'
+
+[[variables]]
+prompt = 'First: '
+name= 'first'
+
+[[variables]]
+prompt = 'Second: '
+name = 'second'
+
+[[variables]]
+prompt = 'Third: '
+name = 'third'

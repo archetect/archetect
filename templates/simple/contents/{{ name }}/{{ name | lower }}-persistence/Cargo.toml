@@ -1,0 +1,7 @@
+[package]
+name = "{{ name | lower }}-persistence"
+version = "0.1.0"
+authors = ["{{ author }}"]
+edition = "2018"
+
+[dependencies]

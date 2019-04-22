@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "{{ name | lower }}-persistence",
+    "{{ name | lower }}-pipelines",
+    "{{ name | lower }}-topics",
+]
