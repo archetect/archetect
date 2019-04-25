@@ -2,7 +2,7 @@
 extern crate clap;
 
 use std::fs;
-use archetect::{self, Config, DirectoryArchetype, Archetype};
+use archetect::{self, ArchetypeConfig, DirectoryArchetype, Archetype, AnswerConfig};
 use clap::{App, Arg, SubCommand, AppSettings};
 use std::path::PathBuf;
 use std::fs::File;
@@ -41,7 +41,9 @@ fn main() {
         let from = PathBuf::from_str(matches.value_of("from").unwrap()).unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
         let archetype = DirectoryArchetype::new(from).unwrap();
-        let mut context = archetype.get_context().unwrap();
+        let answer_config = AnswerConfig::load(destination.clone()).unwrap_or_else(|_| AnswerConfig::default());
+        println!("{}", answer_config);
+        let context = archetype.get_context(&answer_config).unwrap();
         archetype.generate(destination, context).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("init") {
         let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
@@ -49,7 +51,7 @@ fn main() {
             fs::create_dir_all(&output_dir).unwrap();
         }
 
-        let mut config = Config::default();
+        let mut config = ArchetypeConfig::default();
         config.add_variable("Application Name: ", "name");
         config.add_variable("Author name: ", "author");
 
