@@ -10,6 +10,9 @@ path = "src/bin/main.rs"
 
 [dependencies]
 clap = "2.33"
+pest = "2.1.1"
+pest_derive = "2.1.0"
+failure = "0.1.5"
 read_input = "0.8"
 serde = "1.0.90"
 serde_derive = "1.0.90"

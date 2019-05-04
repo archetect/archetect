@@ -1,20 +1,31 @@
 #[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate pest_derive;
+#[macro_use]
 extern crate serde_derive;
-
-use std::{fs, io};
-use std::fmt::{Display, Formatter};
+use std::collections::HashMap;
 use std::fmt;
-use std::fs::{File};
+use std::fmt::{Display, Formatter};
+use std::fs;
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use read_input::prelude::*;
 use tera::{Context, Tera};
-use std::collections::HashMap;
+
+use failure::{Error, Fail};
+
+pub mod parser;
 
 pub trait Archetype {
-    fn generate<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError>;
+    fn generate<D: Into<PathBuf>>(
+        &self,
+        destination: D,
+        context: Context,
+    ) -> Result<(), ArchetypeError>;
 
     fn get_context(&self, answers: &AnswerConfig) -> Result<Context, ArchetypeError>;
 }
@@ -26,15 +37,23 @@ pub struct DirectoryArchetype {
 }
 
 impl DirectoryArchetype {
-    pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, ArchetypeError> {
+    pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, Error> {
         let directory = directory.into();
         let tera = Tera::default();
-        let config = ArchetypeConfig::load(&directory).unwrap();
-        Ok(DirectoryArchetype { tera, config, directory })
+        let config = ArchetypeConfig::load(&directory)?;
+        Ok(DirectoryArchetype {
+            tera,
+            config,
+            directory,
+        })
     }
 
-
-    fn generate_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(&self, context: Context, source: SRC, destination: DEST) -> Result<(), io::Error> {
+    fn generate_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
+        &self,
+        context: Context,
+        source: SRC,
+        destination: DEST,
+    ) -> Result<(), Error> {
         let source = source.into();
         let destination = destination.into();
 
@@ -46,14 +65,21 @@ impl DirectoryArchetype {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                let name = self.tera.render_string(path.file_name().unwrap().to_str().unwrap(), context.clone()).unwrap();
+                let name = self
+                    .tera
+                    .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
+                    .unwrap();
                 let mut destination = destination.clone();
                 destination.push(name);
                 println!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.generate_internal(context.clone(), path, destination).unwrap();
+                self.generate_internal(context.clone(), path, destination)
+                    .unwrap();
             } else if path.is_file() {
-                let name = self.tera.render_string(path.file_name().unwrap().to_str().unwrap(), context.clone()).unwrap();
+                let name = self
+                    .tera
+                    .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
+                    .unwrap();
                 let template = fs::read_to_string(&path)?;
                 let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
                 let destination = destination.clone().join(name);
@@ -68,10 +94,19 @@ impl DirectoryArchetype {
 }
 
 impl Archetype for DirectoryArchetype {
-    fn generate<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
+    fn generate<D: Into<PathBuf>>(
+        &self,
+        destination: D,
+        context: Context,
+    ) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.generate_internal(context, self.directory.clone().join("contents"), destination).unwrap();
+        self.generate_internal(
+            context,
+            self.directory.clone().join("contents"),
+            destination,
+        )
+        .unwrap();
         Ok(())
     }
 
@@ -87,7 +122,8 @@ impl Archetype for DirectoryArchetype {
                 } else {
                     format!("{}", var_config.prompt)
                 };
-                let input_builder = input::<String>().msg(prompt)
+                let input_builder = input::<String>()
+                    .msg(prompt)
                     .add_test(|value| value.len() > 0)
                     .err("Must be at least 1 character.  Please try again.");
                 let value = if let Some(default) = var_config.default.clone() {
@@ -104,13 +140,21 @@ impl Archetype for DirectoryArchetype {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum ArchetypeError {
+    #[fail(display = "Invalid Archetype")]
     ArchetypeInvalid,
+    #[fail(display = "Invalid Answers config format")]
     InvalidAnswersConfig,
+    #[fail(display = "Error saving Archetype Config file")]
     ArchetypeSaveFailed,
 }
 
+//impl From<tera::Error> for ArchetypeError {
+//    fn from(e: tera::Error) -> Self {
+//        SyncFailure::new(e)
+//    }
+//}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
@@ -146,8 +190,14 @@ impl ArchetypeConfig {
         self.variables.push(VariableEntry::new(prompt, name));
     }
 
-    pub fn add_variable_with_default<P: Into<String>, N: Into<String>, D: Into<String>>(&mut self, prompt: P, name: N, default_value: D) {
-        self.variables.push(VariableEntry::new(prompt, name).with_default(default_value));
+    pub fn add_variable_with_default<P: Into<String>, N: Into<String>, D: Into<String>>(
+        &mut self,
+        prompt: P,
+        name: N,
+        default_value: D,
+    ) {
+        self.variables
+            .push(VariableEntry::new(prompt, name).with_default(default_value));
     }
 
     pub fn variables(&self) -> &[VariableEntry] {
@@ -157,7 +207,9 @@ impl ArchetypeConfig {
 
 impl Default for ArchetypeConfig {
     fn default() -> Self {
-        ArchetypeConfig { variables: Vec::new() }
+        ArchetypeConfig {
+            variables: Vec::new(),
+        }
     }
 }
 
@@ -190,7 +242,11 @@ pub struct VariableEntry {
 
 impl VariableEntry {
     pub fn new<P: Into<String>, N: Into<String>>(prompt: P, name: N) -> VariableEntry {
-        VariableEntry { prompt: prompt.into(), name: name.into(), default: None }
+        VariableEntry {
+            prompt: prompt.into(),
+            name: name.into(),
+            default: None,
+        }
     }
 
     pub fn with_default<D: Into<String>>(mut self, value: D) -> VariableEntry {
@@ -209,7 +265,7 @@ impl VariableEntry {
     pub fn default(&self) -> Option<&str> {
         match &self.default {
             Some(value) => Some(value.as_str()),
-            None => None
+            None => None,
         }
     }
 }
@@ -256,15 +312,16 @@ impl AnswerConfig {
 
 impl Default for AnswerConfig {
     fn default() -> Self {
-        AnswerConfig { answers: HashMap::new() }
+        AnswerConfig {
+            answers: HashMap::new(),
+        }
     }
 }
 impl FromStr for AnswerConfig {
     type Err = ArchetypeError;
 
     fn from_str(config: &str) -> Result<Self, Self::Err> {
-        toml::de::from_str::<AnswerConfig>(config)
-            .map_err(|_| ArchetypeError::ArchetypeInvalid)
+        toml::de::from_str::<AnswerConfig>(config).map_err(|_| ArchetypeError::ArchetypeInvalid)
     }
 }
 
@@ -285,7 +342,10 @@ pub struct AnswerEntry {
 
 impl AnswerEntry {
     pub fn new<V: Into<String>, A: Into<String>>(variable: V, answer: A) -> AnswerEntry {
-        AnswerEntry { variable: variable.into(), answer: answer.into() }
+        AnswerEntry {
+            variable: variable.into(),
+            answer: answer.into(),
+        }
     }
 }
 
@@ -301,8 +361,7 @@ mod tests {
 
         let output = config.to_string();
 
-        let expected =
-            r#"[[variables]]
+        let expected = r#"[[variables]]
 prompt = "Application Name"
 name = "name"
 
@@ -317,8 +376,7 @@ default = "Jimmie"
 
     #[test]
     fn test_archetype_config_from_string() {
-        let expected =
-            r#"[[variables]]
+        let expected = r#"[[variables]]
 prompt = "Application Name"
 name = "name"
 
@@ -328,20 +386,26 @@ name = "author"
 default = "Jimmie"
 "#;
         let config = ArchetypeConfig::from_str(expected).unwrap();
-        assert!(config.variables().contains(&VariableEntry::new("Author", "author").with_default("Jimmie")));
+        assert!(config
+            .variables()
+            .contains(&VariableEntry::new("Author", "author").with_default("Jimmie")));
     }
 
     #[test]
     fn test_archetype_load() {
         let config = ArchetypeConfig::load("templates/simple").unwrap();
-        assert!(config.variables().contains(&VariableEntry::new("Application Name: ", "name")));
+        assert!(config
+            .variables()
+            .contains(&VariableEntry::new("Application Name: ", "name")));
     }
 
     #[test]
     fn test_archetype_to_string() {
         let config = ArchetypeConfig::load("templates/simple").unwrap();
 
-        assert!(config.variables().contains(&VariableEntry::new("Application Name: ", "name")));
+        assert!(config
+            .variables()
+            .contains(&VariableEntry::new("Application Name: ", "name")));
     }
 
     #[test]

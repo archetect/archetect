@@ -1,0 +1,39 @@
+
+template = {
+    SOI ~
+    node* ~
+    EOI
+}
+
+node = {
+    variable_block |
+    text
+}
+
+text = { (!(block_start) ~ ANY) + }
+
+block_start = { variable_block_start }
+
+variable_block = { variable_block_start ~ ws ~ identifier ~ ws ~ (filter)* ~ variable_block_end }
+variable_block_start = _{ "{{" }
+variable_block_end   = _{ "}}" }
+
+filter = { filter_leader ~ ws ~ identifier ~ (filter_args)? ~ ws }
+filter_leader = _{ "|" }
+
+filter_args = { filter_arg_start ~ ws ~ (filter_arg)* ~ ws ~ filter_arg_end }
+filter_arg = { string ~ (filter_arg_separator)? ~ ws }
+filter_arg_separator = _{ "," ~ ws }
+filter_arg_start = _{ "(" }
+filter_arg_end   = _{ ")" }
+
+identifier = { identifier_leader ~ (identifier_follower)* }
+identifier_leader = _{ ASCII_ALPHA }
+identifier_follower = _{ ASCII_ALPHA | ASCII_DIGIT | "_" }
+
+string = { string_bound ~ string_contents ~ string_bound }
+string_contents = { (!(string_bound) ~ ANY)* }
+string_bound = _{ "\"" }
+
+ws = _{ (" " | "\t" | "\r" | "\n")* }
+
