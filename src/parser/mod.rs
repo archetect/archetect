@@ -185,11 +185,8 @@ fn parse_filter(pair: Pair<Rule>) -> FilterInfo {
     let mut iter = pair.into_inner();
 
     let name = iter.next().unwrap().as_str();
-    let args = if let Some(pair) = iter.next() {
-        parse_filter_args(pair)
-    } else {
-        vec![]
-    };
+
+    let args = iter.next().map_or_else(|| vec![], |p| parse_filter_args(p));
 
     FilterInfo { name, args }
 }
