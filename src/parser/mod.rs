@@ -157,7 +157,9 @@ fn parse_nodes<'template>(pairs: Pair<'template, Rule>, nodes: &mut Vec<Node<'te
     for pair in pairs.into_inner() {
         match pair.as_rule() {
             Rule::text => nodes.push(parse_text(pair)),
-            Rule::variable_block => nodes.push(parse_variable_block(pair)),
+            Rule::variable_block | Rule::raw_variable_block => {
+                nodes.push(parse_variable_block(pair))
+            }
             _ => eprintln!("Unhandled: {:?}", pair),
         }
     }
@@ -220,9 +222,11 @@ fn parse_string(pair: Pair<Rule>) -> &str {
 }
 
 fn parse_variable_block(pair: Pair<Rule>) -> Node {
-    assert_eq!(pair.as_rule(), Rule::variable_block);
+    let rule = pair.as_rule();
+    assert!(rule == Rule::variable_block || rule == Rule::raw_variable_block);
 
     let mut iter = pair.into_inner();
+    let escape = rule == Rule::variable_block;
 
     let name = iter.next().unwrap().as_str();
 
@@ -239,7 +243,7 @@ fn parse_variable_block(pair: Pair<Rule>) -> Node {
 
     Node::VariableBlock(VariableBlock {
         name,
-        escape: true,
+        escape,
         filters,
     })
 }
@@ -313,6 +317,27 @@ mod tests {
                 filters: Some(vec![
                     FilterInfo {
                         name: "upper",
+                        args: None
+                    },
+                    FilterInfo {
+                        name: "trim",
+                        args: None
+                    }
+                ])
+            })
+        );
+
+        assert_eq!(
+            parse_variable_block(parse_pair(
+                Rule::raw_variable_block,
+                "{{{ message | lower | trim }}} "
+            )),
+            Node::VariableBlock(VariableBlock {
+                name: "message",
+                escape: false,
+                filters: Some(vec![
+                    FilterInfo {
+                        name: "lower",
                         args: None
                     },
                     FilterInfo {
