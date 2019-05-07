@@ -362,13 +362,13 @@ mod tests {
         let output = config.to_string();
 
         let expected = r#"[[variables]]
-prompt = "Application Name"
-name = "name"
+prompt = 'Application Name'
+name = 'name'
 
 [[variables]]
-prompt = "Author"
-name = "author"
-default = "Jimmie"
+prompt = 'Author'
+name = 'author'
+default = 'Jimmie'
 "#;
         assert_eq!(output, expected);
         println!("{}", output);
