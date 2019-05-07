@@ -4,6 +4,7 @@ use std::io::Write;
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
+use std::convert::TryFrom;
 use std::io;
 
 #[derive(Parser)]
@@ -37,6 +38,21 @@ impl From<io::Error> for RenderError {
 #[derive(Debug)]
 pub struct Template<'template> {
     nodes: Vec<Node<'template>>,
+}
+
+impl<'template> TryFrom<&'template str> for Template<'template> {
+    type Error = TemplateError;
+
+    fn try_from(value: &str) -> Result<Template, TemplateError> {
+        parse(value)
+    }
+}
+
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum Value<'a> {
+    String(&'a str),
+    Int32(i32),
+    List(Vec<Value<'a>>),
 }
 
 pub struct Context<'a> {
@@ -81,13 +97,26 @@ impl<'a> Default for Context<'a> {
     }
 }
 
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub struct VariableBlock<'template> {
+    name: &'template str,
+    escape: bool,
+    filters: Option<Vec<FilterInfo<'template>>>,
+}
+
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub struct FilterInfo<'template> {
+    name: &'template str,
+    args: Option<Vec<Value<'template>>>,
+}
+
 pub struct Renderer;
 
 impl Renderer {
-    pub fn render<SYNC: Write>(
+    pub fn render<DEST: Write>(
         template: &Template,
         context: &Context,
-        destination: &mut SYNC,
+        destination: &mut DEST,
     ) -> Result<(), RenderError> {
         for node in &template.nodes {
             match node {
@@ -95,7 +124,7 @@ impl Renderer {
                     destination.write(text.as_bytes())?;
                 }
                 Node::VariableBlock(variable) => {
-                    let value = context.get(variable).unwrap_or_else(|| "");
+                    let value = context.get(variable.name).unwrap_or_else(|| "");
                     destination.write(value.as_bytes())?;
                 }
             }
@@ -108,7 +137,7 @@ impl Renderer {
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Node<'template> {
     Text(&'template str),
-    VariableBlock(&'template str),
+    VariableBlock(VariableBlock<'template>),
 }
 
 pub fn parse(template: &str) -> Result<Template, TemplateError> {
@@ -127,17 +156,92 @@ pub fn parse(template: &str) -> Result<Template, TemplateError> {
 fn parse_nodes<'template>(pairs: Pair<'template, Rule>, nodes: &mut Vec<Node<'template>>) {
     for pair in pairs.into_inner() {
         match pair.as_rule() {
-            Rule::text => nodes.push(Node::Text(pair.as_str())),
-            Rule::variable_block => parse_variable_block(pair, nodes),
+            Rule::text => nodes.push(parse_text(pair)),
+            Rule::variable_block => nodes.push(parse_variable_block(pair)),
             _ => eprintln!("Unhandled: {:?}", pair),
         }
     }
 }
 
-fn parse_variable_block<'template>(pairs: Pair<'template, Rule>, nodes: &mut Vec<Node<'template>>) {
-    nodes.push(Node::VariableBlock(
-        pairs.into_inner().next().unwrap().as_str(),
-    ))
+fn parse_text(pair: Pair<Rule>) -> Node {
+    assert_eq!(pair.as_rule(), Rule::text);
+    Node::Text(pair.as_str())
+}
+
+fn parse_value(pair: Pair<Rule>) -> Value {
+    assert_eq!(pair.as_rule(), Rule::value);
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::string => Value::String(parse_string(pair)),
+        Rule::i32 => Value::Int32(pair.as_str().parse().unwrap()),
+        _ => unreachable!(),
+    }
+}
+
+fn parse_filter(pair: Pair<Rule>) -> FilterInfo {
+    assert_eq!(pair.as_rule(), Rule::filter);
+    let mut iter = pair.into_inner();
+
+    let name = iter.next().unwrap().as_str();
+
+    let args = if let Some(pair) = iter.next() {
+        parse_filter_args(pair)
+    } else {
+        None
+    };
+
+    FilterInfo { name, args }
+}
+
+fn parse_filter_args(pair: Pair<Rule>) -> Option<Vec<Value>> {
+    assert_eq!(pair.as_rule(), Rule::filter_args);
+
+    let mut iter = pair.into_inner();
+    if let Some(pair) = iter.next() {
+        let mut results = Vec::new();
+        results.push(parse_filter_arg(pair));
+
+        while let Some(pair) = iter.next() {
+            results.push(parse_filter_arg(pair));
+        }
+        return Some(results);
+    }
+    None
+}
+
+fn parse_filter_arg(pair: Pair<Rule>) -> Value {
+    assert_eq!(pair.as_rule(), Rule::filter_arg);
+    parse_value(pair.into_inner().next().unwrap())
+}
+
+fn parse_string(pair: Pair<Rule>) -> &str {
+    assert_eq!(pair.as_rule(), Rule::string);
+    pair.into_inner().next().unwrap().as_str()
+}
+
+fn parse_variable_block(pair: Pair<Rule>) -> Node {
+    assert_eq!(pair.as_rule(), Rule::variable_block);
+
+    let mut iter = pair.into_inner();
+
+    let name = iter.next().unwrap().as_str();
+
+    let filters = if let Some(pair) = iter.next() {
+        let mut filters = Vec::new();
+        filters.push(parse_filter(pair));
+        while let Some(pair) = iter.next() {
+            filters.push(parse_filter(pair));
+        }
+        Some(filters)
+    } else {
+        None
+    };
+
+    Node::VariableBlock(VariableBlock {
+        name,
+        escape: true,
+        filters,
+    })
 }
 
 #[cfg(test)]
@@ -156,8 +260,146 @@ mod tests {
     }
 
     #[test]
-    fn test_parse() {
-        println!("{:?}", parse(r#"Hello, {{subject | title | join(",") }}!"#));
+    fn test_parse_string() {
+        assert_eq!(
+            parse_string(parse_pair(Rule::string, "\'Howdy!\'")),
+            "Howdy!"
+        );
+        assert_eq!(
+            parse_string(parse_pair(Rule::string, "\"Howdy!\"")),
+            "Howdy!"
+        );
+    }
+
+    #[test]
+    fn test_parse_text() {
+        assert_eq!(
+            parse_text(parse_pair(Rule::text, "Random Text")),
+            Node::Text("Random Text")
+        );
+    }
+
+    #[test]
+    fn test_parse_variable_block() {
+        assert_eq!(
+            parse_variable_block(parse_pair(Rule::variable_block, "{{ subject }} ")),
+            Node::VariableBlock(VariableBlock {
+                name: "subject",
+                escape: true,
+                filters: None
+            })
+        );
+
+        assert_eq!(
+            parse_variable_block(parse_pair(Rule::variable_block, "{{ subject | upper }} ")),
+            Node::VariableBlock(VariableBlock {
+                name: "subject",
+                escape: true,
+                filters: Some(vec![FilterInfo {
+                    name: "upper",
+                    args: None
+                }])
+            })
+        );
+
+        assert_eq!(
+            parse_variable_block(parse_pair(
+                Rule::variable_block,
+                "{{ subject | upper | trim }} "
+            )),
+            Node::VariableBlock(VariableBlock {
+                name: "subject",
+                escape: true,
+                filters: Some(vec![
+                    FilterInfo {
+                        name: "upper",
+                        args: None
+                    },
+                    FilterInfo {
+                        name: "trim",
+                        args: None
+                    }
+                ])
+            })
+        );
+
+        assert_eq!(
+            parse_variable_block(parse_pair(
+                Rule::variable_block,
+                "{{ subject | upper | elide( 99 , \"..\") }} "
+            )),
+            Node::VariableBlock(VariableBlock {
+                name: "subject",
+                escape: true,
+                filters: Some(vec![
+                    FilterInfo {
+                        name: "upper",
+                        args: None
+                    },
+                    FilterInfo {
+                        name: "elide",
+                        args: Some(vec![Value::Int32(99), Value::String("..")])
+                    }
+                ])
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_value() {
+        assert_eq!(
+            parse_value(parse_pair(Rule::value, "12345")),
+            Value::Int32(12345)
+        );
+        assert_eq!(
+            parse_value(parse_pair(Rule::value, "\"String\"")),
+            Value::String("String")
+        );
+    }
+
+    #[test]
+    fn test_parse_filter_arg() {
+        assert_eq!(
+            parse_filter_arg(parse_pair(Rule::filter_arg, "1234")),
+            Value::Int32(1234)
+        );
+    }
+
+    #[test]
+    fn test_parse_filter_args() {
+        assert_eq!(
+            parse_filter_args(parse_pair(Rule::filter_args, "(1234, \"1234\")")),
+            Some(vec![Value::Int32(1234), Value::String("1234")])
+        );
+
+        assert_eq!(parse_filter_args(parse_pair(Rule::filter_args, "()")), None);
+    }
+
+    #[test]
+    fn test_parse_filter() {
+        assert_eq!(
+            parse_filter(parse_pair(Rule::filter, "| join(', ')")),
+            FilterInfo {
+                name: "join",
+                args: Some(vec![Value::String(", ")])
+            }
+        );
+
+        assert_eq!(
+            parse_filter(parse_pair(Rule::filter, "| elide(100, \"...\")")),
+            FilterInfo {
+                name: "elide",
+                args: Some(vec![Value::Int32(100), Value::String("...")])
+            }
+        );
+
+        assert_eq!(
+            parse_filter(parse_pair(Rule::filter, "| join()")),
+            FilterInfo {
+                name: "join",
+                args: None
+            }
+        );
     }
 
     #[test]
@@ -167,7 +409,7 @@ mod tests {
             .insert("subject", "World")
             .insert("adjective", "small");
 
-        let template = parse("Hello, {{ adjective }} {{ subject }}!")?;
+        let template = Template::try_from("Hello, {{ adjective }} {{ subject }}!")?;
         let mut buffer: Vec<u8> = Vec::new();
         Renderer::render(&template, &context, &mut buffer)?;
         println!("{}", String::from_utf8(buffer).unwrap());
@@ -175,7 +417,7 @@ mod tests {
         let mut child = context.scoped();
         child.insert("adjective", "big");
         let mut buffer: Vec<u8> = Vec::new();
-        Renderer::render(&template, &child, &mut buffer);
+        Renderer::render(&template, &child, &mut buffer)?;
         println!("{}", String::from_utf8(buffer).unwrap());
 
         Ok(())
@@ -192,5 +434,9 @@ mod tests {
 
         assert_eq!(child.get("message"), Some("Howdy!"));
         assert_eq!(child.get("subject"), Some("World"));
+    }
+
+    fn parse_pair(rule: Rule, input: &str) -> Pair<Rule> {
+        ArchetectParser::parse(rule, input).unwrap().next().unwrap()
     }
 }
