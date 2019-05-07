@@ -101,7 +101,7 @@ impl<'a> Default for Context<'a> {
 pub struct VariableBlock<'template> {
     name: &'template str,
     escape: bool,
-    filters: Option<Vec<FilterInfo<'template>>>,
+    filters: Vec<FilterInfo<'template>>,
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -225,21 +225,10 @@ fn parse_variable_block(pair: Pair<Rule>) -> Node {
     let rule = pair.as_rule();
     assert!(rule == Rule::variable_block || rule == Rule::raw_variable_block);
 
-    let mut iter = pair.into_inner();
     let escape = rule == Rule::variable_block;
-
+    let mut iter = pair.into_inner();
     let name = iter.next().unwrap().as_str();
-
-    let filters = if let Some(pair) = iter.next() {
-        let mut filters = Vec::new();
-        filters.push(parse_filter(pair));
-        while let Some(pair) = iter.next() {
-            filters.push(parse_filter(pair));
-        }
-        Some(filters)
-    } else {
-        None
-    };
+    let filters = iter.map(|p| parse_filter(p)).collect();
 
     Node::VariableBlock(VariableBlock {
         name,
@@ -290,7 +279,7 @@ mod tests {
             Node::VariableBlock(VariableBlock {
                 name: "subject",
                 escape: true,
-                filters: None
+                filters: vec![]
             })
         );
 
@@ -299,10 +288,10 @@ mod tests {
             Node::VariableBlock(VariableBlock {
                 name: "subject",
                 escape: true,
-                filters: Some(vec![FilterInfo {
+                filters: vec![FilterInfo {
                     name: "upper",
                     args: None
-                }])
+                }]
             })
         );
 
@@ -314,7 +303,7 @@ mod tests {
             Node::VariableBlock(VariableBlock {
                 name: "subject",
                 escape: true,
-                filters: Some(vec![
+                filters: vec![
                     FilterInfo {
                         name: "upper",
                         args: None
@@ -323,7 +312,7 @@ mod tests {
                         name: "trim",
                         args: None
                     }
-                ])
+                ]
             })
         );
 
@@ -335,7 +324,7 @@ mod tests {
             Node::VariableBlock(VariableBlock {
                 name: "message",
                 escape: false,
-                filters: Some(vec![
+                filters: vec![
                     FilterInfo {
                         name: "lower",
                         args: None
@@ -344,7 +333,7 @@ mod tests {
                         name: "trim",
                         args: None
                     }
-                ])
+                ]
             })
         );
 
@@ -356,7 +345,7 @@ mod tests {
             Node::VariableBlock(VariableBlock {
                 name: "subject",
                 escape: true,
-                filters: Some(vec![
+                filters: vec![
                     FilterInfo {
                         name: "upper",
                         args: None
@@ -365,7 +354,7 @@ mod tests {
                         name: "elide",
                         args: Some(vec![Value::Int32(99), Value::String("..")])
                     }
-                ])
+                ]
             })
         );
     }
