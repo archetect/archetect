@@ -107,7 +107,7 @@ pub struct VariableBlock<'template> {
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub struct FilterInfo<'template> {
     name: &'template str,
-    args: Option<Vec<Value<'template>>>,
+    args: Vec<Value<'template>>,
 }
 
 pub struct Renderer;
@@ -185,30 +185,18 @@ fn parse_filter(pair: Pair<Rule>) -> FilterInfo {
     let mut iter = pair.into_inner();
 
     let name = iter.next().unwrap().as_str();
-
     let args = if let Some(pair) = iter.next() {
         parse_filter_args(pair)
     } else {
-        None
+        vec![]
     };
 
     FilterInfo { name, args }
 }
 
-fn parse_filter_args(pair: Pair<Rule>) -> Option<Vec<Value>> {
+fn parse_filter_args(pair: Pair<Rule>) -> Vec<Value> {
     assert_eq!(pair.as_rule(), Rule::filter_args);
-
-    let mut iter = pair.into_inner();
-    if let Some(pair) = iter.next() {
-        let mut results = Vec::new();
-        results.push(parse_filter_arg(pair));
-
-        while let Some(pair) = iter.next() {
-            results.push(parse_filter_arg(pair));
-        }
-        return Some(results);
-    }
-    None
+    pair.into_inner().map(|p| parse_filter_arg(p)).collect()
 }
 
 fn parse_filter_arg(pair: Pair<Rule>) -> Value {
@@ -228,6 +216,7 @@ fn parse_variable_block(pair: Pair<Rule>) -> Node {
     let escape = rule == Rule::variable_block;
     let mut iter = pair.into_inner();
     let name = iter.next().unwrap().as_str();
+
     let filters = iter.map(|p| parse_filter(p)).collect();
 
     Node::VariableBlock(VariableBlock {
@@ -290,7 +279,7 @@ mod tests {
                 escape: true,
                 filters: vec![FilterInfo {
                     name: "upper",
-                    args: None
+                    args: vec![]
                 }]
             })
         );
@@ -306,11 +295,11 @@ mod tests {
                 filters: vec![
                     FilterInfo {
                         name: "upper",
-                        args: None
+                        args: vec![]
                     },
                     FilterInfo {
                         name: "trim",
-                        args: None
+                        args: vec![]
                     }
                 ]
             })
@@ -327,11 +316,11 @@ mod tests {
                 filters: vec![
                     FilterInfo {
                         name: "lower",
-                        args: None
+                        args: vec![]
                     },
                     FilterInfo {
                         name: "trim",
-                        args: None
+                        args: vec![]
                     }
                 ]
             })
@@ -348,11 +337,11 @@ mod tests {
                 filters: vec![
                     FilterInfo {
                         name: "upper",
-                        args: None
+                        args: vec![]
                     },
                     FilterInfo {
                         name: "elide",
-                        args: Some(vec![Value::Int32(99), Value::String("..")])
+                        args: vec![Value::Int32(99), Value::String("..")]
                     }
                 ]
             })
@@ -383,10 +372,13 @@ mod tests {
     fn test_parse_filter_args() {
         assert_eq!(
             parse_filter_args(parse_pair(Rule::filter_args, "(1234, \"1234\")")),
-            Some(vec![Value::Int32(1234), Value::String("1234")])
+            vec![Value::Int32(1234), Value::String("1234")]
         );
 
-        assert_eq!(parse_filter_args(parse_pair(Rule::filter_args, "()")), None);
+        assert_eq!(
+            parse_filter_args(parse_pair(Rule::filter_args, "()")),
+            vec![]
+        );
     }
 
     #[test]
@@ -395,7 +387,7 @@ mod tests {
             parse_filter(parse_pair(Rule::filter, "| join(', ')")),
             FilterInfo {
                 name: "join",
-                args: Some(vec![Value::String(", ")])
+                args: vec![Value::String(", ")]
             }
         );
 
@@ -403,7 +395,7 @@ mod tests {
             parse_filter(parse_pair(Rule::filter, "| elide(100, \"...\")")),
             FilterInfo {
                 name: "elide",
-                args: Some(vec![Value::Int32(100), Value::String("...")])
+                args: vec![Value::Int32(100), Value::String("...")]
             }
         );
 
@@ -411,7 +403,7 @@ mod tests {
             parse_filter(parse_pair(Rule::filter, "| join()")),
             FilterInfo {
                 name: "join",
-                args: None
+                args: vec![]
             }
         );
     }
