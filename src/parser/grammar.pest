@@ -57,5 +57,23 @@ double_quoted_string_bound = _{ "\"" }
 single_quote_string_contents = { (!(single_quoted_string_bound) ~ ANY)* }
 single_quoted_string_bound = _{ "'" }
 
+/// OPERATORS
+op_or        = @{ "||" ~ ws }
+op_and       = @{ "&&" ~ ws }
+op_not       = @{ "!" ~ ws }
+op_lte       = { "<=" }
+op_gte       = { ">=" }
+op_lt        = { "<" }
+op_gt        = { ">" }
+op_eq        = { "==" }
+op_ineq      = { "!=" }
+op_plus      = { "+" }
+op_minus     = { "-" }
+op_times     = { "*" }
+op_slash     = { "/" }
+op_modulo    = { "%" }
+
+boolean = { "true" | "false"}
+
 ws = _{ (" " | "\t" | "\r" | "\n")* }
 

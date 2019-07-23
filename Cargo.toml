@@ -16,5 +16,6 @@ failure = "0.1.5"
 read_input = "0.8"
 serde = "1.0.90"
 serde_derive = "1.0.90"
+tempfile = "3.1.0"
 tera = { git = "https://github.com/jimmiebfulton/tera", branch = "v1" }
 toml = "0.5"

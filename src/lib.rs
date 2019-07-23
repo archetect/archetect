@@ -5,13 +5,15 @@ extern crate pest_derive;
 #[macro_use]
 extern crate serde_derive;
 use std::collections::HashMap;
+use std::env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::str::FromStr;
+use std::process::Command;
+use std::str::{self, FromStr};
 
 use read_input::prelude::*;
 use tera::{Context, Tera};
@@ -38,14 +40,45 @@ pub struct DirectoryArchetype {
 
 impl DirectoryArchetype {
     pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, Error> {
-        let directory = directory.into();
         let tera = Tera::default();
-        let config = ArchetypeConfig::load(&directory)?;
-        Ok(DirectoryArchetype {
-            tera,
-            config,
-            directory,
-        })
+
+        let directory = directory.into();
+        if !directory.exists() {
+
+            if directory.starts_with("http") || directory.starts_with("git") {
+                // Use tempdir, instead
+                let mut tmp = env::temp_dir();
+                tmp.push("archetect");
+                if tmp.exists() {
+                    fs::remove_dir_all(&tmp)?;
+                }
+                fs::create_dir_all(&tmp).unwrap();
+
+                Command::new("git")
+                    .args(&[
+                        "clone",
+                        directory.to_str().unwrap(),
+                        &format!("{}", tmp.display()),
+                    ])
+                    .output().unwrap();
+
+                let config = ArchetypeConfig::load(&tmp)?;
+                Ok(DirectoryArchetype {
+                    tera,
+                    config,
+                    directory: tmp,
+                })
+            } else {
+                return Err(ArchetypeError::ArchetypeInvalid.into());
+            }
+        } else {
+            let config = ArchetypeConfig::load(&directory)?;
+            Ok(DirectoryArchetype {
+                tera,
+                config,
+                directory,
+            })
+        }
     }
 
     fn generate_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
@@ -103,7 +136,7 @@ impl Archetype for DirectoryArchetype {
         fs::create_dir_all(&destination).unwrap();
         self.generate_internal(
             context,
-            self.directory.clone().join("contents"),
+            self.directory.clone().join("archetype"),
             destination,
         )
         .unwrap();
@@ -149,12 +182,6 @@ pub enum ArchetypeError {
     #[fail(display = "Error saving Archetype Config file")]
     ArchetypeSaveFailed,
 }
-
-//impl From<tera::Error> for ArchetypeError {
-//    fn from(e: tera::Error) -> Self {
-//        SyncFailure::new(e)
-//    }
-//}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
