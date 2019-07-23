@@ -21,6 +21,7 @@ use tera::{Context, Tera};
 use failure::{Error, Fail};
 
 pub mod parser;
+pub mod filters;
 
 pub trait Archetype {
     fn generate<D: Into<PathBuf>>(
@@ -40,12 +41,20 @@ pub struct DirectoryArchetype {
 
 impl DirectoryArchetype {
     pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, Error> {
-        let tera = Tera::default();
+        let mut tera = Tera::default();
+        tera.register_filter("pascal_case", filters::pascal_case);
+        tera.register_filter("camel_case", filters::camel_case);
+        tera.register_filter("title_case", filters::title_case);
+        tera.register_filter("train_case", filters::train_case);
+        tera.register_filter("snake_case", filters::snake_case);
+        tera.register_filter("constant_case", filters::constant_case);
+        tera.register_filter("package_to_directory", filters::package_to_directory);
+        tera.register_filter("directory_to_package", filters::directory_to_package);
 
         let directory = directory.into();
         if !directory.exists() {
-
-            if directory.starts_with("http") || directory.starts_with("git") {
+            let dir_name = directory.to_str().unwrap();
+            if dir_name.starts_with("http") || dir_name.starts_with("git") {
                 // Use tempdir, instead
                 let mut tmp = env::temp_dir();
                 tmp.push("archetect");
