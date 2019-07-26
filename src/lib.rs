@@ -4,8 +4,16 @@ extern crate failure;
 extern crate pest_derive;
 #[macro_use]
 extern crate serde_derive;
+#[cfg_attr(test, macro_use)]
+extern crate serde_json;
+#[macro_use]
+extern crate lazy_static;
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
+
 use log::{debug, info};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -17,12 +25,12 @@ use std::process::Command;
 use std::str::{self, FromStr};
 
 use read_input::prelude::*;
-use tera::{Context, Tera};
+use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
 
 pub mod parser;
-pub mod filters;
+pub mod template_engine;
 
 pub trait Archetype {
     fn generate<D: Into<PathBuf>>(
@@ -45,16 +53,7 @@ pub struct DirectoryArchetype {
 
 impl DirectoryArchetype {
     pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, Error> {
-        let mut tera = Tera::default();
-        tera.register_filter("pascal_case", filters::pascal_case);
-        tera.register_filter("camel_case", filters::camel_case);
-        tera.register_filter("title_case", filters::title_case);
-        tera.register_filter("train_case", filters::train_case);
-        tera.register_filter("snake_case", filters::snake_case);
-        tera.register_filter("constant_case", filters::constant_case);
-        tera.register_filter("package_to_directory", filters::package_to_directory);
-        tera.register_filter("directory_to_package", filters::directory_to_package);
-
+        let tera = Tera::default();
         let directory = directory.into();
         if !directory.exists() {
             let dir_name = directory.to_str().unwrap();
