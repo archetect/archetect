@@ -10,11 +10,15 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 fn main() {
-    let matches = App::new("Archetypal")
+    let matches = App::new(&crate_name!()[..])
         .version(&crate_version!()[..])
         .author("Jimmie Fulton <jimmie.fulton@gmail.com")
         .about("Generates Projects and Files from Archetype Template Directories")
         .setting(AppSettings::SubcommandRequiredElseHelp)
+        .arg(Arg::with_name("v")
+            .short("v")
+            .multiple(true)
+            .help("Sets the level of verbosity"))
         .subcommand(
             SubCommand::with_name("init")
                 .about("Creates a minimal template")
@@ -37,6 +41,8 @@ fn main() {
                 ),
         )
         .get_matches();
+
+    loggerv::init_with_verbosity(matches.occurrences_of("v")).unwrap();
 
     if let Some(matches) = matches.subcommand_matches("create") {
         let from = PathBuf::from_str(matches.value_of("from").unwrap()).unwrap();
