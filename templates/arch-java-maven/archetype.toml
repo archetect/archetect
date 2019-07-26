@@ -1,0 +1,11 @@
+[[variables]]
+prompt = 'Application Name: '
+name = 'name'
+
+[[variables]]
+prompt = 'Author name: '
+name = 'author'
+
+[[variables]]
+prompt = 'Root package: '
+name = 'root_package'
