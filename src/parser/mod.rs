@@ -427,6 +427,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_context_scope() {
         let mut parent = Context::default();
         parent.insert("message", "Hello");

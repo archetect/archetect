@@ -392,6 +392,7 @@ impl AnswerEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_archetype_config_to_string() {
@@ -401,30 +402,32 @@ mod tests {
 
         let output = config.to_string();
 
-        let expected = r#"[[variables]]
-prompt = 'Application Name'
-name = 'name'
+        let expected = indoc!(r#"
+            [[variables]]
+            prompt = 'Application Name'
+            name = 'name'
 
-[[variables]]
-prompt = 'Author'
-name = 'author'
-default = 'Jimmie'
-"#;
+            [[variables]]
+            prompt = 'Author'
+            name = 'author'
+            default = 'Jimmie'
+        "#);
         assert_eq!(output, expected);
         println!("{}", output);
     }
 
     #[test]
     fn test_archetype_config_from_string() {
-        let expected = r#"[[variables]]
-prompt = "Application Name"
-name = "name"
+        let expected = indoc!(r#"
+            [[variables]]
+            prompt = "Application Name"
+            name = "name"
 
-[[variables]]
-prompt = "Author"
-name = "author"
-default = "Jimmie"
-"#;
+            [[variables]]
+            prompt = "Author"
+            name = "author"
+            default = "Jimmie"
+            "#);
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config
             .variables()
