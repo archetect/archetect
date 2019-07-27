@@ -4,7 +4,8 @@ extern crate failure;
 extern crate pest_derive;
 #[macro_use]
 extern crate serde_derive;
-use std::collections::HashMap;
+use log::{debug, info};
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -31,6 +32,9 @@ pub trait Archetype {
     ) -> Result<(), ArchetypeError>;
 
     fn get_context(&self, answers: &AnswerConfig) -> Result<Context, ArchetypeError>;
+
+    // TODO: Add ability to extract variables used throughout an Archetype
+//    fn get_variables(&self) -> Result<HashSet<String>, ArchetypeError>;
 }
 
 pub struct DirectoryArchetype {
@@ -61,6 +65,7 @@ impl DirectoryArchetype {
                 if tmp.exists() {
                     fs::remove_dir_all(&tmp)?;
                 }
+                debug!("Cloning {} to {}", directory.to_str().unwrap(), tmp.to_str().unwrap());
                 fs::create_dir_all(&tmp).unwrap();
 
                 Command::new("git")
@@ -113,7 +118,7 @@ impl DirectoryArchetype {
                     .unwrap();
                 let mut destination = destination.clone();
                 destination.push(name);
-                println!("Generating {:?}", &destination);
+                info!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
                 self.generate_internal(context.clone(), path, destination)
                     .unwrap();
@@ -125,7 +130,7 @@ impl DirectoryArchetype {
                 let template = fs::read_to_string(&path)?;
                 let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
                 let destination = destination.clone().join(name);
-                println!("Generating {:?}", &destination);
+                info!("Generating {:?}", &destination);
                 let mut output = File::create(&destination)?;
                 output.write(file_contents.as_bytes()).unwrap();
             }
