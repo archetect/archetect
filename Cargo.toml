@@ -3,6 +3,7 @@ name = "archetect"
 version = "0.1.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 [[bin]]
 name = "archetect"
@@ -13,6 +14,7 @@ clap = "2.33"
 directories = "2.0.1"
 error-chain = "0.12"
 heck = "0.3.1"
+indoc = "0.3"
 log = "0.4"
 loggerv = "0.7"
 pest = "2"
@@ -23,7 +25,7 @@ read_input = "0.8"
 serde = "1.0.90"
 serde_derive = "1.0.90"
 serde_json = "1.0.40"
-tempfile = "3.1.0"
+tempfile = "3"
 toml = "0.5"
 
 globwalk = "0.7"
@@ -45,9 +47,7 @@ chrono = "0.4"
 unic-segment = "0.9"
 
 [dev-dependencies]
-serde_derive = "1.0"
 pretty_assertions = "0.6"
-tempfile = "3"
 
 [features]
 default = []
