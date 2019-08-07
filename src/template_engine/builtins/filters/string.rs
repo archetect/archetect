@@ -1,7 +1,7 @@
 /// Filters operating on string
 use std::collections::HashMap;
 
-use heck::{CamelCase, MixedCase, TitleCase, SnakeCase, ShoutySnakeCase, KebabCase};
+use crate::heck::{DirectoryCase, PackageCase, PascalCase, CamelCase, TitleCase, SnakeCase, ConstantCase, TrainCase};
 
 use regex::{Captures, Regex};
 use serde_json::value::{to_value, Value};
@@ -20,12 +20,12 @@ lazy_static! {
 
 pub fn pascal_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("pascal_case", "value", String, value);
-    Ok(to_value(&s.to_camel_case()).unwrap())
+    Ok(to_value(&s.to_pascal_case()).unwrap())
 }
 
 pub fn camel_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("camel_case", "value", String, value);
-    Ok(to_value(&s.to_mixed_case()).unwrap())
+    Ok(to_value(&s.to_camel_case()).unwrap())
 }
 
 pub fn title_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
@@ -35,7 +35,7 @@ pub fn title_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
 
 pub fn train_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("train_case", "value", String, value);
-    Ok(to_value(&s.to_kebab_case()).unwrap())
+    Ok(to_value(&s.to_train_case()).unwrap())
 }
 
 pub fn snake_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
@@ -45,7 +45,17 @@ pub fn snake_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
 
 pub fn constant_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("constant_case", "value", String, value);
-    Ok(to_value(&s.to_shouty_snake_case()).unwrap())
+    Ok(to_value(&s.to_constant_case()).unwrap())
+}
+
+pub fn package_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let s = try_get_value!("package_case", "value", String, value);
+    Ok(to_value(&s.to_package_case()).unwrap())
+}
+
+pub fn directory_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let s = try_get_value!("directory_case", "value", String, value);
+    Ok(to_value(&s.to_directory_case()).unwrap())
 }
 
 pub fn package_to_directory(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
