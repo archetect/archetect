@@ -56,7 +56,7 @@ fn main() {
         let archetype = DirectoryArchetype::new(from).unwrap();
         let answer_config =
             AnswerConfig::load(destination.clone()).unwrap_or_else(|_| AnswerConfig::default());
-        println!("{}", answer_config);
+//        println!("{}", answer_config);
         let context = archetype.get_context(&answer_config).unwrap();
         archetype.generate(destination, context).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("archetype") {

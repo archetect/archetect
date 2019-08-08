@@ -29,6 +29,7 @@ use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
 
+pub mod heck;
 pub mod parser;
 pub mod template_engine;
 
