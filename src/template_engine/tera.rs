@@ -560,6 +560,7 @@ impl Tera {
     fn register_tera_filters(&mut self) {
         self.register_filter("pascal_case", string::pascal_case);
         self.register_filter("package_case", string::package_case);
+        self.register_filter("directory_case", string::directory_case);
         self.register_filter("camel_case", string::camel_case);
         self.register_filter("title_case", string::title_case);
         self.register_filter("train_case", string::train_case);
