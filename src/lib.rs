@@ -13,7 +13,6 @@ extern crate lazy_static;
 extern crate pretty_assertions;
 
 use log::{debug, info};
-use std::collections::{HashMap};
 use std::env;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -28,7 +27,11 @@ use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
+use crate::config::{AnswerConfig, Answer};
+use std::collections::HashMap;
 
+
+pub mod config;
 pub mod heck;
 pub mod parser;
 pub mod template_engine;
@@ -40,7 +43,7 @@ pub trait Archetype {
         context: Context,
     ) -> Result<(), ArchetypeError>;
 
-    fn get_context(&self, answers: &AnswerConfig) -> Result<Context, ArchetypeError>;
+    fn get_context(&self, answers: &HashMap<String, Answer>) -> Result<Context, ArchetypeError>;
 
     // TODO: Add ability to extract variables used throughout an Archetype
 //    fn get_variables(&self) -> Result<HashSet<String>, ArchetypeError>;
@@ -157,12 +160,12 @@ impl Archetype for DirectoryArchetype {
         Ok(())
     }
 
-    fn get_context(&self, answer_config: &AnswerConfig) -> Result<Context, ArchetypeError> {
+    fn get_context(&self, answers: &HashMap<String, Answer>) -> Result<Context, ArchetypeError> {
         let mut context = Context::new();
 
         for var_config in self.config.variables() {
-            if let Some(value) = answer_config.answers.get(&var_config.name) {
-                context.insert(var_config.name(), value);
+            if let Some(answer) = answers.get(var_config.name()) {
+                context.insert(answer.identifier(), answer.value());
             } else {
                 let prompt = if let Some(default) = var_config.default.clone() {
                     format!("{} [{}] ", var_config.prompt, default)
@@ -311,84 +314,6 @@ impl VariableEntry {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AnswerConfig {
-    answers: HashMap<String, String>,
-}
-
-impl AnswerConfig {
-    pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, ArchetypeError> {
-        let path = path.into();
-        if path.is_dir() {
-            let dot_answers = path.clone().join(".answers.toml");
-            if dot_answers.exists() {
-                let config = fs::read_to_string(dot_answers).unwrap();
-                let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
-                return Ok(config);
-            }
-
-            let answers = path.clone().join("answers.toml");
-            if answers.exists() {
-                let config = fs::read_to_string(answers).unwrap();
-                let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
-                return Ok(config);
-            }
-        } else {
-            let config = fs::read_to_string(path).unwrap();
-            let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
-            return Ok(config);
-        }
-
-        Err(ArchetypeError::InvalidAnswersConfig)
-    }
-
-    pub fn add_answer<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-        self.answers.insert(key.into(), value.into());
-    }
-
-    pub fn answers(&self) -> &HashMap<String, String> {
-        &self.answers
-    }
-}
-
-impl Default for AnswerConfig {
-    fn default() -> Self {
-        AnswerConfig {
-            answers: HashMap::new(),
-        }
-    }
-}
-impl FromStr for AnswerConfig {
-    type Err = ArchetypeError;
-
-    fn from_str(config: &str) -> Result<Self, Self::Err> {
-        toml::de::from_str::<AnswerConfig>(config).map_err(|_| ArchetypeError::ArchetypeInvalid)
-    }
-}
-
-impl Display for AnswerConfig {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match toml::ser::to_string_pretty(self) {
-            Ok(config) => write!(f, "{}", config),
-            Err(_) => Err(fmt::Error),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AnswerEntry {
-    variable: String,
-    answer: String,
-}
-
-impl AnswerEntry {
-    pub fn new<V: Into<String>, A: Into<String>>(variable: V, answer: A) -> AnswerEntry {
-        AnswerEntry {
-            variable: variable.into(),
-            answer: answer.into(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

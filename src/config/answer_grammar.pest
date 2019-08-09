@@ -1,0 +1,42 @@
+//
+// Created by intellij-pest on 2019-08-09
+// answer_grammar
+// Author: jfulton
+//
+
+answer_grammar = {
+    SOI ~
+    answer ~
+    EOI
+}
+
+answer = {
+    ws~ identifier ~ ws ~ "=" ~ ws ~ string
+}
+
+identifier = { identifier_leader ~ (identifier_follower)* }
+identifier_leader = _{ ASCII_ALPHA }
+identifier_follower = _{ ASCII_ALPHA | ASCII_DIGIT | "_" }
+
+double_quoted_string  = _{ double_quote ~ double_quoted_string_contents ~ double_quote}
+single_quoted_string  = _{ single_quote ~ single_quoted_string_contents ~ single_quote}
+non_quoted_string = { ANY* }
+
+double_quoted_string_contents = { (!(double_quote) ~ ANY)* }
+single_quoted_string_contents = { (!(single_quote) ~ ANY)* }
+
+double_quote = _{ "\""}
+single_quote = _{ "'"}
+
+string = {
+    double_quoted_string
+    |
+    single_quoted_string
+    |
+    non_quoted_string
+}
+
+
+
+
+ws = _{ (" " | "\t" | "\r" | "\n")* }
