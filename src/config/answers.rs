@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::ArchetypeError;
 use std::{fs, fmt};
@@ -11,40 +10,75 @@ use pest::Parser;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnswerConfig {
-    pub(crate) answers: HashMap<String, String>,
+    answers: Vec<Answer>,
+}
+
+#[derive(Debug, Fail, PartialEq)]
+pub enum AnswerConfigError {
+    #[fail(display = "Answer config parsing error")]
+    ParseError(toml::de::Error),
+    #[fail(display = "Answer config missing error")]
+    MissingError,
+}
+
+impl From<toml::de::Error> for AnswerConfigError {
+    fn from(error: toml::de::Error) -> Self {
+        AnswerConfigError::ParseError(error)
+    }
+}
+
+impl From<std::io::Error> for AnswerConfigError {
+    fn from(_: std::io::Error) -> Self {
+        // TODO: Distinguish between missing and other errors
+        AnswerConfigError::MissingError
+    }
 }
 
 impl AnswerConfig {
-    pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, ArchetypeError> {
+    pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
         let path = path.into();
         if path.is_dir() {
             let dot_answers = path.clone().join(".answers.toml");
             if dot_answers.exists() {
-                let config = fs::read_to_string(dot_answers).unwrap();
-                let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
+                let config = fs::read_to_string(dot_answers)?;
+                let config = toml::de::from_str::<AnswerConfig>(&config)?;
                 return Ok(config);
             }
 
             let answers = path.clone().join("answers.toml");
             if answers.exists() {
-                let config = fs::read_to_string(answers).unwrap();
-                let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
+                let config = fs::read_to_string(answers)?;
+                let config = toml::de::from_str::<AnswerConfig>(&config)?;
                 return Ok(config);
             }
         } else {
-            let config = fs::read_to_string(path).unwrap();
-            let config = toml::de::from_str::<AnswerConfig>(&config).unwrap();
+            let config = fs::read_to_string(path)?;
+            let config = toml::de::from_str::<AnswerConfig>(&config)?;
             return Ok(config);
         }
 
-        Err(ArchetypeError::InvalidAnswersConfig)
+        Err(AnswerConfigError::MissingError)
     }
 
-    pub fn add_answer<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-        self.answers.insert(key.into(), value.into());
+    pub fn add_answer_pair<I: Into<String>, V: Into<String>>(&mut self, identifier: I, value: V) {
+        self.answers.push(Answer::new(identifier, value));
     }
 
-    pub fn answers(&self) -> &HashMap<String, String> {
+    pub fn add_answer(&mut self, answer: Answer) {
+        self.answers.push(answer);
+    }
+
+    pub fn with_answer_pair<I: Into<String>, V: Into<String>>(mut self, identifier: I, value: V) -> AnswerConfig {
+        self.answers.push(Answer::new(identifier, value));
+        self
+    }
+
+    pub fn with_answer(mut self, answer: Answer) -> AnswerConfig {
+        self.answers.push(answer);
+        self
+    }
+
+    pub fn answers(&self) -> &Vec<Answer> {
         &self.answers
     }
 }
@@ -52,7 +86,7 @@ impl AnswerConfig {
 impl Default for AnswerConfig {
     fn default() -> Self {
         AnswerConfig {
-            answers: HashMap::new(),
+            answers: Vec::new()
         }
     }
 }
@@ -74,20 +108,6 @@ impl Display for AnswerConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AnswerEntry {
-    variable: String,
-    answer: String,
-}
-
-impl AnswerEntry {
-    pub fn new<V: Into<String>, A: Into<String>>(variable: V, answer: A) -> AnswerEntry {
-        AnswerEntry {
-            variable: variable.into(),
-            answer: answer.into(),
-        }
-    }
-}
 
 #[derive(Parser)]
 #[grammar = "config/answer_grammar.pest"]
@@ -115,7 +135,7 @@ fn parse_answer(pair: Pair<Rule>) -> Answer {
     let mut iter = pair.into_inner();
     let identifier_pair = iter.next().unwrap();
     let value_pair = iter.next().unwrap();
-    Answer { identifier: parse_identifier(identifier_pair), value: parse_value(value_pair) }
+    Answer::new(parse_identifier(identifier_pair), parse_value(value_pair))
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
@@ -128,15 +148,16 @@ fn parse_value(pair: Pair<Rule>) -> String {
     pair.into_inner().next().unwrap().as_str().to_owned()
 }
 
-#[derive(PartialOrd, PartialEq, Debug)]
+#[derive(PartialOrd, PartialEq, Debug, Deserialize, Serialize, Clone)]
 pub struct Answer {
     identifier: String,
     value: String,
+    prompt: Option<bool>,
 }
 
 impl Answer {
     pub fn new<I: Into<String>, V: Into<String>>(identifier: I, value: V) -> Answer {
-        Answer { identifier: identifier.into(), value: value.into() }
+        Answer { identifier: identifier.into(), value: value.into(), prompt: None }
     }
 
     pub fn parse(input: &str) -> Result<Answer, AnswerParseError> {
@@ -150,6 +171,19 @@ impl Answer {
     pub fn value(&self) -> &str {
         &self.value
     }
+
+    pub fn prompt(&self) -> Option<bool> {
+        self.prompt
+    }
+
+    pub fn with_prompt(mut self, prompt: bool) -> Answer {
+        self.prompt = Some(prompt);
+        self
+    }
+
+    pub fn set_prompt(&mut self, prompt: Option<bool>) {
+        self.prompt = prompt;
+    }
 }
 
 #[cfg(test)]
@@ -160,7 +194,7 @@ mod tests {
     fn test_parse_success() {
         assert_eq!(
             parse("key=value"),
-            Ok(Answer { identifier: "key".to_string(), value: "value".to_string() })
+            Ok(Answer::new("key", "value"))
         );
 
         assert_eq!(
@@ -170,52 +204,52 @@ mod tests {
 
         assert_eq!(
             parse("key = value set"),
-            Ok(Answer { identifier: "key".to_string(), value: "value set".to_string() })
+            Ok(Answer::new("key", "value set"))
         );
 
         assert_eq!(
             parse("key='value'"),
-            Ok(Answer { identifier: "key".to_string(), value: "value".to_string() })
+            Ok(Answer::new("key", "value"))
         );
 
         assert_eq!(
             parse("key='value set'"),
-            Ok(Answer { identifier: "key".to_string(), value: "value set".to_string() })
+            Ok(Answer::new("key", "value set"))
         );
 
         assert_eq!(
             parse("key = 'value'"),
-            Ok(Answer { identifier: "key".to_string(), value: "value".to_string() })
+            Ok(Answer::new("key", "value"))
         );
 
         assert_eq!(
             parse("key=\"value\""),
-            Ok(Answer { identifier: "key".to_string(), value: "value".to_string() })
+            Ok(Answer::new("key", "value"))
         );
 
         assert_eq!(
             parse("key=\"value set\""),
-            Ok(Answer { identifier: "key".to_string(), value: "value set".to_string() })
+            Ok(Answer::new("key", "value set"))
         );
 
         assert_eq!(
             parse("key = \"value\""),
-            Ok(Answer { identifier: "key".to_string(), value: "value".to_string() })
+            Ok(Answer::new("key", "value"))
         );
 
         assert_eq!(
             parse("key ="),
-            Ok(Answer { identifier: "key".to_string(), value: "".to_string() })
+            Ok(Answer::new("key", ""))
         );
 
         assert_eq!(
             parse("key =''"),
-            Ok(Answer { identifier: "key".to_string(), value: "".to_string() })
+            Ok(Answer::new("key", ""))
         );
 
         assert_eq!(
             parse(" key =\"\""),
-            Ok(Answer { identifier: "key".to_string(), value: "".to_string() })
+            Ok(Answer::new("key", ""))
         );
     }
 
@@ -231,17 +265,17 @@ mod tests {
     fn test_parse_answer() {
         assert_eq!(
             parse_answer(AnswerParser::parse(Rule::answer, "key=value").unwrap().next().unwrap()),
-            Answer { identifier: "key".to_string(), value: "value".to_string() }
+            Answer::new("key", "value")
         );
 
         assert_eq!(
             parse_answer(AnswerParser::parse(Rule::answer, "key='value'").unwrap().next().unwrap()),
-            Answer { identifier: "key".to_string(), value: "value".to_string() }
+            Answer::new("key", "value")
         );
 
         assert_eq!(
             parse_answer(AnswerParser::parse(Rule::answer, "key=\"value\"").unwrap().next().unwrap()),
-            Answer { identifier: "key".to_string(), value: "value".to_string() }
+            Answer ::new("key", "value")
         );
     }
 
@@ -269,5 +303,14 @@ mod tests {
             parse_value(AnswerParser::parse(Rule::string, "'value'").unwrap().next().unwrap()),
             "value"
         );
+    }
+
+    #[test]
+    fn test_serialize_answer_config() {
+        let config = AnswerConfig::default()
+            .with_answer_pair("name", "Order Service")
+            .with_answer(Answer::new("author", "Jane Doe").with_prompt(true));
+
+        print!("{}", toml::ser::to_string_pretty(&config).unwrap());
     }
 }

@@ -2,7 +2,7 @@
 extern crate clap;
 
 use archetect::{self, Archetype, ArchetypeConfig, DirectoryArchetype};
-use archetect::config::{AnswerConfig, Answer};
+use archetect::config::{AnswerConfig, Answer, AnswerConfigError};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
 use std::fs;
@@ -22,21 +22,42 @@ fn main() {
             .short("v")
             .multiple(true)
             .help("Sets the level of verbosity"))
-        .arg(Arg::with_name("answers")
+        .arg(Arg::with_name("answer")
             .short("a")
             .long("answer")
             .takes_value(true)
             .multiple(true)
-            .help("Supply a key=value pair as an answer to a variable question.")
-            .long_help(format!("Supply a key=value pair as an answer to a variable question.\n{}", VALID_ANSWER_INPUTS).as_str())
-            .empty_values(false)
             .global(true)
+            .empty_values(false)
+            .value_name("key=value")
+            .help("Supply a key=value pair as an answer to a variable question.")
+            .long_help(format!("Supply a key=value pair as an answer to a variable question.\
+                This option may be specified more than once.\n{}", VALID_ANSWER_INPUTS).as_str())
             .validator(|s| {
                 match Answer::parse(&s) {
                     Ok(_) => Ok(()),
                     _ => Err(format!(
                         "'{}' is not a valid answer. \n{}", s, VALID_ANSWER_INPUTS)
                     )
+                }
+            })
+        )
+        .arg(Arg::with_name("answer_file")
+            .short("f")
+            .long("answer-file")
+            .takes_value(true)
+            .multiple(true)
+            .global(true)
+            .empty_values(false)
+            .value_name("path")
+            .help("Supply an answers file to variable questions.")
+            .long_help("Supply an answers file as answers to variable questions. This option may \
+                be specified more than once.")
+            .validator(|af| {
+                match AnswerConfig::load(&af) {
+                    Ok(_) => Ok(()),
+                    Err(AnswerConfigError::ParseError(_)) => Err(format!("{} has an invalid answer file format", &af)),
+                    Err(AnswerConfigError::MissingError) => Err(format!("{} does not exist or does not contain an answer file", &af)),
                 }
             })
         )
@@ -71,7 +92,17 @@ fn main() {
     loggerv::init_with_verbosity(matches.occurrences_of("v")).unwrap();
 
     let mut answers = HashMap::new();
-    if let Some(matches) = matches.values_of("answers") {
+
+    if let Some(matches) = matches.values_of("answer_file") {
+        for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
+            for answer in f.answers() {
+                let answer = answer.clone();
+                answers.insert(answer.identifier().to_string(), answer);
+            }
+        }
+    }
+
+    if let Some(matches) = matches.values_of("answer") {
         for a in matches.map(|m| Answer::parse(m).unwrap()) {
             answers.insert(a.identifier().to_string(), a);
         }
@@ -81,9 +112,16 @@ fn main() {
         let from = PathBuf::from_str(matches.value_of("from").unwrap()).unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
         let archetype = DirectoryArchetype::new(from).unwrap();
-        let answer_config =
-            AnswerConfig::load(destination.clone()).unwrap_or_else(|_| AnswerConfig::default());
-//        println!("{}", answer_config);
+
+        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+            for answer in answer_config.answers() {
+                if !answers.contains_key(answer.identifier()) {
+                    let answer = answer.clone();
+                    answers.insert(answer.identifier().to_owned(), answer);
+                }
+            }
+        }
+
         let context = archetype.get_context(&answers).unwrap();
         archetype.generate(destination, context).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("archetype") {

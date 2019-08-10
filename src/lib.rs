@@ -27,7 +27,7 @@ use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
-use crate::config::{AnswerConfig, Answer};
+use crate::config::{Answer};
 use std::collections::HashMap;
 
 
@@ -379,9 +379,9 @@ mod tests {
 
     #[test]
     fn test_answer_config_to_string() {
-        let mut config = AnswerConfig::default();
-        config.add_answer("fname", "Jimmie");
-        config.add_answer("lname", "Fulton");
+        let mut config = crate::config::AnswerConfig::default();
+        config.add_answer_pair("fname", "Jimmie");
+        config.add_answer_pair("lname", "Fulton");
 
         println!("{}", config);
     }
