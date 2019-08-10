@@ -1,7 +1,8 @@
 #[macro_use]
 extern crate clap;
 
-use archetect::{self, AnswerConfig, Archetype, ArchetypeConfig, DirectoryArchetype};
+use archetect::{self, Archetype, ArchetypeConfig, DirectoryArchetype};
+use archetect::config::{AnswerConfig, Answer};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
 use std::fs;
@@ -9,17 +10,36 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::collections::HashMap;
 
 fn main() {
     let matches = App::new(&crate_name!()[..])
         .version(&crate_version!()[..])
         .author("Jimmie Fulton <jimmie.fulton@gmail.com")
-        .about("Generates Projects and Files from Archetype Template Directories")
+        .about("Generates Projects and Files from Archetype Template Directories and Git Repositories")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(Arg::with_name("v")
             .short("v")
             .multiple(true)
             .help("Sets the level of verbosity"))
+        .arg(Arg::with_name("answers")
+            .short("a")
+            .long("answer")
+            .takes_value(true)
+            .multiple(true)
+            .help("Supply a key=value pair as an answer to a variable question.")
+            .long_help(format!("Supply a key=value pair as an answer to a variable question.\n{}", VALID_ANSWER_INPUTS).as_str())
+            .empty_values(false)
+            .global(true)
+            .validator(|s| {
+                match Answer::parse(&s) {
+                    Ok(_) => Ok(()),
+                    _ => Err(format!(
+                        "'{}' is not a valid answer. \n{}", s, VALID_ANSWER_INPUTS)
+                    )
+                }
+            })
+        )
         .subcommand(
             SubCommand::with_name("archetype")
                 .about("Archetype Authoring Tools")
@@ -50,6 +70,13 @@ fn main() {
 
     loggerv::init_with_verbosity(matches.occurrences_of("v")).unwrap();
 
+    let mut answers = HashMap::new();
+    if let Some(matches) = matches.values_of("answers") {
+        for a in matches.map(|m| Answer::parse(m).unwrap()) {
+            answers.insert(a.identifier().to_string(), a);
+        }
+    }
+
     if let Some(matches) = matches.subcommand_matches("create") {
         let from = PathBuf::from_str(matches.value_of("from").unwrap()).unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
@@ -57,7 +84,7 @@ fn main() {
         let answer_config =
             AnswerConfig::load(destination.clone()).unwrap_or_else(|_| AnswerConfig::default());
 //        println!("{}", answer_config);
-        let context = archetype.get_context(&answer_config).unwrap();
+        let context = archetype.get_context(&answers).unwrap();
         archetype.generate(destination, context).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
@@ -90,4 +117,18 @@ fn main() {
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
         }
     }
+
+    const VALID_ANSWER_INPUTS: &str = "\
+        \nValid Input Examples:\
+        \nkey=value\
+        \nkey='value'\
+        \nkey=\"value\"\
+        \n'key'=\"value\"\
+        \n\"key\"='value'\
+        \n\"key=value\"\
+        \n'key=value'\
+        \nkey=\"multiple values\"\
+        \n'key'='multiple values'\"\
+        \n\"key = 'multiple values'\"\
+    ";
 }
