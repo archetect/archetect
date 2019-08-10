@@ -31,7 +31,7 @@ fn main() {
             .empty_values(false)
             .value_name("key=value")
             .help("Supply a key=value pair as an answer to a variable question.")
-            .long_help(format!("Supply a key=value pair as an answer to a variable question.\
+            .long_help(format!("Supply a key=value pair as an answer to a variable question. \
                 This option may be specified more than once.\n{}", VALID_ANSWER_INPUTS).as_str())
             .validator(|s| {
                 match Answer::parse(&s) {
@@ -50,7 +50,7 @@ fn main() {
             .global(true)
             .empty_values(false)
             .value_name("path")
-            .help("Supply an answers file to variable questions.")
+            .help("Supply an answers file as answers to variable questions.")
             .long_help("Supply an answers file as answers to variable questions. This option may \
                 be specified more than once.")
             .validator(|af| {
@@ -157,7 +157,7 @@ fn main() {
     }
 
     const VALID_ANSWER_INPUTS: &str = "\
-        \nValid Input Examples:\
+        \nValid Input Examples:\n\
         \nkey=value\
         \nkey='value'\
         \nkey=\"value\"\
