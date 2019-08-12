@@ -11,7 +11,7 @@ answer_grammar = {
 }
 
 answer = {
-    ws~ identifier ~ ws ~ "=" ~ ws ~ string
+    ws ~ identifier ~ ws ~ "=" ~ ws ~ string
 }
 
 identifier = { identifier_leader ~ (identifier_follower)* }
