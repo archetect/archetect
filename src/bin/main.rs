@@ -16,12 +16,14 @@ fn main() {
     let matches = App::new(&crate_name!()[..])
         .version(&crate_version!()[..])
         .author("Jimmie Fulton <jimmie.fulton@gmail.com")
-        .about("Generates Projects and Files from Archetype Template Directories and Git Repositories")
+        .about("Generates Projects and Files from Archetype Template Directories and Git Repositories.")
         .setting(AppSettings::SubcommandRequiredElseHelp)
-        .arg(Arg::with_name("v")
+        .arg(Arg::with_name("verbosity")
             .short("v")
+            .long("verbose")
             .multiple(true)
-            .help("Sets the level of verbosity"))
+            .global(true)
+            .help("Increases the level of verbosity"))
         .arg(Arg::with_name("answer")
             .short("a")
             .long("answer")
@@ -37,13 +39,13 @@ fn main() {
                 match Answer::parse(&s) {
                     Ok(_) => Ok(()),
                     _ => Err(format!(
-                        "'{}' is not a valid answer. \n{}", s, VALID_ANSWER_INPUTS)
+                        "'{}' is not in a proper key=value answer format. \n{}", s, VALID_ANSWER_INPUTS)
                     )
                 }
             })
         )
-        .arg(Arg::with_name("answer_file")
-            .short("f")
+        .arg(Arg::with_name("answer-file")
+            .short("A")
             .long("answer-file")
             .takes_value(true)
             .multiple(true)
@@ -77,6 +79,41 @@ fn main() {
                 )
         )
         .subcommand(
+            SubCommand::with_name("catalog")
+                .about("Create/Manage/Select From a Catalog of Archetypes")
+                .subcommand(
+                    SubCommand::with_name("add")
+                        .arg(
+                            Arg::with_name("location")
+                                .short("l")
+                                .long("location")
+                                .takes_value(true)
+                                .help("Archetype location")
+                        )
+                        .arg(
+                            Arg::with_name("description")
+                                .short("d")
+                                .long("description")
+                                .takes_value(true)
+                                .help("Archetype Description")
+                        )
+                )
+                .subcommand(
+                    SubCommand::with_name("select")
+                        .arg(Arg::with_name("catalog-file")
+                            .short("c")
+                            .long("catalog-file")
+                        )
+                )
+        )
+        .subcommand(
+            SubCommand::with_name("cache")
+                .about("Manage/Select from Archetypes cached from Git Repositories")
+                .subcommand(SubCommand::with_name("select"))
+                .subcommand(SubCommand::with_name("clear"))
+                .subcommand(SubCommand::with_name("pull"))
+        )
+        .subcommand(
             SubCommand::with_name("create")
                 .about("Creates content from an Archetype")
                 .arg(Arg::with_name("from").takes_value(true).required(true))
@@ -89,11 +126,11 @@ fn main() {
         )
         .get_matches();
 
-    loggerv::init_with_verbosity(matches.occurrences_of("v")).unwrap();
+    loggerv::init_with_verbosity(matches.occurrences_of("verbosity")).unwrap();
 
     let mut answers = HashMap::new();
 
-    if let Some(matches) = matches.values_of("answer_file") {
+    if let Some(matches) = matches.values_of("answer-file") {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
             for answer in f.answers() {
                 let answer = answer.clone();
@@ -159,14 +196,11 @@ fn main() {
     const VALID_ANSWER_INPUTS: &str = "\
         \nValid Input Examples:\n\
         \nkey=value\
-        \nkey='value'\
-        \nkey=\"value\"\
-        \n'key'=\"value\"\
-        \n\"key\"='value'\
+        \nkey='multi-word value'\
+        \nkey=\"multi-word value\"\
         \n\"key=value\"\
         \n'key=value'\
-        \nkey=\"multiple values\"\
-        \n'key'='multiple values'\"\
-        \n\"key = 'multiple values'\"\
+        \n'key=\"multi-word value\"''\
+        \n\"key = 'multi-word value'\"\
     ";
 }
