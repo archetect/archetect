@@ -20,14 +20,14 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command};
 use std::str::{self, FromStr};
 
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
-use crate::config::{Answer};
+use crate::config::Answer;
 use std::collections::HashMap;
 
 
@@ -156,7 +156,7 @@ impl Archetype for DirectoryArchetype {
             self.directory.clone().join("archetype"),
             destination,
         )
-        .unwrap();
+            .unwrap();
         Ok(())
     }
 
@@ -202,6 +202,8 @@ pub enum ArchetypeError {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
+    description: Option<String>,
+    language: Option<String>,
     variables: Vec<VariableEntry>,
 }
 
@@ -247,11 +249,39 @@ impl ArchetypeConfig {
     pub fn variables(&self) -> &[VariableEntry] {
         &self.variables
     }
+
+    pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
+        self.description = Some(description.into());
+        self
+    }
+
+    pub fn with_language<L: Into<String>>(mut self, language: L) -> ArchetypeConfig {
+        self.language = Some(language.into());
+        self
+    }
+
+    pub fn with_variable<P: Into<String>, I: Into<String>>(mut self, prompt: P, identifier: I) -> ArchetypeConfig {
+        self.variables.push(VariableEntry::new(prompt, identifier));
+        self
+    }
+
+    pub fn with_variable_and_default<P: Into<String>, N: Into<String>, D: Into<String>>(
+        mut self,
+        prompt: P,
+        name: N,
+        default_value: D,
+    ) -> ArchetypeConfig {
+        self.variables
+            .push(VariableEntry::new(prompt, name).with_default(default_value));
+        self
+    }
 }
 
 impl Default for ArchetypeConfig {
     fn default() -> Self {
         ArchetypeConfig {
+            description: None,
+            language: None,
             variables: Vec::new(),
         }
     }
@@ -322,13 +352,18 @@ mod tests {
 
     #[test]
     fn test_archetype_config_to_string() {
-        let mut config = ArchetypeConfig::default();
-        config.add_variable("Application Name", "name");
-        config.add_variable_with_default("Author", "author", "Jimmie");
+        let config = ArchetypeConfig::default()
+            .with_description("Simple REST Service")
+            .with_language("Java")
+            .with_variable("Application Name", "name")
+            .with_variable_and_default("Author", "author", "Jimmie");
 
         let output = config.to_string();
 
         let expected = indoc!(r#"
+            description = 'Simple REST Service'
+            language = 'Java'
+
             [[variables]]
             prompt = 'Application Name'
             name = 'name'
