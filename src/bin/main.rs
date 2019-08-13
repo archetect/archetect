@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate clap;
 
-use archetect::{self, Archetype, ArchetypeConfig, DirectoryArchetype};
-use archetect::config::{AnswerConfig, Answer, AnswerConfigError};
+use archetect::{self, Archetype, DirectoryArchetype};
+use archetect::config::{AnswerConfig, Answer, AnswerConfigError, ArchetypeConfig, Variable};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
 use std::fs;
@@ -169,8 +169,8 @@ fn main() {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_variable("Application Name: ", "name");
-            config.add_variable("Author name: ", "author");
+            config.add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
+            config.add_variable(Variable::with_identifier("author").with_prompt("Author name: "));
 
             let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
             config_file
