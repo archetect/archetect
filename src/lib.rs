@@ -14,20 +14,18 @@ extern crate pretty_assertions;
 
 use log::{debug, info};
 use std::env;
-use std::fmt;
-use std::fmt::{Display, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command};
-use std::str::{self, FromStr};
+use std::process::Command;
 
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
 use failure::{Error, Fail};
 use crate::config::Answer;
+use crate::config::ArchetypeConfig;
 use std::collections::HashMap;
 
 
@@ -163,26 +161,41 @@ impl Archetype for DirectoryArchetype {
     fn get_context(&self, answers: &HashMap<String, Answer>) -> Result<Context, ArchetypeError> {
         let mut context = Context::new();
 
-        for var_config in self.config.variables() {
-            if let Some(answer) = answers.get(var_config.name()) {
-                context.insert(answer.identifier(), answer.value());
-            } else {
-                let prompt = if let Some(default) = var_config.default.clone() {
-                    format!("{} [{}] ", var_config.prompt, default)
+        for variable in self.config.variables() {
+            let default =
+                if let Some(answer) = answers.get(variable.identifier()) {
+                    if let Some(true) = answer.prompt() {
+                        Some(self.tera.render_string(answer.value(), context.clone()).unwrap())
+                    } else {
+                        context.insert(answer.identifier(), self.tera.render_string(answer.value(), context.clone()).unwrap().as_str());
+                        continue;
+                    }
+                } else if let Some(default) = variable.default().clone() {
+                    Some(self.tera.render_string(default, context.clone()).unwrap())
                 } else {
-                    format!("{}", var_config.prompt)
+                    None
+                };
+
+            if let Some(prompt) = variable.prompt() {
+                let prompt = if let Some(default) = default {
+                    format!("{} [{}] ", prompt, default)
+                } else {
+                    format!("{}", prompt)
                 };
                 let input_builder = input::<String>()
                     .msg(prompt)
                     .add_test(|value| value.len() > 0)
                     .err("Must be at least 1 character.  Please try again.");
-                let value = if let Some(default) = var_config.default.clone() {
-                    input_builder.default(default.clone()).get()
+                let value = if let Some(default) = variable.default().clone() {
+                    input_builder.default(default.clone().to_owned()).get()
                 } else {
                     input_builder.get()
                 };
-
-                context.insert(var_config.name(), &value);
+                context.insert(variable.identifier(), &value);
+            } else if let Some(default) = default {
+                context.insert(variable.identifier(), default.as_str());
+            } else {
+                return Err(ArchetypeError::ArchetypeInvalid);
             }
         }
 
@@ -200,224 +213,3 @@ pub enum ArchetypeError {
     ArchetypeSaveFailed,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ArchetypeConfig {
-    description: Option<String>,
-    language: Option<String>,
-    variables: Vec<VariableEntry>,
-}
-
-impl ArchetypeConfig {
-    pub fn load<P: Into<PathBuf>>(path: P) -> Result<ArchetypeConfig, ArchetypeError> {
-        let mut path = path.into();
-        if path.is_dir() {
-            path.push("archetype.toml");
-        }
-        if !path.exists() {
-            Err(ArchetypeError::ArchetypeInvalid)
-        } else {
-            let config = fs::read_to_string(&path).unwrap();
-            let config = toml::de::from_str::<ArchetypeConfig>(&config).unwrap();
-            Ok(config)
-        }
-    }
-
-    pub fn save<P: Into<PathBuf>>(&self, path: P) -> Result<(), ArchetypeError> {
-        let mut path = path.into();
-        if path.is_dir() {
-            path.push("archetype.toml");
-        }
-        fs::write(path, self.to_string().as_bytes()).unwrap();
-
-        Ok(())
-    }
-
-    pub fn add_variable<P: Into<String>, N: Into<String>>(&mut self, prompt: P, name: N) {
-        self.variables.push(VariableEntry::new(prompt, name));
-    }
-
-    pub fn add_variable_with_default<P: Into<String>, N: Into<String>, D: Into<String>>(
-        &mut self,
-        prompt: P,
-        name: N,
-        default_value: D,
-    ) {
-        self.variables
-            .push(VariableEntry::new(prompt, name).with_default(default_value));
-    }
-
-    pub fn variables(&self) -> &[VariableEntry] {
-        &self.variables
-    }
-
-    pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn with_language<L: Into<String>>(mut self, language: L) -> ArchetypeConfig {
-        self.language = Some(language.into());
-        self
-    }
-
-    pub fn with_variable<P: Into<String>, I: Into<String>>(mut self, prompt: P, identifier: I) -> ArchetypeConfig {
-        self.variables.push(VariableEntry::new(prompt, identifier));
-        self
-    }
-
-    pub fn with_variable_and_default<P: Into<String>, N: Into<String>, D: Into<String>>(
-        mut self,
-        prompt: P,
-        name: N,
-        default_value: D,
-    ) -> ArchetypeConfig {
-        self.variables
-            .push(VariableEntry::new(prompt, name).with_default(default_value));
-        self
-    }
-}
-
-impl Default for ArchetypeConfig {
-    fn default() -> Self {
-        ArchetypeConfig {
-            description: None,
-            language: None,
-            variables: Vec::new(),
-        }
-    }
-}
-
-impl Display for ArchetypeConfig {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match toml::ser::to_string_pretty(self) {
-            Ok(config) => write!(f, "{}", config),
-            Err(_) => Err(fmt::Error),
-        }
-    }
-}
-
-impl FromStr for ArchetypeConfig {
-    type Err = ArchetypeError;
-
-    fn from_str(config: &str) -> Result<Self, Self::Err> {
-        let result = toml::de::from_str::<ArchetypeConfig>(config);
-        println!("{:?}", result);
-
-        result.map_err(|_| ArchetypeError::ArchetypeInvalid)
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct VariableEntry {
-    prompt: String,
-    name: String,
-    default: Option<String>,
-}
-
-impl VariableEntry {
-    pub fn new<P: Into<String>, N: Into<String>>(prompt: P, name: N) -> VariableEntry {
-        VariableEntry {
-            prompt: prompt.into(),
-            name: name.into(),
-            default: None,
-        }
-    }
-
-    pub fn with_default<D: Into<String>>(mut self, value: D) -> VariableEntry {
-        self.default = Some(value.into());
-        self
-    }
-
-    pub fn prompt(&self) -> &str {
-        &self.prompt
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn default(&self) -> Option<&str> {
-        match &self.default {
-            Some(value) => Some(value.as_str()),
-            None => None,
-        }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use indoc::indoc;
-
-    #[test]
-    fn test_archetype_config_to_string() {
-        let config = ArchetypeConfig::default()
-            .with_description("Simple REST Service")
-            .with_language("Java")
-            .with_variable("Application Name", "name")
-            .with_variable_and_default("Author", "author", "Jimmie");
-
-        let output = config.to_string();
-
-        let expected = indoc!(r#"
-            description = 'Simple REST Service'
-            language = 'Java'
-
-            [[variables]]
-            prompt = 'Application Name'
-            name = 'name'
-
-            [[variables]]
-            prompt = 'Author'
-            name = 'author'
-            default = 'Jimmie'
-        "#);
-        assert_eq!(output, expected);
-        println!("{}", output);
-    }
-
-    #[test]
-    fn test_archetype_config_from_string() {
-        let expected = indoc!(r#"
-            [[variables]]
-            prompt = "Application Name"
-            name = "name"
-
-            [[variables]]
-            prompt = "Author"
-            name = "author"
-            default = "Jimmie"
-            "#);
-        let config = ArchetypeConfig::from_str(expected).unwrap();
-        assert!(config
-            .variables()
-            .contains(&VariableEntry::new("Author", "author").with_default("Jimmie")));
-    }
-
-    #[test]
-    fn test_archetype_load() {
-        let config = ArchetypeConfig::load("templates/simple").unwrap();
-        assert!(config
-            .variables()
-            .contains(&VariableEntry::new("Application Name: ", "name")));
-    }
-
-    #[test]
-    fn test_archetype_to_string() {
-        let config = ArchetypeConfig::load("templates/simple").unwrap();
-
-        assert!(config
-            .variables()
-            .contains(&VariableEntry::new("Application Name: ", "name")));
-    }
-
-    #[test]
-    fn test_answer_config_to_string() {
-        let mut config = crate::config::AnswerConfig::default();
-        config.add_answer_pair("fname", "Jimmie");
-        config.add_answer_pair("lname", "Fulton");
-
-        println!("{}", config);
-    }
-}
