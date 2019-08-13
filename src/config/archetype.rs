@@ -200,7 +200,7 @@ mod tests {
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config
             .variables()
-            .contains(&Variable::new("Author", "author").with_default("Jimmie")));
+            .contains(&Variable::with_identifier("author").with_prompt("Author").with_default("Jimmie")));
     }
 
     #[test]

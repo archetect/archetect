@@ -16,7 +16,7 @@ answer = {
 
 identifier = { identifier_leader ~ (identifier_follower)* }
 identifier_leader = _{ ASCII_ALPHA }
-identifier_follower = _{ ASCII_ALPHA | ASCII_DIGIT | "_" }
+identifier_follower = _{ ASCII_ALPHA | ASCII_DIGIT | "_" | "-" }
 
 double_quoted_string  = _{ double_quote ~ double_quoted_string_contents ~ double_quote}
 single_quoted_string  = _{ single_quote ~ single_quoted_string_contents ~ single_quote}
