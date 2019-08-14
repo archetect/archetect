@@ -7,7 +7,9 @@ use std::str::FromStr;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
     description: Option<String>,
-    language: Option<String>,
+    languages: Option<Vec<String>>,
+    frameworks: Option<Vec<String>>,
+    tags: Option<Vec<String>>,
     variables: Vec<Variable>,
 }
 
@@ -36,13 +38,7 @@ impl ArchetypeConfig {
         Ok(())
     }
 
-    pub fn add_variable(&mut self, variable: Variable) {
-        self.variables.push(variable);
-    }
 
-    pub fn variables(&self) -> &[Variable] {
-        &self.variables
-    }
 
     pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
         self.description = Some(description.into());
@@ -50,13 +46,58 @@ impl ArchetypeConfig {
     }
 
     pub fn with_language<L: Into<String>>(mut self, language: L) -> ArchetypeConfig {
-        self.language = Some(language.into());
+        self.add_language(language);
         self
+    }
+
+    pub fn add_language<L: Into<String>>(&mut self, language: L) {
+        let languages = self.languages.get_or_insert_with(|| Vec::new());
+        languages.push(language.into());
+    }
+
+    pub fn languages(&self) -> Option<&Vec<String>> {
+        self.languages.as_ref()
+    }
+
+    pub fn with_tag<T: Into<String>>(mut self, tag: T) -> ArchetypeConfig {
+        self.add_tag(tag);
+        self
+    }
+
+    pub fn add_tag<T: Into<String>>(&mut self, tag: T) {
+        let tags = self.tags.get_or_insert_with(|| Vec::new());
+        tags.push(tag.into());
+    }
+
+    pub fn tags(&self) -> Option<&Vec<String>> {
+        self.tags.as_ref()
+    }
+
+    pub fn with_framework<F: Into<String>>(mut self, framework: F) -> ArchetypeConfig {
+        self.add_framework(framework);
+        self
+    }
+
+    pub fn add_framework<F: Into<String>>(&mut self, framework: F) {
+        let frameworks = self.frameworks.get_or_insert_with(|| Vec::new());
+        frameworks.push(framework.into());
+    }
+
+    pub fn frameworks(&self) -> Option<&Vec<String>> {
+        self.frameworks.as_ref()
     }
 
     pub fn with_variable(mut self, variable: Variable) -> ArchetypeConfig {
         self.variables.push(variable);
         self
+    }
+
+    pub fn add_variable(&mut self, variable: Variable) {
+        self.variables.push(variable);
+    }
+
+    pub fn variables(&self) -> &[Variable] {
+        &self.variables
     }
 }
 
@@ -64,7 +105,9 @@ impl Default for ArchetypeConfig {
     fn default() -> Self {
         ArchetypeConfig {
             description: None,
-            language: None,
+            languages: None,
+            frameworks: None,
+            tags: None,
             variables: Vec::new(),
         }
     }
@@ -72,7 +115,7 @@ impl Default for ArchetypeConfig {
 
 impl Display for ArchetypeConfig {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match toml::ser::to_string_pretty(self) {
+        match toml::ser::to_string(self) {
             Ok(config) => write!(f, "{}", config),
             Err(_) => Err(fmt::Error),
         }
@@ -157,6 +200,10 @@ mod tests {
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")
             .with_language("Java")
+            .with_framework("Spring")
+            .with_framework("Hessian")
+            .with_tag("Service")
+            .with_tag("REST")
             .with_variable(
                 Variable::with_identifier("name")
                     .with_prompt("Application Name"))
@@ -169,17 +216,19 @@ mod tests {
         let output = config.to_string();
 
         let expected = indoc!(r#"
-            description = 'Simple REST Service'
-            language = 'Java'
+            description = "Simple REST Service"
+            languages = ["Java"]
+            frameworks = ["Spring", "Hessian"]
+            tags = ["Service", "REST"]
 
             [[variables]]
-            prompt = 'Application Name'
-            name = 'name'
+            prompt = "Application Name"
+            name = "name"
 
             [[variables]]
-            prompt = 'Author'
-            name = 'author'
-            default = 'Jimmie'
+            prompt = "Author"
+            name = "author"
+            default = "Jimmie"
         "#);
         assert_eq!(output, expected);
         println!("{}", output);

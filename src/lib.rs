@@ -12,7 +12,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate pretty_assertions;
 
-use log::{debug, info};
+use log::{info, trace};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -66,7 +66,7 @@ impl DirectoryArchetype {
                 if tmp.exists() {
                     fs::remove_dir_all(&tmp)?;
                 }
-                debug!("Cloning {} to {}", directory.to_str().unwrap(), tmp.to_str().unwrap());
+                info!("Cloning {} to {}", directory.to_str().unwrap(), tmp.to_str().unwrap());
                 fs::create_dir_all(&tmp).unwrap();
 
                 Command::new("git")
@@ -119,7 +119,7 @@ impl DirectoryArchetype {
                     .unwrap();
                 let mut destination = destination.clone();
                 destination.push(name);
-                info!("Generating {:?}", &destination);
+                trace!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
                 self.generate_internal(context.clone(), path, destination)
                     .unwrap();
@@ -131,7 +131,7 @@ impl DirectoryArchetype {
                 let template = fs::read_to_string(&path)?;
                 let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
                 let destination = destination.clone().join(name);
-                info!("Generating {:?}", &destination);
+                trace!("Generating {:?}", &destination);
                 let mut output = File::create(&destination)?;
                 output.write(file_contents.as_bytes()).unwrap();
             }
