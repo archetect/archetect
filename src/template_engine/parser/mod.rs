@@ -83,11 +83,17 @@ fn parse_fn_call(pair: Pair<Rule>) -> FunctionCall {
                 let (name, val) = parse_kwarg(p);
                 args.insert(name, val);
             }
-            _ => unreachable!("{:?} not supposed to get there (parse_fn_call)!", p.as_rule()),
+            _ => unreachable!(
+                "{:?} not supposed to get there (parse_fn_call)!",
+                p.as_rule()
+            ),
         };
     }
 
-    FunctionCall { name: name.unwrap(), args }
+    FunctionCall {
+        name: name.unwrap(),
+        args,
+    }
 }
 
 fn parse_filter(pair: Pair<Rule>) -> FunctionCall {
@@ -103,11 +109,17 @@ fn parse_filter(pair: Pair<Rule>) -> FunctionCall {
             Rule::fn_call => {
                 return parse_fn_call(p);
             }
-            _ => unreachable!("{:?} not supposed to get there (parse_filter)!", p.as_rule()),
+            _ => unreachable!(
+                "{:?} not supposed to get there (parse_filter)!",
+                p.as_rule()
+            ),
         };
     }
 
-    FunctionCall { name: name.unwrap(), args }
+    FunctionCall {
+        name: name.unwrap(),
+        args,
+    }
 }
 
 fn parse_test_call(pair: Pair<Rule>) -> (String, Vec<Expr>) {
@@ -128,7 +140,10 @@ fn parse_test_call(pair: Pair<Rule>) -> (String, Vec<Expr>) {
                     }
                 }
             }
-            _ => unreachable!("{:?} not supposed to get there (parse_test_call)!", p.as_rule()),
+            _ => unreachable!(
+                "{:?} not supposed to get there (parse_test_call)!",
+                p.as_rule()
+            ),
         };
     }
 
@@ -152,7 +167,12 @@ fn parse_test(pair: Pair<Rule>) -> Test {
         };
     }
 
-    Test { ident: ident.unwrap(), negated: false, name: name.unwrap(), args }
+    Test {
+        ident: ident.unwrap(),
+        negated: false,
+        name: name.unwrap(),
+        args,
+    }
 }
 
 fn parse_string_concat(pair: Pair<Rule>) -> ExprVal {
@@ -266,7 +286,11 @@ fn parse_basic_expr_with_filters(pair: Pair<Rule>) -> Expr {
         };
     }
 
-    Expr { val: expr.unwrap(), negated: false, filters }
+    Expr {
+        val: expr.unwrap(),
+        negated: false,
+        filters,
+    }
 }
 
 /// A basic expression with optional filters
@@ -404,7 +428,11 @@ fn parse_macro_call(pair: Pair<Rule>) -> MacroCall {
         }
     }
 
-    MacroCall { namespace: namespace.unwrap(), name: name.unwrap(), args }
+    MacroCall {
+        namespace: namespace.unwrap(),
+        name: name.unwrap(),
+        args,
+    }
 }
 
 fn parse_variable_tag(pair: Pair<Rule>) -> Node {
@@ -475,7 +503,14 @@ fn parse_set_tag(pair: Pair<Rule>, global: bool) -> Node {
         }
     }
 
-    Node::Set(ws, Set { key: key.unwrap(), value: expr.unwrap(), global })
+    Node::Set(
+        ws,
+        Set {
+            key: key.unwrap(),
+            value: expr.unwrap(),
+            global,
+        },
+    )
 }
 
 fn parse_raw_tag(pair: Pair<Rule>) -> Node {
@@ -554,7 +589,14 @@ fn parse_filter_section(pair: Pair<Rule>) -> Node {
             _ => unreachable!("unexpected {:?} rule in parse_filter_section", p.as_rule()),
         };
     }
-    Node::FilterSection(start_ws, FilterSection { filter: filter.unwrap(), body }, end_ws)
+    Node::FilterSection(
+        start_ws,
+        FilterSection {
+            filter: filter.unwrap(),
+            body,
+        },
+        end_ws,
+    )
 }
 
 fn parse_block(pair: Pair<Rule>) -> Node {
@@ -590,7 +632,14 @@ fn parse_block(pair: Pair<Rule>) -> Node {
         };
     }
 
-    Node::Block(start_ws, Block { name: name.unwrap(), body }, end_ws)
+    Node::Block(
+        start_ws,
+        Block {
+            name: name.unwrap(),
+            body,
+        },
+        end_ws,
+    )
 }
 
 fn parse_macro_fn(pair: Pair<Rule>) -> (String, HashMap<String, Option<Expr>>) {
@@ -653,7 +702,10 @@ fn parse_macro_definition(pair: Pair<Rule>) -> Node {
                     };
                 }
             }
-            _ => unreachable!("unexpected {:?} rule in parse_macro_definition", p.as_rule()),
+            _ => unreachable!(
+                "unexpected {:?} rule in parse_macro_definition",
+                p.as_rule()
+            ),
         }
     }
 
@@ -716,7 +768,12 @@ fn parse_forloop(pair: Pair<Rule>) -> Node {
 
     Node::Forloop(
         start_ws,
-        Forloop { key, value: value.unwrap(), container: container.unwrap(), body },
+        Forloop {
+            key,
+            value: value.unwrap(),
+            container: container.unwrap(),
+            body,
+        },
         end_ws,
     )
 }
@@ -832,7 +889,13 @@ fn parse_if(pair: Pair<Rule>) -> Node {
         }
     }
 
-    Node::If(If { conditions, otherwise }, end_ws)
+    Node::If(
+        If {
+            conditions,
+            otherwise,
+        },
+        end_ws,
+    )
 }
 
 fn parse_content(pair: Pair<Rule>) -> Vec<Node> {

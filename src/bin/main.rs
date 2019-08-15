@@ -1,16 +1,18 @@
 #[macro_use]
 extern crate clap;
 
+use archetect::config::{Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, Variable};
+use archetect::util::{Location, LocationError};
 use archetect::{self, Archetype, DirectoryArchetype};
-use archetect::config::{AnswerConfig, Answer, AnswerConfigError, ArchetypeConfig, Variable};
 use clap::{App, AppSettings, Arg, SubCommand};
+use log::{error};
 use indoc::indoc;
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 fn main() {
     let matches = App::new(&crate_name!()[..])
@@ -146,21 +148,38 @@ fn main() {
     }
 
     if let Some(matches) = matches.subcommand_matches("create") {
-        let from = PathBuf::from_str(matches.value_of("from").unwrap()).unwrap();
+        let source = matches.value_of("from").unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
-        let archetype = DirectoryArchetype::new(from).unwrap();
 
-        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-            for answer in answer_config.answers() {
-                if !answers.contains_key(answer.identifier()) {
-                    let answer = answer.clone();
-                    answers.insert(answer.identifier().to_owned(), answer);
+        match Location::detect(source) {
+            Ok(location) => {
+                let path = match &location {
+                    &Location::RemoteGit { ref path, .. } => path.clone(),
+                    &Location::LocalDirectory { ref path} => path.clone(),
+                };
+                let archetype = DirectoryArchetype::from_location(location).unwrap();
+
+                if let Ok(answer_config) = AnswerConfig::load(path.clone()) {
+                    for answer in answer_config.answers() {
+                        if !answers.contains_key(answer.identifier()) {
+                            let answer = answer.clone();
+                            answers.insert(answer.identifier().to_owned(), answer);
+                        }
+                    }
                 }
-            }
-        }
 
-        let context = archetype.get_context(&answers).unwrap();
-        archetype.generate(destination, context).unwrap();
+                let context = archetype.get_context(&answers).unwrap();
+                archetype.generate(destination, context).unwrap();
+            },
+            Err(err) => {
+                match err {
+                    LocationError::InvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
+                    LocationError::NotFound => error!("\"{}\" does not exist", source),
+                    LocationError::Unsupported => error!("\"{}\" is not a supported archetype path", source),
+                    LocationError::InvalidLocation => error!("\"{}\" is not a valid archetype path", source),
+                }
+            },
+        }
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
             let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
@@ -169,7 +188,8 @@ fn main() {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
+            config
+                .add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
             config.add_variable(Variable::with_identifier("author").with_prompt("Author name: "));
 
             let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
@@ -177,30 +197,41 @@ fn main() {
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
 
-            File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
-            File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
+            File::create(output_dir.clone().join("README.md"))
+                .expect("Error creating archetype README.md");
+            File::create(output_dir.clone().join(".gitignore"))
+                .expect("Error creating archetype .gitignore");
 
             let project_dir = output_dir.clone().join("archetype/{{ name # train_case }}");
 
             fs::create_dir_all(&project_dir).unwrap();
 
-            let mut project_readme = File::create(project_dir.clone().join("README.md")).expect("Error creating project README.md");
-            project_readme.write_all(indoc!(r#"
+            let mut project_readme = File::create(project_dir.clone().join("README.md"))
+                .expect("Error creating project README.md");
+            project_readme
+                .write_all(
+                    indoc!(
+                        r#"
                 Project: {{ name | title_case }}
                 Author: {{ author | title_case }}
-            "#).as_bytes()).expect("Error writing README.md");
-            File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
+            "#
+                    )
+                    .as_bytes(),
+                )
+                .expect("Error writing README.md");
+            File::create(project_dir.clone().join(".gitignore"))
+                .expect("Error creating project .gitignore");
         }
     }
 
     const VALID_ANSWER_INPUTS: &str = "\
-        \nValid Input Examples:\n\
-        \nkey=value\
-        \nkey='multi-word value'\
-        \nkey=\"multi-word value\"\
-        \n\"key=value\"\
-        \n'key=value'\
-        \n'key=\"multi-word value\"''\
-        \n\"key = 'multi-word value'\"\
-    ";
+                                       \nValid Input Examples:\n\
+                                       \nkey=value\
+                                       \nkey='multi-word value'\
+                                       \nkey=\"multi-word value\"\
+                                       \n\"key=value\"\
+                                       \n'key=value'\
+                                       \n'key=\"multi-word value\"''\
+                                       \n\"key = 'multi-word value'\"\
+                                       ";
 }

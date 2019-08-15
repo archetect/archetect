@@ -21,7 +21,7 @@ pub trait TitleCase: ToOwned {
 
 impl TitleCase for str {
     fn to_title_case(&self) -> String {
-        crate::heck::transform(self,crate::heck::capitalize, |s| s.push(' '))
+        crate::heck::transform(self, crate::heck::capitalize, |s| s.push(' '))
     }
 }
 
@@ -35,7 +35,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_title_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "Pascal Case");

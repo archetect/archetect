@@ -12,7 +12,13 @@ extern crate lazy_static;
 #[macro_use]
 extern crate pretty_assertions;
 
-use log::{info, trace};
+pub mod config;
+pub mod heck;
+pub mod parser;
+pub mod util;
+pub mod template_engine;
+
+use log::{info, debug, trace};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -23,16 +29,11 @@ use std::process::Command;
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
-use failure::{Error, Fail};
 use crate::config::Answer;
 use crate::config::ArchetypeConfig;
+use failure::{Error, Fail};
 use std::collections::HashMap;
-
-
-pub mod config;
-pub mod heck;
-pub mod parser;
-pub mod template_engine;
+use crate::util::Location;
 
 pub trait Archetype {
     fn generate<D: Into<PathBuf>>(
@@ -44,55 +45,59 @@ pub trait Archetype {
     fn get_context(&self, answers: &HashMap<String, Answer>) -> Result<Context, ArchetypeError>;
 
     // TODO: Add ability to extract variables used throughout an Archetype
-//    fn get_variables(&self) -> Result<HashSet<String>, ArchetypeError>;
+    //    fn get_variables(&self) -> Result<HashSet<String>, ArchetypeError>;
 }
 
 pub struct DirectoryArchetype {
     tera: Tera,
     config: ArchetypeConfig,
-    directory: PathBuf,
+    path: PathBuf,
 }
 
 impl DirectoryArchetype {
-    pub fn new<D: Into<PathBuf>>(directory: D) -> Result<DirectoryArchetype, Error> {
+    pub fn from_location(location: Location) -> Result<DirectoryArchetype, Error> {
         let tera = Tera::default();
-        let directory = directory.into();
-        if !directory.exists() {
-            let dir_name = directory.to_str().unwrap();
-            if dir_name.starts_with("http") || dir_name.starts_with("git") {
-                // Use tempdir, instead
-                let mut tmp = env::temp_dir();
-                tmp.push("archetect");
-                if tmp.exists() {
-                    fs::remove_dir_all(&tmp)?;
-                }
-                info!("Cloning {} to {}", directory.to_str().unwrap(), tmp.to_str().unwrap());
-                fs::create_dir_all(&tmp).unwrap();
-
-                Command::new("git")
-                    .args(&[
-                        "clone",
-                        directory.to_str().unwrap(),
-                        &format!("{}", tmp.display()),
-                    ])
-                    .output().unwrap();
-
-                let config = ArchetypeConfig::load(&tmp)?;
+        match location {
+            Location::LocalDirectory { path } => {
+                let config = ArchetypeConfig::load(&path)?;
                 Ok(DirectoryArchetype {
                     tera,
                     config,
-                    directory: tmp,
+                    path,
                 })
-            } else {
-                return Err(ArchetypeError::ArchetypeInvalid.into());
-            }
-        } else {
-            let config = ArchetypeConfig::load(&directory)?;
-            Ok(DirectoryArchetype {
-                tera,
-                config,
-                directory,
-            })
+            },
+            Location::RemoteGit { url, path} => {
+                if !path.exists() {
+                    info!("Cloning {}", url);
+                    Command::new("git")
+                        .args(&[
+                            "clone",
+                            &url,
+                            &format!("{}", path.display()),
+                        ]).output().unwrap();
+                } else {
+                    debug!("Resetting {}", url);
+                    Command::new("git")
+                        .args(&[
+                            "reset",
+                            "hard",
+                            &format!("{}", path.display()),
+                        ]).output().unwrap();
+                    info!("Pulling {}", url);
+                    Command::new("git")
+                        .args(&[
+                            "pull",
+                            &format!("{}", path.display()),
+                        ]).output().unwrap();
+
+                }
+                let config = ArchetypeConfig::load(&path)?;
+                Ok(DirectoryArchetype {
+                    tera,
+                    config,
+                    path,
+                })
+            },
         }
     }
 
@@ -151,10 +156,10 @@ impl Archetype for DirectoryArchetype {
         fs::create_dir_all(&destination).unwrap();
         self.generate_internal(
             context,
-            self.directory.clone().join("archetype"),
+            self.path.clone().join("archetype"),
             destination,
         )
-            .unwrap();
+        .unwrap();
         Ok(())
     }
 
@@ -162,19 +167,28 @@ impl Archetype for DirectoryArchetype {
         let mut context = Context::new();
 
         for variable in self.config.variables() {
-            let default =
-                if let Some(answer) = answers.get(variable.identifier()) {
-                    if let Some(true) = answer.prompt() {
-                        Some(self.tera.render_string(answer.value(), context.clone()).unwrap())
-                    } else {
-                        context.insert(answer.identifier(), self.tera.render_string(answer.value(), context.clone()).unwrap().as_str());
-                        continue;
-                    }
-                } else if let Some(default) = variable.default().clone() {
-                    Some(self.tera.render_string(default, context.clone()).unwrap())
+            let default = if let Some(answer) = answers.get(variable.identifier()) {
+                if let Some(true) = answer.prompt() {
+                    Some(
+                        self.tera
+                            .render_string(answer.value(), context.clone())
+                            .unwrap(),
+                    )
                 } else {
-                    None
-                };
+                    context.insert(
+                        answer.identifier(),
+                        self.tera
+                            .render_string(answer.value(), context.clone())
+                            .unwrap()
+                            .as_str(),
+                    );
+                    continue;
+                }
+            } else if let Some(default) = variable.default().clone() {
+                Some(self.tera.render_string(default, context.clone()).unwrap())
+            } else {
+                None
+            };
 
             if let Some(prompt) = variable.prompt() {
                 let prompt = if let Some(default) = default {
@@ -213,3 +227,16 @@ pub enum ArchetypeError {
     ArchetypeSaveFailed,
 }
 
+#[cfg(test)]
+mod tests {
+    use url::{Url};
+
+    #[test]
+    fn test_url_as_http() {
+        let url = Url::parse("https://github.com/jimmiebfulton/archetect.git").unwrap();
+        println!("{:?}", url);
+        println!("{}", url.scheme());
+        println!("{}", url.host_str().unwrap());
+        println!("{}", url.path());
+    }
+}

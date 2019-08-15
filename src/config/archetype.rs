@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use crate::config::Answer;
 use crate::ArchetypeError;
-use std::{fs, fmt};
 use std::fmt::{Display, Formatter};
+use std::path::PathBuf;
 use std::str::FromStr;
+use std::{fmt, fs};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
@@ -10,6 +11,10 @@ pub struct ArchetypeConfig {
     languages: Option<Vec<String>>,
     frameworks: Option<Vec<String>>,
     tags: Option<Vec<String>>,
+    contents: Option<String>,
+    #[serde(rename = "module")]
+    modules: Option<Vec<Module>>,
+    #[serde(rename = "variable")]
     variables: Vec<Variable>,
 }
 
@@ -38,8 +43,6 @@ impl ArchetypeConfig {
         Ok(())
     }
 
-
-
     pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
         self.description = Some(description.into());
         self
@@ -55,8 +58,8 @@ impl ArchetypeConfig {
         languages.push(language.into());
     }
 
-    pub fn languages(&self) -> Option<&Vec<String>> {
-        self.languages.as_ref()
+    pub fn languages(&self) -> Option<&[String]> {
+        self.languages.as_ref().map(|r| r.as_slice())
     }
 
     pub fn with_tag<T: Into<String>>(mut self, tag: T) -> ArchetypeConfig {
@@ -69,8 +72,8 @@ impl ArchetypeConfig {
         tags.push(tag.into());
     }
 
-    pub fn tags(&self) -> Option<&Vec<String>> {
-        self.tags.as_ref()
+    pub fn tags(&self) -> Option<&[String]> {
+        self.tags.as_ref().map(|r| r.as_slice())
     }
 
     pub fn with_framework<F: Into<String>>(mut self, framework: F) -> ArchetypeConfig {
@@ -83,13 +86,27 @@ impl ArchetypeConfig {
         frameworks.push(framework.into());
     }
 
-    pub fn frameworks(&self) -> Option<&Vec<String>> {
-        self.frameworks.as_ref()
+    pub fn frameworks(&self) -> Option<&[String]> {
+        self.frameworks.as_ref().map(|r| r.as_slice())
     }
 
     pub fn with_variable(mut self, variable: Variable) -> ArchetypeConfig {
         self.variables.push(variable);
         self
+    }
+
+    pub fn with_module(mut self, module: Module) -> ArchetypeConfig {
+        self.add_module(module);
+        self
+    }
+
+    pub fn add_module(&mut self, module: Module) {
+        let modules = self.modules.get_or_insert_with(|| vec![]);
+        modules.push(module);
+    }
+
+    pub fn modules(&self) -> Option<&[Module]> {
+        self.modules.as_ref().map(|r| r.as_slice())
     }
 
     pub fn add_variable(&mut self, variable: Variable) {
@@ -98,6 +115,15 @@ impl ArchetypeConfig {
 
     pub fn variables(&self) -> &[Variable] {
         &self.variables
+    }
+
+    pub fn with_contents<C: Into<String>>(mut self, contents: C) -> ArchetypeConfig {
+        self.contents = Some(contents.into());
+        self
+    }
+
+    pub fn contents(&self) -> Option<&str> {
+        self.contents.as_ref().map(|r| r.as_str())
     }
 }
 
@@ -108,7 +134,9 @@ impl Default for ArchetypeConfig {
             languages: None,
             frameworks: None,
             tags: None,
-            variables: Vec::new(),
+            contents: None,
+            modules: None,
+            variables: vec![],
         }
     }
 }
@@ -133,6 +161,37 @@ impl FromStr for ArchetypeConfig {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Module {
+    location: String,
+    destination: String,
+    #[serde(rename = "answer")]
+    answers: Vec<Answer>,
+}
+
+impl Module {
+    pub fn new<L: Into<String>, D: Into<String>>(location: L, destination: D) -> Module {
+        Module {
+            location: location.into(),
+            destination: destination.into(),
+            answers: vec![],
+        }
+    }
+
+    pub fn with_answer(mut self, answer: Answer) -> Module {
+        self.add_answer(answer);
+        self
+    }
+
+    pub fn add_answer(&mut self, answer: Answer) {
+        self.answers.push(answer);
+    }
+
+    pub fn answers(&self) -> &[Answer] {
+        self.answers.as_ref()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Variable {
     prompt: Option<String>,
@@ -142,7 +201,13 @@ pub struct Variable {
 
 impl Variable {
     pub fn with_identifier<I: Into<String>>(identifier: I) -> VariableBuilder {
-        VariableBuilder { variable: Variable { prompt: None, name: identifier.into(), default: None } }
+        VariableBuilder {
+            variable: Variable {
+                prompt: None,
+                name: identifier.into(),
+                default: None,
+            },
+        }
     }
 
     pub fn with_default<D: Into<String>>(mut self, value: D) -> Variable {
@@ -204,52 +269,71 @@ mod tests {
             .with_framework("Hessian")
             .with_tag("Service")
             .with_tag("REST")
-            .with_variable(
-                Variable::with_identifier("name")
-                    .with_prompt("Application Name"))
+            .with_module(
+                Module::new(
+                    "~/modules/jpa-persistence-module",
+                    "{{ name | train_case }}",
+                )
+                .with_answer(Answer::new("name", "{{ name }} Service")),
+            )
+            .with_variable(Variable::with_identifier("name").with_prompt("Application Name"))
             .with_variable(
                 Variable::with_identifier("author")
                     .with_prompt("Author")
-                    .with_default("Jimmie"))
-            ;
+                    .with_default("Jimmie"),
+            );
 
         let output = config.to_string();
 
-        let expected = indoc!(r#"
+        let expected = indoc!(
+            r#"
             description = "Simple REST Service"
             languages = ["Java"]
             frameworks = ["Spring", "Hessian"]
             tags = ["Service", "REST"]
 
-            [[variables]]
+            [[module]]
+            location = "~/modules/jpa-persistence-module"
+            destination = "{{ name | train_case }}"
+
+            [[module.answer]]
+            identifier = "name"
+            value = "{{ name }} Service"
+
+            [[variable]]
             prompt = "Application Name"
             name = "name"
 
-            [[variables]]
+            [[variable]]
             prompt = "Author"
             name = "author"
             default = "Jimmie"
-        "#);
+        "#
+        );
         assert_eq!(output, expected);
         println!("{}", output);
     }
 
     #[test]
     fn test_archetype_config_from_string() {
-        let expected = indoc!(r#"
-            [[variables]]
+        let expected = indoc!(
+            r#"
+            [[variable]]
             prompt = "Application Name"
             name = "name"
 
-            [[variables]]
+            [[variable]]
             prompt = "Author"
             name = "author"
             default = "Jimmie"
-            "#);
+            "#
+        );
         let config = ArchetypeConfig::from_str(expected).unwrap();
-        assert!(config
-            .variables()
-            .contains(&Variable::with_identifier("author").with_prompt("Author").with_default("Jimmie")));
+        assert!(config.variables().contains(
+            &Variable::with_identifier("author")
+                .with_prompt("Author")
+                .with_default("Jimmie")
+        ));
     }
 
     #[test]

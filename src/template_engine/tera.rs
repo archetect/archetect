@@ -111,7 +111,9 @@ impl Tera {
     /// Loads all the templates found in the glob that was given to Tera::new
     fn load_from_glob(&mut self) -> Result<()> {
         if self.glob.is_none() {
-            return Err(Error::msg("Tera can only load from glob if a glob is provided"));
+            return Err(Error::msg(
+                "Tera can only load from glob if a glob is provided",
+            ));
         }
         // We want to preserve templates that have been added through
         // Tera::extend so we only keep those
@@ -339,7 +341,11 @@ impl Tera {
     ///  let template = Template::new("one_off", None, contents).unwrap();
     /// tera.render_template(&template, context);
     /// ```
-    pub fn render_template<C: Into<Value>>(&self, template: &Template, context: C) -> Result<String> {
+    pub fn render_template<C: Into<Value>>(
+        &self,
+        template: &Template,
+        context: C,
+    ) -> Result<String> {
         let render = Renderer::new(&template, self, context.into());
         render.render()
     }
@@ -355,9 +361,17 @@ impl Tera {
     /// context.insert("subject", "world");
     /// tera.render_one_off("Hello, {{ subject }}", context);
     /// ```
-    pub fn render_string<C: Into<Value>>(&self, template_contents: &str, context: C) -> Result<String> {
-        let template = Template::new("one_off", None, template_contents)
-            .map_err(|e| Error::chain(format!("Failed to parse template string: '{}'", template_contents), e))?;
+    pub fn render_string<C: Into<Value>>(
+        &self,
+        template_contents: &str,
+        context: C,
+    ) -> Result<String> {
+        let template = Template::new("one_off", None, template_contents).map_err(|e| {
+            Error::chain(
+                format!("Failed to parse template string: '{}'", template_contents),
+                e,
+            )
+        })?;
         self.render_template(&template, context)
     }
 
@@ -581,7 +595,7 @@ impl Tera {
         self.register_filter("capitalize", string::capitalize);
         self.register_filter("title", string::title);
         self.register_filter("striptags", string::striptags);
-        self.register_filter("urlencode", string::urlencode);
+//        self.register_filter("urlencode", string::urlencode);
         self.register_filter("escape", string::escape_html);
         self.register_filter("slugify", string::slugify);
         self.register_filter("addslashes", string::addslashes);
@@ -686,7 +700,9 @@ impl Tera {
         if self.glob.is_some() {
             self.load_from_glob()?;
         } else {
-            return Err(Error::msg("Reloading is only available if you are using a glob"));
+            return Err(Error::msg(
+                "Reloading is only available if you are using a glob",
+            ));
         }
 
         self.build_inheritance_chains()?;
@@ -801,9 +817,15 @@ mod tests {
             vec!["b".to_string(), "c".to_string(), "d".to_string()]
         );
 
-        assert_eq!(tera.get_template("b").unwrap().parents, vec!["c".to_string(), "d".to_string()]);
+        assert_eq!(
+            tera.get_template("b").unwrap().parents,
+            vec!["c".to_string(), "d".to_string()]
+        );
 
-        assert_eq!(tera.get_template("c").unwrap().parents, vec!["d".to_string()]);
+        assert_eq!(
+            tera.get_template("c").unwrap().parents,
+            vec!["d".to_string()]
+        );
 
         assert_eq!(tera.get_template("d").unwrap().parents.len(), 0);
     }
@@ -812,7 +834,9 @@ mod tests {
     fn test_missing_parent_template() {
         let mut tera = Tera::default();
         assert_eq!(
-            tera.add_raw_template("a", "{% extends \"b\" %}").unwrap_err().to_string(),
+            tera.add_raw_template("a", "{% extends \"b\" %}")
+                .unwrap_err()
+                .to_string(),
             "Template \'a\' is inheriting from \'b\', which doesn\'t exist or isn\'t loaded."
         );
     }
@@ -821,10 +845,15 @@ mod tests {
     fn test_circular_extends() {
         let mut tera = Tera::default();
         let err = tera
-            .add_raw_templates(vec![("a", "{% extends \"b\" %}"), ("b", "{% extends \"a\" %}")])
+            .add_raw_templates(vec![
+                ("a", "{% extends \"b\" %}"),
+                ("b", "{% extends \"a\" %}"),
+            ])
             .unwrap_err();
 
-        assert!(err.to_string().contains("Circular extend detected for template"));
+        assert!(err
+            .to_string()
+            .contains("Circular extend detected for template"));
     }
 
     #[test]
@@ -845,12 +874,20 @@ mod tests {
             ),
         ]).unwrap();
 
-        let hey_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("hey").unwrap();
+        let hey_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("hey")
+            .unwrap();
         assert_eq!(hey_definitions.len(), 3);
 
-        let ending_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("ending").unwrap();
+        let ending_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("ending")
+            .unwrap();
         assert_eq!(ending_definitions.len(), 2);
     }
 
@@ -869,12 +906,20 @@ mod tests {
             ),
         ]).unwrap();
 
-        let hey_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("hey").unwrap();
+        let hey_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("hey")
+            .unwrap();
         assert_eq!(hey_definitions.len(), 3);
 
-        let ending_definitions =
-            tera.get_template("parent").unwrap().blocks_definitions.get("ending").unwrap();
+        let ending_definitions = tera
+            .get_template("parent")
+            .unwrap()
+            .blocks_definitions
+            .get("ending")
+            .unwrap();
         assert_eq!(ending_definitions.len(), 1);
     }
 
@@ -940,7 +985,10 @@ mod tests {
     #[test]
     fn test_value_one_off_template() {
         let mut context = JsonObject::new();
-        context.insert("greeting".to_string(), JsonValue::String("Good morning".to_string()));
+        context.insert(
+            "greeting".to_string(),
+            JsonValue::String("Good morning".to_string()),
+        );
         let result = Tera::one_off_value("{{ greeting }} world", &context, true).unwrap();
 
         assert_eq!(result, "Good morning world");
@@ -958,7 +1006,9 @@ mod tests {
             .unwrap();
 
         let mut framework_tera = Tera::default();
-        framework_tera.add_raw_templates(vec![("four", "Framework X")]).unwrap();
+        framework_tera
+            .add_raw_templates(vec![("four", "Framework X")])
+            .unwrap();
 
         my_tera.extend(&framework_tera).unwrap();
         assert_eq!(my_tera.templates.len(), 4);
@@ -1075,7 +1125,12 @@ mod tests {
         let cwd = tmp_dir.path().canonicalize().unwrap();
         File::create(cwd.join("hey.html")).expect("Failed to create a test file");
         File::create(cwd.join("ho.html")).expect("Failed to create a test file");
-        let glob = cwd.join("**").join("*.html").into_os_string().into_string().unwrap();
+        let glob = cwd
+            .join("**")
+            .join("*.html")
+            .into_os_string()
+            .into_string()
+            .unwrap();
         let tera = Tera::new(&glob).expect("Couldn't build Tera instance");
         assert_eq!(tera.templates.len(), 2);
     }

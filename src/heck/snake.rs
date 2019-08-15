@@ -20,7 +20,7 @@ pub trait SnakeCase: ToOwned {
 
 impl SnakeCase for str {
     fn to_snake_case(&self) -> String {
-        crate::heck::transform(self,crate::heck::lowercase, |s| s.push('_'))
+        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('_'))
     }
 }
 
@@ -34,7 +34,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_snake_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "pascal_case");

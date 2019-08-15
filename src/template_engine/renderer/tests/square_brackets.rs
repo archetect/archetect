@@ -15,7 +15,11 @@ fn var_access_by_square_brackets() {
     let mut context = Context::new();
     context.insert(
         "var",
-        &Test { a: "hi".into(), b: "i_am_actually_b".into(), c: vec!["fred".into()] },
+        &Test {
+            a: "hi".into(),
+            b: "i_am_actually_b".into(),
+            c: vec!["fred".into()],
+        },
     );
     context.insert("zero", &0);
     context.insert("a", "b");
@@ -40,14 +44,24 @@ fn var_access_by_square_brackets() {
 
     for (input, expected) in inputs {
         println!("{:?} -> {:?}", input, expected);
-        assert_eq!(Tera::one_off(input, context.clone(), true).unwrap(), expected);
+        assert_eq!(
+            Tera::one_off(input, context.clone(), true).unwrap(),
+            expected
+        );
     }
 }
 
 #[test]
 fn var_access_by_square_brackets_errors() {
     let mut context = Context::new();
-    context.insert("var", &Test { a: "hi".into(), b: "there".into(), c: vec![] });
+    context.insert(
+        "var",
+        &Test {
+            a: "hi".into(),
+            b: "there".into(),
+            c: vec![],
+        },
+    );
     let t = Tera::one_off("{{var[csd]}}", context, true);
     assert!(t.is_err(), "Access of csd should be impossible");
 }

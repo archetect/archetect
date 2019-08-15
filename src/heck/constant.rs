@@ -21,7 +21,7 @@ pub trait ConstantCase: ToOwned {
 
 impl ConstantCase for str {
     fn to_constant_case(&self) -> Self::Owned {
-        crate::heck::transform(self,crate::heck::uppercase, |s| s.push('_'))
+        crate::heck::transform(self, crate::heck::uppercase, |s| s.push('_'))
     }
 }
 
@@ -35,7 +35,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_constant_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "PASCAL_CASE");

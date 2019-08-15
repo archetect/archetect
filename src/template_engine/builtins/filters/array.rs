@@ -76,13 +76,19 @@ pub fn sort(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     };
 
     let first = arr[0].pointer(&ptr).ok_or_else(|| {
-        Error::msg(format!("attribute '{}' does not reference a field", attribute))
+        Error::msg(format!(
+            "attribute '{}' does not reference a field",
+            attribute
+        ))
     })?;
 
     let mut strategy = get_sort_strategy_for_type(first)?;
     for v in &arr {
         let key = v.pointer(&ptr).ok_or_else(|| {
-            Error::msg(format!("attribute '{}' does not reference a field", attribute))
+            Error::msg(format!(
+                "attribute '{}' does not reference a field",
+                attribute
+            ))
         })?;
         strategy.try_add_pair(v, key)?;
     }
@@ -103,7 +109,9 @@ pub fn group_by(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let key = match args.get("attribute") {
         Some(val) => try_get_value!("group_by", "attribute", String, val),
         None => {
-            return Err(Error::msg("The `group_by` filter has to have an `attribute` argument"))
+            return Err(Error::msg(
+                "The `group_by` filter has to have an `attribute` argument",
+            ))
         }
     };
 
@@ -143,11 +151,19 @@ pub fn filter(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     let key = match args.get("attribute") {
         Some(val) => try_get_value!("filter", "attribute", String, val),
-        None => return Err(Error::msg("The `filter` filter has to have an `attribute` argument")),
+        None => {
+            return Err(Error::msg(
+                "The `filter` filter has to have an `attribute` argument",
+            ))
+        }
     };
     let value = match args.get("value") {
         Some(val) => val,
-        None => return Err(Error::msg("The `filter` filter has to have a `value` argument")),
+        None => {
+            return Err(Error::msg(
+                "The `filter` filter has to have a `value` argument",
+            ))
+        }
     };
 
     let json_pointer = get_json_pointer(&key);
@@ -205,7 +221,11 @@ pub fn concat(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     let value = match args.get("with") {
         Some(val) => val,
-        None => return Err(Error::msg("The `concat` filter has to have a `with` argument")),
+        None => {
+            return Err(Error::msg(
+                "The `concat` filter has to have a `with` argument",
+            ))
+        }
     };
 
     if value.is_array() {
@@ -394,7 +414,10 @@ mod tests {
 
         let result = sort(&v, &args);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Null is not a sortable value");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Null is not a sortable value"
+        );
     }
 
     #[derive(Serialize)]

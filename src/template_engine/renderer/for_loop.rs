@@ -48,9 +48,14 @@ impl<'a> ForLoopValues<'a> {
                 Cow::Borrowed(v) => {
                     Cow::Borrowed(v.as_array().expect("Is array").get(i).expect("Value"))
                 }
-                Cow::Owned(_) => {
-                    Cow::Owned(values.as_array().expect("Is array").get(i).expect("Value").clone())
-                }
+                Cow::Owned(_) => Cow::Owned(
+                    values
+                        .as_array()
+                        .expect("Is array")
+                        .get(i)
+                        .expect("Value")
+                        .clone(),
+                ),
             },
             ForLoopValues::Object(ref values) => values.get(i).expect("Value").1.clone(),
         }

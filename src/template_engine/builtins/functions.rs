@@ -56,7 +56,9 @@ pub fn range(args: &HashMap<String, Value>) -> Result<Value> {
             }
         },
         None => {
-            return Err(Error::msg("Global function `range` was called without a `end` argument"));
+            return Err(Error::msg(
+                "Global function `range` was called without a `end` argument",
+            ));
         }
     };
 
@@ -123,7 +125,9 @@ pub fn throw(args: &HashMap<String, Value>) -> Result<Value> {
                 val
             ))),
         },
-        None => Err(Error::msg("Global function `throw` was called without a `message` argument")),
+        None => Err(Error::msg(
+            "Global function `throw` was called without a `message` argument",
+        )),
     }
 }
 

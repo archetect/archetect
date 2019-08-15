@@ -1,20 +1,20 @@
-[[variables]]
+[[variable]]
 prompt = 'Application Name: '
 name = 'name'
 
-[[variables]]
+[[variable]]
 prompt = 'Author: '
 name = 'author'
 default = 'Jimmie'
 
-[[variables]]
+[[variable]]
 prompt = 'First: '
 name= 'first'
 
-[[variables]]
+[[variable]]
 prompt = 'Second: '
 name = 'second'
 
-[[variables]]
+[[variable]]
 prompt = 'Third: '
 name = 'third'

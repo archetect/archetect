@@ -53,12 +53,18 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
             ErrorKind::Msg(ref message) => write!(f, "{}", message),
-            ErrorKind::CircularExtend { ref tpl, ref inheritance_chain } => write!(
+            ErrorKind::CircularExtend {
+                ref tpl,
+                ref inheritance_chain,
+            } => write!(
                 f,
                 "Circular extend detected for template '{}'. Inheritance chain: `{:?}`",
                 tpl, inheritance_chain
             ),
-            ErrorKind::MissingParent { ref current, ref parent } => write!(
+            ErrorKind::MissingParent {
+                ref current,
+                ref parent,
+            } => write!(
                 f,
                 "Template '{}' is inheriting from '{}', which doesn't exist or isn't loaded.",
                 current, parent
@@ -85,13 +91,19 @@ impl StdError for Error {
 impl Error {
     /// Creates generic error
     pub fn msg(value: impl ToString) -> Self {
-        Self { kind: ErrorKind::Msg(value.to_string()), source: None }
+        Self {
+            kind: ErrorKind::Msg(value.to_string()),
+            source: None,
+        }
     }
 
     /// Creates a circular extend error
     pub fn circular_extend(tpl: impl ToString, inheritance_chain: Vec<String>) -> Self {
         Self {
-            kind: ErrorKind::CircularExtend { tpl: tpl.to_string(), inheritance_chain },
+            kind: ErrorKind::CircularExtend {
+                tpl: tpl.to_string(),
+                inheritance_chain,
+            },
             source: None,
         }
     }
@@ -109,37 +121,58 @@ impl Error {
 
     /// Creates a template not found error
     pub fn template_not_found(tpl: impl ToString) -> Self {
-        Self { kind: ErrorKind::TemplateNotFound(tpl.to_string()), source: None }
+        Self {
+            kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
     }
 
     /// Creates a filter not found error
     pub fn filter_not_found(name: impl ToString) -> Self {
-        Self { kind: ErrorKind::FilterNotFound(name.to_string()), source: None }
+        Self {
+            kind: ErrorKind::FilterNotFound(name.to_string()),
+            source: None,
+        }
     }
 
     /// Creates a test not found error
     pub fn test_not_found(name: impl ToString) -> Self {
-        Self { kind: ErrorKind::TestNotFound(name.to_string()), source: None }
+        Self {
+            kind: ErrorKind::TestNotFound(name.to_string()),
+            source: None,
+        }
     }
 
     /// Creates a function not found error
     pub fn function_not_found(name: impl ToString) -> Self {
-        Self { kind: ErrorKind::FunctionNotFound(name.to_string()), source: None }
+        Self {
+            kind: ErrorKind::FunctionNotFound(name.to_string()),
+            source: None,
+        }
     }
 
     /// Creates generic error with a source
     pub fn chain(value: impl ToString, source: impl Into<Box<dyn StdError>>) -> Self {
-        Self { kind: ErrorKind::Msg(value.to_string()), source: Some(source.into()) }
+        Self {
+            kind: ErrorKind::Msg(value.to_string()),
+            source: Some(source.into()),
+        }
     }
 
     /// Creates JSON error
     pub fn json(value: serde_json::Error) -> Self {
-        Self { kind: ErrorKind::Json(value), source: None }
+        Self {
+            kind: ErrorKind::Json(value),
+            source: None,
+        }
     }
 
     /// Creates an invalid macro definition error
     pub fn invalid_macro_def(name: impl ToString) -> Self {
-        Self { kind: ErrorKind::InvalidMacroDefinition(name.to_string()), source: None }
+        Self {
+            kind: ErrorKind::InvalidMacroDefinition(name.to_string()),
+            source: None,
+        }
     }
 }
 

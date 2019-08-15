@@ -40,7 +40,12 @@ impl<'a> Renderer<'a> {
             template.name.ends_with(ext)
         });
 
-        Renderer { template, tera, context, should_escape }
+        Renderer {
+            template,
+            tera,
+            context,
+            should_escape,
+        }
     }
 
     /// Combines the context with the Template to generate the end result
