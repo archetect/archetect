@@ -1,19 +1,17 @@
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CatalogConfig {
-    entries: Vec<CatalogEntry>
+    entries: Vec<CatalogEntry>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CatalogEntry {
     description: String,
     location: String,
-
 }
 
 impl Default for CatalogConfig {
     fn default() -> Self {
-        CatalogConfig{ entries: vec![] }
+        CatalogConfig { entries: vec![] }
     }
 }
 
@@ -25,6 +23,9 @@ impl CatalogConfig {
 
 impl CatalogEntry {
     pub fn new<D: Into<String>, L: Into<String>>(description: D, location: L) -> CatalogEntry {
-        CatalogEntry{ description: description.into(), location: location.into() }
+        CatalogEntry {
+            description: description.into(),
+            location: location.into(),
+        }
     }
 }

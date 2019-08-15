@@ -259,7 +259,8 @@ impl<'a> Processor<'a> {
         // Can we find this one block in these definitions? If so render it
         if let Some(block_def) = blocks_definitions.get(&block.name) {
             let (_, Block { ref body, .. }) = block_def[0];
-            self.blocks.push((&block.name[..], &level_template.name[..], level));
+            self.blocks
+                .push((&block.name[..], &level_template.name[..], level));
             return self.render_body(body);
         }
 
@@ -276,7 +277,9 @@ impl<'a> Processor<'a> {
         if let Some(default_expr) = expr.filters[0].args.get("value") {
             self.eval_expression(default_expr)
         } else {
-            Err(Error::msg("The `default` filter requires a `value` argument."))
+            Err(Error::msg(
+                "The `default` filter requires a `value` argument.",
+            ))
         }
     }
 
@@ -406,7 +409,8 @@ impl<'a> Processor<'a> {
     /// Evaluate a set tag and add the value to the right context
     fn eval_set(self: &mut Self, set: &'a Set) -> Result<()> {
         let assigned_value = self.safe_eval_expression(&set.value)?;
-        self.call_stack.add_assignment(&set.key[..], set.global, assigned_value);
+        self.call_stack
+            .add_assignment(&set.key[..], set.global, assigned_value);
         Ok(())
     }
 
@@ -418,7 +422,10 @@ impl<'a> Processor<'a> {
             tester_args.push(self.safe_eval_expression(arg)?.clone().into_owned());
         }
 
-        let found = self.lookup_ident(&test.ident).map(|found| found.clone().into_owned()).ok();
+        let found = self
+            .lookup_ident(&test.ident)
+            .map(|found| found.clone().into_owned())
+            .ok();
 
         let result = tester_fn.test(found.as_ref(), &tester_args)?;
         if test.negated {
@@ -506,7 +513,11 @@ impl<'a> Processor<'a> {
 
     fn eval_as_bool(&mut self, bool_expr: &'a Expr) -> Result<bool> {
         let res = match bool_expr.val {
-            ExprVal::Logic(LogicExpr { ref lhs, ref rhs, ref operator }) => {
+            ExprVal::Logic(LogicExpr {
+                ref lhs,
+                ref rhs,
+                ref operator,
+            }) => {
                 match *operator {
                     LogicOperator::Or => self.eval_as_bool(lhs)? || self.eval_as_bool(rhs)?,
                     LogicOperator::And => self.eval_as_bool(lhs)? && self.eval_as_bool(rhs)?,
@@ -556,9 +567,10 @@ impl<'a> Processor<'a> {
                     }
                 }
             }
-            ExprVal::Ident(ref ident) => {
-                self.lookup_ident(ident).map(|v| v.is_truthy()).unwrap_or(false)
-            }
+            ExprVal::Ident(ref ident) => self
+                .lookup_ident(ident)
+                .map(|v| v.is_truthy())
+                .unwrap_or(false),
             ExprVal::Math(_) | ExprVal::Int(_) | ExprVal::Float(_) => {
                 match self.eval_as_number(&bool_expr.val) {
                     Ok(Some(n)) => n.as_f64().unwrap() != 0.0,
@@ -585,9 +597,9 @@ impl<'a> Processor<'a> {
         if !expr.filters.is_empty() {
             match *self.eval_expression(expr)? {
                 Value::Number(ref s) => Ok(Some(s.clone())),
-                _ => {
-                    Err(Error::msg("Tried to do math with an expression not resulting in a number"))
-                }
+                _ => Err(Error::msg(
+                    "Tried to do math with an expression not resulting in a number",
+                )),
             }
         } else {
             self.eval_as_number(&expr.val)
@@ -614,9 +626,15 @@ impl<'a> Processor<'a> {
             }
             ExprVal::Int(val) => Some(Number::from(val)),
             ExprVal::Float(val) => Some(Number::from_f64(val).unwrap()),
-            ExprVal::Math(MathExpr { ref lhs, ref rhs, ref operator }) => {
-                let (l, r) = match (self.eval_expr_as_number(lhs)?, self.eval_expr_as_number(rhs)?)
-                {
+            ExprVal::Math(MathExpr {
+                ref lhs,
+                ref rhs,
+                ref operator,
+            }) => {
+                let (l, r) = match (
+                    self.eval_expr_as_number(lhs)?,
+                    self.eval_expr_as_number(rhs)?,
+                ) {
                     (Some(l), Some(r)) => (l, r),
                     _ => return Ok(None),
                 };
@@ -682,14 +700,20 @@ impl<'a> Processor<'a> {
                             let ll = l.as_i64().unwrap();
                             let rr = r.as_i64().unwrap();
                             if rr == 0 {
-                                return Err(Error::msg(format!("Tried to do a modulo by zero: {:?}/{:?}", lhs, rhs)));
+                                return Err(Error::msg(format!(
+                                    "Tried to do a modulo by zero: {:?}/{:?}",
+                                    lhs, rhs
+                                )));
                             }
                             Some(Number::from(ll % rr))
                         } else if l.is_u64() && r.is_u64() {
                             let ll = l.as_u64().unwrap();
                             let rr = r.as_u64().unwrap();
                             if rr == 0 {
-                                return Err(Error::msg(format!("Tried to do a modulo by zero: {:?}/{:?}", lhs, rhs)));
+                                return Err(Error::msg(format!(
+                                    "Tried to do a modulo by zero: {:?}/{:?}",
+                                    lhs, rhs
+                                )));
                             }
                             Some(Number::from(ll % rr))
                         } else {
@@ -716,10 +740,16 @@ impl<'a> Processor<'a> {
                 }
             }
             ExprVal::String(ref val) => {
-                return Err(Error::msg(format!("Tried to do math with a string: `{}`", val)));
+                return Err(Error::msg(format!(
+                    "Tried to do math with a string: `{}`",
+                    val
+                )));
             }
             ExprVal::Bool(val) => {
-                return Err(Error::msg(format!("Tried to do math with a boolean: `{}`", val)));
+                return Err(Error::msg(format!(
+                    "Tried to do math with a boolean: `{}`",
+                    val
+                )));
             }
             _ => unreachable!("unimplemented math expression for {:?}", expr),
         };
@@ -785,10 +815,19 @@ impl<'a> Processor<'a> {
             Node::Text(ref s) | Node::Raw(_, ref s, _) => buffer.push_str(s),
             Node::VariableBlock(ref expr) => buffer.push_str(&self.eval_expression(expr)?.render()),
             Node::Set(_, ref set) => self.eval_set(set)?,
-            Node::FilterSection(_, FilterSection { ref filter, ref body }, _) => {
+            Node::FilterSection(
+                _,
+                FilterSection {
+                    ref filter,
+                    ref body,
+                },
+                _,
+            ) => {
                 let body = self.render_body(body)?;
                 buffer.push_str(
-                    &self.eval_filter(&Cow::Owned(Value::String(body)), filter)?.render(),
+                    &self
+                        .eval_filter(&Cow::Owned(Value::String(body)), filter)?
+                        .render(),
                 );
             }
             // Macros have been imported at the beginning
@@ -843,8 +882,11 @@ impl<'a> Processor<'a> {
 
         // which template are we in?
         if let Some(&(ref name, ref _template, ref level)) = self.blocks.last() {
-            let block_def =
-                self.template.blocks_definitions.get(&name.to_string()).and_then(|b| b.get(*level));
+            let block_def = self
+                .template
+                .blocks_definitions
+                .get(&name.to_string())
+                .and_then(|b| b.get(*level));
 
             if let Some(&(ref tpl_name, _)) = block_def {
                 if tpl_name != &self.template.name {

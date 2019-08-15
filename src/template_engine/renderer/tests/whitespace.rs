@@ -41,7 +41,8 @@ fn can_remove_whitespace_include() {
 
     for (input, expected) in inputs {
         let mut tera = Tera::default();
-        tera.add_raw_templates(vec![("include", "Included"), ("tpl", input)]).unwrap();
+        tera.add_raw_templates(vec![("include", "Included"), ("tpl", input)])
+            .unwrap();
         assert_eq!(tera.render("tpl", context.clone()).unwrap(), expected);
     }
 }
@@ -52,9 +53,18 @@ fn can_remove_whitespace_macros() {
     context.insert("numbers", &vec![1, 2, 3]);
 
     let inputs = vec![
-        (r#" {%- import "macros" as macros -%} {{macros::hey()}}"#, "Hey!"),
-        (r#" {% import "macros" as macros %} {{macros::hey()}}"#, "Hey!"),
-        (r#" {%- import "macros" as macros %} {%- set hey = macros::hey() -%} {{hey}}"#, "Hey!"),
+        (
+            r#" {%- import "macros" as macros -%} {{macros::hey()}}"#,
+            "Hey!",
+        ),
+        (
+            r#" {% import "macros" as macros %} {{macros::hey()}}"#,
+            "Hey!",
+        ),
+        (
+            r#" {%- import "macros" as macros %} {%- set hey = macros::hey() -%} {{hey}}"#,
+            "Hey!",
+        ),
     ];
 
     for (input, expected) in inputs {
@@ -74,9 +84,18 @@ fn can_remove_whitespace_inheritance() {
     context.insert("numbers", &vec![1, 2, 3]);
 
     let inputs = vec![
-        (r#"{%- extends "base" -%} {% block content %}{{super()}}{% endblock %}"#, " Hey! "),
-        (r#"{%- extends "base" -%} {% block content -%}{{super()}}{%- endblock %}"#, " Hey! "),
-        (r#"{%- extends "base" %} {%- block content -%}{{super()}}{%- endblock -%} "#, " Hey! "),
+        (
+            r#"{%- extends "base" -%} {% block content %}{{super()}}{% endblock %}"#,
+            " Hey! ",
+        ),
+        (
+            r#"{%- extends "base" -%} {% block content -%}{{super()}}{%- endblock %}"#,
+            " Hey! ",
+        ),
+        (
+            r#"{%- extends "base" %} {%- block content -%}{{super()}}{%- endblock -%} "#,
+            " Hey! ",
+        ),
     ];
 
     for (input, expected) in inputs {

@@ -1,12 +1,15 @@
 /// Filters operating on string
 use std::collections::HashMap;
 
-use crate::heck::{DirectoryCase, PackageCase, PascalCase, CamelCase, TitleCase, SnakeCase, ConstantCase, TrainCase};
+use crate::heck::{
+    CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase,
+    TrainCase,
+};
 
 use regex::{Captures, Regex};
 use serde_json::value::{to_value, Value};
 use slug;
-use url::percent_encoding::{utf8_percent_encode, EncodeSet};
+//use url::percent_encoding::{utf8_percent_encode, EncodeSet};
 
 use unic_segment::GraphemeIndices;
 
@@ -166,53 +169,58 @@ pub fn capitalize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     }
 }
 
-#[derive(Clone)]
-struct UrlEncodeSet(String);
-
-impl UrlEncodeSet {
-    fn safe_bytes(&self) -> &[u8] {
-        let &UrlEncodeSet(ref safe) = self;
-        safe.as_bytes()
-    }
-}
-
-impl EncodeSet for UrlEncodeSet {
-    #[allow(clippy::if_same_then_else)]
-    fn contains(&self, byte: u8) -> bool {
-        if byte >= 48 && byte <= 57 {
-            // digit
-            false
-        } else if byte >= 65 && byte <= 90 {
-            // uppercase character
-            false
-        } else if byte >= 97 && byte <= 122 {
-            // lowercase character
-            false
-        } else if byte == 45 || byte == 46 || byte == 95 {
-            // -, . or _
-            false
-        } else {
-            !self.safe_bytes().contains(&byte)
-        }
-    }
-}
+//#[derive(Clone)]
+//struct UrlEncodeSet(String);
+//
+//impl UrlEncodeSet {
+//    fn safe_bytes(&self) -> &[u8] {
+//        let &UrlEncodeSet(ref safe) = self;
+//        safe.as_bytes()
+//    }
+//}
+//
+//impl EncodeSet for UrlEncodeSet {
+//    #[allow(clippy::if_same_then_else)]
+//    fn contains(&self, byte: u8) -> bool {
+//        if byte >= 48 && byte <= 57 {
+//            // digit
+//            false
+//        } else if byte >= 65 && byte <= 90 {
+//            // uppercase character
+//            false
+//        } else if byte >= 97 && byte <= 122 {
+//            // lowercase character
+//            false
+//        } else if byte == 45 || byte == 46 || byte == 95 {
+//            // -, . or _
+//            false
+//        } else {
+//            !self.safe_bytes().contains(&byte)
+//        }
+//    }
+//}
 
 /// Percent-encodes reserved URI characters
-pub fn urlencode(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let s = try_get_value!("urlencode", "value", String, value);
-    let safe = match args.get("safe") {
-        Some(l) => try_get_value!("urlencode", "safe", String, l),
-        None => "/".to_string(),
-    };
-
-    let encoded = utf8_percent_encode(s.as_str(), UrlEncodeSet(safe)).collect::<String>();
-    Ok(to_value(&encoded).unwrap())
-}
+//pub fn urlencode(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+//    let s = try_get_value!("urlencode", "value", String, value);
+//    let safe = match args.get("safe") {
+//        Some(l) => try_get_value!("urlencode", "safe", String, l),
+//        None => "/".to_string(),
+//    };
+//
+//    let encoded = utf8_percent_encode(s.as_str(), UrlEncodeSet(safe)).collect::<String>();
+//    Ok(to_value(&encoded).unwrap())
+//}
 
 /// Escapes quote characters
 pub fn addslashes(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("addslashes", "value", String, value);
-    Ok(to_value(&s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\'", "\\\'")).unwrap())
+    Ok(to_value(
+        &s.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\'", "\\\'"),
+    )
+    .unwrap())
 }
 
 /// Transform a string into a slug
@@ -329,9 +337,15 @@ mod tests {
         let mut args = HashMap::new();
         args.insert("length".to_string(), to_value(&5).unwrap());
         args.insert("end".to_string(), to_value(&"…").unwrap());
-        let result = truncate(&to_value("👨‍👩‍👧‍👦 family").unwrap(), &args);
+        let result = truncate(
+            &to_value("👨‍👩‍👧‍👦 family").unwrap(),
+            &args,
+        );
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), to_value("👨‍👩‍👧‍👦 fam…").unwrap());
+        assert_eq!(
+            result.unwrap(),
+            to_value("👨‍👩‍👧‍👦 fam…").unwrap()
+        );
     }
 
     #[test]
@@ -372,7 +386,10 @@ mod tests {
 
     #[test]
     fn test_capitalize() {
-        let tests = vec![("CAPITAL IZE", "Capital ize"), ("capital ize", "Capital ize")];
+        let tests = vec![
+            ("CAPITAL IZE", "Capital ize"),
+            ("capital ize", "Capital ize"),
+        ];
         for (input, expected) in tests {
             let result = capitalize(&to_value(input).unwrap(), &HashMap::new());
             assert!(result.is_ok());
@@ -403,8 +420,10 @@ mod tests {
     fn test_slugify() {
         // slug crate already has tests for general slugification so we just
         // check our function works
-        let tests =
-            vec![(r#"Hello world"#, r#"hello-world"#), (r#"Hello 世界"#, r#"hello-shi-jie"#)];
+        let tests = vec![
+            (r#"Hello world"#, r#"hello-world"#),
+            (r#"Hello 世界"#, r#"hello-shi-jie"#),
+        ];
         for (input, expected) in tests {
             let result = slugify(&to_value(input).unwrap(), &HashMap::new());
             assert!(result.is_ok());
@@ -412,28 +431,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_urlencode() {
-        let tests = vec![
-            (
-                r#"https://www.example.org/foo?a=b&c=d"#,
-                None,
-                r#"https%3A//www.example.org/foo%3Fa%3Db%26c%3Dd"#,
-            ),
-            (r#"https://www.example.org/"#, Some(""), r#"https%3A%2F%2Fwww.example.org%2F"#),
-            (r#"/test&"/me?/"#, None, r#"/test%26%22/me%3F/"#),
-            (r#"escape/slash"#, Some(""), r#"escape%2Fslash"#),
-        ];
-        for (input, safe, expected) in tests {
-            let mut args = HashMap::new();
-            if let Some(safe) = safe {
-                args.insert("safe".to_string(), to_value(&safe).unwrap());
-            }
-            let result = urlencode(&to_value(input).unwrap(), &args);
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), to_value(expected).unwrap());
-        }
-    }
+
 
     #[test]
     fn test_title() {

@@ -21,10 +21,17 @@ pub trait CamelCase: ToOwned {
 
 impl CamelCase for str {
     fn to_camel_case(&self) -> String {
-        crate::heck::transform(self, |s, out| {
-            if out.is_empty() { crate::heck::lowercase(s, out); }
-            else { crate::heck::capitalize(s, out) }
-        }, |_| {})
+        crate::heck::transform(
+            self,
+            |s, out| {
+                if out.is_empty() {
+                    crate::heck::lowercase(s, out);
+                } else {
+                    crate::heck::capitalize(s, out)
+                }
+            },
+            |_| {},
+        )
     }
 }
 
@@ -38,7 +45,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_camel_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "pascalCase");

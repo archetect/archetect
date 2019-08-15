@@ -35,7 +35,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_package_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "pascal.case");

@@ -15,7 +15,9 @@ use super::Review;
 fn render_template(content: &str, context: Context) -> Result<String> {
     let mut tera = Tera::default();
     tera.add_raw_template("hello.html", content).unwrap();
-    tera.register_function("get_number", |_: &HashMap<String, Value>| Ok(Value::Number(10.into())));
+    tera.register_function("get_number", |_: &HashMap<String, Value>| {
+        Ok(Value::Number(10.into()))
+    });
     tera.register_function("get_string", |_: &HashMap<String, Value>| {
         Ok(Value::String("Hello".to_string()))
     });
@@ -138,7 +140,10 @@ fn render_variable_block_logic_expr() {
     let inputs = vec![
         ("{{ (1.9 + a) | round > 10 }}", "false"),
         ("{{ (1.9 + a) | round > 10 or b > a }}", "true"),
-        ("{{ 1.9 + a | round == 4 and numbers | length == 3}}", "true"),
+        (
+            "{{ 1.9 + a | round == 4 and numbers | length == 3}}",
+            "true",
+        ),
         ("{{ numbers | length > 1 }}", "true"),
         ("{{ numbers | length == 1 }}", "false"),
         ("{{ numbers | length - 2 == 1 }}", "true"),
@@ -180,7 +185,10 @@ fn comments_are_ignored() {
     let inputs = vec![
         ("Hello {# comment #}world", "Hello world"),
         ("Hello {# comment {# nested #}world", "Hello world"),
-        ("My name {# was {{ name }} #}is No One.", "My name is No One."),
+        (
+            "My name {# was {{ name }} #}is No One.",
+            "My name is No One.",
+        ),
     ];
 
     for (input, expected) in inputs {
@@ -313,22 +321,43 @@ fn render_if_elif_else() {
         ("{% if undefined %}a{% endif %}", ""),
         ("{% if not undefined %}a{% endif %}", "a"),
         ("{% if not is_false and is_true %}a{% endif %}", "a"),
-        ("{% if not is_false or numbers | length > 0 %}a{% endif %}", "a"),
+        (
+            "{% if not is_false or numbers | length > 0 %}a{% endif %}",
+            "a",
+        ),
         // doesn't panic with NaN results
         ("{% if 0 / 0 %}a{% endif %}", ""),
         // if and else
         ("{% if is_true %}Admin{% else %}User{% endif %}", "Admin"),
         ("{% if is_false %}Admin{% else %}User{% endif %}", "User"),
         // if and elifs
-        ("{% if is_true %}Admin{% elif is_false %}User{% endif %}", "Admin"),
-        ("{% if is_true %}Admin{% elif is_true %}User{% endif %}", "Admin"),
-        ("{% if is_true %}Admin{% elif numbers | length > 0 %}User{% endif %}", "Admin"),
+        (
+            "{% if is_true %}Admin{% elif is_false %}User{% endif %}",
+            "Admin",
+        ),
+        (
+            "{% if is_true %}Admin{% elif is_true %}User{% endif %}",
+            "Admin",
+        ),
+        (
+            "{% if is_true %}Admin{% elif numbers | length > 0 %}User{% endif %}",
+            "Admin",
+        ),
         // if, elifs and else
-        ("{% if is_true %}Admin{% elif is_false %}User{% else %}Hmm{% endif %}", "Admin"),
-        ("{% if false %}Admin{% elif is_false %}User{% else %}Hmm{% endif %}", "Hmm"),
+        (
+            "{% if is_true %}Admin{% elif is_false %}User{% else %}Hmm{% endif %}",
+            "Admin",
+        ),
+        (
+            "{% if false %}Admin{% elif is_false %}User{% else %}Hmm{% endif %}",
+            "Hmm",
+        ),
         // doesn't fallthrough elifs
         // https://github.com/Keats/tera/issues/188
-        ("{% if 1 < 4 %}a{% elif 2 < 4 %}b{% elif 3 < 4 %}c{% else %}d{% endif %}", "a"),
+        (
+            "{% if 1 < 4 %}a{% elif 2 < 4 %}b{% elif 3 < 4 %}c{% else %}d{% endif %}",
+            "a",
+        ),
     ];
 
     for (input, expected) in inputs {
@@ -347,7 +376,10 @@ fn render_for() {
     context.insert("data", &vec![1, 2, 3]);
     context.insert("notes", &vec![1, 2, 3]);
     context.insert("vectors", &vec![vec![0, 3, 6], vec![1, 4, 7]]);
-    context.insert("vectors_some_empty", &vec![vec![0, 3, 6], vec![], vec![1, 4, 7]]);
+    context.insert(
+        "vectors_some_empty",
+        &vec![vec![0, 3, 6], vec![], vec![1, 4, 7]],
+    );
     context.insert("map", &map);
     context.insert("truthy", &2);
 
@@ -478,8 +510,14 @@ fn default_filter_works() {
         (r#"{{ existing | default(value="hey") }}"#, "hello"),
         (r#"{{ val | default(value=1) }}"#, "1"),
         (r#"{{ val | default(value="hey") | capitalize }}"#, "Hey"),
-        (r#"{{ obj.val | default(value="hey") | capitalize }}"#, "Hey"),
-        (r#"{{ obj.val | default(value="hey") | capitalize }}"#, "Hey"),
+        (
+            r#"{{ obj.val | default(value="hey") | capitalize }}"#,
+            "Hey",
+        ),
+        (
+            r#"{{ obj.val | default(value="hey") | capitalize }}"#,
+            "Hey",
+        ),
         (r#"{{ not admin | default(value=false) }}"#, "true"),
         (r#"{{ not admin | default(value=true) }}"#, "false"),
         (r#"{{ null | default(value=true) }}"#, "true"),
@@ -500,10 +538,15 @@ fn filter_filter_works() {
     };
 
     let mut context = Context::new();
-    context.insert("authors", &vec![Author { id: 1 }, Author { id: 2 }, Author { id: 3 }]);
+    context.insert(
+        "authors",
+        &vec![Author { id: 1 }, Author { id: 2 }, Author { id: 3 }],
+    );
 
-    let inputs =
-        vec![(r#"{{ authors | filter(attribute="id", value=1) | first | get(key="id") }}"#, "1")];
+    let inputs = vec![(
+        r#"{{ authors | filter(attribute="id", value=1) | first | get(key="id") }}"#,
+        "1",
+    )];
 
     for (input, expected) in inputs {
         println!("{:?} -> {:?}", input, expected);
@@ -528,7 +571,10 @@ fn can_do_string_concat() {
         (r#"{{ get_string() ~ "hello" }}"#, "Hellohello"),
         (r#"{{ get_string() ~ 3.14 }}"#, "Hello3.14"),
         (r#"{{ a_string ~ " world" }}"#, "hello world"),
-        (r#"{{ a_string ~ ' world ' ~ another_string }}"#, "hello world xXx"),
+        (
+            r#"{{ a_string ~ ' world ' ~ another_string }}"#,
+            "hello world xXx",
+        ),
         (r#"{{ a_string ~ another_string }}"#, "helloxXx"),
         (r#"{{ a_string ~ an_int }}"#, "hello1"),
         (r#"{{ a_string ~ a_float }}"#, "hello3.14"),
@@ -550,7 +596,10 @@ fn can_fail_rendering_from_template() {
     );
     assert!(res.is_err());
     let err = res.unwrap_err();
-    assert_eq!(err.source().unwrap().to_string(), "Error: hello did not include a summary");
+    assert_eq!(
+        err.source().unwrap().to_string(),
+        "Error: hello did not include a summary"
+    );
 }
 
 #[test]
@@ -631,8 +680,14 @@ fn render_magic_variable_macro_doesnt_leak() {
 
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        ("macros", "{% macro hello(arg=1) %}{{ __tera_context }}{% endmacro hello %}"),
-        ("tpl", "{% import \"macros\" as macros %}{{macros::hello()}}"),
+        (
+            "macros",
+            "{% macro hello(arg=1) %}{{ __tera_context }}{% endmacro hello %}",
+        ),
+        (
+            "tpl",
+            "{% import \"macros\" as macros %}{{macros::hello()}}",
+        ),
     ])
     .unwrap();
     let result = tera.render("tpl", context);
@@ -736,7 +791,8 @@ fn stateful_global_fn() {
 #[test]
 fn split_on_context_value() {
     let mut tera = Tera::default();
-    tera.add_raw_template("split.html", r#"{{ body | split(pat="\n") }}"#).unwrap();
+    tera.add_raw_template("split.html", r#"{{ body | split(pat="\n") }}"#)
+        .unwrap();
     let mut context = Context::new();
     context.insert("body", "multi\nple\nlines");
     let res = tera.render("split.html", context);

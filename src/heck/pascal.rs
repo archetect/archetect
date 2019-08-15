@@ -37,7 +37,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_pascal_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "PascalCase");

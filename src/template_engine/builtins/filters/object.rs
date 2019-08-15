@@ -14,9 +14,14 @@ pub fn get(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     match value.as_object() {
         Some(o) => o.get(&key).cloned().ok_or_else(|| {
-            Error::msg(format!("Filter `get` tried to get key `{}` but it wasn't found", &key))
+            Error::msg(format!(
+                "Filter `get` tried to get key `{}` but it wasn't found",
+                &key
+            ))
         }),
-        None => Err(Error::msg("Filter `get` was used on a value that isn't an object")),
+        None => Err(Error::msg(
+            "Filter `get` was used on a value that isn't an object",
+        )),
     }
 }
 

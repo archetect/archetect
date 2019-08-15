@@ -20,7 +20,7 @@ pub trait DirectoryCase: ToOwned {
 
 impl DirectoryCase for str {
     fn to_directory_case(&self) -> String {
-        crate::heck::transform(self,crate::heck::lowercase, |s| s.push('/'))
+        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('/'))
     }
 }
 
@@ -34,7 +34,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_directory_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "PascalCase" => "pascal/case");

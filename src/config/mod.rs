@@ -1,7 +1,7 @@
-mod archetype;
 mod answers;
+mod archetype;
 mod catalog;
 
+pub use answers::{Answer, AnswerConfig, AnswerConfigError};
 pub use archetype::{ArchetypeConfig, Variable};
-pub use answers::{AnswerConfig, Answer, AnswerConfigError};
 pub use catalog::{CatalogConfig, CatalogEntry};
