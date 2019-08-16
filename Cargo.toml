@@ -12,7 +12,6 @@ path = "src/bin/main.rs"
 [dependencies]
 clap = "2.33"
 directories = "2.0.1"
-error-chain = "0.12"
 indoc = "0.3"
 log = { version = "0.4", features = ["std"] }
 pest = "2"
