@@ -166,7 +166,7 @@ pub struct Module {
     location: String,
     destination: String,
     #[serde(rename = "answer")]
-    answers: Vec<Answer>,
+    answers: Option<Vec<Answer>>,
 }
 
 impl Module {
@@ -174,8 +174,16 @@ impl Module {
         Module {
             location: location.into(),
             destination: destination.into(),
-            answers: vec![],
+            answers: None,
         }
+    }
+
+    pub fn location(&self) -> &str {
+        self.location.as_str()
+    }
+
+    pub fn destination(&self) -> &str {
+        self.destination.as_str()
     }
 
     pub fn with_answer(mut self, answer: Answer) -> Module {
@@ -184,11 +192,12 @@ impl Module {
     }
 
     pub fn add_answer(&mut self, answer: Answer) {
-        self.answers.push(answer);
+        let answers = self.answers.get_or_insert_with(|| vec![]);
+        answers.push(answer);
     }
 
-    pub fn answers(&self) -> &[Answer] {
-        self.answers.as_ref()
+    pub fn answers(&self) -> Option<&[Answer]> {
+        self.answers.as_ref().map(|r| r.as_slice())
     }
 }
 

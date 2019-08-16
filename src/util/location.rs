@@ -1,7 +1,10 @@
 use regex::Regex;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use url::Url;
+
+use log::{debug, info};
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Location {
@@ -11,10 +14,11 @@ pub enum Location {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum LocationError {
-    Unsupported,
-    NotFound,
-    InvalidLocation,
-    InvalidEncoding,
+    LocationUnsupported,
+    LocationNotFound,
+    LocationInvalidPath,
+    LocationInvalidEncoding,
+    OfflineAndNotCached,
 }
 
 lazy_static! {
@@ -22,29 +26,37 @@ lazy_static! {
 }
 
 impl Location {
-    pub fn detect<P: Into<String>>(path: P) -> Result<Location, LocationError> {
+    pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Location, LocationError> {
         let path = path.into();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
+            let cache_path = env::temp_dir().join("archetect").join(format!(
+                "{}_{}",
+                &captures[1],
+                &captures[2].replace("/", ".")
+            ));
+            if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
+                return Err(error);
+            }
             return Ok(Location::RemoteGit {
                 url: path.to_owned(),
-                path: env::temp_dir().join("archetect").join(format!(
-                    "{}_{}",
-                    &captures[1],
-                    &captures[2].replace("/", ".")
-                )),
+                path: cache_path,
             });
         };
 
         if let Ok(url) = Url::parse(&path) {
             if path.ends_with(".git") && url.has_host() {
+                let cache_path = env::temp_dir().join("archetect").join(format!(
+                    "{}_{}",
+                    url.host_str().unwrap(),
+                    url.path().trim_start_matches('/').replace("/", ".")
+                ));
+                if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
+                    return Err(error);
+                }
                 return Ok(Location::RemoteGit {
                     url: path,
-                    path: env::temp_dir().join("archetect").join(format!(
-                        "{}_{}",
-                        url.host_str().unwrap(),
-                        url.path().trim_start_matches('/').replace("/", ".")
-                    )),
+                    path: cache_path,
                 });
             }
 
@@ -52,10 +64,10 @@ impl Location {
                 if local_path.exists() {
                     return Ok(Location::LocalDirectory { path: local_path });
                 } else {
-                    return Err(LocationError::NotFound);
+                    return Err(LocationError::LocationNotFound);
                 }
             } else {
-                return Err(LocationError::Unsupported);
+                return Err(LocationError::LocationUnsupported);
             }
         }
 
@@ -65,14 +77,45 @@ impl Location {
                 if local_path.is_dir() {
                     return Ok(Location::LocalDirectory { path: local_path });
                 } else {
-                    return Err(LocationError::Unsupported);
+                    return Err(LocationError::LocationUnsupported);
                 }
             } else {
-                return Err(LocationError::NotFound);
+                return Err(LocationError::LocationNotFound);
             }
         } else {
-            return Err(LocationError::InvalidLocation);
+            return Err(LocationError::LocationInvalidPath);
         }
+    }
+}
+
+fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Option<LocationError> {
+    if !cache_destination.exists() {
+        if !offline {
+            info!("Cloning {}", url);
+            Command::new("git")
+                .args(&["clone", &url, &format!("{}", cache_destination.display())])
+                .output()
+                .unwrap();
+            None
+        } else {
+            Some(LocationError::OfflineAndNotCached)
+        }
+    } else {
+        if !offline {
+            debug!("Resetting {}", url);
+            Command::new("git")
+                .current_dir(&cache_destination)
+                .args(&["reset", "hard"])
+                .output()
+                .unwrap();
+            info!("Pulling {}", url);
+            Command::new("git")
+                .current_dir(&cache_destination)
+                .args(&["pull"])
+                .output()
+                .unwrap();
+        }
+        None
     }
 }
 
@@ -102,7 +145,7 @@ mod tests {
     #[test]
     fn test_detect_local_directory() {
         assert_eq!(
-            Location::detect("."),
+            Location::detect(".", false),
             Ok(Location::LocalDirectory {
                 path: PathBuf::from(".")
             })
@@ -113,33 +156,36 @@ mod tests {
             Ok(Location::LocalDirectory { path: _ })
         );
 
-        assert_eq!(Location::detect("notfound"), Err(LocationError::NotFound));
+        assert_eq!(
+            Location::detect("notfound", false),
+            Err(LocationError::LocationNotFound)
+        );
     }
 
     #[test]
     fn test_file_url() {
         assert_eq!(
-            Location::detect("file://localhost/home"),
+            Location::detect("file://localhost/home", false),
             Ok(Location::LocalDirectory {
                 path: PathBuf::from("/home")
             }),
         );
 
         assert_eq!(
-            Location::detect("file:///home"),
+            Location::detect("file:///home", false),
             Ok(Location::LocalDirectory {
                 path: PathBuf::from("/home")
             }),
         );
 
         assert_eq!(
-            Location::detect("file://localhost/nope"),
-            Err(LocationError::NotFound),
+            Location::detect("file://localhost/nope", false),
+            Err(LocationError::LocationNotFound),
         );
 
         assert_eq!(
-            Location::detect("file://nope/home"),
-            Err(LocationError::Unsupported),
+            Location::detect("file://nope/home", false),
+            Err(LocationError::LocationUnsupported),
         );
     }
 

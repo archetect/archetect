@@ -178,7 +178,7 @@ fn main() {
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
         let offline: bool = matches.is_present("offline");
 
-        match Location::detect(source) {
+        match Location::detect(source, offline) {
             Ok(location) => {
                 let archetype = DirectoryArchetype::from_location(location, offline).unwrap();
                 if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
@@ -193,14 +193,20 @@ fn main() {
                 archetype.generate(destination, context).unwrap();
             }
             Err(err) => match err {
-                LocationError::InvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
-                LocationError::NotFound => error!("\"{}\" does not exist", source),
-                LocationError::Unsupported => {
+                LocationError::LocationInvalidEncoding => {
+                    error!("\"{}\" is not valid UTF-8", source)
+                }
+                LocationError::LocationNotFound => error!("\"{}\" does not exist", source),
+                LocationError::LocationUnsupported => {
                     error!("\"{}\" is not a supported archetype path", source)
                 }
-                LocationError::InvalidLocation => {
+                LocationError::LocationInvalidPath => {
                     error!("\"{}\" is not a valid archetype path", source)
                 }
+                LocationError::OfflineAndNotCached => error!(
+                    "\"{}\" is not cached locally and cannot be cloned in offline mode",
+                    source
+                ),
             },
         }
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
