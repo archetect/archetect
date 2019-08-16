@@ -5,8 +5,8 @@ use archetect::config::{Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig
 use archetect::util::{Location, LocationError};
 use archetect::{self, Archetype, DirectoryArchetype};
 use clap::{App, AppSettings, Arg, SubCommand};
-use log::{error};
 use indoc::indoc;
+use log::error;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -118,17 +118,36 @@ fn main() {
         .subcommand(
             SubCommand::with_name("create")
                 .about("Creates content from an Archetype")
-                .arg(Arg::with_name("from").takes_value(true).required(true))
+                .arg(
+                    Arg::with_name("source")
+                        .help("The source archetype directory or git URL")
+                        .takes_value(true)
+                        .required(true)
+                )
                 .arg(
                     Arg::with_name("destination")
                         .default_value(".")
                         .help("The directory to initialize the Archetype template in.")
-                        .takes_value(true),
-                ),
+                        .takes_value(true)
+                )
+                .arg(
+                    Arg::with_name("offline")
+                        .help("Only use directories and already-cached remote git URLs")
+                        .short("o")
+                        .long("offline")
+                )
         )
         .get_matches();
 
-    loggerv::init_with_verbosity(matches.occurrences_of("verbosity")).unwrap();
+    archetect::loggerv::Logger::new()
+        .verbosity(matches.occurrences_of("verbosity"))
+        .level(false)
+        .prefix("archetect")
+        .no_module_path()
+        .module_path(false)
+        .base_level(log::Level::Info)
+        .init()
+        .unwrap();
 
     let mut answers = HashMap::new();
 
@@ -147,19 +166,22 @@ fn main() {
         }
     }
 
+    if let Some(matches) = matches.subcommand_matches("cache") {
+        if let Some(_sub_matches) = matches.subcommand_matches("clear") {
+            let cache_path = std::env::temp_dir().join("archetect");
+            fs::remove_dir_all(&cache_path).expect("Error deleting archetect cache");
+        }
+    }
+
     if let Some(matches) = matches.subcommand_matches("create") {
-        let source = matches.value_of("from").unwrap();
+        let source = matches.value_of("source").unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+        let offline: bool = matches.is_present("offline");
 
         match Location::detect(source) {
             Ok(location) => {
-                let path = match &location {
-                    &Location::RemoteGit { ref path, .. } => path.clone(),
-                    &Location::LocalDirectory { ref path} => path.clone(),
-                };
-                let archetype = DirectoryArchetype::from_location(location).unwrap();
-
-                if let Ok(answer_config) = AnswerConfig::load(path.clone()) {
+                let archetype = DirectoryArchetype::from_location(location, offline).unwrap();
+                if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
                     for answer in answer_config.answers() {
                         if !answers.contains_key(answer.identifier()) {
                             let answer = answer.clone();
@@ -167,16 +189,17 @@ fn main() {
                         }
                     }
                 }
-
                 let context = archetype.get_context(&answers).unwrap();
                 archetype.generate(destination, context).unwrap();
-            },
-            Err(err) => {
-                match err {
-                    LocationError::InvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
-                    LocationError::NotFound => error!("\"{}\" does not exist", source),
-                    LocationError::Unsupported => error!("\"{}\" is not a supported archetype path", source),
-                    LocationError::InvalidLocation => error!("\"{}\" is not a valid archetype path", source),
+            }
+            Err(err) => match err {
+                LocationError::InvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
+                LocationError::NotFound => error!("\"{}\" does not exist", source),
+                LocationError::Unsupported => {
+                    error!("\"{}\" is not a supported archetype path", source)
+                }
+                LocationError::InvalidLocation => {
+                    error!("\"{}\" is not a valid archetype path", source)
                 }
             },
         }

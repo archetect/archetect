@@ -14,8 +14,7 @@ clap = "2.33"
 directories = "2.0.1"
 error-chain = "0.12"
 indoc = "0.3"
-log = "0.4"
-loggerv = "0.7"
+log = { version = "0.4", features = ["std"] }
 pest = "2"
 pest_derive = "2"
 failure = "0.1.5"
@@ -46,6 +45,9 @@ humansize = "1"
 chrono = "0.4"
 # used in truncate filter
 unic-segment = "0.9"
+
+ansi_term = "0.12"
+atty = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

@@ -1,4 +1,7 @@
 use crate::ArchetypeError;
+
+use log::debug;
+
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -41,6 +44,7 @@ impl AnswerConfig {
         if path.is_dir() {
             let dot_answers = path.clone().join(".answers.toml");
             if dot_answers.exists() {
+                debug!(target: "archetect", "Reading answers from '{}'", &dot_answers.display());
                 let config = fs::read_to_string(dot_answers)?;
                 let config = toml::de::from_str::<AnswerConfig>(&config)?;
                 return Ok(config);
@@ -48,6 +52,7 @@ impl AnswerConfig {
 
             let answers = path.clone().join("answers.toml");
             if answers.exists() {
+                debug!(target: "archetect", "Reading answers from '{}'", &dot_answers.display());
                 let config = fs::read_to_string(answers)?;
                 let config = toml::de::from_str::<AnswerConfig>(&config)?;
                 return Ok(config);

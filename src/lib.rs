@@ -14,12 +14,12 @@ extern crate pretty_assertions;
 
 pub mod config;
 pub mod heck;
+pub mod loggerv;
 pub mod parser;
-pub mod util;
 pub mod template_engine;
+pub mod util;
 
-use log::{info, debug, trace};
-use std::env;
+use log::{debug, info, trace};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -31,9 +31,9 @@ use template_engine::{Context, Tera};
 
 use crate::config::Answer;
 use crate::config::ArchetypeConfig;
+use crate::util::Location;
 use failure::{Error, Fail};
 use std::collections::HashMap;
-use crate::util::Location;
 
 pub trait Archetype {
     fn generate<D: Into<PathBuf>>(
@@ -55,49 +55,40 @@ pub struct DirectoryArchetype {
 }
 
 impl DirectoryArchetype {
-    pub fn from_location(location: Location) -> Result<DirectoryArchetype, Error> {
+    pub fn from_location(location: Location, offline: bool) -> Result<DirectoryArchetype, Error> {
         let tera = Tera::default();
         match location {
             Location::LocalDirectory { path } => {
                 let config = ArchetypeConfig::load(&path)?;
-                Ok(DirectoryArchetype {
-                    tera,
-                    config,
-                    path,
-                })
-            },
-            Location::RemoteGit { url, path} => {
+                Ok(DirectoryArchetype { tera, config, path })
+            }
+            Location::RemoteGit { url, path } => {
                 if !path.exists() {
+                    // TODO: handle offline error messaging
                     info!("Cloning {}", url);
                     Command::new("git")
-                        .args(&[
-                            "clone",
-                            &url,
-                            &format!("{}", path.display()),
-                        ]).output().unwrap();
+                        .args(&["clone", &url, &format!("{}", path.display())])
+                        .output()
+                        .unwrap();
                 } else {
-                    debug!("Resetting {}", url);
-                    Command::new("git")
-                        .args(&[
-                            "reset",
-                            "hard",
-                            &format!("{}", path.display()),
-                        ]).output().unwrap();
-                    info!("Pulling {}", url);
-                    Command::new("git")
-                        .args(&[
-                            "pull",
-                            &format!("{}", path.display()),
-                        ]).output().unwrap();
-
+                    if !offline {
+                        debug!("Resetting {}", url);
+                        Command::new("git")
+                            .current_dir(&path)
+                            .args(&["reset", "hard"])
+                            .output()
+                            .unwrap();
+                        info!("Pulling {}", url);
+                        Command::new("git")
+                            .current_dir(&path)
+                            .args(&["pull"])
+                            .output()
+                            .unwrap();
+                    }
                 }
                 let config = ArchetypeConfig::load(&path)?;
-                Ok(DirectoryArchetype {
-                    tera,
-                    config,
-                    path,
-                })
-            },
+                Ok(DirectoryArchetype { tera, config, path })
+            }
         }
     }
 
@@ -154,12 +145,8 @@ impl Archetype for DirectoryArchetype {
     ) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.generate_internal(
-            context,
-            self.path.clone().join("archetype"),
-            destination,
-        )
-        .unwrap();
+        self.generate_internal(context, self.path.clone().join("archetype"), destination)
+            .unwrap();
         Ok(())
     }
 
@@ -229,7 +216,7 @@ pub enum ArchetypeError {
 
 #[cfg(test)]
 mod tests {
-    use url::{Url};
+    use url::Url;
 
     #[test]
     fn test_url_as_http() {
