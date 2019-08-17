@@ -3,7 +3,7 @@ extern crate clap;
 
 use archetect::config::{Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, Variable};
 use archetect::util::{Location, LocationError};
-use archetect::{self, Archetype, DirectoryArchetype};
+use archetect::{self, Archetype};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
 use log::error;
@@ -180,7 +180,7 @@ fn main() {
 
         match Location::detect(source, offline) {
             Ok(location) => {
-                let archetype = DirectoryArchetype::from_location(location, offline).unwrap();
+                let archetype = Archetype::from_location(location, offline).unwrap();
                 if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
                     for answer in answer_config.answers() {
                         if !answers.contains_key(answer.identifier()) {
