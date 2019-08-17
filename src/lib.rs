@@ -19,12 +19,11 @@ pub mod parser;
 pub mod template_engine;
 pub mod util;
 
-use log::{debug, info, trace};
+use log::trace;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
 
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
@@ -57,39 +56,30 @@ pub struct DirectoryArchetype {
 impl DirectoryArchetype {
     pub fn from_location(location: Location, offline: bool) -> Result<DirectoryArchetype, Error> {
         let tera = Tera::default();
-        match location {
+        let result = match location {
             Location::LocalDirectory { path } => {
                 let config = ArchetypeConfig::load(&path)?;
                 Ok(DirectoryArchetype { tera, config, path })
             }
-            Location::RemoteGit { url, path } => {
-                if !path.exists() {
-                    // TODO: handle offline error messaging
-                    info!("Cloning {}", url);
-                    Command::new("git")
-                        .args(&["clone", &url, &format!("{}", path.display())])
-                        .output()
-                        .unwrap();
-                } else {
-                    if !offline {
-                        debug!("Resetting {}", url);
-                        Command::new("git")
-                            .current_dir(&path)
-                            .args(&["reset", "hard"])
-                            .output()
-                            .unwrap();
-                        info!("Pulling {}", url);
-                        Command::new("git")
-                            .current_dir(&path)
-                            .args(&["pull"])
-                            .output()
-                            .unwrap();
-                    }
-                }
+            Location::RemoteGit { url: _, path } => {
                 let config = ArchetypeConfig::load(&path)?;
                 Ok(DirectoryArchetype { tera, config, path })
             }
+        };
+
+        if let Ok(archetype) = &result {
+            if let Some(modules) = archetype.configuration().modules() {
+                for module in modules {
+                    Location::detect(module.location(), offline).unwrap();
+                }
+            }
         }
+
+        result
+    }
+
+    pub fn configuration(&self) -> &ArchetypeConfig {
+        &self.config
     }
 
     fn generate_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
