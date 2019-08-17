@@ -1,3 +1,4 @@
+use crate::config::path::PathRuleConfig;
 use crate::config::Answer;
 use crate::ArchetypeError;
 use std::fmt::{Display, Formatter};
@@ -13,9 +14,11 @@ pub struct ArchetypeConfig {
     tags: Option<Vec<String>>,
     contents: Option<String>,
     #[serde(rename = "module")]
-    modules: Option<Vec<Module>>,
+    modules: Option<Vec<ModuleConfig>>,
     #[serde(rename = "variable")]
     variables: Vec<Variable>,
+    #[serde(rename = "path")]
+    path_rules: Option<Vec<PathRuleConfig>>,
 }
 
 impl ArchetypeConfig {
@@ -95,18 +98,32 @@ impl ArchetypeConfig {
         self
     }
 
-    pub fn with_module(mut self, module: Module) -> ArchetypeConfig {
+    pub fn with_module(mut self, module: ModuleConfig) -> ArchetypeConfig {
         self.add_module(module);
         self
     }
 
-    pub fn add_module(&mut self, module: Module) {
+    pub fn add_module(&mut self, module: ModuleConfig) {
         let modules = self.modules.get_or_insert_with(|| vec![]);
         modules.push(module);
     }
 
-    pub fn modules(&self) -> Option<&[Module]> {
+    pub fn modules(&self) -> Option<&[ModuleConfig]> {
         self.modules.as_ref().map(|r| r.as_slice())
+    }
+
+    pub fn add_path_rule(&mut self, path_rule: PathRuleConfig) {
+        let path_rules = self.path_rules.get_or_insert_with(|| vec![]);
+        path_rules.push(path_rule);
+    }
+
+    pub fn with_path_rule(mut self, path_rule: PathRuleConfig) -> ArchetypeConfig {
+        self.add_path_rule(path_rule);
+        self
+    }
+
+    pub fn path_rules(&self) -> Option<&[PathRuleConfig]> {
+        self.path_rules.as_ref().map(|pr| pr.as_slice())
     }
 
     pub fn add_variable(&mut self, variable: Variable) {
@@ -136,6 +153,7 @@ impl Default for ArchetypeConfig {
             tags: None,
             contents: None,
             modules: None,
+            path_rules: None,
             variables: vec![],
         }
     }
@@ -161,17 +179,17 @@ impl FromStr for ArchetypeConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Module {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ModuleConfig {
     location: String,
     destination: String,
     #[serde(rename = "answer")]
     answers: Option<Vec<Answer>>,
 }
 
-impl Module {
-    pub fn new<L: Into<String>, D: Into<String>>(location: L, destination: D) -> Module {
-        Module {
+impl ModuleConfig {
+    pub fn new<L: Into<String>, D: Into<String>>(location: L, destination: D) -> ModuleConfig {
+        ModuleConfig {
             location: location.into(),
             destination: destination.into(),
             answers: None,
@@ -186,7 +204,7 @@ impl Module {
         self.destination.as_str()
     }
 
-    pub fn with_answer(mut self, answer: Answer) -> Module {
+    pub fn with_answer(mut self, answer: Answer) -> ModuleConfig {
         self.add_answer(answer);
         self
     }
@@ -279,7 +297,7 @@ mod tests {
             .with_tag("Service")
             .with_tag("REST")
             .with_module(
-                Module::new(
+                ModuleConfig::new(
                     "~/modules/jpa-persistence-module",
                     "{{ name | train_case }}",
                 )
