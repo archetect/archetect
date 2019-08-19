@@ -1,0 +1,4 @@
+imports_layout = "HorizontalVertical"
+max_width = 120
+newline_style = "Unix"
+version = "Two"
