@@ -118,7 +118,9 @@ fn main() {
                 .about("Manage/Select from Archetypes cached from Git Repositories")
                 .subcommand(SubCommand::with_name("select"))
                 .subcommand(SubCommand::with_name("clear"))
-                .subcommand(SubCommand::with_name("pull")),
+                .subcommand(SubCommand::with_name("pull"))
+                .subcommand(SubCommand::with_name("path"))
+            ,
         )
         .subcommand(
             SubCommand::with_name("create")
@@ -172,9 +174,13 @@ fn main() {
     }
 
     if let Some(matches) = matches.subcommand_matches("cache") {
+        let app_root = directories::ProjectDirs::from("", "", "archetect").unwrap();
+        let cache_root =    app_root.cache_dir();
         if let Some(_sub_matches) = matches.subcommand_matches("clear") {
-            let cache_path = std::env::temp_dir().join("archetect");
-            fs::remove_dir_all(&cache_path).expect("Error deleting archetect cache");
+            fs::remove_dir_all(&cache_root).expect("Error deleting archetect cache");
+        }
+        if let Some(_) = matches.subcommand_matches("path") {
+            println!("{}", cache_root.display());
         }
     }
 
