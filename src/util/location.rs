@@ -1,10 +1,9 @@
 use regex::Regex;
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use url::Url;
 
-use log::{debug, info};
+use log::{trace, debug, info};
 use std::sync::Mutex;
 use std::collections::HashSet;
 
@@ -32,8 +31,11 @@ impl Location {
     pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Location, LocationError> {
         let path = path.into();
 
+        let app_root = directories::ProjectDirs::from("", "", "archetect").unwrap();
+        let cache_root =    app_root.cache_dir();
+
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
-            let cache_path = env::temp_dir().join("archetect").join(format!(
+            let cache_path = cache_root.clone().join(format!(
                 "{}_{}",
                 &captures[1],
                 &captures[2].replace("/", ".")
@@ -49,7 +51,7 @@ impl Location {
 
         if let Ok(url) = Url::parse(&path) {
             if path.ends_with(".git") && url.has_host() {
-                let cache_path = env::temp_dir().join("archetect").join(format!(
+                let cache_path = cache_root.clone().join(format!(
                     "{}_{}",
                     url.host_str().unwrap(),
                     url.path().trim_start_matches('/').replace("/", ".")
@@ -95,10 +97,13 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Option<
     if !cache_destination.exists() {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
-            Command::new("git")
+            let output = Command::new("git")
                 .args(&["clone", &url, &format!("{}", cache_destination.display())])
                 .output()
                 .unwrap();
+            debug!("Output: {:?}", String::from_utf8(output.stderr).unwrap());
+
+            trace!("Cloned to {}", cache_destination.display());
             None
         } else {
             Some(LocationError::OfflineAndNotCached)
