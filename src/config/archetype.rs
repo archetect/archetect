@@ -16,12 +16,16 @@ pub struct ArchetypeConfig {
     #[serde(rename = "module")]
     modules: Option<Vec<ModuleConfig>>,
     #[serde(rename = "variable")]
-    variables: Vec<Variable>,
+    variables: Option<Vec<Variable>>,
     #[serde(rename = "path")]
     path_rules: Option<Vec<PathRuleConfig>>,
 }
 
 impl ArchetypeConfig {
+    pub fn new() -> ArchetypeConfig {
+        ArchetypeConfig::default()
+    }
+
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<ArchetypeConfig, ArchetypeError> {
         let mut path = path.into();
         if path.is_dir() {
@@ -93,11 +97,6 @@ impl ArchetypeConfig {
         self.frameworks.as_ref().map(|r| r.as_slice())
     }
 
-    pub fn with_variable(mut self, variable: Variable) -> ArchetypeConfig {
-        self.variables.push(variable);
-        self
-    }
-
     pub fn with_module(mut self, module: ModuleConfig) -> ArchetypeConfig {
         self.add_module(module);
         self
@@ -127,11 +126,17 @@ impl ArchetypeConfig {
     }
 
     pub fn add_variable(&mut self, variable: Variable) {
-        self.variables.push(variable);
+        let variables = self.variables.get_or_insert_with(|| vec![]);
+        variables.push(variable);
+    }
+
+    pub fn with_variable(mut self, variable: Variable) -> ArchetypeConfig {
+        self.add_variable(variable);
+        self
     }
 
     pub fn variables(&self) -> &[Variable] {
-        &self.variables
+        self.variables.as_ref().map(|v| v.as_slice()).unwrap_or_default()
     }
 
     pub fn with_contents<C: Into<String>>(mut self, contents: C) -> ArchetypeConfig {
@@ -154,7 +159,7 @@ impl Default for ArchetypeConfig {
             contents: None,
             modules: None,
             path_rules: None,
-            variables: vec![],
+            variables: None,
         }
     }
 }

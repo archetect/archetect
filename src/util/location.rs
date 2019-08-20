@@ -5,6 +5,8 @@ use std::process::Command;
 use url::Url;
 
 use log::{debug, info};
+use std::sync::Mutex;
+use std::collections::HashSet;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Location {
@@ -23,6 +25,7 @@ pub enum LocationError {
 
 lazy_static! {
     static ref SHORT_GIT_PATTERN: Regex = Regex::new(r"\S+@(\S+):(.*)").unwrap();
+    static ref CACHED_PATHS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
 }
 
 impl Location {
@@ -90,7 +93,7 @@ impl Location {
 
 fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Option<LocationError> {
     if !cache_destination.exists() {
-        if !offline {
+        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
             Command::new("git")
                 .args(&["clone", &url, &format!("{}", cache_destination.display())])
@@ -101,7 +104,7 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Option<
             Some(LocationError::OfflineAndNotCached)
         }
     } else {
-        if !offline {
+        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             debug!("Resetting {}", url);
             Command::new("git")
                 .current_dir(&cache_destination)
