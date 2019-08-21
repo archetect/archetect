@@ -7,6 +7,8 @@ use log::{debug, info, trace};
 use std::collections::HashSet;
 use std::sync::Mutex;
 
+use crate::util::paths;
+
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Location {
     RemoteGit { url: String, path: PathBuf },
@@ -31,11 +33,10 @@ impl Location {
     pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Location, LocationError> {
         let path = path.into();
 
-        let app_root = directories::ProjectDirs::from("", "", "archetect").unwrap();
-        let cache_root = app_root.cache_dir();
+        let git_cache = paths::git_cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
-            let cache_path = cache_root
+            let cache_path = git_cache
                 .clone()
                 .join(format!("{}_{}", &captures[1], &captures[2].replace("/", ".")));
             if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
@@ -49,7 +50,7 @@ impl Location {
 
         if let Ok(url) = Url::parse(&path) {
             if path.ends_with(".git") && url.has_host() {
-                let cache_path = cache_root.clone().join(format!(
+                let cache_path = git_cache.clone().join(format!(
                     "{}_{}",
                     url.host_str().unwrap(),
                     url.path().trim_start_matches('/').replace("/", ".")
