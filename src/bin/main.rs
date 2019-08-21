@@ -304,8 +304,8 @@ fn main() {
             match CatalogConfig::load(catalog_path) {
                 Ok(catalog) => {
                     info!("Catalog loaded successfully!");
-                    for (number, archetype_info) in catalog.archetypes().iter().enumerate() {
-                        println!("{}: {:?}", number, archetype_info);
+                    if let Ok(archetype_info) = archetect::input::select_from_catalog(&catalog) {
+                        println!("{} selected", archetype_info.description());
                     }
                 }
                 Err(CatalogConfigError::CatalogConfigTomlParseError(cause)) => error!(
