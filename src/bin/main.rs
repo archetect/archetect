@@ -4,6 +4,7 @@ extern crate clap;
 use archetect::config::{
     Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
 };
+use archetect::util::paths;
 use archetect::util::{Location, LocationError};
 use archetect::{self, Archetype};
 use clap::{App, AppSettings, Arg, SubCommand};
@@ -122,6 +123,22 @@ fn main() {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("system")
+                .about("archetect system configuration")
+                .subcommand(
+                    SubCommand::with_name("paths")
+                        .about("Get paths ")
+                        .subcommand(
+                            SubCommand::with_name("git")
+                                .about("The location where git repos are cloned.  Used for offline mode."),
+                        )
+                        .subcommand(
+                            SubCommand::with_name("config")
+                                .about("The location where archetect config files are stored."),
+                        ),
+                ),
+        )
+        .subcommand(
             SubCommand::with_name("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
                 .subcommand(SubCommand::with_name("select"))
@@ -165,6 +182,13 @@ fn main() {
 
     let mut answers = HashMap::new();
 
+    if let Ok(user_answers) = AnswerConfig::load(paths::answers_config()) {
+        for answer in user_answers.answers() {
+            let answer = answer.clone();
+            answers.insert(answer.identifier().to_owned(), answer);
+        }
+    }
+
     if let Some(matches) = matches.values_of("answer-file") {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
             for answer in f.answers() {
@@ -181,13 +205,26 @@ fn main() {
     }
 
     if let Some(matches) = matches.subcommand_matches("cache") {
-        let app_root = directories::ProjectDirs::from("", "", "archetect").unwrap();
-        let cache_root = app_root.cache_dir();
+        let git_cache = paths::git_cache_dir();
         if let Some(_sub_matches) = matches.subcommand_matches("clear") {
-            fs::remove_dir_all(&cache_root).expect("Error deleting archetect cache");
+            fs::remove_dir_all(&git_cache).expect("Error deleting archetect cache");
         }
         if let Some(_) = matches.subcommand_matches("path") {
-            println!("{}", cache_root.display());
+            println!("{}", git_cache.display());
+        }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("system") {
+        if let Some(matches) = matches.subcommand_matches("paths") {
+            if let Some(_) = matches.subcommand_matches("git") {
+                println!("{}", paths::git_cache_dir().display());
+            }
+            if let Some(_) = matches.subcommand_matches("catalogs") {
+                println!("{}", paths::catalog_cache_dir().display());
+            }
+            if let Some(_) = matches.subcommand_matches("config") {
+                println!("{}", paths::configs_dir().display());
+            }
         }
     }
 
