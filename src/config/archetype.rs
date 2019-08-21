@@ -136,7 +136,10 @@ impl ArchetypeConfig {
     }
 
     pub fn variables(&self) -> &[Variable] {
-        self.variables.as_ref().map(|v| v.as_slice()).unwrap_or_default()
+        self.variables
+            .as_ref()
+            .map(|v| v.as_slice())
+            .unwrap_or_default()
     }
 
     pub fn with_contents<C: Into<String>>(mut self, contents: C) -> ArchetypeConfig {

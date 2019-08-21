@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use url::Url;
 
-use log::{trace, debug, info};
-use std::sync::Mutex;
+use log::{debug, info, trace};
 use std::collections::HashSet;
+use std::sync::Mutex;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Location {
@@ -32,7 +32,7 @@ impl Location {
         let path = path.into();
 
         let app_root = directories::ProjectDirs::from("", "", "archetect").unwrap();
-        let cache_root =    app_root.cache_dir();
+        let cache_root = app_root.cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
             let cache_path = cache_root.clone().join(format!(
