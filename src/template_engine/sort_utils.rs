@@ -103,7 +103,7 @@ impl<K: GetSortKey> SortStrategy for SortPairs<K> {
     }
 }
 
-pub fn get_sort_strategy_for_type(ty: &Value) -> Result<Box<SortStrategy>> {
+pub fn get_sort_strategy_for_type(ty: &Value) -> Result<Box<dyn SortStrategy>> {
     use crate::template_engine::Value::*;
     match *ty {
         Null => Err(Error::msg("Null is not a sortable value")),
