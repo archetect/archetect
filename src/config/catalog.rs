@@ -65,6 +65,14 @@ impl ArchetypeInfo {
             source: location.into(),
         }
     }
+
+    pub fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
+    pub fn source(&self) -> &str {
+        self.source.as_str()
+    }
 }
 
 #[cfg(test)]

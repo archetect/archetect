@@ -14,6 +14,7 @@ extern crate pretty_assertions;
 
 pub mod config;
 pub mod heck;
+pub mod input;
 pub mod loggerv;
 pub mod parser;
 pub mod template_engine;
