@@ -431,8 +431,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn test_title() {
         let tests = vec![

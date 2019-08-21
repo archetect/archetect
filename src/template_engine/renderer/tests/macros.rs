@@ -173,7 +173,10 @@ fn render_recursive_macro() {
     ]).unwrap();
     let result = tera.render("hello.html", Context::new());
 
-    assert_eq!(result.unwrap(), "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string());
+    assert_eq!(
+        result.unwrap(),
+        "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string()
+    );
 }
 
 // https://github.com/Keats/tera/issues/202
