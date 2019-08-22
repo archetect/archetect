@@ -20,7 +20,7 @@ pub mod parser;
 pub mod template_engine;
 pub mod util;
 
-use log::trace;
+use log::{trace, warn};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -32,7 +32,7 @@ use template_engine::{Context, Tera};
 use crate::config::ArchetypeConfig;
 use crate::config::ModuleConfig;
 use crate::config::{Answer, PatternType};
-use crate::util::{Location, LocationError};
+use crate::util::{Source, SourceError};
 use failure::{Error, Fail};
 use std::collections::HashMap;
 
@@ -44,10 +44,10 @@ pub struct Archetype {
 }
 
 impl Archetype {
-    pub fn from_location(location: Location, offline: bool) -> Result<Archetype, ArchetypeError> {
+    pub fn from_source(location: Source, offline: bool) -> Result<Archetype, ArchetypeError> {
         let tera = Tera::default();
         let mut result = match location {
-            Location::LocalDirectory { path } => {
+            Source::LocalDirectory { path } => {
                 let config = ArchetypeConfig::load(&path)?;
                 Ok(Archetype {
                     tera,
@@ -56,7 +56,7 @@ impl Archetype {
                     modules: vec![],
                 })
             }
-            Location::RemoteGit { url: _, path } => {
+            Source::RemoteGit { url: _, path } => {
                 let config = ArchetypeConfig::load(&path)?;
                 Ok(Archetype {
                     tera,
@@ -72,8 +72,8 @@ impl Archetype {
         if let Ok(archetype) = &mut result {
             if let Some(module_configs) = archetype.configuration().modules() {
                 for module_config in module_configs {
-                    let location = Location::detect(module_config.location(), offline)?;
-                    let module_archetype = Archetype::from_location(location, offline)?;
+                    let location = Source::detect(module_config.source(), offline)?;
+                    let module_archetype = Archetype::from_source(location, offline)?;
                     modules.push(Module::new(module_config.clone(), module_archetype));
                 }
             }
@@ -99,7 +99,13 @@ impl Archetype {
         let destination = destination.into();
 
         if !source.is_dir() {
-            panic!("This is not a valid directory");
+            if !self.modules.len() > 0 {
+                warn!(
+                    "The archetype's '{}' directory does not exist, and there are no submodules. Nothing to render.",
+                    source.display()
+                );
+            }
+            return Ok(());
         }
 
         let path_rules = self.configuration().path_rules().unwrap_or_default();
@@ -160,8 +166,12 @@ impl Archetype {
     pub fn generate<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.generate_internal(context.clone(), self.path.clone().join("archetype"), destination)
-            .unwrap();
+        self.generate_internal(
+            context.clone(),
+            self.path.clone().join(self.configuration().contents_dir()),
+            destination,
+        )
+        .unwrap();
 
         for module in &self.modules {
             let destination = PathBuf::from(
@@ -257,11 +267,11 @@ pub enum ArchetypeError {
     #[fail(display = "Error saving Archetype Config file")]
     ArchetypeSaveFailed,
     #[fail(display = "Archetype Source Location error")]
-    LocationError(LocationError),
+    LocationError(SourceError),
 }
 
-impl From<LocationError> for ArchetypeError {
-    fn from(cause: LocationError) -> Self {
+impl From<SourceError> for ArchetypeError {
+    fn from(cause: SourceError) -> Self {
         ArchetypeError::LocationError(cause)
     }
 }

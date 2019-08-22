@@ -9,6 +9,7 @@ use std::{fmt, fs};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
     description: Option<String>,
+    authors: Option<Vec<String>>,
     languages: Option<Vec<String>>,
     frameworks: Option<Vec<String>>,
     tags: Option<Vec<String>>,
@@ -53,6 +54,20 @@ impl ArchetypeConfig {
     pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
         self.description = Some(description.into());
         self
+    }
+
+    pub fn add_author<A: Into<String>>(&mut self, author: A) {
+        let authors = self.authors.get_or_insert_with(|| vec![]);
+        authors.push(author.into());
+    }
+
+    pub fn with_author<A: Into<String>>(mut self, author: A) -> ArchetypeConfig {
+        self.add_author(author);
+        self
+    }
+
+    pub fn authors(&self) -> &[String] {
+        self.authors.as_ref().map(|v| v.as_slice()).unwrap_or_default()
     }
 
     pub fn with_language<L: Into<String>>(mut self, language: L) -> ArchetypeConfig {
@@ -144,8 +159,8 @@ impl ArchetypeConfig {
         self
     }
 
-    pub fn contents(&self) -> Option<&str> {
-        self.contents.as_ref().map(|r| r.as_str())
+    pub fn contents_dir(&self) -> &str {
+        self.contents.as_ref().map(|c| c.as_str()).unwrap_or("contents")
     }
 }
 
@@ -153,6 +168,7 @@ impl Default for ArchetypeConfig {
     fn default() -> Self {
         ArchetypeConfig {
             description: None,
+            authors: None,
             languages: None,
             frameworks: None,
             tags: None,
@@ -186,23 +202,24 @@ impl FromStr for ArchetypeConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModuleConfig {
-    location: String,
+    #[serde(alias = "location")]
+    source: String,
     destination: String,
     #[serde(rename = "answer")]
     answers: Option<Vec<Answer>>,
 }
 
 impl ModuleConfig {
-    pub fn new<L: Into<String>, D: Into<String>>(location: L, destination: D) -> ModuleConfig {
+    pub fn new<L: Into<String>, D: Into<String>>(source: L, destination: D) -> ModuleConfig {
         ModuleConfig {
-            location: location.into(),
+            source: source.into(),
             destination: destination.into(),
             answers: None,
         }
     }
 
-    pub fn location(&self) -> &str {
-        self.location.as_str()
+    pub fn source(&self) -> &str {
+        self.source.as_str()
     }
 
     pub fn destination(&self) -> &str {
@@ -323,7 +340,7 @@ mod tests {
             tags = ["Service", "REST"]
 
             [[module]]
-            location = "~/modules/jpa-persistence-module"
+            source = "~/modules/jpa-persistence-module"
             destination = "{{ name | train_case }}"
 
             [[module.answer]]
