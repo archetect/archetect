@@ -10,18 +10,20 @@ use std::sync::Mutex;
 use crate::util::paths;
 
 #[derive(Debug, PartialOrd, PartialEq)]
-pub enum Location {
+pub enum Source {
     RemoteGit { url: String, path: PathBuf },
     LocalDirectory { path: PathBuf },
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
-pub enum LocationError {
-    LocationUnsupported,
-    LocationNotFound,
-    LocationInvalidPath,
-    LocationInvalidEncoding,
+pub enum SourceError {
+    SourceUnsupported,
+    SourceNotFound,
+    SourceInvalidPath,
+    SourceInvalidEncoding,
+    RemoteSourceError(String),
     OfflineAndNotCached,
+    IOError(String),
 }
 
 lazy_static! {
@@ -29,8 +31,8 @@ lazy_static! {
     static ref CACHED_PATHS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
 }
 
-impl Location {
-    pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Location, LocationError> {
+impl Source {
+    pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Source, SourceError> {
         let path = path.into();
 
         let git_cache = paths::git_cache_dir();
@@ -39,10 +41,10 @@ impl Location {
             let cache_path = git_cache
                 .clone()
                 .join(format!("{}_{}", &captures[1], &captures[2].replace("/", ".")));
-            if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
+            if let Err(error) = cache_git_repo(&path, &cache_path, offline) {
                 return Err(error);
             }
-            return Ok(Location::RemoteGit {
+            return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
             });
@@ -55,10 +57,10 @@ impl Location {
                     url.host_str().unwrap(),
                     url.path().trim_start_matches('/').replace("/", ".")
                 ));
-                if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
+                if let Err(error) = cache_git_repo(&path, &cache_path, offline) {
                     return Err(error);
                 }
-                return Ok(Location::RemoteGit {
+                return Ok(Source::RemoteGit {
                     url: path,
                     path: cache_path,
                 });
@@ -66,12 +68,12 @@ impl Location {
 
             if let Ok(local_path) = url.to_file_path() {
                 if local_path.exists() {
-                    return Ok(Location::LocalDirectory { path: local_path });
+                    return Ok(Source::LocalDirectory { path: local_path });
                 } else {
-                    return Err(LocationError::LocationNotFound);
+                    return Err(SourceError::SourceNotFound);
                 }
             } else {
-                return Err(LocationError::LocationUnsupported);
+                return Err(SourceError::SourceUnsupported);
             }
         }
 
@@ -79,50 +81,58 @@ impl Location {
             let local_path = PathBuf::from(path.as_ref());
             if local_path.exists() {
                 if local_path.is_dir() {
-                    return Ok(Location::LocalDirectory { path: local_path });
+                    return Ok(Source::LocalDirectory { path: local_path });
                 } else {
-                    return Err(LocationError::LocationUnsupported);
+                    return Err(SourceError::SourceUnsupported);
                 }
             } else {
-                return Err(LocationError::LocationNotFound);
+                return Err(SourceError::SourceNotFound);
             }
         } else {
-            return Err(LocationError::LocationInvalidPath);
+            return Err(SourceError::SourceInvalidPath);
         }
     }
 }
 
-fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Option<LocationError> {
+fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
     if !cache_destination.exists() {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
-            let output = Command::new("git")
-                .args(&["clone", &url, &format!("{}", cache_destination.display())])
-                .output()
-                .unwrap();
-            debug!("Output: {:?}", String::from_utf8(output.stderr).unwrap());
-
+            handle_git(Command::new("git").args(&["clone", &url, &format!("{}", cache_destination.display())]))?;
             trace!("Cloned to {}", cache_destination.display());
-            None
+            Ok(())
         } else {
-            Some(LocationError::OfflineAndNotCached)
+            Err(SourceError::OfflineAndNotCached)
         }
     } else {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             debug!("Resetting {}", url);
-            Command::new("git")
-                .current_dir(&cache_destination)
-                .args(&["reset", "hard"])
-                .output()
-                .unwrap();
+            handle_git(
+                Command::new("git")
+                    .current_dir(&cache_destination)
+                    .args(&["reset", "--hard"]),
+            )?;
+
             info!("Pulling {}", url);
-            Command::new("git")
-                .current_dir(&cache_destination)
-                .args(&["pull"])
-                .output()
-                .unwrap();
+            handle_git(Command::new("git").current_dir(&cache_destination).args(&["pull"]))?;
         }
-        None
+        Ok(())
+    }
+}
+
+fn handle_git(command: &mut Command) -> Result<(), SourceError> {
+    match command.output() {
+        Ok(output) => match output.status.code() {
+            Some(0) => Ok(()),
+            Some(error_code) => Err(SourceError::RemoteSourceError(format!(
+                "Error Code: {}\n{}",
+                error_code,
+                String::from_utf8(output.stderr)
+                    .unwrap_or("Error reading error code from failed git command".to_owned())
+            ))),
+            None => Err(SourceError::RemoteSourceError("Git interrupted by signal".to_owned())),
+        },
+        Err(err) => Err(SourceError::IOError(err.to_string())),
     }
 }
 

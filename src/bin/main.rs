@@ -5,7 +5,7 @@ use archetect::config::{
     Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
 };
 use archetect::util::paths;
-use archetect::util::{Location, LocationError};
+use archetect::util::{Source, SourceError};
 use archetect::{self, Archetype};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
@@ -98,11 +98,11 @@ fn main() {
                 .subcommand(
                     SubCommand::with_name("add")
                         .arg(
-                            Arg::with_name("location")
+                            Arg::with_name("source")
                                 .short("l")
-                                .long("location")
+                                .long("source")
                                 .takes_value(true)
-                                .help("Archetype location"),
+                                .help("Archetype source location"),
                         )
                         .arg(
                             Arg::with_name("description")
@@ -233,9 +233,9 @@ fn main() {
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
         let offline: bool = matches.is_present("offline");
 
-        match Location::detect(source, offline) {
-            Ok(location) => {
-                let archetype = Archetype::from_location(location, offline).unwrap();
+        match Source::detect(source, offline) {
+            Ok(source) => {
+                let archetype = Archetype::from_source(source, offline).unwrap();
                 if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
                     for answer in answer_config.answers() {
                         if !answers.contains_key(answer.identifier()) {
@@ -248,14 +248,16 @@ fn main() {
                 archetype.generate(destination, context).unwrap();
             }
             Err(err) => match err {
-                LocationError::LocationInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
-                LocationError::LocationNotFound => error!("\"{}\" does not exist", source),
-                LocationError::LocationUnsupported => error!("\"{}\" is not a supported archetype path", source),
-                LocationError::LocationInvalidPath => error!("\"{}\" is not a valid archetype path", source),
-                LocationError::OfflineAndNotCached => error!(
+                SourceError::SourceInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
+                SourceError::SourceNotFound => error!("\"{}\" does not exist", source),
+                SourceError::SourceUnsupported => error!("\"{}\" is not a supported archetype path", source),
+                SourceError::SourceInvalidPath => error!("\"{}\" is not a valid archetype path", source),
+                SourceError::OfflineAndNotCached => error!(
                     "\"{}\" is not cached locally and cannot be cloned in offline mode",
                     source
                 ),
+                SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
+                SourceError::IOError(err) => error!("IO Error: {}", err),
             },
         }
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
