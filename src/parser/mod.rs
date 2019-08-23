@@ -61,7 +61,7 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) -> &mut Context<'a> {
+    pub fn insert(&mut self, key: &str, value: &str) -> &mut Context<'a> {
         self.variables.insert(key.into(), value.into());
         self
     }

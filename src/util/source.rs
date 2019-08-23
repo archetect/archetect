@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use crate::util::paths;
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
     RemoteGit { url: String, path: PathBuf },
     LocalDirectory { path: PathBuf },
@@ -32,9 +32,7 @@ lazy_static! {
 }
 
 impl Source {
-    pub fn detect<P: Into<String>>(path: P, offline: bool) -> Result<Source, SourceError> {
-        let path = path.into();
-
+    pub fn detect(path: &str, offline: bool, relative_to: Option<Source>) -> Result<Source, SourceError> {
         let git_cache = paths::git_cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
@@ -61,7 +59,7 @@ impl Source {
                     return Err(error);
                 }
                 return Ok(Source::RemoteGit {
-                    url: path,
+                    url: path.to_owned(),
                     path: cache_path,
                 });
             }
@@ -79,6 +77,16 @@ impl Source {
 
         if let Ok(path) = shellexpand::full(&path) {
             let local_path = PathBuf::from(path.as_ref());
+            if local_path.is_relative() {
+                if let Some(parent) = relative_to {
+                    let local_path = parent.local_path().clone().join(local_path);
+                    if local_path.exists() && local_path.is_dir() {
+                        return Ok(Source::LocalDirectory { path: local_path });
+                    } else {
+                        return Err(SourceError::SourceNotFound);
+                    }
+                }
+            }
             if local_path.exists() {
                 if local_path.is_dir() {
                     return Ok(Source::LocalDirectory { path: local_path });
@@ -90,6 +98,13 @@ impl Source {
             }
         } else {
             return Err(SourceError::SourceInvalidPath);
+        }
+    }
+
+    pub fn local_path(&self) -> &Path {
+        match self {
+            Source::LocalDirectory { path } => path.as_path(),
+            Source::RemoteGit { url: _, path } => path.as_path(),
         }
     }
 }

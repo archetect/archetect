@@ -66,7 +66,7 @@ impl AnswerConfig {
         Err(AnswerConfigError::MissingError)
     }
 
-    pub fn add_answer_pair<I: Into<String>, V: Into<String>>(&mut self, identifier: I, value: V) {
+    pub fn add_answer_pair(&mut self, identifier: &str, value: &str) {
         self.answers.push(Answer::new(identifier, value));
     }
 
@@ -74,7 +74,7 @@ impl AnswerConfig {
         self.answers.push(answer);
     }
 
-    pub fn with_answer_pair<I: Into<String>, V: Into<String>>(mut self, identifier: I, value: V) -> AnswerConfig {
+    pub fn with_answer_pair(mut self, identifier: &str, value: &str) -> AnswerConfig {
         self.answers.push(Answer::new(identifier, value));
         self
     }

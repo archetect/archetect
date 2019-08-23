@@ -59,7 +59,7 @@ pub struct ArchetypeInfo {
 }
 
 impl ArchetypeInfo {
-    pub fn new<D: Into<String>, L: Into<String>>(description: D, location: L) -> ArchetypeInfo {
+    pub fn new(description: &str, location: &str) -> ArchetypeInfo {
         ArchetypeInfo {
             description: description.into(),
             source: location.into(),
