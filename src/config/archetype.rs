@@ -51,17 +51,17 @@ impl ArchetypeConfig {
         Ok(())
     }
 
-    pub fn with_description<D: Into<String>>(mut self, description: D) -> ArchetypeConfig {
+    pub fn with_description(mut self, description: &str) -> ArchetypeConfig {
         self.description = Some(description.into());
         self
     }
 
-    pub fn add_author<A: Into<String>>(&mut self, author: A) {
+    pub fn add_author(&mut self, author: &str) {
         let authors = self.authors.get_or_insert_with(|| vec![]);
         authors.push(author.into());
     }
 
-    pub fn with_author<A: Into<String>>(mut self, author: A) -> ArchetypeConfig {
+    pub fn with_author(mut self, author: &str) -> ArchetypeConfig {
         self.add_author(author);
         self
     }
@@ -70,46 +70,46 @@ impl ArchetypeConfig {
         self.authors.as_ref().map(|v| v.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_language<L: Into<String>>(mut self, language: L) -> ArchetypeConfig {
+    pub fn with_language(mut self, language: &str) -> ArchetypeConfig {
         self.add_language(language);
         self
     }
 
-    pub fn add_language<L: Into<String>>(&mut self, language: L) {
+    pub fn add_language(&mut self, language: &str) {
         let languages = self.languages.get_or_insert_with(|| Vec::new());
-        languages.push(language.into());
+        languages.push(language.to_owned());
     }
 
-    pub fn languages(&self) -> Option<&[String]> {
-        self.languages.as_ref().map(|r| r.as_slice())
+    pub fn languages(&self) -> &[String] {
+        self.languages.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_tag<T: Into<String>>(mut self, tag: T) -> ArchetypeConfig {
+    pub fn with_tag(mut self, tag: &str) -> ArchetypeConfig {
         self.add_tag(tag);
         self
     }
 
-    pub fn add_tag<T: Into<String>>(&mut self, tag: T) {
+    pub fn add_tag(&mut self, tag: &str) {
         let tags = self.tags.get_or_insert_with(|| Vec::new());
-        tags.push(tag.into());
+        tags.push(tag.to_owned());
     }
 
-    pub fn tags(&self) -> Option<&[String]> {
-        self.tags.as_ref().map(|r| r.as_slice())
+    pub fn tags(&self) -> &[String] {
+        self.tags.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_framework<F: Into<String>>(mut self, framework: F) -> ArchetypeConfig {
+    pub fn with_framework(mut self, framework: &str) -> ArchetypeConfig {
         self.add_framework(framework);
         self
     }
 
-    pub fn add_framework<F: Into<String>>(&mut self, framework: F) {
+    pub fn add_framework(&mut self, framework: &str) {
         let frameworks = self.frameworks.get_or_insert_with(|| Vec::new());
-        frameworks.push(framework.into());
+        frameworks.push(framework.to_owned());
     }
 
-    pub fn frameworks(&self) -> Option<&[String]> {
-        self.frameworks.as_ref().map(|r| r.as_slice())
+    pub fn frameworks(&self) -> &[String] {
+        self.frameworks.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
     pub fn with_module(mut self, module: ModuleConfig) -> ArchetypeConfig {
@@ -122,8 +122,8 @@ impl ArchetypeConfig {
         modules.push(module);
     }
 
-    pub fn modules(&self) -> Option<&[ModuleConfig]> {
-        self.modules.as_ref().map(|r| r.as_slice())
+    pub fn modules(&self) -> &[ModuleConfig] {
+        self.modules.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
     pub fn add_path_rule(&mut self, path_rule: PathRuleConfig) {
@@ -136,8 +136,8 @@ impl ArchetypeConfig {
         self
     }
 
-    pub fn path_rules(&self) -> Option<&[PathRuleConfig]> {
-        self.path_rules.as_ref().map(|pr| pr.as_slice())
+    pub fn path_rules(&self) -> &[PathRuleConfig] {
+        self.path_rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
     }
 
     pub fn add_variable(&mut self, variable: Variable) {
@@ -154,7 +154,7 @@ impl ArchetypeConfig {
         self.variables.as_ref().map(|v| v.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_contents<C: Into<String>>(mut self, contents: C) -> ArchetypeConfig {
+    pub fn with_contents(mut self, contents: &str) -> ArchetypeConfig {
         self.contents = Some(contents.into());
         self
     }
@@ -210,7 +210,7 @@ pub struct ModuleConfig {
 }
 
 impl ModuleConfig {
-    pub fn new<L: Into<String>, D: Into<String>>(source: L, destination: D) -> ModuleConfig {
+    pub fn new(source: &str, destination: &str) -> ModuleConfig {
         ModuleConfig {
             source: source.into(),
             destination: destination.into(),
@@ -246,26 +246,27 @@ pub struct Variable {
     prompt: Option<String>,
     #[serde(alias = "name")]
     identifier: String,
-    default: Option<String>,
+    #[serde(alias = "default")]
+    value: Option<String>,
 }
 
 impl Variable {
-    pub fn with_identifier<I: Into<String>>(identifier: I) -> VariableBuilder {
+    pub fn with_identifier(identifier: &str) -> VariableBuilder {
         VariableBuilder {
             variable: Variable {
                 prompt: None,
                 identifier: identifier.into(),
-                default: None,
+                value: None,
             },
         }
     }
 
-    pub fn with_default<D: Into<String>>(mut self, value: D) -> Variable {
-        self.default = Some(value.into());
+    pub fn with_default(mut self, value: &str) -> Variable {
+        self.value = Some(value.into());
         self
     }
 
-    pub fn with_prompt<P: Into<String>>(mut self, value: P) -> Variable {
+    pub fn with_prompt(mut self, value: &str) -> Variable {
         self.prompt = Some(value.into());
         self
     }
@@ -282,7 +283,7 @@ impl Variable {
     }
 
     pub fn default(&self) -> Option<&str> {
-        match &self.default {
+        match &self.value {
             Some(value) => Some(value.as_str()),
             None => None,
         }
@@ -294,13 +295,13 @@ pub struct VariableBuilder {
 }
 
 impl VariableBuilder {
-    pub fn with_prompt<P: Into<String>>(mut self, prompt: P) -> Variable {
+    pub fn with_prompt(mut self, prompt: &str) -> Variable {
         self.variable.prompt = Some(prompt.into());
         self.variable
     }
 
-    pub fn with_default<D: Into<String>>(mut self, default: D) -> Variable {
-        self.variable.default = Some(default.into());
+    pub fn with_default(mut self, default: &str) -> Variable {
+        self.variable.value = Some(default.into());
         self.variable
     }
 }
@@ -354,11 +355,13 @@ mod tests {
             [[variable]]
             prompt = "Author"
             identifier = "author"
-            default = "Jimmie"
+            value = "Jimmie"
         "#
         );
         assert_eq!(output, expected);
         println!("{}", output);
+
+        assert_eq!(config.modules().len(), 1);
     }
 
     #[test]
@@ -372,7 +375,7 @@ mod tests {
             [[variable]]
             prompt = "Author"
             name = "author"
-            default = "Jimmie"
+            value = "Jimmie"
             "#
         );
         let config = ArchetypeConfig::from_str(expected).unwrap();

@@ -520,7 +520,7 @@ impl Logger {
     /// ```rust
     ///
     /// use log::Level;
-    /// use log::{trace, debug, info, warn, error};ı
+    /// use log::{trace, debug, info, warn, error};
     /// use crate::archetect::loggerv::Output;
     ///
     /// fn main() {

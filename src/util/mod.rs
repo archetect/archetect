@@ -1,4 +1,4 @@
-mod location;
+mod source;
 pub mod paths;
 
-pub use location::{Source, SourceError};
+pub use source::{Source, SourceError};

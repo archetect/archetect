@@ -233,7 +233,7 @@ fn main() {
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
         let offline: bool = matches.is_present("offline");
 
-        match Source::detect(source, offline) {
+        match Source::detect(source, offline, None) {
             Ok(source) => {
                 let archetype = Archetype::from_source(source, offline).unwrap();
                 if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {

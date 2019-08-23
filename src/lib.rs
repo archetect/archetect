@@ -44,45 +44,34 @@ pub struct Archetype {
 }
 
 impl Archetype {
-    pub fn from_source(location: Source, offline: bool) -> Result<Archetype, ArchetypeError> {
+    pub fn from_source(source: Source, offline: bool) -> Result<Archetype, ArchetypeError> {
         let tera = Tera::default();
-        let mut result = match location {
-            Source::LocalDirectory { path } => {
-                let config = ArchetypeConfig::load(&path)?;
-                Ok(Archetype {
-                    tera,
-                    config,
-                    path,
-                    modules: vec![],
-                })
-            }
-            Source::RemoteGit { url: _, path } => {
-                let config = ArchetypeConfig::load(&path)?;
-                Ok(Archetype {
-                    tera,
-                    config,
-                    path,
-                    modules: vec![],
-                })
-            }
+
+        let local_path = source.local_path();
+
+        let config = ArchetypeConfig::load(local_path)?;
+
+        let mut archetype = Archetype {
+            tera,
+            config,
+            path: local_path.to_owned(),
+            modules: vec![],
         };
 
         let mut modules = vec![];
 
-        if let Ok(archetype) = &mut result {
-            if let Some(module_configs) = archetype.configuration().modules() {
-                for module_config in module_configs {
-                    let location = Source::detect(module_config.source(), offline)?;
-                    let module_archetype = Archetype::from_source(location, offline)?;
-                    modules.push(Module::new(module_config.clone(), module_archetype));
-                }
-            }
-            for module in modules {
-                archetype.modules.push(module);
-            }
+        for module_config in archetype.configuration().modules() {
+            let source = Source::detect(module_config.source(), offline, Some(source.clone()))?;
+            let module_archetype = Archetype::from_source(source, offline)?;
+            modules.push(Module::new(module_config.clone(), module_archetype));
         }
 
-        result
+        for module in modules {
+            archetype.modules.push(module);
+        }
+
+
+        Ok(archetype)
     }
 
     pub fn configuration(&self) -> &ArchetypeConfig {
@@ -99,7 +88,7 @@ impl Archetype {
         let destination = destination.into();
 
         if !source.is_dir() {
-            if !self.modules.len() > 0 {
+            if self.configuration().modules().is_empty() {
                 warn!(
                     "The archetype's '{}' directory does not exist, and there are no submodules. Nothing to render.",
                     source.display()
@@ -107,8 +96,6 @@ impl Archetype {
             }
             return Ok(());
         }
-
-        let path_rules = self.configuration().path_rules().unwrap_or_default();
 
         'outer: for entry in fs::read_dir(&source)? {
             let entry = entry?;
@@ -124,7 +111,7 @@ impl Archetype {
                 fs::create_dir_all(destination.as_path()).unwrap();
                 self.generate_internal(context.clone(), path, destination).unwrap();
             } else if path.is_file() {
-                for path_rule in path_rules {
+                for path_rule in self.configuration().path_rules() {
                     if path_rule.pattern_type() == &PatternType::GLOB {
                         for pattern in path_rule.patterns() {
                             let matcher = glob::Pattern::new(pattern).unwrap();
@@ -185,8 +172,8 @@ impl Archetype {
                     answers.insert(
                         answer.identifier().to_owned(),
                         Answer::new(
-                            answer.identifier().to_owned(),
-                            self.tera.render_string(answer.value(), context.clone()).unwrap(),
+                            answer.identifier(),
+                            &self.tera.render_string(answer.value(), context.clone()).unwrap(),
                         ),
                     );
                 }
@@ -227,8 +214,9 @@ impl Archetype {
                     format!("{}", prompt)
                 };
                 let input_builder = input::<String>()
-                    .msg(prompt)
+                    .msg(&prompt)
                     .add_test(|value| value.len() > 0)
+                    .repeat_msg(&prompt)
                     .err("Must be at least 1 character.  Please try again.");
                 let value = if let Some(default) = variable.default().clone() {
                     input_builder.default(default.clone().to_owned()).get()
