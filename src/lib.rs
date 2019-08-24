@@ -13,6 +13,7 @@ extern crate lazy_static;
 extern crate pretty_assertions;
 
 pub mod config;
+pub mod errors;
 pub mod heck;
 pub mod input;
 pub mod loggerv;
@@ -78,7 +79,7 @@ impl Archetype {
         &self.config
     }
 
-    fn generate_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
+    fn render_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
         &self,
         context: Context,
         source: SRC,
@@ -109,7 +110,7 @@ impl Archetype {
                 destination.push(name);
                 trace!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.generate_internal(context.clone(), path, destination).unwrap();
+                self.render_internal(context.clone(), path, destination).unwrap();
             } else if path.is_file() {
                 for path_rule in self.configuration().path_rules() {
                     if path_rule.pattern_type() == &PatternType::GLOB {
@@ -150,10 +151,10 @@ impl Archetype {
         Ok(())
     }
 
-    pub fn generate<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
+    pub fn render<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.generate_internal(
+        self.render_internal(
             context.clone(),
             self.path.clone().join(self.configuration().contents_dir()),
             destination,
@@ -179,7 +180,7 @@ impl Archetype {
                 }
             }
             let context = module.archetype.get_context(&answers)?;
-            module.archetype.generate(destination, context)?;
+            module.archetype.render(destination, context)?;
         }
         Ok(())
     }
@@ -255,12 +256,12 @@ pub enum ArchetypeError {
     #[fail(display = "Error saving Archetype Config file")]
     ArchetypeSaveFailed,
     #[fail(display = "Archetype Source Location error")]
-    LocationError(SourceError),
+    SourceError(SourceError),
 }
 
 impl From<SourceError> for ArchetypeError {
     fn from(cause: SourceError) -> Self {
-        ArchetypeError::LocationError(cause)
+        ArchetypeError::SourceError(cause)
     }
 }
 

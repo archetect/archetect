@@ -245,7 +245,7 @@ fn main() {
                     }
                 }
                 let context = archetype.get_context(&answers).unwrap();
-                archetype.generate(destination, context).unwrap();
+                archetype.render(destination, context).unwrap();
             }
             Err(err) => match err {
                 SourceError::SourceInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
