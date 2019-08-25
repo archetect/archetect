@@ -31,6 +31,7 @@ use crate::config::{ArchetypeConfig, PathRuleConfig};
 use crate::config::ModuleConfig;
 use crate::config::{Answer, PatternType};
 use crate::util::{Source, SourceError};
+use crate::config::{RuleAction};
 use std::collections::HashMap;
 use crate::errors::RenderError;
 
@@ -112,11 +113,26 @@ impl Archetype {
                     },
                     Ok(Some(rule)) => {
                         let destination = self.render_destination(&destination, &path, &context)?;
-                        if rule.filter().unwrap_or(true) {
-                            let contents = self.render_contents(&path, &context)?;
-                            self.write_contents(&destination, &contents)?;
+                        if let Some(filter) = rule.filter() {
+                            warn!("'filter = (true|false)' in [[rules]] are deprecated.  Please use 'action = (\"{:?}\"|\"{:?}\"|\"{:?}\")', instead.", RuleAction::RENDER, RuleAction::COPY, RuleAction::SKIP);
+                            if filter {
+                                let contents = self.render_contents(&path, &context)?;
+                                self.write_contents(&destination, &contents)?;
+                            } else {
+                                self.copy_contents(&path, &destination)?;
+                            };
                         } else {
-                            self.copy_contents(&path, &destination)?;
+                            match rule.action() {
+                                RuleAction::RENDER => {
+                                    self.render_contents(&path, &context)?;
+                                },
+                                RuleAction::COPY => {
+                                    self.copy_contents(&path, &destination)?;
+                                }
+                                RuleAction::SKIP => {
+                                    trace!("Skipping   {:?}", destination);
+                                }
+                            }
                         }
                     },
                     Err(err) => return Err(err),
@@ -166,7 +182,16 @@ impl Archetype {
 
     fn render_contents<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
-        let template = fs::read_to_string(path)?;
+        let template = match fs::read_to_string(path) {
+            Ok(template) => template,
+            Err(error) => {
+                return Err(RenderError::FileRenderIOError {
+                    source: path.to_owned(),
+                    error,
+                    message: "".to_string()
+                });
+            }
+        };
         match self.tera.render_string(&template, context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
@@ -174,6 +199,13 @@ impl Archetype {
                 let message = String::new();
                 Err(RenderError::FileRenderError { source: path.into(), error, message })
             }
+        }
+    }
+
+    fn render_string(&self, contents: &str, context: Context) -> Result<String, RenderError> {
+        match self.tera.render_string(contents, context) {
+            Ok(contents) => Ok(contents),
+            Err(error) => Err(RenderError::StringRenderError { source: contents.to_owned(), error, message: "".to_string() })
         }
     }
 
@@ -216,7 +248,7 @@ impl Archetype {
                         answer.identifier().to_owned(),
                         Answer::new(
                             answer.identifier(),
-                            &self.tera.render_string(answer.value(), context.clone()).unwrap(),
+                            &self.render_string(answer.value(), context.clone())?,
                         ),
                     );
                 }
@@ -233,7 +265,7 @@ impl Archetype {
         for variable in self.config.variables() {
             let default = if let Some(answer) = answers.get(variable.identifier()) {
                 if let Some(true) = answer.prompt() {
-                    Some(self.tera.render_string(answer.value(), context.clone()).unwrap())
+                    Some(self.render_string(answer.value(), context.clone())?)
                 } else {
                     context.insert(
                         answer.identifier(),
@@ -245,7 +277,7 @@ impl Archetype {
                     continue;
                 }
             } else if let Some(default) = variable.default().clone() {
-                Some(self.tera.render_string(default, context.clone()).unwrap())
+                Some(self.render_string(default, context.clone())?)
             } else {
                 None
             };

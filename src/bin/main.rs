@@ -264,17 +264,23 @@ fn main() {
                                         } else {
                                             error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
                                         }
-                                    }
+                                    },
+                                    RenderError::FileRenderIOError { source, error, message: _ } => {
+                                        error!("IO Error: {} in template \"{}\"", error, source.display());
+                                    },
                                     RenderError::PathRenderError { source, error, message: _ } => {
                                         if let Some(cause) = error.source() {
                                             error!("{} in path \"{}\"", cause, source.display());
                                         } else {
                                             error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
                                         }
-                                    }
+                                    },
+                                    RenderError::StringRenderError { source, error: _, message } => {
+                                        error!("IO Error: {} in \"{}\"", message, source);
+                                    },
                                     RenderError::IOError { error: _, message } => {
                                         error!("Unexpected IO Error:\n{}", message);
-                                    }
+                                    },
                                 }
                             }
                         }
