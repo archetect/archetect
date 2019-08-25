@@ -27,7 +27,7 @@ use std::path::{PathBuf, Path};
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
-use crate::config::{ArchetypeConfig, PathRuleConfig};
+use crate::config::{ArchetypeConfig, RuleConfig};
 use crate::config::ModuleConfig;
 use crate::config::{Answer, PatternType};
 use crate::util::{Source, SourceError};
@@ -143,7 +143,7 @@ impl Archetype {
         Ok(())
     }
 
-    fn match_rules<P: AsRef<Path>>(&self, path: P) -> Result<Option<PathRuleConfig>, RenderError> {
+    fn match_rules<P: AsRef<Path>>(&self, path: P) -> Result<Option<RuleConfig>, RenderError> {
         let path= path.as_ref();
         for path_rule in self.configuration().path_rules() {
             if path_rule.pattern_type() == &PatternType::GLOB {
