@@ -1,4 +1,4 @@
-use crate::config::path::PathRuleConfig;
+use crate::config::path::RuleConfig;
 use crate::config::Answer;
 use crate::ArchetypeError;
 use std::fmt::{Display, Formatter};
@@ -14,12 +14,12 @@ pub struct ArchetypeConfig {
     frameworks: Option<Vec<String>>,
     tags: Option<Vec<String>>,
     contents: Option<String>,
-    #[serde(rename = "module")]
+    #[serde(alias = "module")]
     modules: Option<Vec<ModuleConfig>>,
-    #[serde(rename = "variable")]
+    #[serde(alias = "variable")]
     variables: Option<Vec<Variable>>,
-    #[serde(rename = "path")]
-    path_rules: Option<Vec<PathRuleConfig>>,
+    #[serde(alias = "path")]
+    rules: Option<Vec<RuleConfig>>,
 }
 
 impl ArchetypeConfig {
@@ -126,18 +126,18 @@ impl ArchetypeConfig {
         self.modules.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn add_path_rule(&mut self, path_rule: PathRuleConfig) {
-        let path_rules = self.path_rules.get_or_insert_with(|| vec![]);
+    pub fn add_path_rule(&mut self, path_rule: RuleConfig) {
+        let path_rules = self.rules.get_or_insert_with(|| vec![]);
         path_rules.push(path_rule);
     }
 
-    pub fn with_path_rule(mut self, path_rule: PathRuleConfig) -> ArchetypeConfig {
+    pub fn with_path_rule(mut self, path_rule: RuleConfig) -> ArchetypeConfig {
         self.add_path_rule(path_rule);
         self
     }
 
-    pub fn path_rules(&self) -> &[PathRuleConfig] {
-        self.path_rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
+    pub fn path_rules(&self) -> &[RuleConfig] {
+        self.rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
     }
 
     pub fn add_variable(&mut self, variable: Variable) {
@@ -174,7 +174,7 @@ impl Default for ArchetypeConfig {
             tags: None,
             contents: None,
             modules: None,
-            path_rules: None,
+            rules: None,
             variables: None,
         }
     }
@@ -205,7 +205,7 @@ pub struct ModuleConfig {
     #[serde(alias = "location")]
     source: String,
     destination: String,
-    #[serde(rename = "answer")]
+    #[serde(alias = "answer")]
     answers: Option<Vec<Answer>>,
 }
 
@@ -340,19 +340,19 @@ mod tests {
             frameworks = ["Spring", "Hessian"]
             tags = ["Service", "REST"]
 
-            [[module]]
+            [[modules]]
             source = "~/modules/jpa-persistence-module"
             destination = "{{ name | train_case }}"
 
-            [[module.answer]]
+            [[modules.answers]]
             identifier = "name"
             value = "{{ name }} Service"
 
-            [[variable]]
+            [[variables]]
             prompt = "Application Name"
             identifier = "name"
 
-            [[variable]]
+            [[variables]]
             prompt = "Author"
             identifier = "author"
             value = "Jimmie"
@@ -365,9 +365,63 @@ mod tests {
     }
 
     #[test]
-    fn test_archetype_config_from_string() {
+    fn test_archetype_config_from_string_plurals() {
         let expected = indoc!(
             r#"
+            [[modules]]
+            source = "~/modules/jpa-persistence-module"
+            destination = "{{ name | train_case }}"
+
+            [[modules.answers]]
+            identifier = "name"
+            value = "{{ name }} Service"
+
+            [[modules]]
+            source = "~/modules/cli"
+            destination = "{{ name | train_case }}"
+
+            [[modules.answer]]
+            identifier = "name"
+            value = "{{ name }} Service"
+
+            [[variables]]
+            prompt = "Application Name"
+            name = "name"
+
+            [[variables]]
+            prompt = "Author"
+            name = "author"
+            value = "Jimmie"
+            "#
+        );
+        let config = ArchetypeConfig::from_str(expected).unwrap();
+        assert!(config.variables().contains(
+            &Variable::with_identifier("author")
+                .with_prompt("Author")
+                .with_default("Jimmie")
+        ));
+    }
+
+    #[test]
+    fn test_archetype_config_from_string_singulars() {
+        let expected = indoc!(
+            r#"
+            [[module]]
+            source = "~/modules/jpa-persistence-module"
+            destination = "{{ name | train_case }}"
+
+            [[module.answer]]
+            identifier = "name"
+            value = "{{ name }} Service"
+
+            [[module]]
+            source = "~/modules/cli"
+            destination = "{{ name | train_case }}"
+
+            [[module.answer]]
+            identifier = "name"
+            value = "{{ name }} Service"
+
             [[variable]]
             prompt = "Application Name"
             name = "name"

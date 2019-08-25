@@ -1,6 +1,6 @@
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PathRuleConfig {
+pub struct RuleConfig {
     description: Option<String>,
     patterns: Vec<String>,
     #[serde(rename = "type")]
@@ -9,9 +9,9 @@ pub struct PathRuleConfig {
     action: Option<RuleAction>,
 }
 
-impl PathRuleConfig {
-    pub fn new(pattern_type: PatternType) -> PathRuleConfig {
-        PathRuleConfig {
+impl RuleConfig {
+    pub fn new(pattern_type: PatternType) -> RuleConfig {
+        RuleConfig {
             description: None,
             pattern_type,
             patterns: vec![],
@@ -20,7 +20,7 @@ impl PathRuleConfig {
         }
     }
 
-    pub fn with_pattern(mut self, pattern: &str) -> PathRuleConfig {
+    pub fn with_pattern(mut self, pattern: &str) -> RuleConfig {
         self.add_pattern(pattern);
         self
     }
@@ -29,7 +29,7 @@ impl PathRuleConfig {
         self.patterns.push(pattern.to_owned());
     }
 
-    pub fn with_action(mut self, action: RuleAction) -> PathRuleConfig {
+    pub fn with_action(mut self, action: RuleAction) -> RuleConfig {
         self.set_action(Some(action));
         self
     }
@@ -54,7 +54,7 @@ impl PathRuleConfig {
         self.description = Some(description.to_owned());
     }
 
-    pub fn with_description(mut self, description: &str) -> PathRuleConfig {
+    pub fn with_description(mut self, description: &str) -> RuleConfig {
         self.add_description(description);
         self
     }
@@ -89,12 +89,12 @@ impl Default for RuleAction {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::path::{PathRuleConfig, PatternType};
+    use crate::config::path::{RuleConfig, PatternType};
 
     #[test]
     fn test_serialize_path_config() {
         let result = toml::ser::to_string(
-            &PathRuleConfig::new(PatternType::GLOB)
+            &RuleConfig::new(PatternType::GLOB)
                 .with_pattern("*.jpg")
                 .with_pattern("*.gif"),
         )
