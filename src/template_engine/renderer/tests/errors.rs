@@ -139,7 +139,7 @@ fn error_unknown_index_variable() {
 
     assert_eq!(
         result.unwrap_err().source().unwrap().to_string(),
-        "Variable arr[a] can not be evaluated because: Variable `a` not found in context while rendering \'tpl\'"
+        "Variable arr[a] can not be evaluated because: Unresolved Variable \'a\'"
     );
 }
 
@@ -187,7 +187,7 @@ fn error_when_using_variable_set_in_included_templates_outside() {
 
     assert_eq!(
         result.unwrap_err().source().unwrap().to_string(),
-        "Variable `b` not found in context while rendering \'base\'"
+        "Unresolved Variable \'b\'"
     );
 }
 
@@ -214,7 +214,7 @@ fn right_variable_name_is_needed_in_for_loop() {
 
     assert_eq!(
         result.unwrap_err().source().unwrap().to_string(),
-        "Variable `whocares.content` not found in context while rendering \'tpl\'"
+        "Unresolved Variable \'whocares.content\'"
     );
 }
 
