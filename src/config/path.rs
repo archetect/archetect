@@ -1,3 +1,4 @@
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PathRuleConfig {
     description: Option<String>,
@@ -5,6 +6,7 @@ pub struct PathRuleConfig {
     #[serde(rename = "type")]
     pattern_type: PatternType,
     filter: Option<bool>,
+    action: Option<RuleAction>,
 }
 
 impl PathRuleConfig {
@@ -14,6 +16,7 @@ impl PathRuleConfig {
             pattern_type,
             patterns: vec![],
             filter: None,
+            action: None,
         }
     }
 
@@ -24,6 +27,19 @@ impl PathRuleConfig {
 
     pub fn add_pattern(&mut self, pattern: &str) {
         self.patterns.push(pattern.to_owned());
+    }
+
+    pub fn with_action(mut self, action: RuleAction) -> PathRuleConfig {
+        self.set_action(Some(action));
+        self
+    }
+
+    pub fn set_action(&mut self, action: Option<RuleAction>) {
+        self.action = action;
+    }
+
+    pub fn action(&self) -> RuleAction {
+        self.action.as_ref().map(|a| a.clone()).unwrap_or_default()
     }
 
     pub fn patterns(&self) -> &[String] {
@@ -56,6 +72,19 @@ impl PathRuleConfig {
 pub enum PatternType {
     GLOB,
     REGEX,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum RuleAction {
+    COPY,
+    RENDER,
+    SKIP,
+}
+
+impl Default for RuleAction {
+    fn default() -> Self {
+        RuleAction::RENDER
+    }
 }
 
 #[cfg(test)]
