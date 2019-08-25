@@ -34,9 +34,11 @@ pub enum ErrorKind {
     FunctionNotFound(String),
     /// An error happened while serializing JSON
     Json(serde_json::Error),
+    UnresolvedVariable{ identifier: String },
     /// This enum may grow additional variants, so this makes sure clients
     /// don't count on exhaustive matching. (Otherwise, adding a new variant
     /// could break existing code.)
+    ///
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -75,6 +77,7 @@ impl fmt::Display for Error {
             ErrorKind::FunctionNotFound(ref name) => write!(f, "Function '{}' not found", name),
             ErrorKind::InvalidMacroDefinition(ref info) => write!(f, "Invalid macro definition: `{}`", info),
             ErrorKind::Json(ref e) => write!(f, "{}", e),
+            ErrorKind::UnresolvedVariable { ref identifier } => write!(f, "Unresolved Variable '{}'", identifier),
             ErrorKind::__Nonexhaustive => write!(f, "Nonexhaustive"),
         }
     }
@@ -170,6 +173,14 @@ impl Error {
         Self {
             kind: ErrorKind::InvalidMacroDefinition(name.to_string()),
             source: None,
+        }
+    }
+
+    pub fn unresolved_variable<I: Into<String>>(identifier: I) -> Self {
+        let identifier = identifier.into();
+        Self {
+            kind: ErrorKind::UnresolvedVariable { identifier },
+            source: None
         }
     }
 }

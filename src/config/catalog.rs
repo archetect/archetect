@@ -32,11 +32,9 @@ impl CatalogConfig {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum CatalogConfigError {
-    #[fail(display = "Catalog TOML parsing error")]
     CatalogConfigTomlParseError(toml::de::Error),
-    #[fail(display = "Catalog I/O error")]
     IOError(std::io::Error),
 }
 

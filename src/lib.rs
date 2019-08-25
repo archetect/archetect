@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate pest_derive;
 #[macro_use]
 extern crate serde_derive;
@@ -17,7 +15,6 @@ pub mod errors;
 pub mod heck;
 pub mod input;
 pub mod loggerv;
-pub mod parser;
 pub mod template_engine;
 pub mod util;
 
@@ -34,10 +31,8 @@ use crate::config::{ArchetypeConfig, PathRuleConfig};
 use crate::config::ModuleConfig;
 use crate::config::{Answer, PatternType};
 use crate::util::{Source, SourceError};
-use failure::Fail;
 use std::collections::HashMap;
 use crate::errors::RenderError;
-use std::error::Error;
 
 pub struct Archetype {
     tera: Tera,
@@ -107,7 +102,7 @@ impl Archetype {
                 let destination = self.render_destination(&destination, &path, &context)?;
                 trace!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.render_directory(context.clone(), path, destination).unwrap();
+                self.render_directory(context.clone(), path, destination)?;
             } else if path.is_file() {
                 match self.match_rules(&path) {
                     Ok(None) => {
@@ -154,7 +149,8 @@ impl Archetype {
             .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
-                let message = error.description().to_owned();
+                // TODO: Get a better error message.
+                let message = String::new();
                 Err(RenderError::PathRenderError { source: path.into(), error, message })
             }
         }
@@ -174,7 +170,8 @@ impl Archetype {
         match self.tera.render_string(&template, context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
-                let message = error.description().to_owned();
+                // TODO: Get a better error message.
+                let message = String::new();
                 Err(RenderError::FileRenderError { source: path.into(), error, message })
             }
         }
@@ -204,8 +201,7 @@ impl Archetype {
             context.clone(),
             self.path.clone().join(self.configuration().contents_dir()),
             destination,
-        )
-            .unwrap();
+        )?;
 
         for module in &self.modules {
             let destination = PathBuf::from(
@@ -293,21 +289,24 @@ impl Module {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum ArchetypeError {
-    #[fail(display = "Invalid Archetype")]
     ArchetypeInvalid,
-    #[fail(display = "Invalid Answers config format")]
     InvalidAnswersConfig,
-    #[fail(display = "Error saving Archetype Config file")]
     ArchetypeSaveFailed,
-    #[fail(display = "Archetype Source Location error")]
     SourceError(SourceError),
+    RenderError(RenderError),
 }
 
 impl From<SourceError> for ArchetypeError {
     fn from(cause: SourceError) -> Self {
         ArchetypeError::SourceError(cause)
+    }
+}
+
+impl From<RenderError> for ArchetypeError {
+    fn from(error: RenderError) -> Self {
+        ArchetypeError::RenderError(error)
     }
 }
 

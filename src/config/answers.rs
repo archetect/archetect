@@ -17,11 +17,9 @@ pub struct AnswerConfig {
     answers: Vec<Answer>,
 }
 
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum AnswerConfigError {
-    #[fail(display = "Answer config parsing error")]
     ParseError(toml::de::Error),
-    #[fail(display = "Answer config missing error")]
     MissingError,
 }
 
@@ -116,9 +114,8 @@ impl Display for AnswerConfig {
 #[grammar = "config/answer_grammar.pest"]
 struct AnswerParser;
 
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum AnswerParseError {
-    #[fail(display = "Answer Rule Error")]
     PestError(PestError<Rule>),
 }
 

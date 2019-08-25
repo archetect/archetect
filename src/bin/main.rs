@@ -6,7 +6,7 @@ use archetect::config::{
 };
 use archetect::util::paths;
 use archetect::util::{Source, SourceError};
-use archetect::{self, Archetype};
+use archetect::{self, Archetype, ArchetypeError};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
 use log::{error, info};
@@ -16,6 +16,8 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use archetect::errors::RenderError;
+use std::error::Error;
 
 fn main() {
     let matches = App::new(&crate_name!()[..])
@@ -245,7 +247,40 @@ fn main() {
                     }
                 }
                 let context = archetype.get_context(&answers).unwrap();
-                archetype.render(destination, context).unwrap();
+                match archetype.render(destination, context) {
+                    Err(error) => {
+                        match error {
+                            ArchetypeError::ArchetypeInvalid => {
+                                error!("Invalid Archetype");
+                            },
+                            ArchetypeError::InvalidAnswersConfig => error!("Invalid Answers File"),
+                            ArchetypeError::ArchetypeSaveFailed => error!("Error saving Archetype"),
+                            ArchetypeError::SourceError(_) => error!("Source Error"),
+                            ArchetypeError::RenderError(error) => {
+                                match error {
+                                    RenderError::FileRenderError { source, error, message: _ } => {
+                                        if let Some(cause) = error.source() {
+                                            error!("{} in template \"{}\"", cause, source.display());
+                                        } else {
+                                            error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
+                                        }
+                                    }
+                                    RenderError::PathRenderError { source, error, message: _ } => {
+                                        if let Some(cause) = error.source() {
+                                            error!("{} in path \"{}\"", cause, source.display());
+                                        } else {
+                                            error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
+                                        }
+                                    }
+                                    RenderError::IOError { error: _, message } => {
+                                        error!("Unexpected IO Error:\n{}", message);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(_) => (),
+                }
             }
             Err(err) => match err {
                 SourceError::SourceInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
