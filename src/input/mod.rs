@@ -1,12 +1,10 @@
 use crate::config::{ArchetypeInfo, CatalogConfig};
-use failure::Fail;
 use read_input::shortcut::input;
 use read_input::InputBuild;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum CatalogSelectError {
-    #[fail(display = "Empty Catalog")]
     EmptyCatalog,
 }
 
