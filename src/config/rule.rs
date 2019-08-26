@@ -89,7 +89,7 @@ impl Default for RuleAction {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::path::{RuleConfig, PatternType};
+    use crate::config::rule::{RuleConfig, PatternType};
 
     #[test]
     fn test_serialize_path_config() {

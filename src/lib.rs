@@ -11,6 +11,7 @@ extern crate lazy_static;
 extern crate pretty_assertions;
 
 pub mod config;
+pub mod core;
 pub mod errors;
 pub mod heck;
 pub mod input;

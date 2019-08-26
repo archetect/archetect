@@ -1,4 +1,4 @@
-use crate::config::path::RuleConfig;
+use crate::config::rule::RuleConfig;
 use crate::config::Answer;
 use crate::ArchetypeError;
 use std::fmt::{Display, Formatter};
@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_archetype_load() {
-        let config = ArchetypeConfig::load("templates/simple").unwrap();
+        let config = ArchetypeConfig::load("archetypes/simple").unwrap();
         assert!(config
             .variables()
             .contains(&Variable::with_identifier("name").with_prompt("Application Name: ")));
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_archetype_to_string() {
-        let config = ArchetypeConfig::load("templates/simple").unwrap();
+        let config = ArchetypeConfig::load("archetypes/simple").unwrap();
 
         assert!(config
             .variables()
