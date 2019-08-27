@@ -288,6 +288,10 @@ impl Variable {
             None => None,
         }
     }
+
+    pub fn is_derived(&self) -> bool {
+        self.prompt.is_none() && self.value.is_some()
+    }
 }
 
 pub struct VariableBuilder {

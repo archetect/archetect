@@ -1,6 +1,8 @@
 use directories::ProjectDirs;
 use std::path::{PathBuf, Path};
 use std::fmt::{Display, Formatter, Error};
+use tempfile::tempdir;
+use crate::system::SystemError;
 
 pub fn project_dirs() -> ProjectDirs {
     ProjectDirs::from("", "", "archetect").unwrap()
@@ -26,8 +28,13 @@ pub fn catalog_cache_dir() -> PathBuf {
     cache_dir().join("catalogs")
 }
 
+pub enum LayoutType {
+    Native,
+    DotHome,
+    Temp,
+}
 
-pub trait SystemPaths {
+pub trait SystemLayout {
     fn configs_dir(&self) -> PathBuf;
 
     fn cache_dir(&self) -> PathBuf;
@@ -50,20 +57,20 @@ pub trait SystemPaths {
 }
 
 #[derive(Debug)]
-pub struct NativeSystemPaths {
+pub struct NativeSystemLayout {
     project: ProjectDirs,
 }
 
-impl NativeSystemPaths {
-    pub fn new() -> Result<NativeSystemPaths, String> {
+impl NativeSystemLayout {
+    pub fn new() -> Result<NativeSystemLayout, SystemError> {
         match ProjectDirs::from("", "", "archetect") {
-            Some(project) => Ok(NativeSystemPaths { project }),
-            None => Err("No home directory detected for the current user.".to_owned()),
+            Some(project) => Ok(NativeSystemLayout { project }),
+            None => Err(SystemError::GenericError("No home directory detected for the current user.".to_owned())),
         }
     }
 }
 
-impl SystemPaths for NativeSystemPaths {
+impl SystemLayout for NativeSystemLayout {
     fn configs_dir(&self) -> PathBuf {
         self.project.config_dir().to_owned()
     }
@@ -74,19 +81,19 @@ impl SystemPaths for NativeSystemPaths {
 }
 
 #[derive(Debug)]
-pub struct DirectorySystemPaths {
+pub struct RootedSystemLayout {
     directory: PathBuf,
 }
 
-impl DirectorySystemPaths {
-    pub fn new<D: AsRef<Path>>(directory: D) -> Result<DirectorySystemPaths, String> {
+impl RootedSystemLayout {
+    pub fn new<D: AsRef<Path>>(directory: D) -> Result<RootedSystemLayout, SystemError> {
         let directory = directory.as_ref();
         let directory = directory.to_owned();
-        Ok(DirectorySystemPaths { directory })
+        Ok(RootedSystemLayout { directory })
     }
 }
 
-impl SystemPaths for DirectorySystemPaths {
+impl SystemLayout for RootedSystemLayout {
     fn configs_dir(&self) -> PathBuf {
         self.directory.clone().join("etc")
     }
@@ -96,7 +103,7 @@ impl SystemPaths for DirectorySystemPaths {
     }
 }
 
-impl Display for dyn SystemPaths {
+impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "{}: {}", "Configs Directory", self.configs_dir().display())?;
         writeln!(f, "{}: {}", "User Answers", self.answers_config().display())?;
@@ -107,19 +114,29 @@ impl Display for dyn SystemPaths {
     }
 }
 
+pub fn dot_home_layout() -> Result<RootedSystemLayout, SystemError> {
+    let result = shellexpand::full("~/.archetect/").unwrap();
+    Ok(RootedSystemLayout::new(result.to_string())?)
+}
+
+pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
+    let temp_dir = tempdir()?;
+    Ok(RootedSystemLayout::new(temp_dir.path())?)
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::util::paths::{NativeSystemPaths, SystemPaths, DirectorySystemPaths};
+    use crate::system::layout::{NativeSystemLayout, SystemLayout, RootedSystemLayout};
 
     #[test]
     fn test_native_system_paths() {
-        let native_paths: Box<dyn SystemPaths> = Box::new(NativeSystemPaths::new().unwrap());
+        let native_paths: Box<dyn SystemLayout> = Box::new(NativeSystemLayout::new().unwrap());
         print!("{}", native_paths);
     }
 
     #[test]
     fn test_directory_system_paths() {
-        let native_paths: Box<dyn SystemPaths> = Box::new(DirectorySystemPaths::new("~/.archetect/").unwrap());
+        let native_paths: Box<dyn SystemLayout> = Box::new(RootedSystemLayout::new("~/.archetect/").unwrap());
         print!("{}", native_paths);
     }
 }

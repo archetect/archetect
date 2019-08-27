@@ -7,7 +7,7 @@ use log::{debug, info, trace};
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use crate::util::paths;
+use crate::system::layout;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -17,12 +17,12 @@ pub enum Source {
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum SourceError {
-    SourceUnsupported,
-    SourceNotFound,
-    SourceInvalidPath,
-    SourceInvalidEncoding,
+    SourceUnsupported(String),
+    SourceNotFound(String),
+    SourceInvalidPath(String),
+    SourceInvalidEncoding(String),
     RemoteSourceError(String),
-    OfflineAndNotCached,
+    OfflineAndNotCached(String),
     IOError(String),
 }
 
@@ -33,7 +33,7 @@ lazy_static! {
 
 impl Source {
     pub fn detect(path: &str, offline: bool, relative_to: Option<Source>) -> Result<Source, SourceError> {
-        let git_cache = paths::git_cache_dir();
+        let git_cache = layout::git_cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
             let cache_path = git_cache
@@ -68,10 +68,10 @@ impl Source {
                 if local_path.exists() {
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
-                    return Err(SourceError::SourceNotFound);
+                    return Err(SourceError::SourceNotFound(local_path.display().to_string()));
                 }
             } else {
-                return Err(SourceError::SourceUnsupported);
+                return Err(SourceError::SourceUnsupported(path.to_string()));
             }
         }
 
@@ -83,7 +83,7 @@ impl Source {
                     if local_path.exists() && local_path.is_dir() {
                         return Ok(Source::LocalDirectory { path: local_path });
                     } else {
-                        return Err(SourceError::SourceNotFound);
+                        return Err(SourceError::SourceNotFound(local_path.display().to_string()));
                     }
                 }
             }
@@ -91,13 +91,13 @@ impl Source {
                 if local_path.is_dir() {
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
-                    return Err(SourceError::SourceUnsupported);
+                    return Err(SourceError::SourceUnsupported(local_path.display().to_string()));
                 }
             } else {
-                return Err(SourceError::SourceNotFound);
+                return Err(SourceError::SourceNotFound(local_path.display().to_string()));
             }
         } else {
-            return Err(SourceError::SourceInvalidPath);
+            return Err(SourceError::SourceInvalidPath(path.to_string()));
         }
     }
 
@@ -117,7 +117,7 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
             trace!("Cloned to {}", cache_destination.display());
             Ok(())
         } else {
-            Err(SourceError::OfflineAndNotCached)
+            Err(SourceError::OfflineAndNotCached(url.to_owned()))
         }
     } else {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {

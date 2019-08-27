@@ -1,13 +1,11 @@
-#[macro_use]
-extern crate clap;
-
 use archetect::config::{
     Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
 };
-use archetect::util::paths;
-use archetect::util::{Source, SourceError};
-use archetect::{self, Archetype, ArchetypeError};
-use clap::{App, AppSettings, Arg, SubCommand};
+use archetect::system::{layout, SystemError};
+use archetect::util::{SourceError};
+use archetect::{self, ArchetypeError, ArchetectError};
+use clap::{App, AppSettings, Arg, SubCommand, ArgMatches};
+use clap::{crate_name, crate_description, crate_authors, crate_version};
 use indoc::indoc;
 use log::{error, info};
 use std::collections::HashMap;
@@ -16,14 +14,16 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use archetect::errors::RenderError;
+use archetect::RenderError;
 use std::error::Error;
 
+pub mod loggerv;
+
 fn main() {
-    let matches = App::new(&crate_name!()[..])
-        .version(&crate_version!()[..])
-        .author("Jimmie Fulton <jimmie.fulton@gmail.com")
-        .about("Generates Projects and Files from Archetype Template Directories and Git Repositories.")
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
             Arg::with_name("verbosity")
@@ -32,6 +32,13 @@ fn main() {
                 .multiple(true)
                 .global(true)
                 .help("Increases the level of verbosity"),
+        )
+        .arg(
+            Arg::with_name("offline")
+                .global(true)
+                .help("Only use directories and already-cached remote git URLs")
+                .short("o")
+                .long("offline"),
         )
         .arg(
             Arg::with_name("answer")
@@ -49,7 +56,7 @@ fn main() {
                          This option may be specified more than once.\n{}",
                         VALID_ANSWER_INPUTS
                     )
-                    .as_str(),
+                        .as_str(),
                 )
                 .validator(|s| match Answer::parse(&s) {
                     Ok(_) => Ok(()),
@@ -163,16 +170,10 @@ fn main() {
                         .help("The directory to initialize the Archetype template in.")
                         .takes_value(true),
                 )
-                .arg(
-                    Arg::with_name("offline")
-                        .help("Only use directories and already-cached remote git URLs")
-                        .short("o")
-                        .long("offline"),
-                ),
         )
         .get_matches();
 
-    archetect::loggerv::Logger::new()
+    loggerv::Logger::new()
         .verbosity(matches.occurrences_of("verbosity"))
         .level(false)
         .prefix("archetect")
@@ -182,9 +183,21 @@ fn main() {
         .init()
         .unwrap();
 
+    match execute(matches) {
+        Ok(()) => (),
+        Err(error) => handle_archetect_error(error),
+    }
+}
+
+fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
+    println!("Offline {}", matches.is_present("offline"));
+    let archetect = archetect::Archetect::builder()
+        .with_offline(matches.is_present("offline"))
+        .build()?;
+
     let mut answers = HashMap::new();
 
-    if let Ok(user_answers) = AnswerConfig::load(paths::answers_config()) {
+    if let Ok(user_answers) = AnswerConfig::load(layout::answers_config()) {
         for answer in user_answers.answers() {
             let answer = answer.clone();
             answers.insert(answer.identifier().to_owned(), answer);
@@ -207,7 +220,7 @@ fn main() {
     }
 
     if let Some(matches) = matches.subcommand_matches("cache") {
-        let git_cache = paths::git_cache_dir();
+        let git_cache = layout::git_cache_dir();
         if let Some(_sub_matches) = matches.subcommand_matches("clear") {
             fs::remove_dir_all(&git_cache).expect("Error deleting archetect cache");
         }
@@ -219,13 +232,13 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("system") {
         if let Some(matches) = matches.subcommand_matches("paths") {
             if let Some(_) = matches.subcommand_matches("git") {
-                println!("{}", paths::git_cache_dir().display());
+                println!("{}", layout::git_cache_dir().display());
             }
             if let Some(_) = matches.subcommand_matches("catalogs") {
-                println!("{}", paths::catalog_cache_dir().display());
+                println!("{}", layout::catalog_cache_dir().display());
             }
             if let Some(_) = matches.subcommand_matches("config") {
-                println!("{}", paths::configs_dir().display());
+                println!("{}", layout::configs_dir().display());
             }
         }
     }
@@ -233,74 +246,19 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("create") {
         let source = matches.value_of("source").unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
-        let offline: bool = matches.is_present("offline");
 
-        match Source::detect(source, offline, None) {
-            Ok(source) => {
-                let archetype = Archetype::from_source(source, offline).unwrap();
-                if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                    for answer in answer_config.answers() {
-                        if !answers.contains_key(answer.identifier()) {
-                            let answer = answer.clone();
-                            answers.insert(answer.identifier().to_owned(), answer);
-                        }
-                    }
-                }
-                let context = archetype.get_context(&answers).unwrap();
-                match archetype.render(destination, context) {
-                    Err(error) => {
-                        match error {
-                            ArchetypeError::ArchetypeInvalid => {
-                                error!("Invalid Archetype");
-                            },
-                            ArchetypeError::InvalidAnswersConfig => error!("Invalid Answers File"),
-                            ArchetypeError::ArchetypeSaveFailed => error!("Error saving Archetype"),
-                            ArchetypeError::SourceError(_) => error!("Source Error"),
-                            ArchetypeError::RenderError(error) => {
-                                match error {
-                                    RenderError::FileRenderError { source, error, message: _ } => {
-                                        if let Some(cause) = error.source() {
-                                            error!("{} in template \"{}\"", cause, source.display());
-                                        } else {
-                                            error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
-                                        }
-                                    },
-                                    RenderError::FileRenderIOError { source, error, message: _ } => {
-                                        error!("IO Error: {} in template \"{}\"", error, source.display());
-                                    },
-                                    RenderError::PathRenderError { source, error, message: _ } => {
-                                        if let Some(cause) = error.source() {
-                                            error!("{} in path \"{}\"", cause, source.display());
-                                        } else {
-                                            error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
-                                        }
-                                    },
-                                    RenderError::StringRenderError { source, error: _, message } => {
-                                        error!("IO Error: {} in \"{}\"", message, source);
-                                    },
-                                    RenderError::IOError { error: _, message } => {
-                                        error!("Unexpected IO Error:\n{}", message);
-                                    },
-                                }
-                            }
-                        }
-                    }
-                    Ok(_) => (),
+        let archetype = archetect.load_archetype(source, None)?;
+
+        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+            for answer in answer_config.answers() {
+                if !answers.contains_key(answer.identifier()) {
+                    let answer = answer.clone();
+                    answers.insert(answer.identifier().to_owned(), answer);
                 }
             }
-            Err(err) => match err {
-                SourceError::SourceInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
-                SourceError::SourceNotFound => error!("\"{}\" does not exist", source),
-                SourceError::SourceUnsupported => error!("\"{}\" is not a supported archetype path", source),
-                SourceError::SourceInvalidPath => error!("\"{}\" is not a valid archetype path", source),
-                SourceError::OfflineAndNotCached => error!(
-                    "\"{}\" is not cached locally and cannot be cloned in offline mode",
-                    source
-                ),
-                SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
-                SourceError::IOError(err) => error!("IO Error: {}", err),
-            },
         }
+        let context = archetype.get_context(&answers, None).unwrap();
+        return archetype.render(destination, context).map_err(|e| e.into());
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
             let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
@@ -331,10 +289,10 @@ fn main() {
                     indoc!(
                         r#"
                         Project: {{ name | title_case }}
-                        Author: {{ author | title_case }}            
+                        Author: {{ author | title_case }}
                     "#
                     )
-                    .as_bytes(),
+                        .as_bytes(),
                 )
                 .expect("Error writing README.md");
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
@@ -363,7 +321,80 @@ fn main() {
         }
     }
 
-    const VALID_ANSWER_INPUTS: &str = "\
+    Ok(())
+}
+
+fn handle_archetect_error(error: ArchetectError) {
+    match error {
+        ArchetectError::SourceError(error ) => handle_source_error(error),
+        ArchetectError::ArchetypeError(error) => handle_archetype_error(error),
+        ArchetectError::GenericError(error) => error!("Archetect Error: {}", error),
+        ArchetectError::RenderError(error) => handle_render_error(error),
+        ArchetectError::SystemError(error) => handle_system_error(error),
+    }
+}
+
+fn handle_archetype_error(error: ArchetypeError) {
+    match error {
+        ArchetypeError::ArchetypeInvalid => panic!(),
+        ArchetypeError::InvalidAnswersConfig => panic!(),
+        ArchetypeError::RenderError(error) => handle_render_error(error),
+        ArchetypeError::ArchetypeSaveFailed => {}
+        ArchetypeError::SourceError(error) => handle_source_error(error),
+    }
+}
+
+fn handle_source_error(error: SourceError) {
+    match error {
+        SourceError::SourceInvalidEncoding(source) => error!("\"{}\" is not valid UTF-8", source),
+        SourceError::SourceNotFound(source) => error!("\"{}\" does not exist", source),
+        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported archetype path", source),
+        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid archetype path", source),
+        SourceError::OfflineAndNotCached(source) => error!(
+            "\"{}\" is not cached locally and cannot be cloned in offline mode",
+            source
+        ),
+        SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
+        SourceError::IOError(err) => error!("IO Error: {}", err),
+    };
+}
+
+fn handle_system_error(error: SystemError) {
+    match error {
+        SystemError::GenericError(error) => error!("System Error: {}", error),
+        SystemError::IOError { error, message: _ } => error!("{}", error.to_string()),
+    }
+}
+
+fn handle_render_error(error: RenderError) {
+    match error {
+        RenderError::FileRenderError { source, error, message: _ } => {
+            if let Some(cause) = error.source() {
+                error!("{} in template \"{}\"", cause, source.display());
+            } else {
+                error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
+            }
+        }
+        RenderError::FileRenderIOError { source, error, message: _ } => {
+            error!("IO Error: {} in template \"{}\"", error, source.display());
+        }
+        RenderError::PathRenderError { source, error, message: _ } => {
+            if let Some(cause) = error.source() {
+                error!("{} in path \"{}\"", cause, source.display());
+            } else {
+                error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
+            }
+        }
+        RenderError::StringRenderError { source, error: _, message } => {
+            error!("IO Error: {} in \"{}\"", message, source);
+        }
+        RenderError::IOError { error: _, message } => {
+            error!("Unexpected IO Error:\n{}", message);
+        }
+    }
+}
+
+const VALID_ANSWER_INPUTS: &str = "\
                                        \nValid Input Examples:\n\
                                        \nkey=value\
                                        \nkey='multi-word value'\
@@ -373,4 +404,3 @@ fn main() {
                                        \n'key=\"multi-word value\"''\
                                        \n\"key = 'multi-word value'\"\
                                        ";
-}
