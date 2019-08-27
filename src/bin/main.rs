@@ -156,7 +156,8 @@ fn main() {
                 .subcommand(SubCommand::with_name("path")),
         )
         .subcommand(
-            SubCommand::with_name("create")
+            SubCommand::with_name("render")
+                .alias("create")
                 .about("Creates content from an Archetype")
                 .arg(
                     Arg::with_name("source")
@@ -242,7 +243,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
     }
 
-    if let Some(matches) = matches.subcommand_matches("create") {
+    if let Some(matches) = matches.subcommand_matches("render") {
         let source = matches.value_of("source").unwrap();
         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
