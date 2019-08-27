@@ -30,6 +30,10 @@ impl Context {
         self.data.insert(key.to_owned(), to_value(val).unwrap());
     }
 
+    pub fn insert_value(&mut self, identifier: &str, value: &Value) {
+        self.data.insert(identifier.to_owned(), value.to_owned());
+    }
+
     /// Appends the data of the `source` parameter to `self`, overwriting existing keys.
     /// The source context will be dropped.
     ///
@@ -53,6 +57,10 @@ impl Context {
 
     pub fn contains(&self, identifier: &str) -> bool {
         self.data.contains_key(identifier)
+    }
+
+    pub fn get(&self, identifier: &str) -> Option<&Value> {
+        self.data.get(identifier)
     }
 }
 
