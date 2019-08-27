@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = "Generates Projects and Files from Archetype Template Directories and Git Repositories."
 
 [[bin]]
 name = "archetect"

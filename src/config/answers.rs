@@ -1,4 +1,4 @@
-use crate::ArchetypeError;
+use crate::archetype::ArchetypeError;
 
 use log::debug;
 

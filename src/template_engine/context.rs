@@ -50,6 +50,10 @@ impl Context {
     pub fn into_json(self) -> Value {
         self.into()
     }
+
+    pub fn contains(&self, identifier: &str) -> bool {
+        self.data.contains_key(identifier)
+    }
 }
 
 impl Default for Context {
