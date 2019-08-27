@@ -135,9 +135,10 @@ impl Archetype {
 
     fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
+        let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
         match self
             .tera
-            .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone()) {
+            .render_string(path, context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
                 // TODO: Get a better error message.
@@ -207,15 +208,21 @@ impl Archetype {
         self.render_directory(
             context.clone(),
             self.path.clone().join(self.configuration().contents_dir()),
-            destination,
+            &destination,
         )?;
 
+        let mut seed = Context::new();
+        for variable in self.configuration().variables() {
+            if variable.is_inheritable() {
+                if let Some(value) = context.get(variable.identifier()) {
+                    seed.insert_value(variable.identifier(), value);
+                }
+            }
+        }
+
         for module in &self.modules {
-            let destination = PathBuf::from(
-                self.tera
-                    .render_string(module.config.destination(), context.clone())
-                    .unwrap(),
-            );
+            let subdirectory = self.render_path(module.config.destination(), &context)?;
+            let destination = destination.clone().join(subdirectory);
             let mut answers = HashMap::new();
             if let Some(answer_configs) = module.config.answers() {
                 for answer in answer_configs {
@@ -228,7 +235,8 @@ impl Archetype {
                     );
                 }
             }
-            let context = module.archetype.get_context(&answers, None)?;
+
+            let context = module.archetype.get_context(&answers, Some(seed.clone()))?;
             module.archetype.render(destination, context)?;
         }
         Ok(())
@@ -256,6 +264,12 @@ impl Archetype {
             } else {
                 None
             };
+
+            // If the context already contains a value, it was either inherited or answered, and
+            // should therefore not be overwritten
+            if context.contains(variable.identifier()) {
+                continue;
+            }
 
             if let Some(prompt) = variable.prompt() {
                 let prompt = if let Some(default) = default {

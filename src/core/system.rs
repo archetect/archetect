@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
-use crate::{Archetype, ArchetypeError, ArchetectError};
+use crate::{Archetype, ArchetectError};
 use crate::template_engine::Context;
 use crate::system::layout::{dot_home_layout, SystemLayout, LayoutType, NativeSystemLayout};
 use crate::system::SystemError;
 use crate::util::Source;
-use crate::config::AnswerConfig;
 
 pub struct Archetect {
     paths: Rc<Box<dyn SystemLayout>>,

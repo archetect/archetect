@@ -248,6 +248,7 @@ pub struct Variable {
     identifier: String,
     #[serde(alias = "default")]
     value: Option<String>,
+    inherit: Option<bool>,
 }
 
 impl Variable {
@@ -257,6 +258,7 @@ impl Variable {
                 prompt: None,
                 identifier: identifier.into(),
                 value: None,
+                inherit: None,
             },
         }
     }
@@ -291,6 +293,19 @@ impl Variable {
 
     pub fn is_derived(&self) -> bool {
         self.prompt.is_none() && self.value.is_some()
+    }
+
+    pub fn is_inheritable(&self) -> bool {
+        self.inherit.unwrap_or(false)
+    }
+
+    pub fn set_inheritable(&mut self, inheritable: Option<bool>) {
+        self.inherit = inheritable
+    }
+
+    pub fn with_inheritable(mut self, inheritable: bool) -> Variable {
+        self.set_inheritable(Some(inheritable));
+        self
     }
 }
 

@@ -190,7 +190,6 @@ fn main() {
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
-    println!("Offline {}", matches.is_present("offline"));
     let archetect = archetect::Archetect::builder()
         .with_offline(matches.is_present("offline"))
         .build()?;
