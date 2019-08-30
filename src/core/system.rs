@@ -30,8 +30,8 @@ impl Archetect {
     }
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
-        let source = Source::detect(source, self.offline, relative_to)?;
-        Archetype::from_source(source, self.offline).map_err(|e| e.into())
+        let source = Source::detect(self,source, relative_to)?;
+        Archetype::from_source(self, source, self.offline).map_err(|e| e.into())
     }
 
     pub fn render_string(&self, _template: &str, _context: Context) -> Result<String, String> {

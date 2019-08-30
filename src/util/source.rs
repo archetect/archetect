@@ -7,7 +7,7 @@ use log::{debug, info, trace};
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use crate::system::layout;
+use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -32,14 +32,14 @@ lazy_static! {
 }
 
 impl Source {
-    pub fn detect(path: &str, offline: bool, relative_to: Option<Source>) -> Result<Source, SourceError> {
-        let git_cache = layout::git_cache_dir();
+    pub fn detect(archetect: &Archetect, path: &str, relative_to: Option<Source>) -> Result<Source, SourceError> {
+        let git_cache = archetect.layout().git_cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
             let cache_path = git_cache
                 .clone()
                 .join(format!("{}_{}", &captures[1], &captures[2].replace("/", ".")));
-            if let Err(error) = cache_git_repo(&path, &cache_path, offline) {
+            if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                 return Err(error);
             }
             return Ok(Source::RemoteGit {
@@ -55,7 +55,7 @@ impl Source {
                     url.host_str().unwrap(),
                     url.path().trim_start_matches('/').replace("/", ".")
                 ));
-                if let Err(error) = cache_git_repo(&path, &cache_path, offline) {
+                if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
                 return Ok(Source::RemoteGit {
