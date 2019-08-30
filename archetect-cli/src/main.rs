@@ -1,11 +1,12 @@
+mod cli;
+
 use archetect::config::{
-    Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
+    Answer, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
 };
 use archetect::system::SystemError;
 use archetect::util::SourceError;
 use archetect::{self, ArchetypeError, ArchetectError};
-use clap::{App, AppSettings, Arg, SubCommand, ArgMatches};
-use clap::{crate_name, crate_description, crate_authors, crate_version};
+use clap::{ArgMatches};
 use indoc::indoc;
 use log::{error, info};
 use std::collections::HashMap;
@@ -20,168 +21,9 @@ use std::error::Error;
 pub mod loggerv;
 
 fn main() {
-    let matches = App::new(crate_name!())
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about(crate_description!())
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .arg(
-            Arg::with_name("verbosity")
-                .short("v")
-                .long("verbose")
-                .multiple(true)
-                .global(true)
-                .help("Increases the level of verbosity"),
-        )
-        .arg(
-            Arg::with_name("offline")
-                .global(true)
-                .help("Only use directories and already-cached remote git URLs")
-                .short("o")
-                .long("offline"),
-        )
-        .arg(
-            Arg::with_name("answer")
-                .short("a")
-                .long("answer")
-                .takes_value(true)
-                .multiple(true)
-                .global(true)
-                .empty_values(false)
-                .value_name("key=value")
-                .help("Supply a key=value pair as an answer to a variable question.")
-                .long_help(
-                    format!(
-                        "Supply a key=value pair as an answer to a variable question. \
-                         This option may be specified more than once.\n{}",
-                        VALID_ANSWER_INPUTS
-                    )
-                        .as_str(),
-                )
-                .validator(|s| match Answer::parse(&s) {
-                    Ok(_) => Ok(()),
-                    _ => Err(format!(
-                        "'{}' is not in a proper key=value answer format. \n{}",
-                        s, VALID_ANSWER_INPUTS
-                    )),
-                }),
-        )
-        .arg(
-            Arg::with_name("answer-file")
-                .short("A")
-                .long("answer-file")
-                .takes_value(true)
-                .multiple(true)
-                .global(true)
-                .empty_values(false)
-                .value_name("path")
-                .help("Supply an answers file as answers to variable questions.")
-                .long_help(
-                    "Supply an answers file as answers to variable questions. This option may \
-                     be specified more than once.",
-                )
-                .validator(|af| match AnswerConfig::load(&af) {
-                    Ok(_) => Ok(()),
-                    Err(AnswerConfigError::ParseError(_)) => Err(format!("{} has an invalid answer file format", &af)),
-                    Err(AnswerConfigError::MissingError) => {
-                        Err(format!("{} does not exist or does not contain an answer file", &af))
-                    }
-                }),
-        )
-        .subcommand(
-            SubCommand::with_name("archetype")
-                .about("Archetype Authoring Tools")
-                .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(
-                    SubCommand::with_name("init").about("Creates a minimal template").arg(
-                        Arg::with_name("destination")
-                            .takes_value(true)
-                            .help("Destination")
-                            .required(true),
-                    ),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("catalog")
-                .about("Create/Manage/Select From a Catalog of Archetypes")
-                .subcommand(
-                    SubCommand::with_name("add")
-                        .arg(
-                            Arg::with_name("source")
-                                .short("l")
-                                .long("source")
-                                .takes_value(true)
-                                .help("Archetype source location"),
-                        )
-                        .arg(
-                            Arg::with_name("description")
-                                .short("d")
-                                .long("description")
-                                .takes_value(true)
-                                .help("Archetype Description"),
-                        ),
-                )
-                .subcommand(
-                    SubCommand::with_name("select").arg(
-                        Arg::with_name("catalog-file")
-                            .short("c")
-                            .long("catalog-file")
-                            .takes_value(true)
-                            .required(true),
-                    ),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("system")
-                .about("archetect system configuration")
-                .subcommand(
-                    SubCommand::with_name("layout")
-                        .about("Get layout of system paths")
-                        .subcommand(
-                            SubCommand::with_name("git")
-                                .about("The location where git repos are cloned.  Used for offline mode."),
-                        )
-                        .subcommand(
-                            SubCommand::with_name("config")
-                                .about("The location where archetect config files are stored."),
-                        ),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("cache")
-                .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(SubCommand::with_name("select"))
-                .subcommand(SubCommand::with_name("clear"))
-                .subcommand(SubCommand::with_name("pull")),
-        )
-        .subcommand(
-            SubCommand::with_name("render")
-                .alias("create")
-                .about("Creates content from an Archetype")
-                .arg(
-                    Arg::with_name("source")
-                        .help("The source archetype directory or git URL")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("destination")
-                        .default_value(".")
-                        .help("The directory to initialize the Archetype template in.")
-                        .takes_value(true),
-                )
-        )
-        .get_matches();
+    let matches = cli::get_matches().get_matches();
 
-    loggerv::Logger::new()
-        .verbosity(matches.occurrences_of("verbosity"))
-        .level(false)
-        .prefix("archetect")
-        .no_module_path()
-        .module_path(false)
-        .base_level(log::Level::Info)
-        .init()
-        .unwrap();
+    cli::configure(&matches);
 
     match execute(matches) {
         Ok(()) => (),
@@ -387,13 +229,4 @@ fn handle_render_error(error: RenderError) {
     }
 }
 
-const VALID_ANSWER_INPUTS: &str = "\
-                                       \nValid Input Examples:\n\
-                                       \nkey=value\
-                                       \nkey='multi-word value'\
-                                       \nkey=\"multi-word value\"\
-                                       \n\"key=value\"\
-                                       \n'key=value'\
-                                       \n'key=\"multi-word value\"''\
-                                       \n\"key = 'multi-word value'\"\
-                                       ";
+
