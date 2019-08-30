@@ -1,8 +1,8 @@
 use archetect::config::{
     Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
 };
-use archetect::system::{layout, SystemError};
-use archetect::util::{SourceError};
+use archetect::system::SystemError;
+use archetect::util::SourceError;
 use archetect::{self, ArchetypeError, ArchetectError};
 use clap::{App, AppSettings, Arg, SubCommand, ArgMatches};
 use clap::{crate_name, crate_description, crate_authors, crate_version};
@@ -135,8 +135,8 @@ fn main() {
             SubCommand::with_name("system")
                 .about("archetect system configuration")
                 .subcommand(
-                    SubCommand::with_name("paths")
-                        .about("Get paths ")
+                    SubCommand::with_name("layout")
+                        .about("Get layout of system paths")
                         .subcommand(
                             SubCommand::with_name("git")
                                 .about("The location where git repos are cloned.  Used for offline mode."),
@@ -152,8 +152,7 @@ fn main() {
                 .about("Manage/Select from Archetypes cached from Git Repositories")
                 .subcommand(SubCommand::with_name("select"))
                 .subcommand(SubCommand::with_name("clear"))
-                .subcommand(SubCommand::with_name("pull"))
-                .subcommand(SubCommand::with_name("path")),
+                .subcommand(SubCommand::with_name("pull")),
         )
         .subcommand(
             SubCommand::with_name("render")
@@ -197,7 +196,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     let mut answers = HashMap::new();
 
-    if let Ok(user_answers) = AnswerConfig::load(layout::answers_config()) {
+    if let Ok(user_answers) = AnswerConfig::load(archetect.layout().answers_config()) {
         for answer in user_answers.answers() {
             let answer = answer.clone();
             answers.insert(answer.identifier().to_owned(), answer);
@@ -220,25 +219,19 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     if let Some(matches) = matches.subcommand_matches("cache") {
-        let git_cache = layout::git_cache_dir();
+        let git_cache = archetect.layout().git_cache_dir();
         if let Some(_sub_matches) = matches.subcommand_matches("clear") {
             fs::remove_dir_all(&git_cache).expect("Error deleting archetect cache");
-        }
-        if let Some(_) = matches.subcommand_matches("path") {
-            println!("{}", git_cache.display());
         }
     }
 
     if let Some(matches) = matches.subcommand_matches("system") {
-        if let Some(matches) = matches.subcommand_matches("paths") {
-            if let Some(_) = matches.subcommand_matches("git") {
-                println!("{}", layout::git_cache_dir().display());
-            }
-            if let Some(_) = matches.subcommand_matches("catalogs") {
-                println!("{}", layout::catalog_cache_dir().display());
-            }
-            if let Some(_) = matches.subcommand_matches("config") {
-                println!("{}", layout::configs_dir().display());
+        if let Some(matches) = matches.subcommand_matches("layout") {
+            match matches.subcommand() {
+                ("git", Some(_)) => println!("{}", archetect.layout().git_cache_dir().display()),
+                ("catalogs", Some(_)) => println!("{}", archetect.layout().catalog_cache_dir().display()),
+                ("config", Some(_)) => println!("{}", archetect.layout().configs_dir().display()),
+                _ => println!("{}", archetect.layout()),
             }
         }
     }
@@ -267,8 +260,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
-            config.add_variable(Variable::with_identifier("author").with_prompt("Author name: "));
+            config.add_variable(Variable::with_name("name").with_prompt("Application Name: "));
+            config.add_variable(Variable::with_name("author").with_prompt("Author name: "));
 
             let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
             config_file
@@ -278,7 +271,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
             File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
 
-            let project_dir = output_dir.clone().join("archetype/{{ name # train_case }}");
+            let project_dir = output_dir.clone().join("contents/{{ name # train_case }}");
 
             fs::create_dir_all(&project_dir).unwrap();
 
@@ -326,7 +319,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
 fn handle_archetect_error(error: ArchetectError) {
     match error {
-        ArchetectError::SourceError(error ) => handle_source_error(error),
+        ArchetectError::SourceError(error) => handle_source_error(error),
         ArchetectError::ArchetypeError(error) => handle_archetype_error(error),
         ArchetectError::GenericError(error) => error!("Archetect Error: {}", error),
         ArchetectError::RenderError(error) => handle_render_error(error),

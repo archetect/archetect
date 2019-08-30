@@ -243,20 +243,22 @@ impl ModuleConfig {
 
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Variable {
-    prompt: Option<String>,
     #[serde(alias = "name")]
-    identifier: String,
+    #[serde(alias = "identifier")]
+    #[serde(rename = "variable")]
+    name: String,
     #[serde(alias = "default")]
     value: Option<String>,
+    prompt: Option<String>,
     inherit: Option<bool>,
 }
 
 impl Variable {
-    pub fn with_identifier(identifier: &str) -> VariableBuilder {
+    pub fn with_name(identifier: &str) -> VariableBuilder {
         VariableBuilder {
             variable: Variable {
                 prompt: None,
-                identifier: identifier.into(),
+                name: identifier.into(),
                 value: None,
                 inherit: None,
             },
@@ -280,8 +282,8 @@ impl Variable {
         }
     }
 
-    pub fn identifier(&self) -> &str {
-        &self.identifier
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn default(&self) -> Option<&str> {
@@ -343,9 +345,9 @@ mod tests {
                 ModuleConfig::new("~/modules/jpa-persistence-module", "{{ name | train_case }}")
                     .with_answer(Answer::new("name", "{{ name }} Service")),
             )
-            .with_variable(Variable::with_identifier("name").with_prompt("Application Name"))
+            .with_variable(Variable::with_name("name").with_prompt("Application Name"))
             .with_variable(
-                Variable::with_identifier("author")
+                Variable::with_name("author")
                     .with_prompt("Author")
                     .with_default("Jimmie"),
             );
@@ -364,17 +366,17 @@ mod tests {
             destination = "{{ name | train_case }}"
 
             [[modules.answers]]
-            identifier = "name"
+            variable = "name"
             value = "{{ name }} Service"
 
             [[variables]]
+            variable = "name"
             prompt = "Application Name"
-            identifier = "name"
 
             [[variables]]
-            prompt = "Author"
-            identifier = "author"
+            variable = "author"
             value = "Jimmie"
+            prompt = "Author"
         "#
         );
         assert_eq!(output, expected);
@@ -392,7 +394,7 @@ mod tests {
             destination = "{{ name | train_case }}"
 
             [[modules.answers]]
-            identifier = "name"
+            variable = "name"
             value = "{{ name }} Service"
 
             [[modules]]
@@ -400,12 +402,12 @@ mod tests {
             destination = "{{ name | train_case }}"
 
             [[modules.answer]]
-            identifier = "name"
+            variable = "name"
             value = "{{ name }} Service"
 
             [[variables]]
+            identifier = "name"
             prompt = "Application Name"
-            name = "name"
 
             [[variables]]
             prompt = "Author"
@@ -415,7 +417,7 @@ mod tests {
         );
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config.variables().contains(
-            &Variable::with_identifier("author")
+            &Variable::with_name("author")
                 .with_prompt("Author")
                 .with_default("Jimmie")
         ));
@@ -453,7 +455,7 @@ mod tests {
         );
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config.variables().contains(
-            &Variable::with_identifier("author")
+            &Variable::with_name("author")
                 .with_prompt("Author")
                 .with_default("Jimmie")
         ));
@@ -464,7 +466,7 @@ mod tests {
         let config = ArchetypeConfig::load("archetypes/simple").unwrap();
         assert!(config
             .variables()
-            .contains(&Variable::with_identifier("name").with_prompt("Application Name: ")));
+            .contains(&Variable::with_name("name").with_prompt("Application Name: ")));
     }
 
     #[test]
@@ -473,7 +475,7 @@ mod tests {
 
         assert!(config
             .variables()
-            .contains(&Variable::with_identifier("name").with_prompt("Application Name: ")));
+            .contains(&Variable::with_name("name").with_prompt("Application Name: ")));
     }
 
     #[test]

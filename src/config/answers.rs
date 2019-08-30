@@ -13,7 +13,7 @@ use pest::Parser;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnswerConfig {
-    #[serde(rename = "answer")]
+    #[serde(alias = "answer")]
     answers: Vec<Answer>,
 }
 
@@ -150,7 +150,8 @@ fn parse_value(pair: Pair<Rule>) -> String {
 
 #[derive(PartialOrd, PartialEq, Debug, Deserialize, Serialize, Clone)]
 pub struct Answer {
-    identifier: String,
+    #[serde(alias = "identifier")]
+    variable: String,
     value: String,
     prompt: Option<bool>,
 }
@@ -158,7 +159,7 @@ pub struct Answer {
 impl Answer {
     pub fn new<I: Into<String>, V: Into<String>>(identifier: I, value: V) -> Answer {
         Answer {
-            identifier: identifier.into(),
+            variable: identifier.into(),
             value: value.into(),
             prompt: None,
         }
@@ -169,7 +170,7 @@ impl Answer {
     }
 
     pub fn identifier(&self) -> &str {
-        &self.identifier
+        &self.variable
     }
 
     pub fn value(&self) -> &str {

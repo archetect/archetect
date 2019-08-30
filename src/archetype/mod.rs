@@ -9,6 +9,7 @@ use std::fs::File;
 use std::collections::HashMap;
 use std::io::Write;
 use log::{trace,warn};
+use crate::Archetect;
 
 pub struct Archetype {
     tera: Tera,
@@ -18,7 +19,7 @@ pub struct Archetype {
 }
 
 impl Archetype {
-    pub fn from_source(source: Source, offline: bool) -> Result<Archetype, ArchetypeError> {
+    pub fn from_source(archetect: &Archetect, source: Source, offline: bool) -> Result<Archetype, ArchetypeError> {
         let tera = Tera::default();
 
         let local_path = source.local_path();
@@ -35,8 +36,8 @@ impl Archetype {
         let mut modules = vec![];
 
         for module_config in archetype.configuration().modules() {
-            let source = Source::detect(module_config.source(), offline, Some(source.clone()))?;
-            let module_archetype = Archetype::from_source(source, offline)?;
+            let source = Source::detect(archetect,module_config.source(), Some(source.clone()))?;
+            let module_archetype = Archetype::from_source(archetect, source, offline)?;
             modules.push(Module::new(module_config.clone(), module_archetype));
         }
 
@@ -214,8 +215,8 @@ impl Archetype {
         let mut seed = Context::new();
         for variable in self.configuration().variables() {
             if variable.is_inheritable() {
-                if let Some(value) = context.get(variable.identifier()) {
-                    seed.insert_value(variable.identifier(), value);
+                if let Some(value) = context.get(variable.name()) {
+                    seed.insert_value(variable.name(), value);
                 }
             }
         }
@@ -246,7 +247,7 @@ impl Archetype {
         let mut context = seed.unwrap_or_else(|| Context::new());
 
         for variable in self.config.variables() {
-            let default = if let Some(answer) = answers.get(variable.identifier()) {
+            let default = if let Some(answer) = answers.get(variable.name()) {
                 if let Some(true) = answer.prompt() {
                     Some(self.render_string(answer.value(), context.clone())?)
                 } else {
@@ -267,7 +268,7 @@ impl Archetype {
 
             // If the context already contains a value, it was either inherited or answered, and
             // should therefore not be overwritten
-            if context.contains(variable.identifier()) {
+            if context.contains(variable.name()) {
                 continue;
             }
 
@@ -287,9 +288,9 @@ impl Archetype {
                 } else {
                     input_builder.get()
                 };
-                context.insert(variable.identifier(), &value);
+                context.insert(variable.name(), &value);
             } else if let Some(default) = default {
-                context.insert(variable.identifier(), default.as_str());
+                context.insert(variable.name(), default.as_str());
             } else {
                 return Err(ArchetypeError::ArchetypeInvalid);
             }

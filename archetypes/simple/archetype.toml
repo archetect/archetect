@@ -5,7 +5,7 @@ name = 'name'
 [[variable]]
 prompt = 'Author: '
 name = 'author'
-default = 'Jimmie'
+value = 'Jimmie'
 
 [[variable]]
 prompt = 'First: '
