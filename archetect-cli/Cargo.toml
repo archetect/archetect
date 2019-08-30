@@ -1,0 +1,23 @@
+[package]
+name = "archetect-cli"
+version = "0.1.0"
+authors = ["Jimmie Fulton <jimmie.fulton@sony.com>"]
+edition = "2018"
+license = "MIT"
+
+[[bin]]
+name = "archetect"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+archetect = { path = "../archetect-lib" }
+ansi_term = "0.12"
+atty = "0.2"
+clap = "2"
+indoc = "0.3"
+lazy_static = "1.0"
+log = "0.4"
+read_input = "0.8"
+serde = "1.0.90"
+toml = "0.5"
