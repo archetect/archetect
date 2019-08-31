@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn test_archetype_load() {
-        let config = ArchetypeConfig::load("archetypes/simple").unwrap();
+        let config = ArchetypeConfig::load("../archetypes/simple").unwrap();
         assert!(config
             .variables()
             .contains(&Variable::with_name("name").with_prompt("Application Name: ")));
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_archetype_to_string() {
-        let config = ArchetypeConfig::load("archetypes/simple").unwrap();
+        let config = ArchetypeConfig::load("../archetypes/simple").unwrap();
 
         assert!(config
             .variables()
