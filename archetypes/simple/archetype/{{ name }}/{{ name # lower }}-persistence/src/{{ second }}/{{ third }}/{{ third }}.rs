@@ -1,1 +1,0 @@
-{{ first | title }}.{{ third | capitalize }}

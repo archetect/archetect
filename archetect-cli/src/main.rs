@@ -6,9 +6,9 @@ use archetect::config::{
 use archetect::system::SystemError;
 use archetect::util::SourceError;
 use archetect::{self, ArchetypeError, ArchetectError};
-use clap::{ArgMatches};
+use clap::{ArgMatches, Shell};
 use indoc::indoc;
-use log::{error, info};
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -67,6 +67,16 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
     }
 
+    if let Some(matches) = matches.subcommand_matches("completions") {
+        match matches.subcommand() {
+            ("fish", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Fish, &mut std::io::stdout()),
+            ("bash", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Bash, &mut std::io::stdout()),
+            ("powershell", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::PowerShell, &mut std::io::stdout()),
+            ("zsh", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Zsh, &mut std::io::stdout()),
+            (&_, _) => warn!("Unsupported Shell"),
+        }
+    }
+
     if let Some(matches) = matches.subcommand_matches("system") {
         if let Some(matches) = matches.subcommand_matches("layout") {
             match matches.subcommand() {
@@ -94,7 +104,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
         let context = archetype.get_context(&answers, None).unwrap();
         return archetype.render(destination, context).map_err(|e| e.into());
-    } else if let Some(matches) = matches.subcommand_matches("archetype") {
+    } else if let Some(matches) = matches.subcommand_matches("contents") {
         if let Some(matches) = matches.subcommand_matches("init") {
             let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
             if !output_dir.exists() {
@@ -105,13 +115,13 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             config.add_variable(Variable::with_name("name").with_prompt("Application Name: "));
             config.add_variable(Variable::with_name("author").with_prompt("Author name: "));
 
-            let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
+            let mut config_file = File::create(output_dir.clone().join("contents.toml")).unwrap();
             config_file
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
 
-            File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
-            File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
+            File::create(output_dir.clone().join("README.md")).expect("Error creating contents README.md");
+            File::create(output_dir.clone().join(".gitignore")).expect("Error creating contents .gitignore");
 
             let project_dir = output_dir.clone().join("contents/{{ name # train_case }}");
 
@@ -183,8 +193,8 @@ fn handle_source_error(error: SourceError) {
     match error {
         SourceError::SourceInvalidEncoding(source) => error!("\"{}\" is not valid UTF-8", source),
         SourceError::SourceNotFound(source) => error!("\"{}\" does not exist", source),
-        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported archetype path", source),
-        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid archetype path", source),
+        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported contents path", source),
+        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid contents path", source),
         SourceError::OfflineAndNotCached(source) => error!(
             "\"{}\" is not cached locally and cannot be cloned in offline mode",
             source
