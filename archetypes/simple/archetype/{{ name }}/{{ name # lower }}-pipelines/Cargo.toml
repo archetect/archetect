@@ -1,7 +1,0 @@
-[package]
-name = "{{ name | lower }}-pipelines"
-version = "0.1.0"
-authors = ["{{ author }}"]
-edition = "2018"
-
-[dependencies]

@@ -1,10 +1,10 @@
 use clap::{App, AppSettings, ArgMatches, Arg, SubCommand};
-use clap::{crate_name, crate_description, crate_authors, crate_version};
+use clap::{crate_description, crate_authors, crate_version};
 use archetect::config::{AnswerConfigError, AnswerConfig, Answer};
 use crate::loggerv;
 
 pub fn get_matches() -> App<'static, 'static> {
-    App::new(crate_name!())
+    App::new("archetect")
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
@@ -80,7 +80,7 @@ pub fn get_matches() -> App<'static, 'static> {
         )
         .subcommand(
             SubCommand::with_name("catalog")
-                .about("Create/Manage/Select From a Catalog of Archetypes")
+                .about("Create/Manage/Select From the user Catalog")
                 .subcommand(
                     SubCommand::with_name("add")
                         .arg(
@@ -107,6 +107,30 @@ pub fn get_matches() -> App<'static, 'static> {
                             .required(true),
                     ),
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name("catalogs")
+                .about("Create/Manage/Select from a registry of catalogs")
+        )
+        .subcommand(
+            SubCommand::with_name("completions")
+                .about("Generate shell completions")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
+                .subcommand(
+                    SubCommand::with_name("fish")
+                        .about("Generate Fish Shell completions")
+                )
+                .subcommand(
+                    SubCommand::with_name("zsh")
+                        .about("Generate ZSH completions")
+                )
+                .subcommand(
+                    SubCommand::with_name("bash")
+                        .about("Generate Bash Shell completions")
+                ).subcommand(
+                SubCommand::with_name("powershell")
+                    .about("Generate PowerShell completions")
+                )
         )
         .subcommand(
             SubCommand::with_name("system")
@@ -137,7 +161,7 @@ pub fn get_matches() -> App<'static, 'static> {
                 .about("Creates content from an Archetype")
                 .arg(
                     Arg::with_name("source")
-                        .help("The source archetype directory or git URL")
+                        .help("The source contents directory or git URL")
                         .takes_value(true)
                         .required(true),
                 )

@@ -26,7 +26,7 @@ pub fn select_from_catalog(catalog: &CatalogConfig) -> Result<ArchetypeInfo, Cat
 
     let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
     let result = input::<usize>()
-        .msg("Select an archetype: ")
+        .msg("Select an contents: ")
         .add_test(move |value| test_values.contains(value))
         .err("Please select from the list")
         .repeat_msg("The selected value does match any from the list.")

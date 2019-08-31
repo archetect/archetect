@@ -65,7 +65,7 @@ impl Archetype {
         if !source.is_dir() {
             if self.configuration().modules().is_empty() {
                 warn!(
-                    "The archetype's '{}' directory does not exist, and there are no submodules. Nothing to render.",
+                    "The contents's '{}' directory does not exist, and there are no submodules. Nothing to render.",
                     source.display()
                 );
             }
