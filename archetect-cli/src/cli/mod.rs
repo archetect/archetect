@@ -1,7 +1,7 @@
-use clap::{App, AppSettings, ArgMatches, Arg, SubCommand};
-use clap::{crate_description, crate_authors, crate_version};
-use archetect::config::{AnswerConfigError, AnswerConfig, Answer};
 use crate::loggerv;
+use archetect::config::{Answer, AnswerConfig, AnswerConfigError};
+use clap::{crate_authors, crate_description, crate_version};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 pub fn get_matches() -> App<'static, 'static> {
     App::new("archetect")
@@ -108,29 +108,15 @@ pub fn get_matches() -> App<'static, 'static> {
                     ),
                 ),
         )
-        .subcommand(
-            SubCommand::with_name("catalogs")
-                .about("Create/Manage/Select from a registry of catalogs")
-        )
+        .subcommand(SubCommand::with_name("catalogs").about("Create/Manage/Select from a registry of catalogs"))
         .subcommand(
             SubCommand::with_name("completions")
                 .about("Generate shell completions")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(
-                    SubCommand::with_name("fish")
-                        .about("Generate Fish Shell completions")
-                )
-                .subcommand(
-                    SubCommand::with_name("zsh")
-                        .about("Generate ZSH completions")
-                )
-                .subcommand(
-                    SubCommand::with_name("bash")
-                        .about("Generate Bash Shell completions")
-                ).subcommand(
-                SubCommand::with_name("powershell")
-                    .about("Generate PowerShell completions")
-                )
+                .subcommand(SubCommand::with_name("fish").about("Generate Fish Shell completions"))
+                .subcommand(SubCommand::with_name("zsh").about("Generate ZSH completions"))
+                .subcommand(SubCommand::with_name("bash").about("Generate Bash Shell completions"))
+                .subcommand(SubCommand::with_name("powershell").about("Generate PowerShell completions")),
         )
         .subcommand(
             SubCommand::with_name("system")
@@ -161,7 +147,7 @@ pub fn get_matches() -> App<'static, 'static> {
                 .about("Creates content from an Archetype")
                 .arg(
                     Arg::with_name("source")
-                        .help("The source contents directory or git URL")
+                        .help("The source archetype directory or git URL")
                         .takes_value(true)
                         .required(true),
                 )
@@ -170,7 +156,7 @@ pub fn get_matches() -> App<'static, 'static> {
                         .default_value(".")
                         .help("The directory to initialize the Archetype template in.")
                         .takes_value(true),
-                )
+                ),
         )
 }
 
@@ -187,13 +173,13 @@ pub fn configure(matches: &ArgMatches) {
 }
 
 const VALID_ANSWER_INPUTS: &str = "Supply a key=value pair as an answer to a variable question. \
-                         This option may be specified more than once.\n\
-                                       \nValid Input Examples:\n\
-                                       \nkey=value\
-                                       \nkey='multi-word value'\
-                                       \nkey=\"multi-word value\"\
-                                       \n\"key=value\"\
-                                       \n'key=value'\
-                                       \n'key=\"multi-word value\"''\
-                                       \n\"key = 'multi-word value'\"\
-                                       ";
+                                   This option may be specified more than once.\n\
+                                   \nValid Input Examples:\n\
+                                   \nkey=value\
+                                   \nkey='multi-word value'\
+                                   \nkey=\"multi-word value\"\
+                                   \n\"key=value\"\
+                                   \n'key=value'\
+                                   \n'key=\"multi-word value\"''\
+                                   \n\"key = 'multi-word value'\"\
+                                   ";
