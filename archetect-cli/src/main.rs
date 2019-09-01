@@ -1,22 +1,20 @@
 mod cli;
 
-use archetect::config::{
-    Answer, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
-};
+use archetect::config::{Answer, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable};
 use archetect::system::SystemError;
 use archetect::util::SourceError;
-use archetect::{self, ArchetypeError, ArchetectError};
+use archetect::RenderError;
+use archetect::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
 use indoc::indoc;
 use log::{error, info, warn};
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use archetect::RenderError;
-use std::error::Error;
 
 pub mod loggerv;
 
@@ -69,9 +67,15 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     if let Some(matches) = matches.subcommand_matches("completions") {
         match matches.subcommand() {
-            ("fish", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Fish, &mut std::io::stdout()),
-            ("bash", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Bash, &mut std::io::stdout()),
-            ("powershell", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::PowerShell, &mut std::io::stdout()),
+            ("fish", Some(_)) => {
+                cli::get_matches().gen_completions_to("archetect", Shell::Fish, &mut std::io::stdout())
+            }
+            ("bash", Some(_)) => {
+                cli::get_matches().gen_completions_to("archetect", Shell::Bash, &mut std::io::stdout())
+            }
+            ("powershell", Some(_)) => {
+                cli::get_matches().gen_completions_to("archetect", Shell::PowerShell, &mut std::io::stdout())
+            }
             ("zsh", Some(_)) => cli::get_matches().gen_completions_to("archetect", Shell::Zsh, &mut std::io::stdout()),
             (&_, _) => warn!("Unsupported Shell"),
         }
@@ -104,7 +108,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
         let context = archetype.get_context(&answers, None).unwrap();
         return archetype.render(destination, context).map_err(|e| e.into());
-    } else if let Some(matches) = matches.subcommand_matches("contents") {
+    } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
             let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
             if !output_dir.exists() {
@@ -115,13 +119,13 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             config.add_variable(Variable::with_name("name").with_prompt("Application Name: "));
             config.add_variable(Variable::with_name("author").with_prompt("Author name: "));
 
-            let mut config_file = File::create(output_dir.clone().join("contents.toml")).unwrap();
+            let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
             config_file
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
 
-            File::create(output_dir.clone().join("README.md")).expect("Error creating contents README.md");
-            File::create(output_dir.clone().join(".gitignore")).expect("Error creating contents .gitignore");
+            File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
+            File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
 
             let project_dir = output_dir.clone().join("contents/{{ name # train_case }}");
 
@@ -137,7 +141,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                         Author: {{ author | title_case }}
                     "#
                     )
-                        .as_bytes(),
+                    .as_bytes(),
                 )
                 .expect("Error writing README.md");
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
@@ -193,8 +197,8 @@ fn handle_source_error(error: SourceError) {
     match error {
         SourceError::SourceInvalidEncoding(source) => error!("\"{}\" is not valid UTF-8", source),
         SourceError::SourceNotFound(source) => error!("\"{}\" does not exist", source),
-        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported contents path", source),
-        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid contents path", source),
+        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported archetype path", source),
+        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid archetype path", source),
         SourceError::OfflineAndNotCached(source) => error!(
             "\"{}\" is not cached locally and cannot be cloned in offline mode",
             source
@@ -213,24 +217,40 @@ fn handle_system_error(error: SystemError) {
 
 fn handle_render_error(error: RenderError) {
     match error {
-        RenderError::FileRenderError { source, error, message: _ } => {
+        RenderError::FileRenderError {
+            source,
+            error,
+            message: _,
+        } => {
             if let Some(cause) = error.source() {
                 error!("{} in template \"{}\"", cause, source.display());
             } else {
                 error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
             }
         }
-        RenderError::FileRenderIOError { source, error, message: _ } => {
+        RenderError::FileRenderIOError {
+            source,
+            error,
+            message: _,
+        } => {
             error!("IO Error: {} in template \"{}\"", error, source.display());
         }
-        RenderError::PathRenderError { source, error, message: _ } => {
+        RenderError::PathRenderError {
+            source,
+            error,
+            message: _,
+        } => {
             if let Some(cause) = error.source() {
                 error!("{} in path \"{}\"", cause, source.display());
             } else {
                 error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
             }
         }
-        RenderError::StringRenderError { source, error: _, message } => {
+        RenderError::StringRenderError {
+            source,
+            error: _,
+            message,
+        } => {
             error!("IO Error: {} in \"{}\"", message, source);
         }
         RenderError::IOError { error: _, message } => {
@@ -238,5 +258,3 @@ fn handle_render_error(error: RenderError) {
         }
     }
 }
-
-

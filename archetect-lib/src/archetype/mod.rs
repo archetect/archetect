@@ -1,15 +1,15 @@
-use crate::config::{ModuleConfig, ArchetypeConfig, RuleAction, RuleConfig, Answer, PatternType};
-use crate::util::{SourceError, Source};
+use crate::config::{Answer, ArchetypeConfig, ModuleConfig, PatternType, RuleAction, RuleConfig};
 use crate::errors::RenderError;
-use crate::template_engine::{Tera, Context};
+use crate::template_engine::{Context, Tera};
+use crate::util::{Source, SourceError};
+use crate::Archetect;
+use log::{trace, warn};
 use read_input::prelude::*;
-use std::path::{PathBuf, Path};
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::collections::HashMap;
 use std::io::Write;
-use log::{trace,warn};
-use crate::Archetect;
+use std::path::{Path, PathBuf};
 
 pub struct Archetype {
     tera: Tera,
@@ -36,7 +36,7 @@ impl Archetype {
         let mut modules = vec![];
 
         for module_config in archetype.configuration().modules() {
-            let source = Source::detect(archetect,module_config.source(), Some(source.clone()))?;
+            let source = Source::detect(archetect, module_config.source(), Some(source.clone()))?;
             let module_archetype = Archetype::from_source(archetect, source, offline)?;
             modules.push(Module::new(module_config.clone(), module_archetype));
         }
@@ -44,7 +44,6 @@ impl Archetype {
         for module in modules {
             archetype.modules.push(module);
         }
-
 
         Ok(archetype)
     }
@@ -65,7 +64,7 @@ impl Archetype {
         if !source.is_dir() {
             if self.configuration().modules().is_empty() {
                 warn!(
-                    "The contents's '{}' directory does not exist, and there are no submodules. Nothing to render.",
+                    "The archetypes's '{}' directory does not exist, and there are no submodules. Nothing to render.",
                     source.display()
                 );
             }
@@ -86,7 +85,7 @@ impl Archetype {
                         let destination = self.render_destination(&destination, &path, &context)?;
                         let contents = self.render_contents(&path, &context)?;
                         self.write_contents(&destination, &contents)?;
-                    },
+                    }
                     Ok(Some(rule)) => {
                         let destination = self.render_destination(&destination, &path, &context)?;
                         if let Some(filter) = rule.filter() {
@@ -101,7 +100,7 @@ impl Archetype {
                             match rule.action() {
                                 RuleAction::RENDER => {
                                     self.render_contents(&path, &context)?;
-                                },
+                                }
                                 RuleAction::COPY => {
                                     self.copy_contents(&path, &destination)?;
                                 }
@@ -110,7 +109,7 @@ impl Archetype {
                                 }
                             }
                         }
-                    },
+                    }
                     Err(err) => return Err(err),
                 };
             }
@@ -120,7 +119,7 @@ impl Archetype {
     }
 
     fn match_rules<P: AsRef<Path>>(&self, path: P) -> Result<Option<RuleConfig>, RenderError> {
-        let path= path.as_ref();
+        let path = path.as_ref();
         for path_rule in self.configuration().path_rules() {
             if path_rule.pattern_type() == &PatternType::GLOB {
                 for pattern in path_rule.patterns() {
@@ -137,19 +136,26 @@ impl Archetype {
     fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
         let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
-        match self
-            .tera
-            .render_string(path, context.clone()) {
+        match self.tera.render_string(path, context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
                 // TODO: Get a better error message.
                 let message = String::new();
-                Err(RenderError::PathRenderError { source: path.into(), error, message })
+                Err(RenderError::PathRenderError {
+                    source: path.into(),
+                    error,
+                    message,
+                })
             }
         }
     }
 
-    fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(&self, parent: P, child: C, context: &Context) -> Result<PathBuf, RenderError> {
+    fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(
+        &self,
+        parent: P,
+        child: C,
+        context: &Context,
+    ) -> Result<PathBuf, RenderError> {
         let mut destination = parent.as_ref().to_owned();
         let child = child.as_ref();
         let name = self.render_path(&child, &context)?;
@@ -165,7 +171,7 @@ impl Archetype {
                 return Err(RenderError::FileRenderIOError {
                     source: path.to_owned(),
                     error,
-                    message: "".to_string()
+                    message: "".to_string(),
                 });
             }
         };
@@ -174,7 +180,11 @@ impl Archetype {
             Err(error) => {
                 // TODO: Get a better error message.
                 let message = String::new();
-                Err(RenderError::FileRenderError { source: path.into(), error, message })
+                Err(RenderError::FileRenderError {
+                    source: path.into(),
+                    error,
+                    message,
+                })
             }
         }
     }
@@ -182,7 +192,11 @@ impl Archetype {
     fn render_string(&self, contents: &str, context: Context) -> Result<String, RenderError> {
         match self.tera.render_string(contents, context) {
             Ok(contents) => Ok(contents),
-            Err(error) => Err(RenderError::StringRenderError { source: contents.to_owned(), error, message: "".to_string() })
+            Err(error) => Err(RenderError::StringRenderError {
+                source: contents.to_owned(),
+                error,
+                message: "".to_string(),
+            }),
         }
     }
 
@@ -200,7 +214,6 @@ impl Archetype {
         trace!("Copying    {:?}", destination);
         fs::copy(source, destination)?;
         Ok(())
-
     }
 
     pub fn render<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
@@ -243,7 +256,11 @@ impl Archetype {
         Ok(())
     }
 
-    pub fn get_context(&self, answers: &HashMap<String, Answer>, seed: Option<Context>) -> Result<Context, ArchetypeError> {
+    pub fn get_context(
+        &self,
+        answers: &HashMap<String, Answer>,
+        seed: Option<Context>,
+    ) -> Result<Context, ArchetypeError> {
         let mut context = seed.unwrap_or_else(|| Context::new());
 
         for variable in self.config.variables() {
