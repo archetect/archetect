@@ -56,6 +56,81 @@ pub struct ArchetypeInfo {
     source: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CatalogInfo {
+    description: String,
+    source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Catalog {
+    entries: Vec<CatalogEntry>,
+}
+
+impl Catalog {
+    pub fn new() -> Catalog {
+        Catalog { entries: vec![] }
+    }
+
+    pub fn entries(&self) -> &[CatalogEntry] {
+        self.entries.as_slice()
+    }
+
+    pub fn with_entry(mut self, entry: CatalogEntry) -> Catalog {
+        self.add_entry(entry);
+        self
+    }
+
+    pub fn add_entry(&mut self, entry: CatalogEntry) {
+        self.entries.push(entry);
+    }
+
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Catalog, CatalogConfigError> {
+        let config_text = fs::read_to_string(path)?;
+        toml::de::from_str::<Catalog>(&config_text).map_err(|e| CatalogConfigError::CatalogConfigTomlParseError(e))
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CatalogEntry {
+    #[serde(rename = "type")]
+    pub entry_type: CatalogEntryType,
+    pub description: String,
+    pub source: String,
+}
+
+impl CatalogEntry {
+    pub fn new<D: Into<String>, S: Into<String>>(
+        description: D,
+        source: S,
+        entry_type: CatalogEntryType,
+    ) -> CatalogEntry {
+        CatalogEntry {
+            description: description.into(),
+            source: source.into(),
+            entry_type,
+        }
+    }
+
+    pub fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
+    pub fn source(&self) -> &str {
+        self.source.as_str()
+    }
+
+    pub fn entry_type(&self) -> &CatalogEntryType {
+        &self.entry_type
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum CatalogEntryType {
+    Catalog,
+    Archetype,
+}
+
 impl ArchetypeInfo {
     pub fn new(description: &str, location: &str) -> ArchetypeInfo {
         ArchetypeInfo {
@@ -75,7 +150,7 @@ impl ArchetypeInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{ArchetypeInfo, CatalogConfig};
+    use super::*;
     use indoc::indoc;
 
     #[test]
@@ -86,6 +161,14 @@ mod tests {
 
     #[test]
     fn test_serialize_catalog_with_archetypes() {
+        println!(
+            "{}",
+            toml::ser::to_string(
+                &CatalogConfig::new().with_archetype(ArchetypeInfo::new("Rust CLI", "~/projects/rust-cli"))
+            )
+            .unwrap()
+        );
+
         assert_eq!(
             toml::ser::to_string(
                 &CatalogConfig::new().with_archetype(ArchetypeInfo::new("Rust CLI", "~/projects/rust-cli"))
@@ -93,10 +176,10 @@ mod tests {
             .unwrap(),
             indoc! {
                 r#"
-                [[archetypes]]
-                description = "Rust CLI"
-                source = "~/projects/rust-cli"
-                "#            
+                        [[archetypes]]
+                        description = "Rust CLI"
+                        source = "~/projects/rust-cli"
+                        "#
             }
         );
 
@@ -109,15 +192,32 @@ mod tests {
             .unwrap(),
             indoc! {
                 r#"
-                [[archetypes]]
-                description = "Rust CLI"
-                source = "~/projects/rust-cli"
+                        [[archetypes]]
+                        description = "Rust CLI"
+                        source = "~/projects/rust-cli"
 
-                [[archetypes]]
-                description = "Rust Rocket"
-                source = "~/projects/rust-rocket"
-                "#
+                        [[archetypes]]
+                        description = "Rust Rocket"
+                        source = "~/projects/rust-rocket"
+                        "#
             }
         );
+    }
+
+    #[test]
+    fn test_catalog_serialization() {
+        let catalog = Catalog::new()
+            .with_entry(CatalogEntry::new(
+                "Rust CLI",
+                "~/projects/archetypes/foo/",
+                CatalogEntryType::Archetype,
+            ))
+            .with_entry(CatalogEntry::new(
+                "Rust Archetypes",
+                "http://www.example.com/catalog.toml",
+                CatalogEntryType::Catalog,
+            ));
+
+        println!("{}", toml::ser::to_string(&catalog).unwrap());
     }
 }

@@ -1,8 +1,8 @@
-use directories::ProjectDirs;
-use std::path::{PathBuf, Path};
-use std::fmt::{Display, Formatter, Error};
-use tempfile::tempdir;
 use crate::system::SystemError;
+use directories::ProjectDirs;
+use std::fmt::{Display, Error, Formatter};
+use std::path::{Path, PathBuf};
+use tempfile::tempdir;
 
 pub enum LayoutType {
     Native,
@@ -23,8 +23,20 @@ pub trait SystemLayout {
         self.cache_dir().join("git")
     }
 
+    fn http_cache_dir(&self) -> PathBuf {
+        self.cache_dir().join("http")
+    }
+
     fn answers_config(&self) -> PathBuf {
         self.configs_dir().join("answers.toml")
+    }
+
+    fn catalog(&self) -> PathBuf {
+        self.configs_dir().join("catalog.toml")
+    }
+
+    fn catalog_registry(&self) -> PathBuf {
+        self.configs_dir().join("catalog_registry.toml")
     }
 
     fn user_config(&self) -> PathBuf {
@@ -41,7 +53,9 @@ impl NativeSystemLayout {
     pub fn new() -> Result<NativeSystemLayout, SystemError> {
         match ProjectDirs::from("", "", "archetect") {
             Some(project) => Ok(NativeSystemLayout { project }),
-            None => Err(SystemError::GenericError("No home directory detected for the current user.".to_owned())),
+            None => Err(SystemError::GenericError(
+                "No home directory detected for the current user.".to_owned(),
+            )),
         }
     }
 }
@@ -83,6 +97,7 @@ impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "{}: {}", "Configs Directory", self.configs_dir().display())?;
         writeln!(f, "{}: {}", "User Answers", self.answers_config().display())?;
+        writeln!(f, "{}: {}", "User Catalog", self.catalog().display())?;
         writeln!(f, "{}: {}", "User Config", self.user_config().display())?;
         writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir().display())?;
         writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir().display())?;
@@ -102,7 +117,7 @@ pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::system::layout::{NativeSystemLayout, SystemLayout, RootedSystemLayout};
+    use crate::system::layout::{NativeSystemLayout, RootedSystemLayout, SystemLayout};
 
     #[test]
     fn test_native_system_paths() {

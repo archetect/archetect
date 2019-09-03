@@ -7,11 +7,13 @@ use log::{debug, info, trace};
 use std::collections::HashSet;
 use std::sync::Mutex;
 
+use crate::util::source::SourceError::SourceInvalidEncoding;
 use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
     RemoteGit { url: String, path: PathBuf },
+    RemoteHttp { url: String, path: PathBuf },
     LocalDirectory { path: PathBuf },
 }
 
@@ -62,6 +64,12 @@ impl Source {
                     url: path.to_owned(),
                     path: cache_path,
                 });
+            } else if url.has_host() {
+                let mut cache_path =
+                    archetect
+                        .layout()
+                        .http_cache_dir()
+                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
             }
 
             if let Ok(local_path) = url.to_file_path() {
@@ -105,6 +113,7 @@ impl Source {
         match self {
             Source::LocalDirectory { path } => path.as_path(),
             Source::RemoteGit { url: _, path } => path.as_path(),
+            Source::RemoteHttp { url: _, path } => path.as_path(),
         }
     }
 }
@@ -133,6 +142,22 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
         }
         Ok(())
     }
+}
+
+fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
+    if !cache_destination.exists() {
+        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+            debug!("Caching {}", url);
+            let text = reqwest::get(url)
+                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?
+                .text()
+                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?;
+
+            std::fs::write(cache_destination, text).map_err(|e| SourceError::IOError(e.to_string()));
+        }
+    }
+
+    Ok(())
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {

@@ -40,20 +40,15 @@ impl AnswerConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
         let path = path.into();
         if path.is_dir() {
-            let dot_answers = path.clone().join(".answers.toml");
-            if dot_answers.exists() {
-                debug!(target: "archetect", "Reading answers from '{}'", &dot_answers.display());
-                let config = fs::read_to_string(dot_answers)?;
-                let config = toml::de::from_str::<AnswerConfig>(&config)?;
-                return Ok(config);
-            }
-
-            let answers = path.clone().join("answers.toml");
-            if answers.exists() {
-                debug!(target: "archetect", "Reading answers from '{}'", &dot_answers.display());
-                let config = fs::read_to_string(answers)?;
-                let config = toml::de::from_str::<AnswerConfig>(&config)?;
-                return Ok(config);
+            let answer_file_names = vec![".answers.toml", "answers.toml"];
+            for answer_file_name in answer_file_names {
+                let answers = path.join(answer_file_name);
+                if answers.exists() {
+                    debug!("Reading answers from '{}'", &answers.display());
+                    let config = fs::read_to_string(answers)?;
+                    let config = toml::de::from_str::<AnswerConfig>(&config)?;
+                    return Ok(config);
+                }
             }
         } else {
             let config = fs::read_to_string(path)?;
@@ -61,6 +56,7 @@ impl AnswerConfig {
             return Ok(config);
         }
 
+        // TODO: Return Ok(None) instead of error
         Err(AnswerConfigError::MissingError)
     }
 
@@ -151,6 +147,7 @@ fn parse_value(pair: Pair<Rule>) -> String {
 #[derive(PartialOrd, PartialEq, Debug, Deserialize, Serialize, Clone)]
 pub struct Answer {
     #[serde(alias = "identifier")]
+    #[serde(alias = "name")]
     variable: String,
     value: String,
     prompt: Option<bool>,

@@ -352,6 +352,8 @@ mod tests {
                     .with_default("Jimmie"),
             );
 
+        println!("{}", serde_yaml::to_string(&config).unwrap());
+
         let output = config.to_string();
 
         let expected = indoc!(
