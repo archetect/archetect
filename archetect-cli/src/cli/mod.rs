@@ -80,7 +80,13 @@ pub fn get_matches() -> App<'static, 'static> {
         )
         .subcommand(
             SubCommand::with_name("catalog")
-                .about("Create/Manage/Select From the user Catalog")
+                .about("Select From a Catalog")
+                .arg(
+                    Arg::with_name("destination")
+                        .default_value(".")
+                        .help("The directory to render the Archetype in.")
+                        .takes_value(true),
+                )
                 .subcommand(
                     SubCommand::with_name("add")
                         .arg(
@@ -97,18 +103,8 @@ pub fn get_matches() -> App<'static, 'static> {
                                 .takes_value(true)
                                 .help("Archetype Description"),
                         ),
-                )
-                .subcommand(
-                    SubCommand::with_name("select").arg(
-                        Arg::with_name("catalog-file")
-                            .short("c")
-                            .long("catalog-file")
-                            .takes_value(true)
-                            .required(true),
-                    ),
                 ),
         )
-        .subcommand(SubCommand::with_name("catalogs").about("Create/Manage/Select from a registry of catalogs"))
         .subcommand(
             SubCommand::with_name("completions")
                 .about("Generate shell completions")
@@ -129,8 +125,15 @@ pub fn get_matches() -> App<'static, 'static> {
                                 .about("The location where git repos are cloned.  Used for offline mode."),
                         )
                         .subcommand(
+                            SubCommand::with_name("http")
+                                .about("The location where http resources are cached.  Used for offline mode."),
+                        )
+                        .subcommand(
                             SubCommand::with_name("config")
                                 .about("The location where archetect config files are stored."),
+                        )
+                        .subcommand(
+                            SubCommand::with_name("answers").about("The location where answers are specified."),
                         ),
                 ),
         )
@@ -180,6 +183,6 @@ const VALID_ANSWER_INPUTS: &str = "Supply a key=value pair as an answer to a var
                                    \nkey=\"multi-word value\"\
                                    \n\"key=value\"\
                                    \n'key=value'\
-                                   \n'key=\"multi-word value\"''\
+                                   \n'key=\"multi-word value\"'\
                                    \n\"key = 'multi-word value'\"\
                                    ";

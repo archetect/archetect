@@ -1,6 +1,7 @@
 mod cli;
 
-use archetect::config::{Answer, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable};
+use archetect::config::{Answer, AnswerConfig, ArchetypeConfig, Catalog, CatalogEntry, CatalogEntryType, Variable};
+use archetect::input::CatalogSelectError;
 use archetect::system::SystemError;
 use archetect::util::SourceError;
 use archetect::RenderError;
@@ -85,6 +86,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         if let Some(matches) = matches.subcommand_matches("layout") {
             match matches.subcommand() {
                 ("git", Some(_)) => println!("{}", archetect.layout().git_cache_dir().display()),
+                ("http", Some(_)) => println!("{}", archetect.layout().http_cache_dir().display()),
+                ("answers", Some(_)) => println!("{}", archetect.layout().answers_config().display()),
                 ("catalogs", Some(_)) => println!("{}", archetect.layout().catalog_cache_dir().display()),
                 ("config", Some(_)) => println!("{}", archetect.layout().configs_dir().display()),
                 _ => println!("{}", archetect.layout()),
@@ -149,24 +152,44 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     if let Some(matches) = matches.subcommand_matches("catalog") {
-        if let Some(sub_matches) = matches.subcommand_matches("select") {
-            let catalog_path = sub_matches.value_of("catalog-file").unwrap();
-            match CatalogConfig::load(catalog_path) {
-                Ok(catalog) => {
-                    info!("Catalog loaded successfully!");
-                    if let Ok(archetype_info) = archetect::input::select_from_catalog(&catalog) {
-                        println!("{} selected", archetype_info.description());
+        let catalog_file = archetect.layout().catalog();
+        if catalog_file.exists() {
+            let catalog = Catalog::load(catalog_file).unwrap();
+
+            match archetect::input::select_from_catalog(&catalog) {
+                Ok(entry) => match entry {
+                    CatalogEntry {
+                        entry_type: CatalogEntryType::Archetype,
+                        description: _,
+                        source,
+                    } => {
+                        let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+
+                        let archetype = archetect.load_archetype(&source, None)?;
+
+                        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+                            for answer in answer_config.answers() {
+                                if !answers.contains_key(answer.identifier()) {
+                                    let answer = answer.clone();
+                                    answers.insert(answer.identifier().to_owned(), answer);
+                                }
+                            }
+                        }
+                        let context = archetype.get_context(&answers, None).unwrap();
+                        return archetype.render(destination, context).map_err(|e| e.into());
                     }
-                }
-                Err(CatalogConfigError::CatalogConfigTomlParseError(cause)) => error!(
-                    "Error parsing catalog '{}'. \
-                     Cause: {}",
-                    catalog_path, cause
-                ),
-                Err(CatalogConfigError::IOError(cause)) => {
-                    error!("Error reading catalog '{}'. Cause: {}", catalog_path, cause)
+                    CatalogEntry {
+                        entry_type: CatalogEntryType::Catalog,
+                        description: _,
+                        source: _,
+                    } => unreachable!("This is not a possibility."),
+                },
+                Err(CatalogSelectError::EmptyCatalog) => {
+                    info!("No archetypes in your catalog. Try adding one, first.");
                 }
             }
+        } else {
+            info!("No archetypes in your catalog. Try adding one, first.");
         }
     }
 
