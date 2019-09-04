@@ -148,17 +148,29 @@ fn parse_value(pair: Pair<Rule>) -> String {
 pub struct Answer {
     #[serde(alias = "identifier")]
     #[serde(alias = "name")]
-    variable: String,
-    value: String,
-    prompt: Option<bool>,
+    name: String,
+    value: Option<String>,
+    default: Option<String>,
 }
 
 impl Answer {
-    pub fn new<I: Into<String>, V: Into<String>>(identifier: I, value: V) -> Answer {
+    pub fn new<N: Into<String>, V: Into<String>>(name: N, value: V) -> Answer {
+        Answer::with_value(name, value)
+    }
+
+    pub fn with_value<N: Into<String>, V: Into<String>>(name: N, value: V) -> Answer {
         Answer {
-            variable: identifier.into(),
-            value: value.into(),
-            prompt: None,
+            name: name.into(),
+            value: Some(value.into()),
+            default: None,
+        }
+    }
+
+    pub fn with_default<N: Into<String>, D: Into<String>>(name: N, default: D) -> Answer {
+        Answer {
+            name: name.into(),
+            value: None,
+            default: Some(default.into()),
         }
     }
 
@@ -166,25 +178,16 @@ impl Answer {
         parse(input)
     }
 
-    pub fn identifier(&self) -> &str {
-        &self.variable
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
-    pub fn value(&self) -> &str {
-        &self.value
+    pub fn value(&self) -> Option<&String> {
+        self.value.as_ref()
     }
 
-    pub fn prompt(&self) -> Option<bool> {
-        self.prompt
-    }
-
-    pub fn with_prompt(mut self, prompt: bool) -> Answer {
-        self.prompt = Some(prompt);
-        self
-    }
-
-    pub fn set_prompt(&mut self, prompt: Option<bool>) {
-        self.prompt = prompt;
+    pub fn default(&self) -> Option<&String> {
+        self.default.as_ref()
     }
 }
 
@@ -285,7 +288,7 @@ mod tests {
     fn test_serialize_answer_config() {
         let config = AnswerConfig::default()
             .with_answer_pair("name", "Order Service")
-            .with_answer(Answer::new("author", "Jane Doe").with_prompt(true));
+            .with_answer(Answer::new("author", "Jane Doe"));
 
         print!("{}", toml::ser::to_string_pretty(&config).unwrap());
     }

@@ -249,6 +249,7 @@ pub struct Variable {
     name: String,
     #[serde(alias = "default")]
     value: Option<String>,
+    default: Option<String>,
     prompt: Option<String>,
     inherit: Option<bool>,
 }
@@ -260,12 +261,18 @@ impl Variable {
                 prompt: None,
                 name: identifier.into(),
                 value: None,
+                default: None,
                 inherit: None,
             },
         }
     }
 
-    pub fn with_default(mut self, value: &str) -> Variable {
+    pub fn with_default<D: Into<String>>(mut self, default: D) -> Variable {
+        self.default = Some(default.into());
+        self
+    }
+
+    pub fn with_value<V: Into<String>>(mut self, value: V) -> Variable {
         self.value = Some(value.into());
         self
     }
@@ -286,15 +293,18 @@ impl Variable {
         &self.name
     }
 
-    pub fn default(&self) -> Option<&str> {
+    pub fn value(&self) -> Option<&str> {
         match &self.value {
             Some(value) => Some(value.as_str()),
             None => None,
         }
     }
 
-    pub fn is_derived(&self) -> bool {
-        self.prompt.is_none() && self.value.is_some()
+    pub fn default(&self) -> Option<&str> {
+        match &self.default {
+            Some(default) => Some(default.as_str()),
+            None => None,
+        }
     }
 
     pub fn is_inheritable(&self) -> bool {
@@ -321,8 +331,13 @@ impl VariableBuilder {
         self.variable
     }
 
-    pub fn with_default(mut self, default: &str) -> Variable {
-        self.variable.value = Some(default.into());
+    pub fn with_value<V: Into<String>>(mut self, value: V) -> Variable {
+        self.variable.value = Some(value.into());
+        self.variable
+    }
+
+    pub fn with_default<D: Into<String>>(mut self, default: D) -> Variable {
+        self.variable.default = Some(default.into());
         self.variable
     }
 }
