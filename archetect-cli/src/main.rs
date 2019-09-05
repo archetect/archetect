@@ -40,7 +40,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Ok(user_answers) = AnswerConfig::load(archetect.layout().answers_config()) {
         for answer in user_answers.answers() {
             let answer = answer.clone();
-            answers.insert(answer.identifier().to_owned(), answer);
+            answers.insert(answer.name().to_owned(), answer);
         }
     }
 
@@ -48,14 +48,14 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
             for answer in f.answers() {
                 let answer = answer.clone();
-                answers.insert(answer.identifier().to_string(), answer);
+                answers.insert(answer.name().to_string(), answer);
             }
         }
     }
 
     if let Some(matches) = matches.values_of("answer") {
         for a in matches.map(|m| Answer::parse(m).unwrap()) {
-            answers.insert(a.identifier().to_string(), a);
+            answers.insert(a.name().to_string(), a);
         }
     }
 
@@ -103,9 +103,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
             for answer in answer_config.answers() {
-                if !answers.contains_key(answer.identifier()) {
+                if !answers.contains_key(answer.name()) {
                     let answer = answer.clone();
-                    answers.insert(answer.identifier().to_owned(), answer);
+                    answers.insert(answer.name().to_owned(), answer);
                 }
             }
         }
@@ -169,9 +169,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
                         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
                             for answer in answer_config.answers() {
-                                if !answers.contains_key(answer.identifier()) {
+                                if !answers.contains_key(answer.name()) {
                                     let answer = answer.clone();
-                                    answers.insert(answer.identifier().to_owned(), answer);
+                                    answers.insert(answer.name().to_owned(), answer);
                                 }
                             }
                         }

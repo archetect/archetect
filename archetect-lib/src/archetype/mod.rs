@@ -240,13 +240,15 @@ impl Archetype {
             let mut answers = HashMap::new();
             if let Some(answer_configs) = module.config.answers() {
                 for answer in answer_configs {
-                    answers.insert(
-                        answer.identifier().to_owned(),
-                        Answer::new(
-                            answer.identifier(),
-                            &self.render_string(answer.value(), context.clone())?,
-                        ),
-                    );
+                    if let Some(value) = answer.value() {
+                        answers.insert(
+                            answer.name().to_owned(),
+                            Answer::new(
+                                answer.name(),
+                                &self.render_string(value, context.clone())?,
+                            ),
+                        );
+                    }
                 }
             }
 
@@ -264,24 +266,19 @@ impl Archetype {
         let mut context = seed.unwrap_or_else(|| Context::new());
 
         for variable in self.config.variables() {
-            let default = if let Some(answer) = answers.get(variable.name()) {
-                if let Some(true) = answer.prompt() {
-                    Some(self.render_string(answer.value(), context.clone())?)
-                } else {
+            // First, if an explicit answer was provided, use that, overriding an existing context
+            // value if necessary.
+            if let Some(answer) = answers.get(variable.name()) {
+                if let Some(value) = answer.value() {
                     context.insert(
-                        answer.identifier(),
+                        answer.name(),
                         self.tera
-                            .render_string(answer.value(), context.clone())
+                            .render_string(value, context.clone())
                             .unwrap()
                             .as_str(),
                     );
-                    continue;
                 }
-            } else if let Some(default) = variable.default().clone() {
-                Some(self.render_string(default, context.clone())?)
-            } else {
-                None
-            };
+            }
 
             // If the context already contains a value, it was either inherited or answered, and
             // should therefore not be overwritten
@@ -289,28 +286,55 @@ impl Archetype {
                 continue;
             }
 
-            if let Some(prompt) = variable.prompt() {
-                let prompt = if let Some(default) = default {
-                    format!("{} [{}] ", prompt, default)
-                } else {
-                    format!("{}", prompt)
-                };
-                let input_builder = input::<String>()
-                    .msg(&prompt)
-                    .add_test(|value| value.len() > 0)
-                    .repeat_msg(&prompt)
-                    .err("Must be at least 1 character.  Please try again.");
-                let value = if let Some(default) = variable.default().clone() {
-                    input_builder.default(default.clone().to_owned()).get()
-                } else {
-                    input_builder.get()
-                };
-                context.insert(variable.name(), &value);
-            } else if let Some(default) = default {
-                context.insert(variable.name(), default.as_str());
-            } else {
-                return Err(ArchetypeError::ArchetypeInvalid);
+            // Insert a value if one was specified in the archetype's configuration file.
+            if let Some(value) = variable.value() {
+                context.insert(
+                    variable.name(),
+                    self.tera
+                        .render_string(value, context.clone())
+                        .unwrap()
+                        .as_str(),
+                );
+                continue;
             }
+
+            // If we've reached this point, we'll need to prompt the user for an answer.
+
+            // Determine if a default can be provided.
+            let default = if let Some(answer) = answers.get(variable.name()) {
+                if let Some(default) = answer.default() {
+                    Some(self.render_string(default, context.clone())?)
+                } else {
+                    None
+                }
+            } else if let Some(default) = variable.default() {
+                Some(self.render_string(default, context.clone())?)
+            } else {
+                None
+            };
+
+            let mut prompt = if let Some(prompt) = variable.prompt() {
+                format!("{} ", prompt.trim())
+            } else {
+                format!("{}: ", variable.name())
+            };
+
+            if let Some(default) = &default {
+                prompt.push_str(format!("[{}] ", default).as_str());
+            };
+
+            let input_builder = input::<String>()
+                .msg(&prompt)
+                .add_test(|value| value.len() > 0)
+                .repeat_msg(&prompt)
+                .err("Must be at least 1 character.  Please try again.");
+            let value = if let Some(default) = &default {
+                input_builder.default(default.clone().to_owned()).get()
+            } else {
+                input_builder.get()
+            };
+
+            context.insert(variable.name(), &value);
         }
 
         Ok(context)

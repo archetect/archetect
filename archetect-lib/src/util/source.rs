@@ -1,13 +1,12 @@
-use regex::Regex;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use url::Url;
-
-use log::{debug, info, trace};
-use std::collections::HashSet;
 use std::sync::Mutex;
 
-use crate::util::source::SourceError::SourceInvalidEncoding;
+use log::{debug, info, trace};
+use regex::Regex;
+use url::Url;
+
 use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
@@ -64,12 +63,12 @@ impl Source {
                     url: path.to_owned(),
                     path: cache_path,
                 });
-            } else if url.has_host() {
-                let mut cache_path =
-                    archetect
-                        .layout()
-                        .http_cache_dir()
-                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
+//            } else if url.has_host() {
+//                let mut cache_path =
+//                    archetect
+//                        .layout()
+//                        .http_cache_dir()
+//                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
             }
 
             if let Ok(local_path) = url.to_file_path() {
@@ -144,21 +143,22 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
     }
 }
 
-fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
-    if !cache_destination.exists() {
-        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-            debug!("Caching {}", url);
-            let text = reqwest::get(url)
-                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?
-                .text()
-                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?;
-
-            std::fs::write(cache_destination, text).map_err(|e| SourceError::IOError(e.to_string()));
-        }
-    }
-
-    Ok(())
-}
+//fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
+//    if !cache_destination.exists() {
+//        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+//            debug!("Caching {}", url);
+//            let text = reqwest::get(url)
+//                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?
+//                .text()
+//                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?;
+//
+//            std::fs::write(cache_destination, text)
+//                .map_err(|e| SourceError::IOError(e.to_string())).expect("Error writing  response");
+//        }
+//    }
+//
+//    Ok(())
+//}
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
     match command.output() {
