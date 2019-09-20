@@ -1,5 +1,6 @@
 use crate::config::rule::RuleConfig;
 use crate::config::Answer;
+use crate::config::Variable;
 use crate::ArchetypeError;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
@@ -241,106 +242,6 @@ impl ModuleConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct Variable {
-    #[serde(alias = "name")]
-    #[serde(alias = "identifier")]
-    #[serde(rename = "variable")]
-    name: String,
-    #[serde(alias = "default")]
-    value: Option<String>,
-    default: Option<String>,
-    prompt: Option<String>,
-    inherit: Option<bool>,
-}
-
-impl Variable {
-    pub fn with_name(identifier: &str) -> VariableBuilder {
-        VariableBuilder {
-            variable: Variable {
-                prompt: None,
-                name: identifier.into(),
-                value: None,
-                default: None,
-                inherit: None,
-            },
-        }
-    }
-
-    pub fn with_default<D: Into<String>>(mut self, default: D) -> Variable {
-        self.default = Some(default.into());
-        self
-    }
-
-    pub fn with_value<V: Into<String>>(mut self, value: V) -> Variable {
-        self.value = Some(value.into());
-        self
-    }
-
-    pub fn with_prompt(mut self, value: &str) -> Variable {
-        self.prompt = Some(value.into());
-        self
-    }
-
-    pub fn prompt(&self) -> Option<&str> {
-        match &self.prompt {
-            Some(prompt) => Some(&prompt),
-            None => None,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn value(&self) -> Option<&str> {
-        match &self.value {
-            Some(value) => Some(value.as_str()),
-            None => None,
-        }
-    }
-
-    pub fn default(&self) -> Option<&str> {
-        match &self.default {
-            Some(default) => Some(default.as_str()),
-            None => None,
-        }
-    }
-
-    pub fn is_inheritable(&self) -> bool {
-        self.inherit.unwrap_or(false)
-    }
-
-    pub fn set_inheritable(&mut self, inheritable: Option<bool>) {
-        self.inherit = inheritable
-    }
-
-    pub fn with_inheritable(mut self, inheritable: bool) -> Variable {
-        self.set_inheritable(Some(inheritable));
-        self
-    }
-}
-
-pub struct VariableBuilder {
-    variable: Variable,
-}
-
-impl VariableBuilder {
-    pub fn with_prompt(mut self, prompt: &str) -> Variable {
-        self.variable.prompt = Some(prompt.into());
-        self.variable
-    }
-
-    pub fn with_value<V: Into<String>>(mut self, value: V) -> Variable {
-        self.variable.value = Some(value.into());
-        self.variable
-    }
-
-    pub fn with_default<D: Into<String>>(mut self, default: D) -> Variable {
-        self.variable.default = Some(default.into());
-        self.variable
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -358,11 +259,11 @@ mod tests {
             .with_tag("REST")
             .with_module(
                 ModuleConfig::new("~/modules/jpa-persistence-module", "{{ name | train_case }}")
-                    .with_answer(Answer::new("name", "{{ name }} Service")),
+                    .with_answer(Answer::new_with_value("name", "{{ name }} Service")),
             )
-            .with_variable(Variable::with_name("name").with_prompt("Application Name"))
+            .with_variable(Variable::new("name").with_prompt("Application Name"))
             .with_variable(
-                Variable::with_name("author")
+                Variable::new("author")
                     .with_prompt("Author")
                     .with_default("Jimmie"),
             );
@@ -434,7 +335,7 @@ mod tests {
         );
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config.variables().contains(
-            &Variable::with_name("author")
+            &Variable::new("author")
                 .with_prompt("Author")
                 .with_default("Jimmie")
         ));
@@ -472,7 +373,7 @@ mod tests {
         );
         let config = ArchetypeConfig::from_str(expected).unwrap();
         assert!(config.variables().contains(
-            &Variable::with_name("author")
+            &Variable::new("author")
                 .with_prompt("Author")
                 .with_default("Jimmie")
         ));
@@ -483,7 +384,7 @@ mod tests {
         let config = ArchetypeConfig::load("../archetypes/simple").unwrap();
         assert!(config
             .variables()
-            .contains(&Variable::with_name("name").with_prompt("Application Name: ")));
+            .contains(&Variable::new("name").with_prompt("Application Name: ")));
     }
 
     #[test]
@@ -492,7 +393,7 @@ mod tests {
 
         assert!(config
             .variables()
-            .contains(&Variable::with_name("name").with_prompt("Application Name: ")));
+            .contains(&Variable::new("name").with_prompt("Application Name: ")));
     }
 
     #[test]

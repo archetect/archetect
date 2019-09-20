@@ -3,13 +3,23 @@ use crate::config::{Catalog, CatalogEntry, CatalogEntryType};
 use read_input::shortcut::input;
 use read_input::InputBuild;
 use std::collections::{HashMap, HashSet};
+use crate::Archetect;
+use crate::util::{Source, SourceError};
 
 #[derive(Debug)]
 pub enum CatalogSelectError {
     EmptyCatalog,
+    SourceError(SourceError),
+    UnsupportedCatalogSource(String),
 }
 
-pub fn select_from_catalog(catalog: &Catalog) -> Result<CatalogEntry, CatalogSelectError> {
+impl From<SourceError> for CatalogSelectError {
+    fn from(cause: SourceError) -> Self {
+        CatalogSelectError::SourceError(cause)
+    }
+}
+
+pub fn select_from_catalog(archetect: &Archetect, catalog: &Catalog) -> Result<CatalogEntry, CatalogSelectError> {
     if catalog.entries().len() == 0 {
         return Err(CatalogSelectError::EmptyCatalog);
     }
@@ -42,7 +52,14 @@ pub fn select_from_catalog(catalog: &Catalog) -> Result<CatalogEntry, CatalogSel
 
         let choice = choices.remove(&result).unwrap();
         if choice.entry_type() == &CatalogEntryType::Catalog {
-            catalog = Catalog::load(shellexpand::full(choice.source()).unwrap().as_ref()).unwrap();
+            let source = Source::detect(archetect, choice.source(), None)?;
+            let path = match source {
+                Source::RemoteGit { url, .. } => return Err(CatalogSelectError::UnsupportedCatalogSource(url)),
+                Source::RemoteHttp { path, .. } => path,
+                Source::LocalDirectory { path } => return Err(CatalogSelectError::UnsupportedCatalogSource(path.display().to_string())),
+                Source::LocalFile { path } => path,
+            };
+            catalog = Catalog::load(shellexpand::full(path.to_str().unwrap()).unwrap().as_ref()).unwrap();
             continue;
         } else {
             return Ok(choice);

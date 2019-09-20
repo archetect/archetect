@@ -10,6 +10,8 @@ use std::{fmt, fs};
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
+use crate::config::Variable;
+pub type Answer = Variable;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnswerConfig {
@@ -61,7 +63,7 @@ impl AnswerConfig {
     }
 
     pub fn add_answer_pair(&mut self, identifier: &str, value: &str) {
-        self.answers.push(Answer::new(identifier, value));
+        self.answers.push(Answer::new_with_value(identifier, value));
     }
 
     pub fn add_answer(&mut self, answer: Answer) {
@@ -69,7 +71,7 @@ impl AnswerConfig {
     }
 
     pub fn with_answer_pair(mut self, identifier: &str, value: &str) -> AnswerConfig {
-        self.answers.push(Answer::new(identifier, value));
+        self.answers.push(Answer::new_with_value(identifier, value));
         self
     }
 
@@ -131,7 +133,7 @@ fn parse_answer(pair: Pair<Rule>) -> Answer {
     let mut iter = pair.into_inner();
     let identifier_pair = iter.next().unwrap();
     let value_pair = iter.next().unwrap();
-    Answer::new(parse_identifier(identifier_pair), parse_value(value_pair))
+    Answer::new_with_value(parse_identifier(identifier_pair), parse_value(value_pair))
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
@@ -144,50 +146,9 @@ fn parse_value(pair: Pair<Rule>) -> String {
     pair.into_inner().next().unwrap().as_str().to_owned()
 }
 
-#[derive(PartialOrd, PartialEq, Debug, Deserialize, Serialize, Clone)]
-pub struct Answer {
-    #[serde(alias = "identifier")]
-    #[serde(alias = "name")]
-    name: String,
-    value: Option<String>,
-    default: Option<String>,
-}
-
 impl Answer {
-    pub fn new<N: Into<String>, V: Into<String>>(name: N, value: V) -> Answer {
-        Answer::with_value(name, value)
-    }
-
-    pub fn with_value<N: Into<String>, V: Into<String>>(name: N, value: V) -> Answer {
-        Answer {
-            name: name.into(),
-            value: Some(value.into()),
-            default: None,
-        }
-    }
-
-    pub fn with_default<N: Into<String>, D: Into<String>>(name: N, default: D) -> Answer {
-        Answer {
-            name: name.into(),
-            value: None,
-            default: Some(default.into()),
-        }
-    }
-
     pub fn parse(input: &str) -> Result<Answer, AnswerParseError> {
         parse(input)
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn value(&self) -> Option<&String> {
-        self.value.as_ref()
-    }
-
-    pub fn default(&self) -> Option<&String> {
-        self.default.as_ref()
     }
 }
 
@@ -197,29 +158,29 @@ mod tests {
 
     #[test]
     fn test_parse_success() {
-        assert_eq!(parse("key=value"), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key=value"), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key = value"), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key = value"), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key = value set"), Ok(Answer::new("key", "value set")));
+        assert_eq!(parse("key = value set"), Ok(Answer::new_with_value("key", "value set")));
 
-        assert_eq!(parse("key='value'"), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key='value'"), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key='value set'"), Ok(Answer::new("key", "value set")));
+        assert_eq!(parse("key='value set'"), Ok(Answer::new_with_value("key", "value set")));
 
-        assert_eq!(parse("key = 'value'"), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key = 'value'"), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key=\"value\""), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key=\"value\""), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key=\"value set\""), Ok(Answer::new("key", "value set")));
+        assert_eq!(parse("key=\"value set\""), Ok(Answer::new_with_value("key", "value set")));
 
-        assert_eq!(parse("key = \"value\""), Ok(Answer::new("key", "value")));
+        assert_eq!(parse("key = \"value\""), Ok(Answer::new_with_value("key", "value")));
 
-        assert_eq!(parse("key ="), Ok(Answer::new("key", "")));
+        assert_eq!(parse("key ="), Ok(Answer::new_with_value("key", "")));
 
-        assert_eq!(parse("key =''"), Ok(Answer::new("key", "")));
+        assert_eq!(parse("key =''"), Ok(Answer::new_with_value("key", "")));
 
-        assert_eq!(parse(" key =\"\""), Ok(Answer::new("key", "")));
+        assert_eq!(parse(" key =\"\""), Ok(Answer::new_with_value("key", "")));
     }
 
     #[test]
@@ -234,7 +195,7 @@ mod tests {
     fn test_parse_answer() {
         assert_eq!(
             parse_answer(AnswerParser::parse(Rule::answer, "key=value").unwrap().next().unwrap()),
-            Answer::new("key", "value")
+            Answer::new_with_value("key", "value")
         );
 
         assert_eq!(
@@ -244,7 +205,7 @@ mod tests {
                     .next()
                     .unwrap()
             ),
-            Answer::new("key", "value")
+            Answer::new_with_value("key", "value")
         );
 
         assert_eq!(
@@ -254,7 +215,7 @@ mod tests {
                     .next()
                     .unwrap()
             ),
-            Answer::new("key", "value")
+            Answer::new_with_value("key", "value")
         );
     }
 
@@ -288,7 +249,7 @@ mod tests {
     fn test_serialize_answer_config() {
         let config = AnswerConfig::default()
             .with_answer_pair("name", "Order Service")
-            .with_answer(Answer::new("author", "Jane Doe"));
+            .with_answer(Answer::new_with_value("author", "Jane Doe"));
 
         print!("{}", toml::ser::to_string_pretty(&config).unwrap());
     }
