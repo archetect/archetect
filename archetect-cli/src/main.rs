@@ -40,7 +40,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Ok(user_answers) = AnswerConfig::load(archetect.layout().answers_config()) {
         for answer in user_answers.answers() {
             let answer = answer.clone();
-            answers.insert(answer.name().to_owned(), answer);
+            answers.insert(answer.identifier().to_owned(), answer);
         }
     }
 
@@ -48,14 +48,14 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
             for answer in f.answers() {
                 let answer = answer.clone();
-                answers.insert(answer.name().to_string(), answer);
+                answers.insert(answer.identifier().to_string(), answer);
             }
         }
     }
 
     if let Some(matches) = matches.values_of("answer") {
         for a in matches.map(|m| Answer::parse(m).unwrap()) {
-            answers.insert(a.name().to_string(), a);
+            answers.insert(a.identifier().to_string(), a);
         }
     }
 
@@ -103,9 +103,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
             for answer in answer_config.answers() {
-                if !answers.contains_key(answer.name()) {
+                if !answers.contains_key(answer.identifier()) {
                     let answer = answer.clone();
-                    answers.insert(answer.name().to_owned(), answer);
+                    answers.insert(answer.identifier().to_owned(), answer);
                 }
             }
         }
@@ -119,8 +119,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_variable(Variable::with_name("name").with_prompt("Application Name: "));
-            config.add_variable(Variable::with_name("author").with_prompt("Author name: "));
+            config.add_variable(Variable::new("name").with_prompt("Application Name: "));
+            config.add_variable(Variable::new("author").with_prompt("Author name: "));
 
             let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
             config_file
@@ -156,7 +156,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         if catalog_file.exists() {
             let catalog = Catalog::load(catalog_file).unwrap();
 
-            match archetect::input::select_from_catalog(&catalog) {
+            match archetect::input::select_from_catalog(&archetect, &catalog) {
                 Ok(entry) => match entry {
                     CatalogEntry {
                         entry_type: CatalogEntryType::Archetype,
@@ -169,9 +169,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
                         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
                             for answer in answer_config.answers() {
-                                if !answers.contains_key(answer.name()) {
+                                if !answers.contains_key(answer.identifier()) {
                                     let answer = answer.clone();
-                                    answers.insert(answer.name().to_owned(), answer);
+                                    answers.insert(answer.identifier().to_owned(), answer);
                                 }
                             }
                         }
@@ -186,6 +186,12 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 },
                 Err(CatalogSelectError::EmptyCatalog) => {
                     info!("No archetypes in your catalog. Try adding one, first.");
+                }
+                Err(CatalogSelectError::SourceError(e)) => {
+                    error!("Error reading from source: {:?}", e);
+                }
+                Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
+                    error!("'{}' is not a valid catalog.", source);
                 }
             }
         } else {

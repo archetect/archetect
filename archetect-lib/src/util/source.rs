@@ -14,6 +14,7 @@ pub enum Source {
     RemoteGit { url: String, path: PathBuf },
     RemoteHttp { url: String, path: PathBuf },
     LocalDirectory { path: PathBuf },
+    LocalFile { path: PathBuf },
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -63,12 +64,19 @@ impl Source {
                     url: path.to_owned(),
                     path: cache_path,
                 });
-//            } else if url.has_host() {
-//                let mut cache_path =
-//                    archetect
-//                        .layout()
-//                        .http_cache_dir()
-//                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
+            } else if url.has_host() {
+                let cache_path =
+                    archetect
+                        .layout()
+                        .http_cache_dir()
+                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
+                if let Err(error) = cache_http_resource(&path, &cache_path, archetect.offline()) {
+                    return Err(error);
+                }
+                return Ok(Source::RemoteHttp {
+                    url: path.to_owned(),
+                    path: cache_path,
+                });
             }
 
             if let Ok(local_path) = url.to_file_path() {
@@ -98,7 +106,7 @@ impl Source {
                 if local_path.is_dir() {
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
-                    return Err(SourceError::SourceUnsupported(local_path.display().to_string()));
+                    return Ok(Source::LocalFile { path: local_path });
                 }
             } else {
                 return Err(SourceError::SourceNotFound(local_path.display().to_string()));
@@ -110,9 +118,10 @@ impl Source {
 
     pub fn local_path(&self) -> &Path {
         match self {
-            Source::LocalDirectory { path } => path.as_path(),
             Source::RemoteGit { url: _, path } => path.as_path(),
             Source::RemoteHttp { url: _, path } => path.as_path(),
+            Source::LocalDirectory { path } => path.as_path(),
+            Source::LocalFile { path } => path.as_path(),
         }
     }
 }
@@ -143,22 +152,32 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
     }
 }
 
-//fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
-//    if !cache_destination.exists() {
-//        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-//            debug!("Caching {}", url);
-//            let text = reqwest::get(url)
-//                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?
-//                .text()
-//                .map_err(|e| SourceError::RemoteSourceError(e.to_string()))?;
-//
-//            std::fs::write(cache_destination, text)
-//                .map_err(|e| SourceError::IOError(e.to_string())).expect("Error writing  response");
-//        }
-//    }
-//
-//    Ok(())
-//}
+fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
+    // TODO: return a response for a cached resource, even if there is an error downloading a new copy
+    if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+        debug!("Caching {}", url);
+        let result = reqwest::get(url);
+        match result {
+            Ok(mut response) => {
+                if response.status().is_success() {
+                    // TODO: convert to match
+                    if let Ok(body) = response.text() {
+                        std::fs::create_dir_all(&cache_destination.parent().unwrap()).unwrap();
+                        return std::fs::write(cache_destination, body)
+                            .map_err(|e| SourceError::IOError(e.to_string()));
+                    } else {
+                        return Err(SourceError::RemoteSourceError(format!("Not successful caching '{}'", url)));
+                    }
+                }
+            }
+            Err(error) => return Err(SourceError::RemoteSourceError(error.to_string())),
+        }
+    } else if offline && cache_destination.exists() {
+        return Ok(());
+    }
+
+    Ok(())
+}
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
     match command.output() {
@@ -178,6 +197,23 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reqwest_request() {
+        let result = reqwest::get("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT");
+        let mut response = result.unwrap();
+        if response.status().is_success() {}
+        println!("Status: {}", response.status());
+        println!("Response:\n{}", response.text().unwrap());
+    }
+
+    #[test]
+    fn test_http_source() {
+        let archetect = Archetect::build().unwrap();
+        let source = Source::detect(&archetect, "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT", None);
+        println!("{:?}", source);
+    }
     //    use super::*;
     //    use matches::assert_matches;
 

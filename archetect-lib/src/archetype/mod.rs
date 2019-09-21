@@ -228,8 +228,8 @@ impl Archetype {
         let mut seed = Context::new();
         for variable in self.configuration().variables() {
             if variable.is_inheritable() {
-                if let Some(value) = context.get(variable.name()) {
-                    seed.insert_value(variable.name(), value);
+                if let Some(value) = context.get(variable.identifier()) {
+                    seed.insert_value(variable.identifier(), value);
                 }
             }
         }
@@ -242,9 +242,9 @@ impl Archetype {
                 for answer in answer_configs {
                     if let Some(value) = answer.value() {
                         answers.insert(
-                            answer.name().to_owned(),
-                            Answer::new(
-                                answer.name(),
+                            answer.identifier().to_owned(),
+                            Answer::new_with_value(
+                                answer.identifier(),
                                 &self.render_string(value, context.clone())?,
                             ),
                         );
@@ -268,10 +268,10 @@ impl Archetype {
         for variable in self.config.variables() {
             // First, if an explicit answer was provided, use that, overriding an existing context
             // value if necessary.
-            if let Some(answer) = answers.get(variable.name()) {
+            if let Some(answer) = answers.get(variable.identifier()) {
                 if let Some(value) = answer.value() {
                     context.insert(
-                        answer.name(),
+                        answer.identifier(),
                         self.tera
                             .render_string(value, context.clone())
                             .unwrap()
@@ -282,14 +282,14 @@ impl Archetype {
 
             // If the context already contains a value, it was either inherited or answered, and
             // should therefore not be overwritten
-            if context.contains(variable.name()) {
+            if context.contains(variable.identifier()) {
                 continue;
             }
 
             // Insert a value if one was specified in the archetype's configuration file.
             if let Some(value) = variable.value() {
                 context.insert(
-                    variable.name(),
+                    variable.identifier(),
                     self.tera
                         .render_string(value, context.clone())
                         .unwrap()
@@ -301,7 +301,7 @@ impl Archetype {
             // If we've reached this point, we'll need to prompt the user for an answer.
 
             // Determine if a default can be provided.
-            let default = if let Some(answer) = answers.get(variable.name()) {
+            let default = if let Some(answer) = answers.get(variable.identifier()) {
                 if let Some(default) = answer.default() {
                     Some(self.render_string(default, context.clone())?)
                 } else {
@@ -316,7 +316,7 @@ impl Archetype {
             let mut prompt = if let Some(prompt) = variable.prompt() {
                 format!("{} ", prompt.trim())
             } else {
-                format!("{}: ", variable.name())
+                format!("{}: ", variable.identifier())
             };
 
             if let Some(default) = &default {
@@ -334,7 +334,7 @@ impl Archetype {
                 input_builder.get()
             };
 
-            context.insert(variable.name(), &value);
+            context.insert(variable.identifier(), &value);
         }
 
         Ok(context)
