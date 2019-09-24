@@ -1,6 +1,6 @@
 mod cli;
 
-use archetect::config::{Answer, AnswerConfig, ArchetypeConfig, Catalog, CatalogEntry, CatalogEntryType, Variable};
+use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, Catalog, CatalogEntry, CatalogEntryType, VariableInfo};
 use archetect::input::CatalogSelectError;
 use archetect::system::SystemError;
 use archetect::util::SourceError;
@@ -38,24 +38,22 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     let mut answers = HashMap::new();
 
     if let Ok(user_answers) = AnswerConfig::load(archetect.layout().answers_config()) {
-        for answer in user_answers.answers() {
-            let answer = answer.clone();
-            answers.insert(answer.identifier().to_owned(), answer);
+        for (identifier, answer_info) in user_answers.answers() {
+            answers.insert(identifier.to_owned(), answer_info.clone());
         }
     }
 
     if let Some(matches) = matches.values_of("answer-file") {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
-            for answer in f.answers() {
-                let answer = answer.clone();
-                answers.insert(answer.identifier().to_string(), answer);
+            for (identifier,answer_info) in f.answers() {
+                answers.insert(identifier.to_owned(), answer_info.clone());
             }
         }
     }
 
     if let Some(matches) = matches.values_of("answer") {
-        for a in matches.map(|m| Answer::parse(m).unwrap()) {
-            answers.insert(a.identifier().to_string(), a);
+        for (identifier, answer_info) in matches.map(|m| AnswerInfo::parse(m).unwrap()) {
+            answers.insert(identifier, answer_info);
         }
     }
 
@@ -102,10 +100,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         let archetype = archetect.load_archetype(source, None)?;
 
         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-            for answer in answer_config.answers() {
-                if !answers.contains_key(answer.identifier()) {
-                    let answer = answer.clone();
-                    answers.insert(answer.identifier().to_owned(), answer);
+            for (identifier, answer_info) in answer_config.answers() {
+                if !answers.contains_key(identifier) {
+                    answers.insert(identifier.to_owned(), answer_info.clone());
                 }
             }
         }
@@ -119,10 +116,10 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_variable(Variable::new("name").with_prompt("Application Name: "));
-            config.add_variable(Variable::new("author").with_prompt("Author name: "));
+            config.add_var("name",VariableInfo::with_prompt("Application Name: ").build());
+            config.add_var("author",VariableInfo::with_prompt("Author name: ").build());
 
-            let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
+            let mut config_file = File::create(output_dir.clone().join("archetype.yaml")).unwrap();
             config_file
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
@@ -168,10 +165,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                         let archetype = archetect.load_archetype(&source, None)?;
 
                         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                            for answer in answer_config.answers() {
-                                if !answers.contains_key(answer.identifier()) {
-                                    let answer = answer.clone();
-                                    answers.insert(answer.identifier().to_owned(), answer);
+                            for (identifier, answer_info) in answer_config.answers() {
+                                if !answers.contains_key(identifier) {
+                                    answers.insert(identifier.to_owned(), answer_info.clone());
                                 }
                             }
                         }

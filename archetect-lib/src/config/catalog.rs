@@ -3,7 +3,7 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct CatalogConfig {
-    archetypes: Option<Vec<ArchetypeInfo>>,
+    archetypes: Option<Vec<ArchetypeEntry>>,
 }
 
 impl CatalogConfig {
@@ -17,17 +17,17 @@ impl CatalogConfig {
             .map_err(|e| CatalogConfigError::CatalogConfigTomlParseError(e))
     }
 
-    pub fn add_archetype(&mut self, archetype: ArchetypeInfo) {
+    pub fn add_archetype(&mut self, archetype: ArchetypeEntry) {
         let archetypes = self.archetypes.get_or_insert_with(|| vec![]);
         archetypes.push(archetype);
     }
 
-    pub fn with_archetype(mut self, archetype: ArchetypeInfo) -> CatalogConfig {
+    pub fn with_archetype(mut self, archetype: ArchetypeEntry) -> CatalogConfig {
         self.add_archetype(archetype);
         self
     }
 
-    pub fn archetypes(&self) -> &[ArchetypeInfo] {
+    pub fn archetypes(&self) -> &[ArchetypeEntry] {
         self.archetypes.as_ref().map(|a| a.as_slice()).unwrap_or_default()
     }
 }
@@ -48,12 +48,6 @@ impl From<toml::de::Error> for CatalogConfigError {
     fn from(cause: toml::de::Error) -> Self {
         CatalogConfigError::CatalogConfigTomlParseError(cause)
     }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ArchetypeInfo {
-    description: String,
-    source: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -131,9 +125,15 @@ pub enum CatalogEntryType {
     Archetype,
 }
 
-impl ArchetypeInfo {
-    pub fn new(description: &str, location: &str) -> ArchetypeInfo {
-        ArchetypeInfo {
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ArchetypeEntry {
+    description: String,
+    source: String,
+}
+
+impl ArchetypeEntry {
+    pub fn new(description: &str, location: &str) -> ArchetypeEntry {
+        ArchetypeEntry {
             description: description.into(),
             source: location.into(),
         }
@@ -164,14 +164,14 @@ mod tests {
         println!(
             "{}",
             toml::ser::to_string(
-                &CatalogConfig::new().with_archetype(ArchetypeInfo::new("Rust CLI", "~/projects/rust-cli"))
+                &CatalogConfig::new().with_archetype(ArchetypeEntry::new("Rust CLI", "~/projects/rust-cli"))
             )
             .unwrap()
         );
 
         assert_eq!(
             toml::ser::to_string(
-                &CatalogConfig::new().with_archetype(ArchetypeInfo::new("Rust CLI", "~/projects/rust-cli"))
+                &CatalogConfig::new().with_archetype(ArchetypeEntry::new("Rust CLI", "~/projects/rust-cli"))
             )
             .unwrap(),
             indoc! {
@@ -186,8 +186,8 @@ mod tests {
         assert_eq!(
             toml::ser::to_string(
                 &CatalogConfig::new()
-                    .with_archetype(ArchetypeInfo::new("Rust CLI", "~/projects/rust-cli"))
-                    .with_archetype(ArchetypeInfo::new("Rust Rocket", "~/projects/rust-rocket"))
+                    .with_archetype(ArchetypeEntry::new("Rust CLI", "~/projects/rust-cli"))
+                    .with_archetype(ArchetypeEntry::new("Rust Rocket", "~/projects/rust-rocket"))
             )
             .unwrap(),
             indoc! {
