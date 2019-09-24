@@ -1,7 +1,8 @@
 use crate::config::rule::RuleConfig;
-use crate::config::Answer;
-use crate::config::Variable;
+use crate::config::{AnswerInfo, ModuleInfo};
+use crate::config::VariableInfo;
 use crate::ArchetypeError;
+use linked_hash_map::LinkedHashMap;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -9,17 +10,24 @@ use std::{fmt, fs};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     authors: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     languages: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     frameworks: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
+    variables: LinkedHashMap<String, VariableInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     contents: Option<String>,
-    #[serde(alias = "module")]
-    modules: Option<Vec<ModuleConfig>>,
-    #[serde(alias = "variable")]
-    variables: Option<Vec<Variable>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    modules: Vec<ModuleInfo>,
     #[serde(alias = "path")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     rules: Option<Vec<RuleConfig>>,
 }
 
@@ -31,13 +39,13 @@ impl ArchetypeConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<ArchetypeConfig, ArchetypeError> {
         let mut path = path.into();
         if path.is_dir() {
-            path.push("archetype.toml");
+            path.push("archetype.yaml");
         }
         if !path.exists() {
             Err(ArchetypeError::ArchetypeInvalid)
         } else {
             let config = fs::read_to_string(&path).unwrap();
-            let config = toml::de::from_str::<ArchetypeConfig>(&config).unwrap();
+            let config = serde_yaml::from_str::<ArchetypeConfig>(&config).unwrap();
             Ok(config)
         }
     }
@@ -45,7 +53,7 @@ impl ArchetypeConfig {
     pub fn save<P: Into<PathBuf>>(&self, path: P) -> Result<(), ArchetypeError> {
         let mut path = path.into();
         if path.is_dir() {
-            path.push("archetype.toml");
+            path.push("archetype.yaml");
         }
         fs::write(path, self.to_string().as_bytes()).unwrap();
 
@@ -113,18 +121,17 @@ impl ArchetypeConfig {
         self.frameworks.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_module(mut self, module: ModuleConfig) -> ArchetypeConfig {
-        self.add_module(module);
+    pub fn with_module<M: Into<ModuleInfo>>(mut self, module: M) -> ArchetypeConfig {
+        self.add_module(module.into());
         self
     }
 
-    pub fn add_module(&mut self, module: ModuleConfig) {
-        let modules = self.modules.get_or_insert_with(|| vec![]);
-        modules.push(module);
+    pub fn add_module<M: Into<ModuleInfo>>(&mut self, module: M) {
+        self.modules.push(module.into());
     }
 
-    pub fn modules(&self) -> &[ModuleConfig] {
-        self.modules.as_ref().map(|r| r.as_slice()).unwrap_or_default()
+    pub fn modules(&self) -> &[ModuleInfo] {
+        self.modules.as_slice()
     }
 
     pub fn add_path_rule(&mut self, path_rule: RuleConfig) {
@@ -141,18 +148,17 @@ impl ArchetypeConfig {
         self.rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
     }
 
-    pub fn add_variable(&mut self, variable: Variable) {
-        let variables = self.variables.get_or_insert_with(|| vec![]);
-        variables.push(variable);
+    pub fn add_var<I: Into<String>>(&mut self, identifier: I, variable_info: VariableInfo) {
+        self.variables.insert(identifier.into(), variable_info);
     }
 
-    pub fn with_variable(mut self, variable: Variable) -> ArchetypeConfig {
-        self.add_variable(variable);
+    pub fn with_variable<I: Into<String>>(mut self, identifier: I, variable_info: VariableInfo) -> ArchetypeConfig {
+        self.add_var(identifier, variable_info);
         self
     }
 
-    pub fn variables(&self) -> &[Variable] {
-        self.variables.as_ref().map(|v| v.as_slice()).unwrap_or_default()
+    pub fn vars(&self) -> &LinkedHashMap<String, VariableInfo> {
+        &self.variables
     }
 
     pub fn with_contents(mut self, contents: &str) -> ArchetypeConfig {
@@ -174,9 +180,9 @@ impl Default for ArchetypeConfig {
             frameworks: None,
             tags: None,
             contents: None,
-            modules: None,
+            modules: Vec::new(),
             rules: None,
-            variables: None,
+            variables: LinkedHashMap::new(),
         }
     }
 }
@@ -207,7 +213,8 @@ pub struct ModuleConfig {
     source: String,
     destination: String,
     #[serde(alias = "answer")]
-    answers: Option<Vec<Answer>>,
+    #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
+    answers: LinkedHashMap<String, AnswerInfo>,
 }
 
 impl ModuleConfig {
@@ -215,7 +222,7 @@ impl ModuleConfig {
         ModuleConfig {
             source: source.into(),
             destination: destination.into(),
-            answers: None,
+            answers: LinkedHashMap::new(),
         }
     }
 
@@ -227,18 +234,17 @@ impl ModuleConfig {
         self.destination.as_str()
     }
 
-    pub fn with_answer(mut self, answer: Answer) -> ModuleConfig {
-        self.add_answer(answer);
+    pub fn with_answer<I: Into<String>>(mut self, identifier: I, answer_info: AnswerInfo) -> ModuleConfig {
+        self.add_answer(identifier.into(), answer_info);
         self
     }
 
-    pub fn add_answer(&mut self, answer: Answer) {
-        let answers = self.answers.get_or_insert_with(|| vec![]);
-        answers.push(answer);
+    pub fn add_answer<I: Into<String>>(&mut self, identifier: I, answer_info: AnswerInfo) {
+        self.answers.insert(identifier.into(), answer_info);
     }
 
-    pub fn answers(&self) -> Option<&[Answer]> {
-        self.answers.as_ref().map(|r| r.as_slice())
+    pub fn answers(&self) -> &LinkedHashMap<String, AnswerInfo> {
+        &self.answers
     }
 }
 
@@ -247,9 +253,10 @@ impl ModuleConfig {
 mod tests {
     use super::*;
     use indoc::indoc;
+    use crate::config::{PatternType, RuleAction, ArchetypeInfo};
 
     #[test]
-    fn test_archetype_config_to_string() {
+    fn test_serialize_to_yaml() {
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")
             .with_language("Java")
@@ -258,150 +265,58 @@ mod tests {
             .with_tag("Service")
             .with_tag("REST")
             .with_module(
-                ModuleConfig::new("~/modules/jpa-persistence-module", "{{ name | train_case }}")
-                    .with_answer(Answer::new_with_value("name", "{{ name }} Service")),
+                ArchetypeInfo::new("~/modules/jpa-persistence-module").with_destination("{{ name | train_case }}")
+                    .with_answer("name", AnswerInfo::with_value("{{ name }} Service").build()),
             )
-            .with_variable(Variable::new("name").with_prompt("Application Name"))
-            .with_variable(
-                Variable::new("author")
-                    .with_prompt("Author")
-                    .with_default("Jimmie"),
-            );
+            .with_variable("organization", VariableInfo::with_prompt("Organization: ").build())
+            .with_variable("author", VariableInfo::with_prompt("Author: ").build())
+            .with_path_rule(RuleConfig::new(PatternType::GLOB).with_pattern("*.jpg").with_action(RuleAction::COPY))
+            ;
 
-        println!("{}", serde_yaml::to_string(&config).unwrap());
-
-        let output = config.to_string();
-
-        let expected = indoc!(
-            r#"
-            description = "Simple REST Service"
-            languages = ["Java"]
-            frameworks = ["Spring", "Hessian"]
-            tags = ["Service", "REST"]
-
-            [[modules]]
-            source = "~/modules/jpa-persistence-module"
-            destination = "{{ name | train_case }}"
-
-            [[modules.answers]]
-            variable = "name"
-            value = "{{ name }} Service"
-
-            [[variables]]
-            variable = "name"
-            prompt = "Application Name"
-
-            [[variables]]
-            variable = "author"
-            value = "Jimmie"
-            prompt = "Author"
-        "#
-        );
-        assert_eq!(output, expected);
+        let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);
-
-        assert_eq!(config.modules().len(), 1);
     }
 
     #[test]
-    fn test_archetype_config_from_string_plurals() {
-        let expected = indoc!(
+    fn test_deserialize_from_yaml() {
+        let input = indoc! {
             r#"
-            [[modules]]
-            source = "~/modules/jpa-persistence-module"
-            destination = "{{ name | train_case }}"
+            ---
+            description: Simple REST Service
+            languages: ["Java"]
+            frameworks: ["Spring", "Hessian"]
+            tags: ["Service", "REST"]
 
-            [[modules.answers]]
-            variable = "name"
-            value = "{{ name }} Service"
-
-            [[modules]]
-            source = "~/modules/cli"
-            destination = "{{ name | train_case }}"
-
-            [[modules.answer]]
-            variable = "name"
-            value = "{{ name }} Service"
-
-            [[variables]]
-            identifier = "name"
-            prompt = "Application Name"
-
-            [[variables]]
-            prompt = "Author"
-            name = "author"
-            value = "Jimmie"
+            variables:
+              author:
+                prompt: "Author: "
+              organization:
+                prompt: "Organization: "
+                default: "Acme Inc"
+                
+            modules:
+              - template:
+                  source: "contents"
+              - archetype:
+                  source: ~/modules/jpa-persistence-module
+                  destination: "{{ name | train_case }}"
+                  answers:
+                    name:
+                      value: "{{ name }} Service"
             "#
-        );
-        let config = ArchetypeConfig::from_str(expected).unwrap();
-        assert!(config.variables().contains(
-            &Variable::new("author")
-                .with_prompt("Author")
-                .with_default("Jimmie")
-        ));
-    }
+        };
 
-    #[test]
-    fn test_archetype_config_from_string_singulars() {
-        let expected = indoc!(
-            r#"
-            [[module]]
-            source = "~/modules/jpa-persistence-module"
-            destination = "{{ name | train_case }}"
+        let config = serde_yaml::from_str::<ArchetypeConfig>(&input).unwrap();
 
-            [[module.answer]]
-            identifier = "name"
-            value = "{{ name }} Service"
-
-            [[module]]
-            source = "~/modules/cli"
-            destination = "{{ name | train_case }}"
-
-            [[module.answer]]
-            identifier = "name"
-            value = "{{ name }} Service"
-
-            [[variable]]
-            prompt = "Application Name"
-            name = "name"
-
-            [[variable]]
-            prompt = "Author"
-            name = "author"
-            value = "Jimmie"
-            "#
-        );
-        let config = ArchetypeConfig::from_str(expected).unwrap();
-        assert!(config.variables().contains(
-            &Variable::new("author")
-                .with_prompt("Author")
-                .with_default("Jimmie")
-        ));
+        assert_eq!(config.vars().len(), 2);
+        assert_eq!(config.vars().get("author").unwrap().prompt().unwrap(), "Author: ");
+        assert_eq!(config.vars().get("organization").unwrap().prompt().unwrap(), "Organization: ");
+        assert_eq!(config.vars().get("organization").unwrap().default().unwrap(), "Acme Inc");
     }
 
     #[test]
     fn test_archetype_load() {
-        let config = ArchetypeConfig::load("../archetypes/simple").unwrap();
-        assert!(config
-            .variables()
-            .contains(&Variable::new("name").with_prompt("Application Name: ")));
-    }
-
-    #[test]
-    fn test_archetype_to_string() {
-        let config = ArchetypeConfig::load("../archetypes/simple").unwrap();
-
-        assert!(config
-            .variables()
-            .contains(&Variable::new("name").with_prompt("Application Name: ")));
-    }
-
-    #[test]
-    fn test_answer_config_to_string() {
-        let mut config = crate::config::AnswerConfig::default();
-        config.add_answer_pair("fname", "Jimmie");
-        config.add_answer_pair("lname", "Fulton");
-
-        println!("{}", config);
+        let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
+        assert_eq!(config.vars().get("name").unwrap(), &VariableInfo::with_prompt("Application Name: ").build());
     }
 }

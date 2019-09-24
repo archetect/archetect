@@ -28,7 +28,7 @@ pub trait SystemLayout {
     }
 
     fn answers_config(&self) -> PathBuf {
-        self.configs_dir().join("answers.toml")
+        self.configs_dir().join("answers.yaml")
     }
 
     fn catalog(&self) -> PathBuf {

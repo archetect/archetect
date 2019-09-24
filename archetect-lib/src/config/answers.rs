@@ -10,24 +10,26 @@ use std::{fmt, fs};
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
-use crate::config::Variable;
-pub type Answer = Variable;
+use crate::config::{VariableInfo};
+use linked_hash_map::LinkedHashMap;
+
+pub type AnswerInfo = VariableInfo;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnswerConfig {
-    #[serde(alias = "answer")]
-    answers: Vec<Answer>,
+    #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
+    answers: LinkedHashMap<String,AnswerInfo>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum AnswerConfigError {
-    ParseError(toml::de::Error),
+    ParseError(String),
     MissingError,
 }
 
-impl From<toml::de::Error> for AnswerConfigError {
-    fn from(error: toml::de::Error) -> Self {
-        AnswerConfigError::ParseError(error)
+impl From<serde_yaml::Error> for AnswerConfigError {
+    fn from(error: serde_yaml::Error) -> Self {
+        AnswerConfigError::ParseError(error.to_string())
     }
 }
 
@@ -42,19 +44,19 @@ impl AnswerConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
         let path = path.into();
         if path.is_dir() {
-            let answer_file_names = vec![".answers.toml", "answers.toml"];
+            let answer_file_names = vec![".answers.yaml", "answers.yaml"];
             for answer_file_name in answer_file_names {
                 let answers = path.join(answer_file_name);
                 if answers.exists() {
                     debug!("Reading answers from '{}'", &answers.display());
                     let config = fs::read_to_string(answers)?;
-                    let config = toml::de::from_str::<AnswerConfig>(&config)?;
+                    let config = serde_yaml::from_str::<AnswerConfig>(&config)?;
                     return Ok(config);
                 }
             }
         } else {
             let config = fs::read_to_string(path)?;
-            let config = toml::de::from_str::<AnswerConfig>(&config)?;
+            let config = serde_yaml::from_str::<AnswerConfig>(&config)?;
             return Ok(config);
         }
 
@@ -62,32 +64,23 @@ impl AnswerConfig {
         Err(AnswerConfigError::MissingError)
     }
 
-    pub fn add_answer_pair(&mut self, identifier: &str, value: &str) {
-        self.answers.push(Answer::new_with_value(identifier, value));
+    pub fn add_answer(&mut self, identifier: &str, value: &str) {
+        self.answers.insert(identifier.to_owned(), AnswerInfo::with_value( value).build());
     }
 
-    pub fn add_answer(&mut self, answer: Answer) {
-        self.answers.push(answer);
-    }
-
-    pub fn with_answer_pair(mut self, identifier: &str, value: &str) -> AnswerConfig {
-        self.answers.push(Answer::new_with_value(identifier, value));
+    pub fn with_answer(mut self, identifier: &str, value: &str) -> AnswerConfig {
+        self.add_answer(identifier, value);
         self
     }
 
-    pub fn with_answer(mut self, answer: Answer) -> AnswerConfig {
-        self.answers.push(answer);
-        self
-    }
-
-    pub fn answers(&self) -> &Vec<Answer> {
+    pub fn answers(&self) -> &LinkedHashMap<String, AnswerInfo> {
         &self.answers
     }
 }
 
 impl Default for AnswerConfig {
     fn default() -> Self {
-        AnswerConfig { answers: Vec::new() }
+        AnswerConfig { answers: LinkedHashMap::new() }
     }
 }
 
@@ -123,17 +116,17 @@ impl From<PestError<Rule>> for AnswerParseError {
     }
 }
 
-fn parse(source: &str) -> Result<Answer, AnswerParseError> {
+fn parse(source: &str) -> Result<(String, AnswerInfo), AnswerParseError> {
     let mut pairs = AnswerParser::parse(Rule::answer, source)?;
     Ok(parse_answer(pairs.next().unwrap()))
 }
 
-fn parse_answer(pair: Pair<Rule>) -> Answer {
+fn parse_answer(pair: Pair<Rule>) -> (String, AnswerInfo) {
     assert_eq!(pair.as_rule(), Rule::answer);
     let mut iter = pair.into_inner();
     let identifier_pair = iter.next().unwrap();
     let value_pair = iter.next().unwrap();
-    Answer::new_with_value(parse_identifier(identifier_pair), parse_value(value_pair))
+    (parse_identifier(identifier_pair), AnswerInfo::with_value(parse_value(value_pair)).build())
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
@@ -146,8 +139,8 @@ fn parse_value(pair: Pair<Rule>) -> String {
     pair.into_inner().next().unwrap().as_str().to_owned()
 }
 
-impl Answer {
-    pub fn parse(input: &str) -> Result<Answer, AnswerParseError> {
+impl AnswerInfo {
+    pub fn parse(input: &str) -> Result<(String, AnswerInfo), AnswerParseError> {
         parse(input)
     }
 }
@@ -158,29 +151,29 @@ mod tests {
 
     #[test]
     fn test_parse_success() {
-        assert_eq!(parse("key=value"), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key=value"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key = value"), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key = value"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key = value set"), Ok(Answer::new_with_value("key", "value set")));
+        assert_eq!(parse("key = value set"), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
 
-        assert_eq!(parse("key='value'"), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key='value'"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key='value set'"), Ok(Answer::new_with_value("key", "value set")));
+        assert_eq!(parse("key='value set'"), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
 
-        assert_eq!(parse("key = 'value'"), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key = 'value'"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key=\"value\""), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key=\"value\""), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key=\"value set\""), Ok(Answer::new_with_value("key", "value set")));
+        assert_eq!(parse("key=\"value set\""), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
 
-        assert_eq!(parse("key = \"value\""), Ok(Answer::new_with_value("key", "value")));
+        assert_eq!(parse("key = \"value\""), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
 
-        assert_eq!(parse("key ="), Ok(Answer::new_with_value("key", "")));
+        assert_eq!(parse("key ="), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
 
-        assert_eq!(parse("key =''"), Ok(Answer::new_with_value("key", "")));
+        assert_eq!(parse("key =''"), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
 
-        assert_eq!(parse(" key =\"\""), Ok(Answer::new_with_value("key", "")));
+        assert_eq!(parse(" key =\"\""), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
     }
 
     #[test]
@@ -195,7 +188,7 @@ mod tests {
     fn test_parse_answer() {
         assert_eq!(
             parse_answer(AnswerParser::parse(Rule::answer, "key=value").unwrap().next().unwrap()),
-            Answer::new_with_value("key", "value")
+            ("key".to_owned(), AnswerInfo::with_value("value").build())
         );
 
         assert_eq!(
@@ -205,7 +198,7 @@ mod tests {
                     .next()
                     .unwrap()
             ),
-            Answer::new_with_value("key", "value")
+            ("key|".to_owned(), AnswerInfo::with_value("value").build())
         );
 
         assert_eq!(
@@ -215,7 +208,7 @@ mod tests {
                     .next()
                     .unwrap()
             ),
-            Answer::new_with_value("key", "value")
+            ("key".to_owned(), AnswerInfo::with_value("value").build())
         );
     }
 
@@ -248,9 +241,9 @@ mod tests {
     #[test]
     fn test_serialize_answer_config() {
         let config = AnswerConfig::default()
-            .with_answer_pair("name", "Order Service")
-            .with_answer(Answer::new_with_value("author", "Jane Doe"));
+            .with_answer("name", "Order Service")
+            .with_answer("author","Jane Doe");
 
-        print!("{}", toml::ser::to_string_pretty(&config).unwrap());
+        println!("{}", serde_yaml::to_string(&config).unwrap());
     }
 }

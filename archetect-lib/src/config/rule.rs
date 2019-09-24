@@ -1,11 +1,14 @@
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RuleConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     patterns: Vec<String>,
     #[serde(rename = "type")]
     pattern_type: PatternType,
+    #[serde(skip_serializing_if = "Option::is_none")]
     filter: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     action: Option<RuleAction>,
 }
 

@@ -1,5 +1,5 @@
 use crate::loggerv;
-use archetect::config::{Answer, AnswerConfig, AnswerConfigError};
+use archetect::config::{AnswerInfo, AnswerConfig, AnswerConfigError};
 use clap::{crate_authors, crate_description, crate_version};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
@@ -35,7 +35,7 @@ pub fn get_matches() -> App<'static, 'static> {
                 .value_name("key=value")
                 .help("Supply a key=value pair as an answer to a variable question.")
                 .long_help(VALID_ANSWER_INPUTS)
-                .validator(|s| match Answer::parse(&s) {
+                .validator(|s| match AnswerInfo::parse(&s) {
                     Ok(_) => Ok(()),
                     _ => Err(format!(
                         "'{}' is not in a proper key=value answer format. \n{}",
