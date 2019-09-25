@@ -101,9 +101,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
         if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
             for (identifier, answer_info) in answer_config.answers() {
-                if !answers.contains_key(identifier) {
-                    answers.insert(identifier.to_owned(), answer_info.clone());
-                }
+                answers.insert(identifier.to_owned(), answer_info.clone());
             }
         }
         let context = archetype.get_context(&answers, None).unwrap();

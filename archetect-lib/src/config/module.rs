@@ -144,7 +144,7 @@ mod tests {
             r#"
             ---
             - template:
-                source: "~/contents/"
+                source: "./contents/"
             - archetype:
                 source: "git@github.com:archetect/archetype-rust-cli.git"
                 destination: "."
@@ -163,7 +163,7 @@ mod tests {
             r#"
             ---
             - template:
-                source: "~/contents/"
+                source: "contents"
             - archetype:
                 source: "git@github.com:archetect/archetype-rust-cli.git"
                 destination: "."
@@ -179,7 +179,7 @@ mod tests {
             r#"
             ---
             - template:
-                source: "~/contents/"
+                source: "./contents/"
             - archetype:
                 source: "git@github.com:archetect/archetype-rust-cli.git"
                 destination: "."

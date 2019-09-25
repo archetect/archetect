@@ -20,7 +20,6 @@ pub mod input;
 pub mod system;
 pub mod template_engine;
 pub mod util;
-pub mod serde_utils;
 
 pub use crate::archetype::{Archetype, ArchetypeError};
 pub use crate::core::{Archetect};
