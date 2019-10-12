@@ -39,7 +39,13 @@ impl ArchetypeConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<ArchetypeConfig, ArchetypeError> {
         let mut path = path.into();
         if path.is_dir() {
-            path.push("archetype.yaml");
+            let candidates = vec!["archetype.yml", "archetype.yaml"];
+            for candidate in candidates {
+                let config_file = path.join(candidate);
+                if config_file.exists() {
+                    path = config_file;
+                }
+            }
         }
         if !path.exists() {
             Err(ArchetypeError::ArchetypeInvalid)

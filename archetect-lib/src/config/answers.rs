@@ -10,7 +10,7 @@ use std::{fmt, fs};
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
-use crate::config::{VariableInfo};
+use crate::config::VariableInfo;
 use linked_hash_map::LinkedHashMap;
 
 pub type AnswerInfo = VariableInfo;
@@ -18,7 +18,7 @@ pub type AnswerInfo = VariableInfo;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AnswerConfig {
     #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
-    answers: LinkedHashMap<String,AnswerInfo>,
+    answers: LinkedHashMap<String, AnswerInfo>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -44,11 +44,11 @@ impl AnswerConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
         let path = path.into();
         if path.is_dir() {
-            let answer_file_names = vec![".answers.yaml", "answers.yaml"];
+            let answer_file_names = vec!["archetect.yml", ".archetect.yml", "archetect.yaml", ".archetect.yaml", ".answers.yaml", "answers.yaml"];
             for answer_file_name in answer_file_names {
                 let answers = path.join(answer_file_name);
                 if answers.exists() {
-                    debug!("Reading answers from '{}'", &answers.display());
+                    debug!("Reading Archetect config from '{}'", &answers.display());
                     let config = fs::read_to_string(answers)?;
                     let config = serde_yaml::from_str::<AnswerConfig>(&config)?;
                     return Ok(config);
@@ -65,7 +65,7 @@ impl AnswerConfig {
     }
 
     pub fn add_answer(&mut self, identifier: &str, value: &str) {
-        self.answers.insert(identifier.to_owned(), AnswerInfo::with_value( value).build());
+        self.answers.insert(identifier.to_owned(), AnswerInfo::with_value(value).build());
     }
 
     pub fn with_answer(mut self, identifier: &str, value: &str) -> AnswerConfig {
@@ -242,7 +242,7 @@ mod tests {
     fn test_serialize_answer_config() {
         let config = AnswerConfig::default()
             .with_answer("name", "Order Service")
-            .with_answer("author","Jane Doe");
+            .with_answer("author", "Jane Doe");
 
         println!("{}", serde_yaml::to_string(&config).unwrap());
     }

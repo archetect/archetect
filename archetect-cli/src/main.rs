@@ -117,7 +117,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             config.add_var("name",VariableInfo::with_prompt("Application Name: ").build());
             config.add_var("author",VariableInfo::with_prompt("Author name: ").build());
 
-            let mut config_file = File::create(output_dir.clone().join("archetype.yaml")).unwrap();
+            let mut config_file = File::create(output_dir.clone().join("archetype.yml")).unwrap();
             config_file
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
