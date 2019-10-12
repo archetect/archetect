@@ -68,7 +68,7 @@ impl VariableInfo {
     }
 
     pub fn is_inheritable(&self) -> bool {
-        self.inherit.unwrap_or(false)
+        self.inherit.unwrap_or(true)
     }
 }
 
