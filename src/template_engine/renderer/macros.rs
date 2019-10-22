@@ -38,11 +38,7 @@ impl<'a> MacroCollection<'a> {
     /// happen recursively. We need all of the macros loaded in one go to be in the same
     /// HashMap for easy popping as well, otherwise there could be stray macro
     /// definitions remaining
-    pub fn add_macros_from_template(
-        self: &mut Self,
-        tera: &'a Tera,
-        template: &'a Template,
-    ) -> Result<()> {
+    pub fn add_macros_from_template(self: &mut Self, tera: &'a Tera, template: &'a Template) -> Result<()> {
         let template_name = &template.name[..];
         if self.macros.contains_key(template_name) {
             return Ok(());
@@ -82,10 +78,7 @@ impl<'a> MacroCollection<'a> {
                     continue;
                 }
                 // We inserted before so we're safe
-                self.macros
-                    .get_mut(template_name)
-                    .unwrap()
-                    .insert(namespace, *m);
+                self.macros.get_mut(template_name).unwrap().insert(namespace, *m);
             }
         }
 
@@ -106,10 +99,7 @@ impl<'a> MacroCollection<'a> {
         if let Some(n) = namespace {
             let &(macro_template, macro_definition_map) = n;
 
-            if let Some(m) = macro_definition_map
-                .get(macro_name)
-                .map(|md| (macro_template, md))
-            {
+            if let Some(m) = macro_definition_map.get(macro_name).map(|md| (macro_template, md)) {
                 Ok(m)
             } else {
                 Err(Error::msg(format!(

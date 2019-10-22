@@ -43,9 +43,7 @@ pub fn json_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Value
     let pretty = args.get("pretty").and_then(Value::as_bool).unwrap_or(false);
 
     if pretty {
-        to_string_pretty(&value)
-            .map(Value::String)
-            .map_err(Error::json)
+        to_string_pretty(&value).map(Value::String).map_err(Error::json)
     } else {
         to_string(&value).map(Value::String).map_err(Error::json)
     }
@@ -68,12 +66,7 @@ pub fn date(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let formatted = match value {
         Value::Number(n) => match n.as_i64() {
             Some(i) => NaiveDateTime::from_timestamp(i, 0).format(&format),
-            None => {
-                return Err(Error::msg(format!(
-                    "Filter `date` was invoked on a float: {}",
-                    n
-                )))
-            }
+            None => return Err(Error::msg(format!("Filter `date` was invoked on a float: {}", n))),
         },
         Value::String(s) => {
             if s.contains('T') {
@@ -93,10 +86,7 @@ pub fn date(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
                 match NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
                     Ok(val) => DateTime::<Utc>::from_utc(val.and_hms(0, 0, 0), Utc).format(&format),
                     Err(_) => {
-                        return Err(Error::msg(format!(
-                            "Error parsing `{:?}` as YYYY-MM-DD date",
-                            s
-                        )));
+                        return Err(Error::msg(format!("Error parsing `{:?}` as YYYY-MM-DD date", s)));
                     }
                 }
             }
@@ -216,10 +206,7 @@ mod tests {
         let dt: DateTime<Local> = Local::now();
         let result = date(&to_value(dt.to_rfc3339()).unwrap(), &args);
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            to_value(dt.format("%Y-%m-%d").to_string()).unwrap()
-        );
+        assert_eq!(result.unwrap(), to_value(dt.format("%Y-%m-%d").to_string()).unwrap());
     }
 
     #[test]
@@ -234,32 +221,20 @@ mod tests {
     #[test]
     fn date_yyyy_mm_dd() {
         let mut args = HashMap::new();
-        args.insert(
-            "format".to_string(),
-            to_value("%a, %d %b %Y %H:%M:%S %z").unwrap(),
-        );
+        args.insert("format".to_string(), to_value("%a, %d %b %Y %H:%M:%S %z").unwrap());
         let result = date(&to_value("2017-03-05").unwrap(), &args);
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            to_value("Sun, 05 Mar 2017 00:00:00 +0000").unwrap()
-        );
+        assert_eq!(result.unwrap(), to_value("Sun, 05 Mar 2017 00:00:00 +0000").unwrap());
     }
 
     #[test]
     fn date_from_naive_datetime() {
         let mut args = HashMap::new();
-        args.insert(
-            "format".to_string(),
-            to_value("%a, %d %b %Y %H:%M:%S").unwrap(),
-        );
+        args.insert("format".to_string(), to_value("%a, %d %b %Y %H:%M:%S").unwrap());
         let result = date(&to_value("2017-03-05T00:00:00.602").unwrap(), &args);
         println!("{:?}", result);
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            to_value("Sun, 05 Mar 2017 00:00:00").unwrap()
-        );
+        assert_eq!(result.unwrap(), to_value("Sun, 05 Mar 2017 00:00:00").unwrap());
     }
 
     #[test]
@@ -270,10 +245,7 @@ mod tests {
             &args,
         );
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            to_value("{\"key\":[\"value1\",2,true]}").unwrap()
-        );
+        assert_eq!(result.unwrap(), to_value("{\"key\":[\"value1\",2,true]}").unwrap());
     }
 
     #[test]

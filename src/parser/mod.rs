@@ -61,11 +61,7 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn insert<K: Into<String>, V: Into<String>>(
-        &mut self,
-        key: K,
-        value: V,
-    ) -> &mut Context<'a> {
+    pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) -> &mut Context<'a> {
         self.variables.insert(key.into(), value.into());
         self
     }
@@ -157,9 +153,7 @@ fn parse_nodes<'template>(pairs: Pair<'template, Rule>, nodes: &mut Vec<Node<'te
     for pair in pairs.into_inner() {
         match pair.as_rule() {
             Rule::text => nodes.push(parse_text(pair)),
-            Rule::variable_block | Rule::raw_variable_block => {
-                nodes.push(parse_variable_block(pair))
-            }
+            Rule::variable_block | Rule::raw_variable_block => nodes.push(parse_variable_block(pair)),
             _ => eprintln!("Unhandled: {:?}", pair),
         }
     }
@@ -216,11 +210,7 @@ fn parse_variable_block(pair: Pair<Rule>) -> Node {
 
     let filters = iter.map(|p| parse_filter(p)).collect();
 
-    Node::VariableBlock(VariableBlock {
-        name,
-        escape,
-        filters,
-    })
+    Node::VariableBlock(VariableBlock { name, escape, filters })
 }
 
 #[cfg(test)]
@@ -240,14 +230,8 @@ mod tests {
 
     #[test]
     fn test_parse_string() {
-        assert_eq!(
-            parse_string(parse_pair(Rule::string, "\'Howdy!\'")),
-            "Howdy!"
-        );
-        assert_eq!(
-            parse_string(parse_pair(Rule::string, "\"Howdy!\"")),
-            "Howdy!"
-        );
+        assert_eq!(parse_string(parse_pair(Rule::string, "\'Howdy!\'")), "Howdy!");
+        assert_eq!(parse_string(parse_pair(Rule::string, "\"Howdy!\"")), "Howdy!");
     }
 
     #[test]
@@ -282,10 +266,7 @@ mod tests {
         );
 
         assert_eq!(
-            parse_variable_block(parse_pair(
-                Rule::variable_block,
-                "{{ subject | upper | trim }} "
-            )),
+            parse_variable_block(parse_pair(Rule::variable_block, "{{ subject | upper | trim }} ")),
             Node::VariableBlock(VariableBlock {
                 name: "subject",
                 escape: true,
@@ -303,10 +284,7 @@ mod tests {
         );
 
         assert_eq!(
-            parse_variable_block(parse_pair(
-                Rule::raw_variable_block,
-                "{{{ message | lower | trim }}} "
-            )),
+            parse_variable_block(parse_pair(Rule::raw_variable_block, "{{{ message | lower | trim }}} ")),
             Node::VariableBlock(VariableBlock {
                 name: "message",
                 escape: false,
@@ -347,10 +325,7 @@ mod tests {
 
     #[test]
     fn test_parse_value() {
-        assert_eq!(
-            parse_value(parse_pair(Rule::value, "12345")),
-            Value::Int32(12345)
-        );
+        assert_eq!(parse_value(parse_pair(Rule::value, "12345")), Value::Int32(12345));
         assert_eq!(
             parse_value(parse_pair(Rule::value, "\"String\"")),
             Value::String("String")
@@ -372,10 +347,7 @@ mod tests {
             vec![Value::Int32(1234), Value::String("1234")]
         );
 
-        assert_eq!(
-            parse_filter_args(parse_pair(Rule::filter_args, "()")),
-            vec![]
-        );
+        assert_eq!(parse_filter_args(parse_pair(Rule::filter_args, "()")), vec![]);
     }
 
     #[test]
@@ -408,9 +380,7 @@ mod tests {
     #[test]
     fn test_render() -> Result<(), failure::Error> {
         let mut context = Context::default();
-        context
-            .insert("subject", "World")
-            .insert("adjective", "small");
+        context.insert("subject", "World").insert("adjective", "small");
 
         let template = Template::try_from("Hello, {{ adjective }} {{ subject }}!")?;
         let mut buffer: Vec<u8> = Vec::new();

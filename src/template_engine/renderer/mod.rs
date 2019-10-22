@@ -53,8 +53,7 @@ impl<'a> Renderer<'a> {
         let output;
 
         {
-            let mut processor =
-                Processor::new(self.template, self.tera, &self.context, self.should_escape);
+            let mut processor = Processor::new(self.template, self.tera, &self.context, self.should_escape);
 
             output = processor.render()?;
         }

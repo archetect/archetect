@@ -36,11 +36,7 @@ pub fn round(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         Some(val) => try_get_value!("round", "precision", i32, val),
         None => 0,
     };
-    let multiplier = if precision == 0 {
-        1.0
-    } else {
-        10.0_f64.powi(precision)
-    };
+    let multiplier = if precision == 0 { 1.0 } else { 10.0_f64.powi(precision) };
 
     match method.as_ref() {
         "common" => Ok(to_value((multiplier * num).round() / multiplier).unwrap()),

@@ -107,10 +107,7 @@ where
 
                 // Word boundary after if next is underscore or current is
                 // not uppercase and next is uppercase
-                if next == '_'
-                    || next == '.'
-                    || (next_mode == WordMode::Lowercase && next.is_uppercase())
-                {
+                if next == '_' || next == '.' || (next_mode == WordMode::Lowercase && next.is_uppercase()) {
                     if !first_word {
                         boundary(&mut out);
                     }

@@ -116,12 +116,7 @@ pub struct Processor<'a> {
 
 impl<'a> Processor<'a> {
     /// Create a new `Processor` that will do the rendering
-    pub fn new(
-        template: &'a Template,
-        tera: &'a Tera,
-        context: &'a Value,
-        should_escape: bool,
-    ) -> Self {
+    pub fn new(template: &'a Template, tera: &'a Tera, context: &'a Value, should_escape: bool) -> Self {
         // Gets the root template if we are rendering something with inheritance or just return
         // the template we're dealing with otherwise
         let template_root = template
@@ -162,10 +157,12 @@ impl<'a> Processor<'a> {
             ExprVal::Ident(ref ident) => ident,
             ExprVal::FunctionCall(FunctionCall { ref name, .. }) => name,
             ExprVal::Array(_) => "an array literal",
-            _ => return Err(Error::msg(format!(
-                "Forloop containers have to be an ident or a function call (tried to iterate on '{:?}')",
-                for_loop.container.val,
-            ))),
+            _ => {
+                return Err(Error::msg(format!(
+                    "Forloop containers have to be an ident or a function call (tried to iterate on '{:?}')",
+                    for_loop.container.val,
+                )))
+            }
         };
 
         let container_val = self.safe_eval_expression(&for_loop.container)?;
@@ -191,14 +188,8 @@ impl<'a> Processor<'a> {
                     )));
                 }
                 match container_val {
-                    Cow::Borrowed(c) => {
-                        ForLoop::from_object(&for_loop.key.as_ref().unwrap(), &for_loop.value, c)
-                    }
-                    Cow::Owned(c) => ForLoop::from_object_owned(
-                        &for_loop.key.as_ref().unwrap(),
-                        &for_loop.value,
-                        c,
-                    ),
+                    Cow::Borrowed(c) => ForLoop::from_object(&for_loop.key.as_ref().unwrap(), &for_loop.value, c),
+                    Cow::Owned(c) => ForLoop::from_object_owned(&for_loop.key.as_ref().unwrap(), &for_loop.value, c),
                 }
             }
             _ => {
@@ -259,8 +250,7 @@ impl<'a> Processor<'a> {
         // Can we find this one block in these definitions? If so render it
         if let Some(block_def) = blocks_definitions.get(&block.name) {
             let (_, Block { ref body, .. }) = block_def[0];
-            self.blocks
-                .push((&block.name[..], &level_template.name[..], level));
+            self.blocks.push((&block.name[..], &level_template.name[..], level));
             return self.render_body(body);
         }
 
@@ -277,9 +267,7 @@ impl<'a> Processor<'a> {
         if let Some(default_expr) = expr.filters[0].args.get("value") {
             self.eval_expression(default_expr)
         } else {
-            Err(Error::msg(
-                "The `default` filter requires a `value` argument.",
-            ))
+            Err(Error::msg("The `default` filter requires a `value` argument."))
         }
     }
 
@@ -308,18 +296,22 @@ impl<'a> Processor<'a> {
                         ExprVal::Ident(ref i) => match *self.lookup_ident(i)? {
                             Value::String(ref v) => res.push_str(&v),
                             Value::Number(ref v) => res.push_str(&v.to_string()),
-                            _ => return Err(Error::msg(format!(
-                                "Tried to concat a value that is not a string or a number from ident {}",
-                                i
-                            ))),
+                            _ => {
+                                return Err(Error::msg(format!(
+                                    "Tried to concat a value that is not a string or a number from ident {}",
+                                    i
+                                )))
+                            }
                         },
                         ExprVal::FunctionCall(ref fn_call) => match *self.eval_tera_fn_call(fn_call)? {
                             Value::String(ref v) => res.push_str(&v),
                             Value::Number(ref v) => res.push_str(&v.to_string()),
-                            _ => return Err(Error::msg(format!(
-                                "Tried to concat a value that is not a string or a number from function call {}",
-                                fn_call.name
-                            ))),
+                            _ => {
+                                return Err(Error::msg(format!(
+                                    "Tried to concat a value that is not a string or a number from function call {}",
+                                    fn_call.name
+                                )))
+                            }
                         },
                         _ => unreachable!(),
                     };
@@ -359,9 +351,7 @@ impl<'a> Processor<'a> {
                 needs_escape = true;
                 self.eval_tera_fn_call(fn_call)?
             }
-            ExprVal::MacroCall(ref macro_call) => {
-                Cow::Owned(Value::String(self.eval_macro_call(macro_call)?))
-            }
+            ExprVal::MacroCall(ref macro_call) => Cow::Owned(Value::String(self.eval_macro_call(macro_call)?)),
             ExprVal::Test(ref test) => Cow::Owned(Value::Bool(self.eval_test(test)?)),
             ExprVal::Logic(_) => Cow::Owned(Value::Bool(self.eval_as_bool(expr)?)),
             ExprVal::Math(_) => match self.eval_as_number(&expr.val) {
@@ -377,9 +367,7 @@ impl<'a> Processor<'a> {
             && res.is_string()
             && expr.filters.first().map_or(true, |f| f.name != "safe")
         {
-            res = Cow::Owned(
-                to_value(self.tera.get_escape_fn()(res.as_str().unwrap())).map_err(Error::json)?,
-            );
+            res = Cow::Owned(to_value(self.tera.get_escape_fn()(res.as_str().unwrap())).map_err(Error::json)?);
         }
 
         for filter in &expr.filters {
@@ -409,8 +397,7 @@ impl<'a> Processor<'a> {
     /// Evaluate a set tag and add the value to the right context
     fn eval_set(self: &mut Self, set: &'a Set) -> Result<()> {
         let assigned_value = self.safe_eval_expression(&set.value)?;
-        self.call_stack
-            .add_assignment(&set.key[..], set.global, assigned_value);
+        self.call_stack.add_assignment(&set.key[..], set.global, assigned_value);
         Ok(())
     }
 
@@ -458,11 +445,9 @@ impl<'a> Processor<'a> {
             &self.call_stack.active_template().name
         };
 
-        let (macro_template_name, macro_definition) = self.macros.lookup_macro(
-            active_template_name,
-            &macro_call.namespace[..],
-            &macro_call.name[..],
-        )?;
+        let (macro_template_name, macro_definition) =
+            self.macros
+                .lookup_macro(active_template_name, &macro_call.namespace[..], &macro_call.name[..])?;
 
         let mut frame_context = FrameContext::with_capacity(macro_definition.args.len());
 
@@ -521,10 +506,7 @@ impl<'a> Processor<'a> {
                 match *operator {
                     LogicOperator::Or => self.eval_as_bool(lhs)? || self.eval_as_bool(rhs)?,
                     LogicOperator::And => self.eval_as_bool(lhs)? && self.eval_as_bool(rhs)?,
-                    LogicOperator::Gt
-                    | LogicOperator::Gte
-                    | LogicOperator::Lt
-                    | LogicOperator::Lte => {
+                    LogicOperator::Gt | LogicOperator::Gte | LogicOperator::Lt | LogicOperator::Lte => {
                         let l = self.eval_expr_as_number(lhs)?;
                         let r = self.eval_expr_as_number(rhs)?;
                         let (ll, rr) = match (l, r) {
@@ -551,12 +533,8 @@ impl<'a> Processor<'a> {
                                 return Ok(false);
                             }
 
-                            lhs_val = Cow::Owned(Value::Number(
-                                Number::from_f64(lhs_val.as_f64().unwrap()).unwrap(),
-                            ));
-                            rhs_val = Cow::Owned(Value::Number(
-                                Number::from_f64(rhs_val.as_f64().unwrap()).unwrap(),
-                            ));
+                            lhs_val = Cow::Owned(Value::Number(Number::from_f64(lhs_val.as_f64().unwrap()).unwrap()));
+                            rhs_val = Cow::Owned(Value::Number(Number::from_f64(rhs_val.as_f64().unwrap()).unwrap()));
                         }
 
                         match *operator {
@@ -567,17 +545,12 @@ impl<'a> Processor<'a> {
                     }
                 }
             }
-            ExprVal::Ident(ref ident) => self
-                .lookup_ident(ident)
-                .map(|v| v.is_truthy())
-                .unwrap_or(false),
-            ExprVal::Math(_) | ExprVal::Int(_) | ExprVal::Float(_) => {
-                match self.eval_as_number(&bool_expr.val) {
-                    Ok(Some(n)) => n.as_f64().unwrap() != 0.0,
-                    Ok(None) => false,
-                    Err(_) => false,
-                }
-            }
+            ExprVal::Ident(ref ident) => self.lookup_ident(ident).map(|v| v.is_truthy()).unwrap_or(false),
+            ExprVal::Math(_) | ExprVal::Int(_) | ExprVal::Float(_) => match self.eval_as_number(&bool_expr.val) {
+                Ok(Some(n)) => n.as_f64().unwrap() != 0.0,
+                Ok(None) => false,
+                Err(_) => false,
+            },
             ExprVal::Test(ref test) => self.eval_test(test).unwrap_or(false),
             ExprVal::Bool(val) => val,
             ExprVal::String(ref string) => !string.is_empty(),
@@ -631,10 +604,7 @@ impl<'a> Processor<'a> {
                 ref rhs,
                 ref operator,
             }) => {
-                let (l, r) = match (
-                    self.eval_expr_as_number(lhs)?,
-                    self.eval_expr_as_number(rhs)?,
-                ) {
+                let (l, r) = match (self.eval_expr_as_number(lhs)?, self.eval_expr_as_number(rhs)?) {
                     (Some(l), Some(r)) => (l, r),
                     _ => return Ok(None),
                 };
@@ -700,20 +670,14 @@ impl<'a> Processor<'a> {
                             let ll = l.as_i64().unwrap();
                             let rr = r.as_i64().unwrap();
                             if rr == 0 {
-                                return Err(Error::msg(format!(
-                                    "Tried to do a modulo by zero: {:?}/{:?}",
-                                    lhs, rhs
-                                )));
+                                return Err(Error::msg(format!("Tried to do a modulo by zero: {:?}/{:?}", lhs, rhs)));
                             }
                             Some(Number::from(ll % rr))
                         } else if l.is_u64() && r.is_u64() {
                             let ll = l.as_u64().unwrap();
                             let rr = r.as_u64().unwrap();
                             if rr == 0 {
-                                return Err(Error::msg(format!(
-                                    "Tried to do a modulo by zero: {:?}/{:?}",
-                                    lhs, rhs
-                                )));
+                                return Err(Error::msg(format!("Tried to do a modulo by zero: {:?}/{:?}", lhs, rhs)));
                             }
                             Some(Number::from(ll % rr))
                         } else {
@@ -740,16 +704,10 @@ impl<'a> Processor<'a> {
                 }
             }
             ExprVal::String(ref val) => {
-                return Err(Error::msg(format!(
-                    "Tried to do math with a string: `{}`",
-                    val
-                )));
+                return Err(Error::msg(format!("Tried to do math with a string: `{}`", val)));
             }
             ExprVal::Bool(val) => {
-                return Err(Error::msg(format!(
-                    "Tried to do math with a boolean: `{}`",
-                    val
-                )));
+                return Err(Error::msg(format!("Tried to do math with a boolean: `{}`", val)));
             }
             _ => unreachable!("unimplemented math expression for {:?}", expr),
         };
@@ -798,10 +756,7 @@ impl<'a> Processor<'a> {
         if key == MAGICAL_DUMP_VAR {
             // Unwraps are safe since we are dealing with things that are already Value
             return Ok(Cow::Owned(
-                to_value(
-                    to_string_pretty(&self.call_stack.current_context_cloned().take()).unwrap(),
-                )
-                .unwrap(),
+                to_value(to_string_pretty(&self.call_stack.current_context_cloned().take()).unwrap()).unwrap(),
             ));
         }
 
@@ -815,20 +770,9 @@ impl<'a> Processor<'a> {
             Node::Text(ref s) | Node::Raw(_, ref s, _) => buffer.push_str(s),
             Node::VariableBlock(ref expr) => buffer.push_str(&self.eval_expression(expr)?.render()),
             Node::Set(_, ref set) => self.eval_set(set)?,
-            Node::FilterSection(
-                _,
-                FilterSection {
-                    ref filter,
-                    ref body,
-                },
-                _,
-            ) => {
+            Node::FilterSection(_, FilterSection { ref filter, ref body }, _) => {
                 let body = self.render_body(body)?;
-                buffer.push_str(
-                    &self
-                        .eval_filter(&Cow::Owned(Value::String(body)), filter)?
-                        .render(),
-                );
+                buffer.push_str(&self.eval_filter(&Cow::Owned(Value::String(body)), filter)?.render());
             }
             // Macros have been imported at the beginning
             Node::ImportMacro(_, _, _) => (),

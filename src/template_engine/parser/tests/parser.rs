@@ -85,10 +85,7 @@ fn parse_import_macro() {
 #[test]
 fn parse_variable_tag_ident() {
     let ast = parse("{{ id }}").unwrap();
-    assert_eq!(
-        ast[0],
-        Node::VariableBlock(Expr::new(ExprVal::Ident("id".to_string()))),
-    );
+    assert_eq!(ast[0], Node::VariableBlock(Expr::new(ExprVal::Ident("id".to_string()))),);
 }
 
 #[test]

@@ -184,9 +184,7 @@ impl Logger {
     /// | Trace | Grey          |
     pub fn new() -> Logger {
         Logger {
-            colors: DEFAULT_COLORS
-                && atty::is(atty::Stream::Stdout)
-                && atty::is(atty::Stream::Stderr),
+            colors: DEFAULT_COLORS && atty::is(atty::Stream::Stdout) && atty::is(atty::Stream::Stderr),
             include_level: DEFAULT_INCLUDE_LEVEL,
             include_line_numbers: DEFAULT_INCLUDE_LINE_NUMBERS,
             include_module_path: DEFAULT_INCLUDE_MODULE_PATH,
@@ -640,11 +638,7 @@ impl Logger {
         // It is better to do it here than in the `log` function because it only has to be
         // determined once at initialization as opposed to every call to the `log` function. So
         // a potentially slight performance improvement.
-        if self.prefix.is_none()
-            && !self.include_level
-            && !self.include_line_numbers
-            && !self.include_module_path
-        {
+        if self.prefix.is_none() && !self.include_level && !self.include_line_numbers && !self.include_module_path {
             self.separator = String::new();
         }
         // The level is set based on verbosity only if the `verbosity` method has been used and
@@ -751,12 +745,7 @@ impl log::Log for Logger {
                     .expect("Writing to stderr");
                 }
                 Output::Stdout => {
-                    println!(
-                        "{}{}{}",
-                        self.create_tag(&record),
-                        self.separator,
-                        record.args()
-                    );
+                    println!("{}{}{}", self.create_tag(&record), self.separator, record.args());
                 }
             }
         }

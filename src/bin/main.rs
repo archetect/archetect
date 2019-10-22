@@ -119,8 +119,7 @@ fn main() {
                 .subcommand(SubCommand::with_name("select"))
                 .subcommand(SubCommand::with_name("clear"))
                 .subcommand(SubCommand::with_name("pull"))
-                .subcommand(SubCommand::with_name("path"))
-            ,
+                .subcommand(SubCommand::with_name("path")),
         )
         .subcommand(
             SubCommand::with_name("create")
@@ -204,16 +203,10 @@ fn main() {
                 archetype.generate(destination, context).unwrap();
             }
             Err(err) => match err {
-                LocationError::LocationInvalidEncoding => {
-                    error!("\"{}\" is not valid UTF-8", source)
-                }
+                LocationError::LocationInvalidEncoding => error!("\"{}\" is not valid UTF-8", source),
                 LocationError::LocationNotFound => error!("\"{}\" does not exist", source),
-                LocationError::LocationUnsupported => {
-                    error!("\"{}\" is not a supported archetype path", source)
-                }
-                LocationError::LocationInvalidPath => {
-                    error!("\"{}\" is not a valid archetype path", source)
-                }
+                LocationError::LocationUnsupported => error!("\"{}\" is not a supported archetype path", source),
+                LocationError::LocationInvalidPath => error!("\"{}\" is not a valid archetype path", source),
                 LocationError::OfflineAndNotCached => error!(
                     "\"{}\" is not cached locally and cannot be cloned in offline mode",
                     source
@@ -228,8 +221,7 @@ fn main() {
             }
 
             let mut config = ArchetypeConfig::default();
-            config
-                .add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
+            config.add_variable(Variable::with_identifier("name").with_prompt("Application Name: "));
             config.add_variable(Variable::with_identifier("author").with_prompt("Author name: "));
 
             let mut config_file = File::create(output_dir.clone().join("archetype.toml")).unwrap();
@@ -237,17 +229,15 @@ fn main() {
                 .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
                 .unwrap();
 
-            File::create(output_dir.clone().join("README.md"))
-                .expect("Error creating archetype README.md");
-            File::create(output_dir.clone().join(".gitignore"))
-                .expect("Error creating archetype .gitignore");
+            File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
+            File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
 
             let project_dir = output_dir.clone().join("archetype/{{ name # train_case }}");
 
             fs::create_dir_all(&project_dir).unwrap();
 
-            let mut project_readme = File::create(project_dir.clone().join("README.md"))
-                .expect("Error creating project README.md");
+            let mut project_readme =
+                File::create(project_dir.clone().join("README.md")).expect("Error creating project README.md");
             project_readme
                 .write_all(
                     indoc!(
@@ -259,8 +249,7 @@ fn main() {
                     .as_bytes(),
                 )
                 .expect("Error writing README.md");
-            File::create(project_dir.clone().join(".gitignore"))
-                .expect("Error creating project .gitignore");
+            File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
         }
     }
 
