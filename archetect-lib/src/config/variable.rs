@@ -70,6 +70,10 @@ impl VariableInfo {
     pub fn is_inheritable(&self) -> bool {
         self.inherit.unwrap_or(true)
     }
+
+    pub fn has_derived_value(&self) -> bool {
+        self.prompt.is_none() && self.default.is_none() && self.value.is_some()
+    }
 }
 
 pub struct VariableInfoBuilder {

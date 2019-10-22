@@ -227,16 +227,9 @@ impl Archetype {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
         let mut seed = Context::new();
-        for (identifer, variable_info) in self.configuration().vars() {
-            if variable_info.is_inheritable() {
-                if let Some(value) = context.get(identifer) {
-                    seed.insert_value(identifer, value);
-                }
-            }
-        }
 
-        for (identifier, info) in self.configuration().vars() {
-            if info.is_inheritable() {
+        for (identifier, variable_info) in self.configuration().variables() {
+            if variable_info.is_inheritable() {
                 if let Some(value) = context.get(identifier) {
                     seed.insert_value(identifier, value);
                 }
@@ -283,7 +276,7 @@ impl Archetype {
     ) -> Result<Context, ArchetypeError> {
         let mut context = seed.unwrap_or_else(|| Context::new());
 
-        for (identifier, variable_info) in self.config.vars() {
+        for (identifier, variable_info) in self.config.variables() {
             // First, if an explicit answer was provided, use that, overriding an existing context
             // value if necessary.
             if let Some(answer) = answers.get(identifier) {
