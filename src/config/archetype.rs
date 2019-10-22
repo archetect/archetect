@@ -227,7 +227,8 @@ impl ModuleConfig {
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Variable {
     prompt: Option<String>,
-    name: String,
+    #[serde(alias = "name")]
+    identifier: String,
     default: Option<String>,
 }
 
@@ -236,7 +237,7 @@ impl Variable {
         VariableBuilder {
             variable: Variable {
                 prompt: None,
-                name: identifier.into(),
+                identifier: identifier.into(),
                 default: None,
             },
         }
@@ -260,7 +261,7 @@ impl Variable {
     }
 
     pub fn identifier(&self) -> &str {
-        &self.name
+        &self.identifier
     }
 
     pub fn default(&self) -> Option<&str> {
@@ -331,11 +332,11 @@ mod tests {
 
             [[variable]]
             prompt = "Application Name"
-            name = "name"
+            identifier = "name"
 
             [[variable]]
             prompt = "Author"
-            name = "author"
+            identifier = "author"
             default = "Jimmie"
         "#
         );
