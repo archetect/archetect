@@ -154,16 +154,16 @@ impl ArchetypeConfig {
         self.rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
     }
 
-    pub fn add_var<I: Into<String>>(&mut self, identifier: I, variable_info: VariableInfo) {
+    pub fn add_variable<I: Into<String>>(&mut self, identifier: I, variable_info: VariableInfo) {
         self.variables.insert(identifier.into(), variable_info);
     }
 
     pub fn with_variable<I: Into<String>>(mut self, identifier: I, variable_info: VariableInfo) -> ArchetypeConfig {
-        self.add_var(identifier, variable_info);
+        self.add_variable(identifier, variable_info);
         self
     }
 
-    pub fn vars(&self) -> &LinkedHashMap<String, VariableInfo> {
+    pub fn variables(&self) -> &LinkedHashMap<String, VariableInfo> {
         &self.variables
     }
 
@@ -323,6 +323,6 @@ mod tests {
     #[test]
     fn test_archetype_load() {
         let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
-        assert_eq!(config.vars().get("name").unwrap(), &VariableInfo::with_prompt("Application Name: ").build());
+        assert_eq!(config.variables().get("name").unwrap(), &VariableInfo::with_prompt("Application Name: ").build());
     }
 }

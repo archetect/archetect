@@ -114,8 +114,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
 
             let mut config = ArchetypeConfig::default();
-            config.add_var("name",VariableInfo::with_prompt("Application Name: ").build());
-            config.add_var("author",VariableInfo::with_prompt("Author name: ").build());
+            config.add_variable("name", VariableInfo::with_prompt("Application Name: ").build());
+            config.add_variable("author", VariableInfo::with_prompt("Author name: ").build());
 
             let mut config_file = File::create(output_dir.clone().join("archetype.yml")).unwrap();
             config_file
