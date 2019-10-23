@@ -1,12 +1,14 @@
 #[macro_use]
 extern crate clap;
 
-use archetect::config::{Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, Variable};
+use archetect::config::{
+    Answer, AnswerConfig, AnswerConfigError, ArchetypeConfig, CatalogConfig, CatalogConfigError, Variable,
+};
 use archetect::util::{Location, LocationError};
 use archetect::{self, Archetype};
 use clap::{App, AppSettings, Arg, SubCommand};
 use indoc::indoc;
-use log::error;
+use log::{error, info};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -110,7 +112,13 @@ fn main() {
                         ),
                 )
                 .subcommand(
-                    SubCommand::with_name("select").arg(Arg::with_name("catalog-file").short("c").long("catalog-file")),
+                    SubCommand::with_name("select").arg(
+                        Arg::with_name("catalog-file")
+                            .short("c")
+                            .long("catalog-file")
+                            .takes_value(true)
+                            .required(true),
+                    ),
                 ),
         )
         .subcommand(
@@ -242,14 +250,36 @@ fn main() {
                 .write_all(
                     indoc!(
                         r#"
-                Project: {{ name | title_case }}
-                Author: {{ author | title_case }}
-            "#
+                        Project: {{ name | title_case }}
+                        Author: {{ author | title_case }}            
+                    "#
                     )
                     .as_bytes(),
                 )
                 .expect("Error writing README.md");
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
+        }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("catalog") {
+        if let Some(sub_matches) = matches.subcommand_matches("select") {
+            let catalog_path = sub_matches.value_of("catalog-file").unwrap();
+            match CatalogConfig::load(catalog_path) {
+                Ok(catalog) => {
+                    info!("Catalog loaded successfully!");
+                    for (number, archetype_info) in catalog.archetypes().iter().enumerate() {
+                        println!("{}: {:?}", number, archetype_info);
+                    }
+                }
+                Err(CatalogConfigError::CatalogConfigTomlParseError(cause)) => error!(
+                    "Error parsing catalog '{}'. \
+                     Cause: {}",
+                    catalog_path, cause
+                ),
+                Err(CatalogConfigError::IOError(cause)) => {
+                    error!("Error reading catalog '{}'. Cause: {}", catalog_path, cause)
+                }
+            }
         }
     }
 
