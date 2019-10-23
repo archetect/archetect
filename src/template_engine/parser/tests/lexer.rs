@@ -388,11 +388,7 @@ fn lex_include_tag() {
 
 #[test]
 fn lex_import_macro_tag() {
-    assert!(TeraParser::parse(
-        Rule::import_macro_tag,
-        "{% import \"macros.html\" as macros %}",
-    )
-    .is_ok());
+    assert!(TeraParser::parse(Rule::import_macro_tag, "{% import \"macros.html\" as macros %}",).is_ok());
 }
 
 #[test]

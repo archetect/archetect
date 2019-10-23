@@ -14,9 +14,7 @@ pub type FrameContext<'a> = HashMap<&'a str, Val<'a>>;
 #[inline]
 pub fn value_by_pointer<'a>(pointer: &str, val: &Val<'a>) -> Option<Val<'a>> {
     match *val {
-        Cow::Borrowed(r) => r
-            .pointer(&get_json_pointer(pointer))
-            .map(|found| Cow::Borrowed(found)),
+        Cow::Borrowed(r) => r.pointer(&get_json_pointer(pointer)).map(|found| Cow::Borrowed(found)),
         Cow::Owned(ref r) => r
             .pointer(&get_json_pointer(pointer))
             .map(|found| Cow::Owned(found.clone())),
@@ -80,12 +78,7 @@ impl<'a> StackFrame<'a> {
         }
     }
 
-    pub fn new_macro(
-        name: &'a str,
-        tpl: &'a Template,
-        macro_namespace: &'a str,
-        context: FrameContext<'a>,
-    ) -> Self {
+    pub fn new_macro(name: &'a str, tpl: &'a Template, macro_namespace: &'a str, context: FrameContext<'a>) -> Self {
         StackFrame {
             kind: FrameType::Macro,
             name,
@@ -137,9 +130,7 @@ impl<'a> StackFrame<'a> {
         if let Some(ref for_loop) = self.for_loop {
             // 1st case: the variable is the key of a KeyValue for loop
             if for_loop.is_key(key) {
-                return Some(Cow::Owned(Value::String(
-                    for_loop.get_current_key().to_string(),
-                )));
+                return Some(Cow::Owned(Value::String(for_loop.get_current_key().to_string())));
             }
 
             let (real_key, tail) = if let Some(tail_pos) = key.find('.') {
@@ -161,9 +152,7 @@ impl<'a> StackFrame<'a> {
                         return Some(Cow::Owned(Value::Bool(for_loop.current == 0)));
                     }
                     "last" => {
-                        return Some(Cow::Owned(Value::Bool(
-                            for_loop.current == for_loop.len() - 1,
-                        )));
+                        return Some(Cow::Owned(Value::Bool(for_loop.current == for_loop.len() - 1)));
                     }
                     _ => return None,
                 };

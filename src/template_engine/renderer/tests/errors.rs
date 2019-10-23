@@ -7,8 +7,7 @@ use crate::template_engine::tera::Tera;
 #[test]
 fn error_location_basic() {
     let mut tera = Tera::default();
-    tera.add_raw_templates(vec![("tpl", "{{ 1 + true }}")])
-        .unwrap();
+    tera.add_raw_templates(vec![("tpl", "{{ 1 + true }}")]).unwrap();
 
     let result = tera.render("tpl", Context::new());
 
@@ -19,14 +18,8 @@ fn error_location_basic() {
 fn error_location_inside_macro() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello()%}{{ 1 + true }}{% endmacro hello %}",
-        ),
-        (
-            "tpl",
-            "{% import \"macros\" as macros %}{{ macros::hello() }}",
-        ),
+        ("macros", "{% macro hello()%}{{ 1 + true }}{% endmacro hello %}"),
+        ("tpl", "{% import \"macros\" as macros %}{{ macros::hello() }}"),
     ])
     .unwrap();
 
@@ -42,14 +35,8 @@ fn error_location_inside_macro() {
 fn error_loading_macro_from_unloaded_namespace() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello()%}{{ 1 + true }}{% endmacro hello %}",
-        ),
-        (
-            "tpl",
-            "{% import \"macros\" as macros %}{{ macro::hello() }}",
-        ),
+        ("macros", "{% macro hello()%}{{ 1 + true }}{% endmacro hello %}"),
+        ("tpl", "{% import \"macros\" as macros %}{{ macro::hello() }}"),
     ])
     .unwrap();
 
@@ -65,14 +52,8 @@ fn error_loading_macro_from_unloaded_namespace() {
 fn error_location_base_template() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        (
-            "parent",
-            "Hello {{ greeting + 1}} {% block bob %}{% endblock bob %}",
-        ),
-        (
-            "child",
-            "{% extends \"parent\" %}{% block bob %}Hey{% endblock bob %}",
-        ),
+        ("parent", "Hello {{ greeting + 1}} {% block bob %}{% endblock bob %}"),
+        ("child", "{% extends \"parent\" %}{% block bob %}Hey{% endblock bob %}"),
     ])
     .unwrap();
 
@@ -112,9 +93,16 @@ fn error_location_in_parent_in_macro() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
         ("macros", "{% macro hello()%}{{ 1 + true }}{% endmacro hello %}"),
-        ("parent", "{% import \"macros\" as macros %}{{ macros::hello() }}{% block bob %}{% endblock bob %}"),
-        ("child", "{% extends \"parent\" %}{% block bob %}{{ super() }}Hey{% endblock bob %}"),
-    ]).unwrap();
+        (
+            "parent",
+            "{% import \"macros\" as macros %}{{ macros::hello() }}{% block bob %}{% endblock bob %}",
+        ),
+        (
+            "child",
+            "{% extends \"parent\" %}{% block bob %}{{ super() }}Hey{% endblock bob %}",
+        ),
+    ])
+    .unwrap();
 
     let result = tera.render("child", Context::new());
     println!("{:?}", result);
@@ -128,8 +116,7 @@ fn error_location_in_parent_in_macro() {
 #[test]
 fn error_out_of_range_index() {
     let mut tera = Tera::default();
-    tera.add_raw_templates(vec![("tpl", "{{ arr[10] }}")])
-        .unwrap();
+    tera.add_raw_templates(vec![("tpl", "{{ arr[10] }}")]).unwrap();
     let mut context = Context::new();
     context.insert("arr", &[1, 2, 3]);
 
@@ -144,8 +131,7 @@ fn error_out_of_range_index() {
 #[test]
 fn error_unknown_index_variable() {
     let mut tera = Tera::default();
-    tera.add_raw_templates(vec![("tpl", "{{ arr[a] }}")])
-        .unwrap();
+    tera.add_raw_templates(vec![("tpl", "{{ arr[a] }}")]).unwrap();
     let mut context = Context::new();
     context.insert("arr", &[1, 2, 3]);
 
@@ -160,8 +146,7 @@ fn error_unknown_index_variable() {
 #[test]
 fn error_invalid_type_index_variable() {
     let mut tera = Tera::default();
-    tera.add_raw_templates(vec![("tpl", "{{ arr[a] }}")])
-        .unwrap();
+    tera.add_raw_templates(vec![("tpl", "{{ arr[a] }}")]).unwrap();
 
     let mut context = Context::new();
     context.insert("arr", &[1, 2, 3]);

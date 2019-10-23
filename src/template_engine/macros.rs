@@ -21,12 +21,17 @@ macro_rules! try_get_value {
                 if $var_name == "value" {
                     return Err($crate::template_engine::Error::msg(format!(
                         "Filter `{}` was called on an incorrect value: got `{}` but expected a {}",
-                        $filter_name, $val, stringify!($ty)
+                        $filter_name,
+                        $val,
+                        stringify!($ty)
                     )));
                 } else {
                     return Err($crate::template_engine::Error::msg(format!(
                         "Filter `{}` received an incorrect type for arg `{}`: got `{}` but expected a {}",
-                        $filter_name, $var_name, $val, stringify!($ty)
+                        $filter_name,
+                        $var_name,
+                        $val,
+                        stringify!($ty)
                     )));
                 }
             }

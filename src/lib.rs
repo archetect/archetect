@@ -115,8 +115,7 @@ impl Archetype {
                 destination.push(name);
                 trace!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.generate_internal(context.clone(), path, destination)
-                    .unwrap();
+                self.generate_internal(context.clone(), path, destination).unwrap();
             } else if path.is_file() {
                 for path_rule in path_rules {
                     if path_rule.pattern_type() == &PatternType::GLOB {
@@ -127,16 +126,10 @@ impl Archetype {
                                     trace!("Copying    {:?}", &path);
                                     let name = self
                                         .tera
-                                        .render_string(
-                                            path.file_name().unwrap().to_str().unwrap(),
-                                            context.clone(),
-                                        )
+                                        .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
                                         .unwrap();
                                     let template = fs::read_to_string(&path)?;
-                                    let file_contents = self
-                                        .tera
-                                        .render_string(&template, context.clone())
-                                        .unwrap();
+                                    let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
                                     let destination = destination.clone().join(name);
                                     trace!("Generating {:?}", &destination);
                                     let mut output = File::create(&destination)?;
@@ -163,19 +156,11 @@ impl Archetype {
         Ok(())
     }
 
-    pub fn generate<D: Into<PathBuf>>(
-        &self,
-        destination: D,
-        context: Context,
-    ) -> Result<(), ArchetypeError> {
+    pub fn generate<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.generate_internal(
-            context.clone(),
-            self.path.clone().join("archetype"),
-            destination,
-        )
-        .unwrap();
+        self.generate_internal(context.clone(), self.path.clone().join("archetype"), destination)
+            .unwrap();
 
         for module in &self.modules {
             let destination = PathBuf::from(
@@ -190,9 +175,7 @@ impl Archetype {
                         answer.identifier().to_owned(),
                         Answer::new(
                             answer.identifier().to_owned(),
-                            self.tera
-                                .render_string(answer.value(), context.clone())
-                                .unwrap(),
+                            self.tera.render_string(answer.value(), context.clone()).unwrap(),
                         ),
                     );
                 }
@@ -203,20 +186,13 @@ impl Archetype {
         Ok(())
     }
 
-    pub fn get_context(
-        &self,
-        answers: &HashMap<String, Answer>,
-    ) -> Result<Context, ArchetypeError> {
+    pub fn get_context(&self, answers: &HashMap<String, Answer>) -> Result<Context, ArchetypeError> {
         let mut context = Context::new();
 
         for variable in self.config.variables() {
             let default = if let Some(answer) = answers.get(variable.identifier()) {
                 if let Some(true) = answer.prompt() {
-                    Some(
-                        self.tera
-                            .render_string(answer.value(), context.clone())
-                            .unwrap(),
-                    )
+                    Some(self.tera.render_string(answer.value(), context.clone()).unwrap())
                 } else {
                     context.insert(
                         answer.identifier(),

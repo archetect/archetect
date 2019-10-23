@@ -1,10 +1,7 @@
 /// Filters operating on string
 use std::collections::HashMap;
 
-use crate::heck::{
-    CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase,
-    TrainCase,
-};
+use crate::heck::{CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase, TrainCase};
 
 use regex::{Captures, Regex};
 use serde_json::value::{to_value, Value};
@@ -215,12 +212,7 @@ pub fn capitalize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
 /// Escapes quote characters
 pub fn addslashes(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("addslashes", "value", String, value);
-    Ok(to_value(
-        &s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\'", "\\\'"),
-    )
-    .unwrap())
+    Ok(to_value(&s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\'", "\\\'")).unwrap())
 }
 
 /// Transform a string into a slug
@@ -337,15 +329,9 @@ mod tests {
         let mut args = HashMap::new();
         args.insert("length".to_string(), to_value(&5).unwrap());
         args.insert("end".to_string(), to_value(&"…").unwrap());
-        let result = truncate(
-            &to_value("👨‍👩‍👧‍👦 family").unwrap(),
-            &args,
-        );
+        let result = truncate(&to_value("👨‍👩‍👧‍👦 family").unwrap(), &args);
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            to_value("👨‍👩‍👧‍👦 fam…").unwrap()
-        );
+        assert_eq!(result.unwrap(), to_value("👨‍👩‍👧‍👦 fam…").unwrap());
     }
 
     #[test]
@@ -386,10 +372,7 @@ mod tests {
 
     #[test]
     fn test_capitalize() {
-        let tests = vec![
-            ("CAPITAL IZE", "Capital ize"),
-            ("capital ize", "Capital ize"),
-        ];
+        let tests = vec![("CAPITAL IZE", "Capital ize"), ("capital ize", "Capital ize")];
         for (input, expected) in tests {
             let result = capitalize(&to_value(input).unwrap(), &HashMap::new());
             assert!(result.is_ok());

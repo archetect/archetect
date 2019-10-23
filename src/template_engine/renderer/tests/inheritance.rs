@@ -9,10 +9,7 @@ fn render_simple_inheritance() {
             "top",
             "{% block pre %}{% endblock pre %}{% block main %}{% endblock main %}",
         ),
-        (
-            "bottom",
-            "{% extends \"top\" %}{% block main %}MAIN{% endblock %}",
-        ),
+        ("bottom", "{% extends \"top\" %}{% block main %}MAIN{% endblock %}"),
     ])
     .unwrap();
     let result = tera.render("bottom", Context::new());
@@ -44,14 +41,8 @@ fn render_multiple_inheritance() {
             "top",
             "{% block pre %}{% endblock pre %}{% block main %}{% endblock main %}",
         ),
-        (
-            "mid",
-            "{% extends \"top\" %}{% block pre %}PRE{% endblock pre %}",
-        ),
-        (
-            "bottom",
-            "{% extends \"mid\" %}{% block main %}MAIN{% endblock main %}",
-        ),
+        ("mid", "{% extends \"top\" %}{% block pre %}PRE{% endblock pre %}"),
+        ("bottom", "{% extends \"mid\" %}{% block main %}MAIN{% endblock main %}"),
     ])
     .unwrap();
     let result = tera.render("bottom", Context::new());
@@ -128,11 +119,8 @@ fn render_nested_block_multiple_inheritance_no_super() {
 #[test]
 fn render_super_in_top_block_errors() {
     let mut tera = Tera::default();
-    tera.add_raw_templates(vec![(
-        "index",
-        "{% block content%}{{super()}}{% endblock content %}",
-    )])
-    .unwrap();
+    tera.add_raw_templates(vec![("index", "{% block content%}{{super()}}{% endblock content %}")])
+        .unwrap();
 
     let result = tera.render("index", Context::new());
     assert!(result.is_err());

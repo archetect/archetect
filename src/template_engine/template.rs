@@ -55,10 +55,7 @@ impl Template {
                 match *node {
                     Node::Block(_, ref block, _) => {
                         if blocks.contains_key(&block.name) {
-                            return Err(Error::msg(format!(
-                                "Block `{}` is duplicated",
-                                block.name
-                            )));
+                            return Err(Error::msg(format!("Block `{}` is duplicated", block.name)));
                         }
 
                         blocks.insert(block.name.to_string(), block.clone());
@@ -82,10 +79,7 @@ impl Template {
                 Node::Extends(_, ref name) => parent = Some(name.to_string()),
                 Node::MacroDefinition(_, ref macro_def, _) => {
                     if macros.contains_key(&macro_def.name) {
-                        return Err(Error::msg(format!(
-                            "Macro `{}` is duplicated",
-                            macro_def.name
-                        )));
+                        return Err(Error::msg(format!("Macro `{}` is duplicated", macro_def.name)));
                     }
                     macros.insert(macro_def.name.clone(), macro_def.clone());
                 }
@@ -146,7 +140,8 @@ mod tests {
             "hello",
             None,
             "{% extends \"base.html\" %}{% block hey %}{% block extrahey %}{% endblock extrahey %}{% endblock hey %}",
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(tpl.parent.unwrap(), "base.html".to_string());
         assert_eq!(tpl.blocks.contains_key("hey"), true);

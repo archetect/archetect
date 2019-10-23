@@ -92,9 +92,7 @@ pub fn odd(value: Option<&Value>, params: &[Value]) -> Result<bool> {
 
     match value.and_then(|v| v.to_number().ok()) {
         Some(f) => Ok(f % 2.0 != 0.0),
-        _ => Err(Error::msg(
-            "Tester `odd` was called on a variable that isn't a number",
-        )),
+        _ => Err(Error::msg("Tester `odd` was called on a variable that isn't a number")),
     }
 }
 
@@ -212,9 +210,7 @@ pub fn matching(value: Option<&Value>, params: &[Value]) -> Result<bool> {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{
-        containing, defined, divisible_by, ending_with, iterable, matching, starting_with, string,
-    };
+    use super::{containing, defined, divisible_by, ending_with, iterable, matching, starting_with, string};
 
     use serde_json::value::to_value;
 
@@ -245,8 +241,7 @@ mod tests {
 
         for (val, divisor, expected) in tests {
             assert_eq!(
-                divisible_by(Some(&to_value(val).unwrap()), &[to_value(divisor).unwrap()],)
-                    .unwrap(),
+                divisible_by(Some(&to_value(val).unwrap()), &[to_value(divisor).unwrap()],).unwrap(),
                 expected
             );
         }
@@ -254,43 +249,21 @@ mod tests {
 
     #[test]
     fn test_iterable() {
-        assert_eq!(
-            iterable(Some(&to_value(vec!["1"]).unwrap()), &[]).unwrap(),
-            true
-        );
+        assert_eq!(iterable(Some(&to_value(vec!["1"]).unwrap()), &[]).unwrap(), true);
         assert_eq!(iterable(Some(&to_value(1).unwrap()), &[]).unwrap(), false);
-        assert_eq!(
-            iterable(Some(&to_value("hello").unwrap()), &[]).unwrap(),
-            false
-        );
+        assert_eq!(iterable(Some(&to_value("hello").unwrap()), &[]).unwrap(), false);
     }
 
     #[test]
     fn test_starting_with() {
-        assert!(starting_with(
-            Some(&to_value("helloworld").unwrap()),
-            &[to_value("hello").unwrap()],
-        )
-        .unwrap());
-        assert!(!starting_with(
-            Some(&to_value("hello").unwrap()),
-            &[to_value("hi").unwrap()],
-        )
-        .unwrap());
+        assert!(starting_with(Some(&to_value("helloworld").unwrap()), &[to_value("hello").unwrap()],).unwrap());
+        assert!(!starting_with(Some(&to_value("hello").unwrap()), &[to_value("hi").unwrap()],).unwrap());
     }
 
     #[test]
     fn test_ending_with() {
-        assert!(ending_with(
-            Some(&to_value("helloworld").unwrap()),
-            &[to_value("world").unwrap()],
-        )
-        .unwrap());
-        assert!(!ending_with(
-            Some(&to_value("hello").unwrap()),
-            &[to_value("hi").unwrap()],
-        )
-        .unwrap());
+        assert!(ending_with(Some(&to_value("helloworld").unwrap()), &[to_value("world").unwrap()],).unwrap());
+        assert!(!ending_with(Some(&to_value("hello").unwrap()), &[to_value("hi").unwrap()],).unwrap());
     }
 
     #[test]
@@ -299,32 +272,12 @@ mod tests {
         map.insert("hey", 1);
 
         let tests = vec![
-            (
-                to_value("hello world").unwrap(),
-                to_value("hel").unwrap(),
-                true,
-            ),
-            (
-                to_value("hello world").unwrap(),
-                to_value("hol").unwrap(),
-                false,
-            ),
+            (to_value("hello world").unwrap(), to_value("hel").unwrap(), true),
+            (to_value("hello world").unwrap(), to_value("hol").unwrap(), false),
             (to_value(vec![1, 2, 3]).unwrap(), to_value(3).unwrap(), true),
-            (
-                to_value(vec![1, 2, 3]).unwrap(),
-                to_value(4).unwrap(),
-                false,
-            ),
-            (
-                to_value(map.clone()).unwrap(),
-                to_value("hey").unwrap(),
-                true,
-            ),
-            (
-                to_value(map.clone()).unwrap(),
-                to_value("ho").unwrap(),
-                false,
-            ),
+            (to_value(vec![1, 2, 3]).unwrap(), to_value(4).unwrap(), false),
+            (to_value(map.clone()).unwrap(), to_value("hey").unwrap(), true),
+            (to_value(map.clone()).unwrap(), to_value("ho").unwrap(), false),
         ];
 
         for (container, needle, expected) in tests {
@@ -353,10 +306,6 @@ mod tests {
             assert_eq!(matching(Some(&container), &[needle]).unwrap(), expected);
         }
 
-        assert!(matching(
-            Some(&to_value("").unwrap()),
-            &[to_value("(Invalid regex").unwrap()]
-        )
-        .is_err());
+        assert!(matching(Some(&to_value("").unwrap()), &[to_value("(Invalid regex").unwrap()]).is_err());
     }
 }

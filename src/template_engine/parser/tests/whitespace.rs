@@ -129,10 +129,7 @@ fn handle_ws_both_sides_for_forloop_tag_and_remove_empty_node() {
                 value: "item".to_string(),
                 container: Expr::new(ExprVal::Int(1)),
                 // not valid but we don't care about it here
-                body: vec![
-                    Node::Text("   ".to_string()),
-                    Node::Text("hey   ".to_string()),
-                ],
+                body: vec![Node::Text("   ".to_string()), Node::Text("hey   ".to_string())],
             },
             end_ws,
         ),

@@ -116,13 +116,7 @@ pub fn remove_whitespace(nodes: Vec<Node>, body_ws: Option<WS>) -> Vec<Node> {
                 continue;
             }
             // The ugly one
-            Node::If(
-                If {
-                    conditions,
-                    otherwise,
-                },
-                end_ws,
-            ) => {
+            Node::If(If { conditions, otherwise }, end_ws) => {
                 trim_left_next = end_ws.right;
                 let mut new_conditions: Vec<(_, _, Vec<_>)> = Vec::with_capacity(conditions.len());
 

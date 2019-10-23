@@ -136,10 +136,7 @@ impl ArchetypeConfig {
     }
 
     pub fn variables(&self) -> &[Variable] {
-        self.variables
-            .as_ref()
-            .map(|v| v.as_slice())
-            .unwrap_or_default()
+        self.variables.as_ref().map(|v| v.as_slice()).unwrap_or_default()
     }
 
     pub fn with_contents<C: Into<String>>(mut self, contents: C) -> ArchetypeConfig {
@@ -305,11 +302,8 @@ mod tests {
             .with_tag("Service")
             .with_tag("REST")
             .with_module(
-                ModuleConfig::new(
-                    "~/modules/jpa-persistence-module",
-                    "{{ name | train_case }}",
-                )
-                .with_answer(Answer::new("name", "{{ name }} Service")),
+                ModuleConfig::new("~/modules/jpa-persistence-module", "{{ name | train_case }}")
+                    .with_answer(Answer::new("name", "{{ name }} Service")),
             )
             .with_variable(Variable::with_identifier("name").with_prompt("Application Name"))
             .with_variable(

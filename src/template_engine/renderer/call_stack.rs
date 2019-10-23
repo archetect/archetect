@@ -51,8 +51,7 @@ impl<'a> CallStack<'a> {
 
     pub fn push_for_loop_frame(&mut self, name: &'a str, for_loop: ForLoop<'a>) {
         let tpl = self.stack.last().expect("Stack frame").active_template;
-        self.stack
-            .push(StackFrame::new_for_loop(name, tpl, for_loop));
+        self.stack.push(StackFrame::new_for_loop(name, tpl, for_loop));
     }
 
     pub fn push_macro_frame(
@@ -62,8 +61,7 @@ impl<'a> CallStack<'a> {
         context: FrameContext<'a>,
         tpl: &'a Template,
     ) {
-        self.stack
-            .push(StackFrame::new_macro(name, tpl, namespace, context));
+        self.stack.push(StackFrame::new_macro(name, tpl, namespace, context));
     }
 
     pub fn push_include_frame(&mut self, name: &'a str, tpl: &'a Template) {
@@ -176,9 +174,7 @@ impl<'a> CallStack<'a> {
     /// True if should break body, applicable to `break` and `continue`
     pub fn should_break_body(&self) -> bool {
         match self.current_frame().for_loop {
-            Some(ref for_loop) => {
-                for_loop.state == ForLoopState::Break || for_loop.state == ForLoopState::Continue
-            }
+            Some(ref for_loop) => for_loop.state == ForLoopState::Break || for_loop.state == ForLoopState::Continue,
             None => false,
         }
     }

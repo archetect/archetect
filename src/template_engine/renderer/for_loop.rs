@@ -37,25 +37,14 @@ impl<'a> ForLoopValues<'a> {
     pub fn current_key(&self, i: usize) -> String {
         match *self {
             ForLoopValues::Array(_) => unreachable!("No key in array list"),
-            ForLoopValues::Object(ref values) => {
-                values.get(i).expect("Failed getting current key").0.clone()
-            }
+            ForLoopValues::Object(ref values) => values.get(i).expect("Failed getting current key").0.clone(),
         }
     }
     pub fn current_value(&self, i: usize) -> Val<'a> {
         match *self {
             ForLoopValues::Array(ref values) => match *values {
-                Cow::Borrowed(v) => {
-                    Cow::Borrowed(v.as_array().expect("Is array").get(i).expect("Value"))
-                }
-                Cow::Owned(_) => Cow::Owned(
-                    values
-                        .as_array()
-                        .expect("Is array")
-                        .get(i)
-                        .expect("Value")
-                        .clone(),
-                ),
+                Cow::Borrowed(v) => Cow::Borrowed(v.as_array().expect("Is array").get(i).expect("Value")),
+                Cow::Owned(_) => Cow::Owned(values.as_array().expect("Is array").get(i).expect("Value").clone()),
             },
             ForLoopValues::Object(ref values) => values.get(i).expect("Value").1.clone(),
         }
@@ -113,9 +102,7 @@ impl<'a> ForLoop<'a> {
     pub fn from_object_owned(key_name: &str, value_name: &str, object: Value) -> Self {
         let object_values = match object {
             Value::Object(c) => c,
-            _ => unreachable!(
-                "Tried to create a Forloop from an object owned but it wasn't an object"
-            ),
+            _ => unreachable!("Tried to create a Forloop from an object owned but it wasn't an object"),
         };
         let mut values = Vec::with_capacity(object_values.len());
         for (k, v) in object_values {

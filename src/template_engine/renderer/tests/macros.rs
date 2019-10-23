@@ -126,14 +126,8 @@ fn render_set_tag_macro() {
 fn render_macros_with_default_args() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
-        ),
-        (
-            "hello.html",
-            "{% import \"macros\" as macros %}{{macros::hello()}}",
-        ),
+        ("macros", "{% macro hello(val=1) %}{{val}}{% endmacro hello %}"),
+        ("hello.html", "{% import \"macros\" as macros %}{{macros::hello()}}"),
     ])
     .unwrap();
     let result = tera.render("hello.html", Context::new());
@@ -145,10 +139,7 @@ fn render_macros_with_default_args() {
 fn render_macros_override_default_args() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
-        ),
+        ("macros", "{% macro hello(val=1) %}{{val}}{% endmacro hello %}"),
         (
             "hello.html",
             "{% import \"macros\" as macros %}{{macros::hello(val=2)}}",
@@ -173,10 +164,7 @@ fn render_recursive_macro() {
     ]).unwrap();
     let result = tera.render("hello.html", Context::new());
 
-    assert_eq!(
-        result.unwrap(),
-        "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string()
-    );
+    assert_eq!(result.unwrap(), "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string());
 }
 
 // https://github.com/Keats/tera/issues/202
@@ -254,10 +242,7 @@ fn import_macros_into_other_macro_files() {
             "macros",
             r#"{% import "submacros" as sub %}{% macro test() %}{{ sub::test() }}{% endmacro %}"#,
         ),
-        (
-            "index",
-            r#"{% import "macros" as macros %}{{ macros::test() }}"#,
-        ),
+        ("index", r#"{% import "macros" as macros %}{{ macros::test() }}"#),
     ])
     .unwrap();
     let result = tera.render("index", Context::new());
@@ -270,9 +255,16 @@ fn can_load_parent_macro_in_child() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
         ("macros", "{% macro hello()%}{{ 1 }}{% endmacro hello %}"),
-        ("parent", "{% import \"macros\" as macros %}{{ macros::hello() }}{% block bob %}{% endblock bob %}"),
-        ("child", "{% extends \"parent\" %}{% block bob %}{{ super() }}Hey{% endblock bob %}"),
-    ]).unwrap();
+        (
+            "parent",
+            "{% import \"macros\" as macros %}{{ macros::hello() }}{% block bob %}{% endblock bob %}",
+        ),
+        (
+            "child",
+            "{% extends \"parent\" %}{% block bob %}{{ super() }}Hey{% endblock bob %}",
+        ),
+    ])
+    .unwrap();
 
     let result = tera.render("child", Context::new());
 
@@ -320,10 +312,20 @@ fn can_inherit_macro_import_from_grandparent() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
         ("macros", "{% macro hello()%}HELLO{% endmacro hello %}"),
-        ("grandparent", "{% import \"macros\" as macros %}{% block bob %}grandparent{% endblock bob %}"),
-        ("parent", "{% extends \"grandparent\" %}{% import \"macros\" as macros2 %}{% block bob %}parent{% endblock bob %}"),
-        ("child", "{% extends \"parent\" %}{% block bob %}{{macros::hello()}}-{{macros2::hello()}}{% endblock bob %}"),
-    ]).unwrap();
+        (
+            "grandparent",
+            "{% import \"macros\" as macros %}{% block bob %}grandparent{% endblock bob %}",
+        ),
+        (
+            "parent",
+            "{% extends \"grandparent\" %}{% import \"macros\" as macros2 %}{% block bob %}parent{% endblock bob %}",
+        ),
+        (
+            "child",
+            "{% extends \"parent\" %}{% block bob %}{{macros::hello()}}-{{macros2::hello()}}{% endblock bob %}",
+        ),
+    ])
+    .unwrap();
 
     let result = tera.render("child", Context::default());
     assert_eq!(result.unwrap(), "HELLO-HELLO".to_string());

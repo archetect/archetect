@@ -11,10 +11,22 @@ fn can_remove_whitespace_basic() {
         ("{%- for n in numbers %} {{n}}{%- endfor -%} ", " 1 2 3"),
         ("{%- for n in numbers -%}\n {{n}}\n {%- endfor -%} ", "123"),
         ("{%- if true -%}\n {{numbers}}\n {%- endif -%} ", "[1, 2, 3]"),
-        ("{%- if false -%}\n {{numbers}}\n {% else %} Nope{%- endif -%} ", " Nope"),
-        ("  {%- if false -%}\n {{numbers}}\n {% else -%} Nope {%- endif -%} ", "Nope"),
-        ("  {%- if false -%}\n {{numbers}}\n {% elif true -%} Nope {%- endif -%} ", "Nope"),
-        ("  {%- if false -%}\n {{numbers}}\n {% elif false -%} Nope {% else %} else {%- endif -%} ", " else"),
+        (
+            "{%- if false -%}\n {{numbers}}\n {% else %} Nope{%- endif -%} ",
+            " Nope",
+        ),
+        (
+            "  {%- if false -%}\n {{numbers}}\n {% else -%} Nope {%- endif -%} ",
+            "Nope",
+        ),
+        (
+            "  {%- if false -%}\n {{numbers}}\n {% elif true -%} Nope {%- endif -%} ",
+            "Nope",
+        ),
+        (
+            "  {%- if false -%}\n {{numbers}}\n {% elif false -%} Nope {% else %} else {%- endif -%} ",
+            " else",
+        ),
         ("  {%- set var = 2 -%} {{var}}", "2"),
         ("  {% set var = 2 -%} {{var}}", "  2"),
         ("  {% raw -%}{{2}} {% endraw -%} ", "  {{2}}"),
@@ -53,14 +65,8 @@ fn can_remove_whitespace_macros() {
     context.insert("numbers", &vec![1, 2, 3]);
 
     let inputs = vec![
-        (
-            r#" {%- import "macros" as macros -%} {{macros::hey()}}"#,
-            "Hey!",
-        ),
-        (
-            r#" {% import "macros" as macros %} {{macros::hey()}}"#,
-            "Hey!",
-        ),
+        (r#" {%- import "macros" as macros -%} {{macros::hey()}}"#, "Hey!"),
+        (r#" {% import "macros" as macros %} {{macros::hey()}}"#, "Hey!"),
         (
             r#" {%- import "macros" as macros %} {%- set hey = macros::hey() -%} {{hey}}"#,
             "Hey!",

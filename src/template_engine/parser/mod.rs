@@ -83,10 +83,7 @@ fn parse_fn_call(pair: Pair<Rule>) -> FunctionCall {
                 let (name, val) = parse_kwarg(p);
                 args.insert(name, val);
             }
-            _ => unreachable!(
-                "{:?} not supposed to get there (parse_fn_call)!",
-                p.as_rule()
-            ),
+            _ => unreachable!("{:?} not supposed to get there (parse_fn_call)!", p.as_rule()),
         };
     }
 
@@ -109,10 +106,7 @@ fn parse_filter(pair: Pair<Rule>) -> FunctionCall {
             Rule::fn_call => {
                 return parse_fn_call(p);
             }
-            _ => unreachable!(
-                "{:?} not supposed to get there (parse_filter)!",
-                p.as_rule()
-            ),
+            _ => unreachable!("{:?} not supposed to get there (parse_filter)!", p.as_rule()),
         };
     }
 
@@ -140,10 +134,7 @@ fn parse_test_call(pair: Pair<Rule>) -> (String, Vec<Expr>) {
                     }
                 }
             }
-            _ => unreachable!(
-                "{:?} not supposed to get there (parse_test_call)!",
-                p.as_rule()
-            ),
+            _ => unreachable!("{:?} not supposed to get there (parse_test_call)!", p.as_rule()),
         };
     }
 
@@ -702,10 +693,7 @@ fn parse_macro_definition(pair: Pair<Rule>) -> Node {
                     };
                 }
             }
-            _ => unreachable!(
-                "unexpected {:?} rule in parse_macro_definition",
-                p.as_rule()
-            ),
+            _ => unreachable!("unexpected {:?} rule in parse_macro_definition", p.as_rule()),
         }
     }
 
@@ -889,13 +877,7 @@ fn parse_if(pair: Pair<Rule>) -> Node {
         }
     }
 
-    Node::If(
-        If {
-            conditions,
-            otherwise,
-        },
-        end_ws,
-    )
+    Node::If(If { conditions, otherwise }, end_ws)
 }
 
 fn parse_content(pair: Pair<Rule>) -> Vec<Node> {
@@ -918,11 +900,9 @@ fn parse_content(pair: Pair<Rule>) -> Vec<Node> {
             Rule::forloop => nodes.push(parse_forloop(p)),
             Rule::break_tag => nodes.push(parse_break_tag(p)),
             Rule::continue_tag => nodes.push(parse_continue_tag(p)),
-            Rule::content_if
-            | Rule::macro_if
-            | Rule::block_if
-            | Rule::for_if
-            | Rule::filter_section_if => nodes.push(parse_if(p)),
+            Rule::content_if | Rule::macro_if | Rule::block_if | Rule::for_if | Rule::filter_section_if => {
+                nodes.push(parse_if(p))
+            }
             Rule::filter_section => nodes.push(parse_filter_section(p)),
             Rule::text => nodes.push(Node::Text(p.as_span().as_str().to_string())),
             Rule::block => nodes.push(parse_block(p)),

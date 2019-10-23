@@ -35,11 +35,9 @@ impl Location {
         let cache_root = app_root.cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
-            let cache_path = cache_root.clone().join(format!(
-                "{}_{}",
-                &captures[1],
-                &captures[2].replace("/", ".")
-            ));
+            let cache_path = cache_root
+                .clone()
+                .join(format!("{}_{}", &captures[1], &captures[2].replace("/", ".")));
             if let Some(error) = cache_git_repo(&path, &cache_path, offline) {
                 return Err(error);
             }

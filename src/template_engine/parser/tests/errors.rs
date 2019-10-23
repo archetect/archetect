@@ -19,7 +19,7 @@ fn invalid_number() {
         "{{ 1.2.2 }}",
         &[
             "1:7",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
@@ -35,7 +35,7 @@ fn wrong_start_block() {
         "{{ if true %}",
         &[
             "1:7",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
@@ -57,25 +57,19 @@ fn unterminated_variable_block() {
         "{{ hey",
         &[
             "1:7",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
 
 #[test]
 fn unterminated_string() {
-    assert_err_msg(
-        r#"{{ "hey }}"#,
-        &["1:4", "expected a value that can be negated"],
-    );
+    assert_err_msg(r#"{{ "hey }}"#, &["1:4", "expected a value that can be negated"]);
 }
 
 #[test]
 fn unterminated_if_tag() {
-    assert_err_msg(
-        r#"{% if true %}sd"#,
-        &["1:16", r#"expected tag or some content"#],
-    );
+    assert_err_msg(r#"{% if true %}sd"#, &["1:16", r#"expected tag or some content"#]);
 }
 
 #[test]
@@ -103,10 +97,7 @@ fn invalid_macro_content() {
     {% endmacro nested %}
 {% endmacro input %}
     "#,
-        &[
-            "3:5",
-            "unexpected tag; expected `{% endmacro %}` or the macro content",
-        ],
+        &["3:5", "unexpected tag; expected `{% endmacro %}` or the macro content"],
     );
 }
 
@@ -117,10 +108,7 @@ fn invalid_macro_default_arg_value() {
 {% macro input(label=something) %}
 {% endmacro input %}
     "#,
-        &[
-            "2:22",
-            "expected an integer, a float, a string, or `true` or `false`",
-        ],
+        &["2:22", "expected an integer, a float, a string, or `true` or `false`"],
     );
 }
 
@@ -163,10 +151,7 @@ fn invalid_extends_position() {
 hello
 {% extends "hey.html" %}
     "#,
-        &[
-            "3:1",
-            "unexpected tag; expected end of input or some content",
-        ],
+        &["3:1", "unexpected tag; expected end of input or some content"],
     );
 }
 
@@ -176,7 +161,7 @@ fn invalid_operator() {
         "{{ hey =! }}",
         &[
             "1:8",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
@@ -211,10 +196,7 @@ fn missing_variable_name_in_set() {
 fn missing_value_in_set() {
     assert_err_msg(
         "{% set a =  %}",
-        &[
-            "1:13",
-            "expected a value that can be negated or an array of values",
-        ],
+        &["1:13", "expected a value that can be negated or an array of values"],
     );
 }
 
@@ -230,10 +212,7 @@ fn unterminated_fn_call() {
 fn invalid_fn_call_missing_value() {
     assert_err_msg(
         "{{ a | slice(start=) }}",
-        &[
-            "1:20",
-            "expected a value that can be negated or an array of values",
-        ],
+        &["1:20", "expected a value that can be negated or an array of values"],
     );
 }
 
@@ -251,7 +230,7 @@ fn invalid_macro_call() {
         "{{ my:macro() }}",
         &[
             "1:6",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
@@ -311,7 +290,7 @@ fn invalid_test_argument() {
         r#"{% if a is odd(key=1) %}"#,
         &[
             "1:19",
-            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter"
+            "expected `or`, `and`, `<=`, `>=`, `<`, `>`, `==`, `!=`, `+`, `-`, `*`, `/`, `%`, or a filter",
         ],
     );
 }
@@ -323,16 +302,10 @@ fn unterminated_raw_tag() {
 
 #[test]
 fn invalid_break_outside_loop() {
-    assert_err_msg(
-        r#"{% break %}"#,
-        &["1:1", "{% break %}", "expected a template"],
-    );
+    assert_err_msg(r#"{% break %}"#, &["1:1", "{% break %}", "expected a template"]);
 }
 
 #[test]
 fn invalid_continue_outside_loop() {
-    assert_err_msg(
-        r#"{% continue %}"#,
-        &["1:1", "{% continue %}", "expected a template"],
-    );
+    assert_err_msg(r#"{% continue %}"#, &["1:1", "{% continue %}", "expected a template"]);
 }

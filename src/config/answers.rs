@@ -74,11 +74,7 @@ impl AnswerConfig {
         self.answers.push(answer);
     }
 
-    pub fn with_answer_pair<I: Into<String>, V: Into<String>>(
-        mut self,
-        identifier: I,
-        value: V,
-    ) -> AnswerConfig {
+    pub fn with_answer_pair<I: Into<String>, V: Into<String>>(mut self, identifier: I, value: V) -> AnswerConfig {
         self.answers.push(Answer::new(identifier, value));
         self
     }
@@ -95,9 +91,7 @@ impl AnswerConfig {
 
 impl Default for AnswerConfig {
     fn default() -> Self {
-        AnswerConfig {
-            answers: Vec::new(),
-        }
+        AnswerConfig { answers: Vec::new() }
     }
 }
 
@@ -209,26 +203,17 @@ mod tests {
 
         assert_eq!(parse("key = value"), Ok(Answer::new("key", "value")));
 
-        assert_eq!(
-            parse("key = value set"),
-            Ok(Answer::new("key", "value set"))
-        );
+        assert_eq!(parse("key = value set"), Ok(Answer::new("key", "value set")));
 
         assert_eq!(parse("key='value'"), Ok(Answer::new("key", "value")));
 
-        assert_eq!(
-            parse("key='value set'"),
-            Ok(Answer::new("key", "value set"))
-        );
+        assert_eq!(parse("key='value set'"), Ok(Answer::new("key", "value set")));
 
         assert_eq!(parse("key = 'value'"), Ok(Answer::new("key", "value")));
 
         assert_eq!(parse("key=\"value\""), Ok(Answer::new("key", "value")));
 
-        assert_eq!(
-            parse("key=\"value set\""),
-            Ok(Answer::new("key", "value set"))
-        );
+        assert_eq!(parse("key=\"value set\""), Ok(Answer::new("key", "value set")));
 
         assert_eq!(parse("key = \"value\""), Ok(Answer::new("key", "value")));
 
@@ -250,12 +235,7 @@ mod tests {
     #[test]
     fn test_parse_answer() {
         assert_eq!(
-            parse_answer(
-                AnswerParser::parse(Rule::answer, "key=value")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
+            parse_answer(AnswerParser::parse(Rule::answer, "key=value").unwrap().next().unwrap()),
             Answer::new("key", "value")
         );
 
@@ -283,12 +263,7 @@ mod tests {
     #[test]
     fn test_parse_identifier() {
         assert_eq!(
-            parse_identifier(
-                AnswerParser::parse(Rule::identifier, "key")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
+            parse_identifier(AnswerParser::parse(Rule::identifier, "key").unwrap().next().unwrap()),
             "key"
         );
     }
@@ -296,32 +271,17 @@ mod tests {
     #[test]
     fn test_parse_value() {
         assert_eq!(
-            parse_value(
-                AnswerParser::parse(Rule::string, "value")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
+            parse_value(AnswerParser::parse(Rule::string, "value").unwrap().next().unwrap()),
             "value"
         );
 
         assert_eq!(
-            parse_value(
-                AnswerParser::parse(Rule::string, "\"value\"")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
+            parse_value(AnswerParser::parse(Rule::string, "\"value\"").unwrap().next().unwrap()),
             "value"
         );
 
         assert_eq!(
-            parse_value(
-                AnswerParser::parse(Rule::string, "'value'")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
+            parse_value(AnswerParser::parse(Rule::string, "'value'").unwrap().next().unwrap()),
             "value"
         );
     }
