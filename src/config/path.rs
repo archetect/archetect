@@ -1,4 +1,4 @@
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PathRuleConfig {
     description: Option<String>,
     patterns: Vec<String>,
@@ -52,7 +52,7 @@ impl PathRuleConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq, Clone)]
 pub enum PatternType {
     GLOB,
     REGEX,

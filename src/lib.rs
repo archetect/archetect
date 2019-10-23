@@ -25,17 +25,19 @@ use log::{trace, warn};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use read_input::prelude::*;
 use template_engine::{Context, Tera};
 
-use crate::config::ArchetypeConfig;
+use crate::config::{ArchetypeConfig, PathRuleConfig};
 use crate::config::ModuleConfig;
 use crate::config::{Answer, PatternType};
 use crate::util::{Source, SourceError};
-use failure::{Error, Fail};
+use failure::Fail;
 use std::collections::HashMap;
+use crate::errors::RenderError;
+use std::error::Error;
 
 pub struct Archetype {
     tera: Tera,
@@ -79,12 +81,12 @@ impl Archetype {
         &self.config
     }
 
-    fn render_internal<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
+    fn render_directory<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
         &self,
         context: Context,
         source: SRC,
         destination: DEST,
-    ) -> Result<(), Error> {
+    ) -> Result<(), RenderError> {
         let source = source.into();
         let destination = destination.into();
 
@@ -98,68 +100,112 @@ impl Archetype {
             return Ok(());
         }
 
-        'outer: for entry in fs::read_dir(&source)? {
+        'walking: for entry in fs::read_dir(&source)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                let name = self
-                    .tera
-                    .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
-                    .unwrap();
-                let mut destination = destination.clone();
-                destination.push(name);
+                let destination = self.render_destination(&destination, &path, &context)?;
                 trace!("Generating {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.render_internal(context.clone(), path, destination).unwrap();
+                self.render_directory(context.clone(), path, destination).unwrap();
             } else if path.is_file() {
-                for path_rule in self.configuration().path_rules() {
-                    if path_rule.pattern_type() == &PatternType::GLOB {
-                        for pattern in path_rule.patterns() {
-                            let matcher = glob::Pattern::new(pattern).unwrap();
-                            if matcher.matches_path(&path) {
-                                if !path_rule.filter().unwrap_or(true) {
-                                    trace!("Copying    {:?}", &path);
-                                    let name = self
-                                        .tera
-                                        .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
-                                        .unwrap();
-                                    let template = fs::read_to_string(&path)?;
-                                    let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
-                                    let destination = destination.clone().join(name);
-                                    trace!("Generating {:?}", &destination);
-                                    let mut output = File::create(&destination)?;
-                                    output.write(file_contents.as_bytes()).unwrap();
-                                    continue 'outer;
-                                }
-                            }
+                match self.match_rules(&path) {
+                    Ok(None) => {
+                        let destination = self.render_destination(&destination, &path, &context)?;
+                        let contents = self.render_contents(&path, &context)?;
+                        self.write_contents(&destination, &contents)?;
+                    },
+                    Ok(Some(rule)) => {
+                        let destination = self.render_destination(&destination, &path, &context)?;
+                        if rule.filter().unwrap_or(true) {
+                            let contents = self.render_contents(&path, &context)?;
+                            self.write_contents(&destination, &contents)?;
+                        } else {
+                            self.copy_contents(&path, &destination)?;
                         }
-                    }
-                }
-                let name = self
-                    .tera
-                    .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone())
-                    .unwrap();
-                let template = fs::read_to_string(&path)?;
-                let file_contents = self.tera.render_string(&template, context.clone()).unwrap();
-                let destination = destination.clone().join(name);
-                trace!("Generating {:?}", &destination);
-                let mut output = File::create(&destination)?;
-                output.write(file_contents.as_bytes()).unwrap();
+                    },
+                    Err(err) => return Err(err),
+                };
             }
         }
 
         Ok(())
     }
 
+    fn match_rules<P: AsRef<Path>>(&self, path: P) -> Result<Option<PathRuleConfig>, RenderError> {
+        let path= path.as_ref();
+        for path_rule in self.configuration().path_rules() {
+            if path_rule.pattern_type() == &PatternType::GLOB {
+                for pattern in path_rule.patterns() {
+                    let matcher = glob::Pattern::new(pattern).unwrap();
+                    if matcher.matches_path(&path) {
+                        return Ok(Some(path_rule.to_owned()));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+        let path = path.as_ref();
+        match self
+            .tera
+            .render_string(path.file_name().unwrap().to_str().unwrap(), context.clone()) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                let message = error.description().to_owned();
+                Err(RenderError::PathRenderError { source: path.into(), error, message })
+            }
+        }
+    }
+
+    fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(&self, parent: P, child: C, context: &Context) -> Result<PathBuf, RenderError> {
+        let mut destination = parent.as_ref().to_owned();
+        let child = child.as_ref();
+        let name = self.render_path(&child, &context)?;
+        destination.push(name);
+        Ok(destination)
+    }
+
+    fn render_contents<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+        let path = path.as_ref();
+        let template = fs::read_to_string(path)?;
+        match self.tera.render_string(&template, context.clone()) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                let message = error.description().to_owned();
+                Err(RenderError::FileRenderError { source: path.into(), error, message })
+            }
+        }
+    }
+
+    fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
+        let destination = destination.as_ref();
+        trace!("Generating {:?}", destination);
+        let mut output = File::create(&destination)?;
+        output.write(contents.as_bytes())?;
+        Ok(())
+    }
+
+    fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {
+        let source = source.as_ref();
+        let destination = destination.as_ref();
+        trace!("Copying    {:?}", destination);
+        fs::copy(source, destination)?;
+        Ok(())
+
+    }
+
     pub fn render<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
-        self.render_internal(
+        self.render_directory(
             context.clone(),
             self.path.clone().join(self.configuration().contents_dir()),
             destination,
         )
-        .unwrap();
+            .unwrap();
 
         for module in &self.modules {
             let destination = PathBuf::from(
