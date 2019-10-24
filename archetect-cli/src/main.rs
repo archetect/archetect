@@ -1,9 +1,9 @@
 mod cli;
 
-use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, Catalog, CatalogEntry, CatalogEntryType, VariableInfo};
-use archetect::input::CatalogSelectError;
+use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogEntry, CatalogConfigEntryType, VariableInfo, CatalogConfigEntry, Catalog, CatalogError};
+use archetect::input::{CatalogSelectError, select_from_catalog};
 use archetect::system::SystemError;
-use archetect::util::SourceError;
+use archetect::util::{SourceError, Source};
 use archetect::RenderError;
 use archetect::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
@@ -16,6 +16,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::ffi::OsStr;
 
 pub mod loggerv;
 
@@ -45,7 +46,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     if let Some(matches) = matches.values_of("answer-file") {
         for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
-            for (identifier,answer_info) in f.answers() {
+            for (identifier, answer_info) in f.answers() {
                 answers.insert(identifier.to_owned(), answer_info.clone());
             }
         }
@@ -139,7 +140,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                         Author: {{ author | title_case }}
                     "#
                     )
-                    .as_bytes(),
+                        .as_bytes(),
                 )
                 .expect("Error writing README.md");
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
@@ -147,17 +148,59 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     if let Some(matches) = matches.subcommand_matches("catalog") {
-        let catalog_file = archetect.layout().catalog();
-        if catalog_file.exists() {
-            let catalog = Catalog::load(catalog_file).unwrap();
+        let default_source = archetect.layout().catalog().to_str().map(|s| s.to_owned()).unwrap();
+        let source = matches.value_of("source").unwrap_or_else(|| &default_source);
+        let source = Source::detect(&archetect, source, None)?;
+        if source.local_path().exists() {
+            let catalog_file = source.local_path();
+            if catalog_file.extension().eq(&Some(OsStr::new("toml"))) {
+                let catalog = CatalogConfig::load(catalog_file).unwrap();
 
-            match archetect::input::select_from_catalog(&archetect, &catalog) {
-                Ok(entry) => match entry {
-                    CatalogEntry {
-                        entry_type: CatalogEntryType::Archetype,
-                        description: _,
-                        source,
-                    } => {
+                match archetect::input::select_from_catalog_config(&archetect, &catalog) {
+                    Ok(entry) => match entry {
+                        CatalogConfigEntry {
+                            entry_type: CatalogConfigEntryType::Archetype,
+                            description: _,
+                            source,
+                        } => {
+                            let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+
+                            let archetype = archetect.load_archetype(&source, None)?;
+
+                            if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+                                for (identifier, answer_info) in answer_config.answers() {
+                                    if !answers.contains_key(identifier) {
+                                        answers.insert(identifier.to_owned(), answer_info.clone());
+                                    }
+                                }
+                            }
+                            let context = archetype.get_context(&answers, None).unwrap();
+                            return archetype.render(destination, context).map_err(|e| e.into());
+                        }
+                        CatalogConfigEntry {
+                            entry_type: CatalogConfigEntryType::Catalog,
+                            description: _,
+                            source: _,
+                        } => unreachable!("This is not a possibility."),
+                    },
+                    Err(CatalogSelectError::EmptyCatalog) => {
+                        info!("No archetypes in your catalog. Try adding one, first.");
+                    }
+                    Err(CatalogSelectError::SourceError(e)) => {
+                        error!("Error reading from source: {:?}", e);
+                    }
+                    Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
+                        error!("'{}' is not a valid catalog.", source);
+                    }
+                }
+            } else {
+                let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
+                let catalog = Catalog::load(source.clone())?;
+
+                let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
+
+                match catalog_entry {
+                    CatalogEntry::Archetype { description: _, source } => {
                         let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
                         let archetype = archetect.load_archetype(&source, None)?;
@@ -171,21 +214,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                         }
                         let context = archetype.get_context(&answers, None).unwrap();
                         return archetype.render(destination, context).map_err(|e| e.into());
-                    }
-                    CatalogEntry {
-                        entry_type: CatalogEntryType::Catalog,
-                        description: _,
-                        source: _,
-                    } => unreachable!("This is not a possibility."),
-                },
-                Err(CatalogSelectError::EmptyCatalog) => {
-                    info!("No archetypes in your catalog. Try adding one, first.");
-                }
-                Err(CatalogSelectError::SourceError(e)) => {
-                    error!("Error reading from source: {:?}", e);
-                }
-                Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
-                    error!("'{}' is not a valid catalog.", source);
+                    },
+                    _ => unreachable!(),
                 }
             }
         } else {
@@ -203,6 +233,7 @@ fn handle_archetect_error(error: ArchetectError) {
         ArchetectError::GenericError(error) => error!("Archetect Error: {}", error),
         ArchetectError::RenderError(error) => handle_render_error(error),
         ArchetectError::SystemError(error) => handle_system_error(error),
+        ArchetectError::CatalogError(error) => handle_catalog_error(error),
     }
 }
 
@@ -279,5 +310,16 @@ fn handle_render_error(error: RenderError) {
         RenderError::IOError { error: _, message } => {
             error!("Unexpected IO Error:\n{}", message);
         }
+    }
+}
+
+fn handle_catalog_error(error: CatalogError) {
+    match error {
+        CatalogError::EmptyCatalog => { error!("Empty Catalog") }
+        CatalogError::EmptyGroup => { error!("Empty Catalog Group") }
+        CatalogError::SourceError(error) => { error!("Catalog Source Error: {:?}", error) }
+        CatalogError::NotFound(error) => { error!("Catalog not found: {}", error.to_str().unwrap()) }
+        CatalogError::IOError(error) => { error!("Catalog IO Error: {}", error) }
+        CatalogError::YamlError(error) => { error!("Catalog YAML Read Error: {}", error) }
     }
 }

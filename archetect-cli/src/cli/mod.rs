@@ -87,11 +87,19 @@ pub fn get_matches() -> App<'static, 'static> {
                         .help("The directory to render the Archetype in.")
                         .takes_value(true),
                 )
+                .arg(
+                    Arg::with_name("source")
+                        .short("s")
+                        .long("source")
+                        .takes_value(true)
+                        .help("Catalog source location")
+                    ,
+                )
                 .subcommand(
                     SubCommand::with_name("add")
                         .arg(
                             Arg::with_name("source")
-                                .short("l")
+                                .short("s")
                                 .long("source")
                                 .takes_value(true)
                                 .help("Archetype source location"),
