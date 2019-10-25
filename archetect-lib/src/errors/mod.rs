@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use crate::ArchetypeError;
 use crate::system::SystemError;
 use crate::util::SourceError;
+use crate::config::{CatalogError};
 
 #[derive(Debug)]
 pub enum ArchetectError {
@@ -10,6 +11,7 @@ pub enum ArchetectError {
     RenderError(RenderError),
     SystemError(SystemError),
     SourceError(SourceError),
+    CatalogError(CatalogError),
 }
 
 impl From<ArchetypeError> for ArchetectError {
@@ -39,6 +41,12 @@ impl From<SystemError> for ArchetectError {
 impl From<SourceError> for ArchetectError {
     fn from(error: SourceError) -> Self {
         ArchetectError::SourceError(error)
+    }
+}
+
+impl From<CatalogError> for ArchetectError {
+    fn from(error: CatalogError) -> Self {
+        ArchetectError::CatalogError(error)
     }
 }
 

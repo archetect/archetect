@@ -3,6 +3,7 @@ use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
+use crate::config::CATALOG_FILE_NAME;
 
 pub enum LayoutType {
     Native,
@@ -32,7 +33,7 @@ pub trait SystemLayout {
     }
 
     fn catalog(&self) -> PathBuf {
-        self.configs_dir().join("catalog.toml")
+        self.configs_dir().join(CATALOG_FILE_NAME)
     }
 
     fn catalog_registry(&self) -> PathBuf {

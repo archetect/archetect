@@ -314,10 +314,10 @@ mod tests {
 
         let config = serde_yaml::from_str::<ArchetypeConfig>(&input).unwrap();
 
-        assert_eq!(config.vars().len(), 2);
-        assert_eq!(config.vars().get("author").unwrap().prompt().unwrap(), "Author: ");
-        assert_eq!(config.vars().get("organization").unwrap().prompt().unwrap(), "Organization: ");
-        assert_eq!(config.vars().get("organization").unwrap().default().unwrap(), "Acme Inc");
+        assert_eq!(config.variables().len(), 2);
+        assert_eq!(config.variables().get("author").unwrap().prompt().unwrap(), "Author: ");
+        assert_eq!(config.variables().get("organization").unwrap().prompt().unwrap(), "Organization: ");
+        assert_eq!(config.variables().get("organization").unwrap().default().unwrap(), "Acme Inc");
     }
 
     #[test]
