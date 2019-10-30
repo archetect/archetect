@@ -1,7 +1,7 @@
 mod cli;
 
-use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogEntry, CatalogConfigEntryType, VariableInfo, CatalogConfigEntry, Catalog, CatalogError};
-use archetect::input::{CatalogSelectError, select_from_catalog};
+use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogEntry, CatalogConfigEntryType, VariableInfo, CatalogConfigEntry, Catalog, CatalogError, CATALOG_FILE_NAME};
+use archetect::input::{CatalogSelectError, select_from_catalog, you_are_sure};
 use archetect::system::SystemError;
 use archetect::util::{SourceError, Source};
 use archetect::RenderError;
@@ -151,18 +151,70 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         let default_source = archetect.layout().catalog().to_str().map(|s| s.to_owned()).unwrap();
         let source = matches.value_of("source").unwrap_or_else(|| &default_source);
         let source = Source::detect(&archetect, source, None)?;
-        if source.local_path().exists() {
-            let catalog_file = source.local_path();
-            if catalog_file.extension().eq(&Some(OsStr::new("toml"))) {
-                let catalog = CatalogConfig::load(catalog_file).unwrap();
+        let mut local_path = source.local_path().to_owned();
+        if local_path.is_dir() {
+            local_path.push(CATALOG_FILE_NAME);
+        }
 
-                match archetect::input::select_from_catalog_config(&archetect, &catalog) {
-                    Ok(entry) => match entry {
-                        CatalogConfigEntry {
-                            entry_type: CatalogConfigEntryType::Archetype,
-                            description: _,
-                            source,
-                        } => {
+        if let Some(_matches) = matches.subcommand_matches("clear") {
+//            if you_are_sure(format!("Are you sure you want to clear the catalog at '{}'?", local_path.to_str().unwrap()).as_str()) {
+//                let catalog = Catalog::new();
+//                catalog.save_to_file(local_path)?;
+//                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
+//            }
+        } else if let Some(_matches) = matches.subcommand_matches("add") {
+            
+        } else {
+            if source.local_path().exists() {
+                let catalog_file = source.local_path();
+                if catalog_file.extension().eq(&Some(OsStr::new("toml"))) {
+                    let catalog = CatalogConfig::load(catalog_file).unwrap();
+
+                    match archetect::input::select_from_catalog_config(&archetect, &catalog) {
+                        Ok(entry) => match entry {
+                            CatalogConfigEntry {
+                                entry_type: CatalogConfigEntryType::Archetype,
+                                description: _,
+                                source,
+                            } => {
+                                let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+
+                                let archetype = archetect.load_archetype(&source, None)?;
+
+                                if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+                                    for (identifier, answer_info) in answer_config.answers() {
+                                        if !answers.contains_key(identifier) {
+                                            answers.insert(identifier.to_owned(), answer_info.clone());
+                                        }
+                                    }
+                                }
+                                let context = archetype.get_context(&answers, None).unwrap();
+                                return archetype.render(destination, context).map_err(|e| e.into());
+                            }
+                            CatalogConfigEntry {
+                                entry_type: CatalogConfigEntryType::Catalog,
+                                description: _,
+                                source: _,
+                            } => unreachable!("This is not a possibility."),
+                        },
+                        Err(CatalogSelectError::EmptyCatalog) => {
+                            info!("No archetypes in your catalog. Try adding one, first.");
+                        }
+                        Err(CatalogSelectError::SourceError(e)) => {
+                            error!("Error reading from source: {:?}", e);
+                        }
+                        Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
+                            error!("'{}' is not a valid catalog.", source);
+                        }
+                    }
+                } else {
+                    let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
+                    let catalog = Catalog::load(source.clone())?;
+
+                    let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
+
+                    match catalog_entry {
+                        CatalogEntry::Archetype { description: _, source } => {
                             let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
                             let archetype = archetect.load_archetype(&source, None)?;
@@ -176,50 +228,13 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                             }
                             let context = archetype.get_context(&answers, None).unwrap();
                             return archetype.render(destination, context).map_err(|e| e.into());
-                        }
-                        CatalogConfigEntry {
-                            entry_type: CatalogConfigEntryType::Catalog,
-                            description: _,
-                            source: _,
-                        } => unreachable!("This is not a possibility."),
-                    },
-                    Err(CatalogSelectError::EmptyCatalog) => {
-                        info!("No archetypes in your catalog. Try adding one, first.");
-                    }
-                    Err(CatalogSelectError::SourceError(e)) => {
-                        error!("Error reading from source: {:?}", e);
-                    }
-                    Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
-                        error!("'{}' is not a valid catalog.", source);
+                        },
+                        _ => unreachable!(),
                     }
                 }
             } else {
-                let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
-                let catalog = Catalog::load(source.clone())?;
-
-                let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
-
-                match catalog_entry {
-                    CatalogEntry::Archetype { description: _, source } => {
-                        let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
-
-                        let archetype = archetect.load_archetype(&source, None)?;
-
-                        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                            for (identifier, answer_info) in answer_config.answers() {
-                                if !answers.contains_key(identifier) {
-                                    answers.insert(identifier.to_owned(), answer_info.clone());
-                                }
-                            }
-                        }
-                        let context = archetype.get_context(&answers, None).unwrap();
-                        return archetype.render(destination, context).map_err(|e| e.into());
-                    },
-                    _ => unreachable!(),
-                }
+                info!("No archetypes in your catalog. Try adding one, first.");
             }
-        } else {
-            info!("No archetypes in your catalog. Try adding one, first.");
         }
     }
 
