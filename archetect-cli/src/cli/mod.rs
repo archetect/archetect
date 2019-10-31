@@ -92,6 +92,7 @@ pub fn get_matches() -> App<'static, 'static> {
                         .short("s")
                         .long("source")
                         .takes_value(true)
+                        .global(true)
                         .help("Catalog source location")
                     ,
                 )
@@ -111,7 +112,14 @@ pub fn get_matches() -> App<'static, 'static> {
                                 .takes_value(true)
                                 .help("Archetype Description"),
                         ),
-                ),
+                )
+                .subcommand(
+                    SubCommand::with_name("clear")
+                        .help("Clears a local/cached target catalog.  This effectively overwrites a \
+                            catalog with an empty one in preparation for building up a new one through subsequent commands.")
+                        .help_short("Clears a local/cached target catalog.")
+                )
+            ,
         )
         .subcommand(
             SubCommand::with_name("completions")

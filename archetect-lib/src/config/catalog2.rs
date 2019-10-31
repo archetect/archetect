@@ -1,6 +1,6 @@
 use crate::util::{Source, SourceError};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub const CATALOG_FILE_NAME: &str = "catalog.yml";
 
@@ -10,6 +10,10 @@ pub struct Catalog {
 }
 
 impl Catalog {
+    pub fn new() -> Catalog {
+        Catalog{ entries: vec![] }
+    }
+
     pub fn load(source: Source) -> Result<Catalog, CatalogError> {
         let catalog_path = match source {
             Source::LocalFile { path } => path,
@@ -27,9 +31,9 @@ impl Catalog {
         Ok(catalog)
     }
 
-    pub fn save_to_file(&self, path: String) -> Result<(), CatalogError> {
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), CatalogError> {
         let yaml = serde_yaml::to_string(&self)?;
-        fs::write(&path, &yaml)?;
+        fs::write(path, &yaml)?;
         Ok(())
     }
 

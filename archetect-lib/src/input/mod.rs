@@ -19,6 +19,13 @@ impl From<SourceError> for CatalogSelectError {
     }
 }
 
+pub fn you_are_sure(message: &str) -> bool {
+    input::<bool>()
+        .msg(format!("{} [false]: ", message))
+        .default(false)
+        .get()
+}
+
 pub fn select_from_catalog_config(archetect: &Archetect, catalog: &CatalogConfig) -> Result<CatalogConfigEntry, CatalogSelectError> {
     if catalog.entries().len() == 0 {
         return Err(CatalogSelectError::EmptyCatalog);
@@ -34,12 +41,12 @@ pub fn select_from_catalog_config(archetect: &Archetect, catalog: &CatalogConfig
         let mut choices = catalog
             .entries()
             .iter()
-            .map(|a| a.clone())
             .enumerate()
+            .map(|(id, entry)| (id + 1, entry.clone()))
             .collect::<HashMap<_, _>>();
 
         for (id, entry) in catalog.entries().iter().enumerate() {
-            println!("{:>2}) {}", id, entry.description());
+            println!("{:>2}) {}", id + 1, entry.description());
         }
 
         let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
@@ -100,12 +107,12 @@ pub fn select_from_entries(_archetect: &Archetect, mut entry_items: Vec<CatalogE
     loop {
         let mut choices = entry_items
             .iter()
-            .map(|e| e.clone())
             .enumerate()
+            .map(|(id, entry)| (id + 1, entry.clone()))
             .collect::<HashMap<_, _>>();
 
         for (id, entry) in entry_items.iter().enumerate() {
-            println!("{:>2}) {}", id, entry.description());
+            println!("{:>2}) {}", id + 1, entry.description());
         }
 
         let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
