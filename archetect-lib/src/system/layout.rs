@@ -29,7 +29,7 @@ pub trait SystemLayout {
     }
 
     fn answers_config(&self) -> PathBuf {
-        self.configs_dir().join("answers.yaml")
+        self.configs_dir().join("answers.yml")
     }
 
     fn catalog(&self) -> PathBuf {
@@ -80,7 +80,15 @@ impl RootedSystemLayout {
     pub fn new<D: AsRef<Path>>(directory: D) -> Result<RootedSystemLayout, SystemError> {
         let directory = directory.as_ref();
         let directory = directory.to_owned();
-        Ok(RootedSystemLayout { directory })
+        let layout = RootedSystemLayout { directory };
+
+        if !layout.answers_config().exists() {
+            if layout.configs_dir().join("answers.yaml").exists() {
+                std::fs::rename(layout.configs_dir().join("answers.yaml"), layout.answers_config())?;
+            }
+        }
+
+        Ok(layout)
     }
 }
 
