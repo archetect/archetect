@@ -1,8 +1,10 @@
+use crate::config::actions::Actions;
 use crate::config::rule::RuleConfig;
-use crate::config::{AnswerInfo, ModuleInfo};
 use crate::config::VariableInfo;
+use crate::config::{AnswerInfo, ModuleInfo};
 use crate::ArchetypeError;
 use linked_hash_map::LinkedHashMap;
+use semver::VersionReq;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -10,6 +12,8 @@ use std::{fmt, fs};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requires: Option<VersionReq>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,8 +28,10 @@ pub struct ArchetypeConfig {
     variables: LinkedHashMap<String, VariableInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     contents: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    modules: Vec<ModuleInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    modules: Option<Vec<ModuleInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    actions: Option<Vec<Actions>>,
     #[serde(alias = "path")]
     #[serde(skip_serializing_if = "Option::is_none")]
     rules: Option<Vec<RuleConfig>>,
@@ -54,6 +60,10 @@ impl ArchetypeConfig {
             let config = serde_yaml::from_str::<ArchetypeConfig>(&config).unwrap();
             Ok(config)
         }
+    }
+
+    pub fn requirements(&self) -> Option<&VersionReq> {
+        self.requires.as_ref()
     }
 
     pub fn save<P: Into<PathBuf>>(&self, path: P) -> Result<(), ArchetypeError> {
@@ -133,11 +143,26 @@ impl ArchetypeConfig {
     }
 
     pub fn add_module<M: Into<ModuleInfo>>(&mut self, module: M) {
-        self.modules.push(module.into());
+        let modules = self.modules.get_or_insert_with(|| Vec::new());
+        modules.push(module.into());
     }
 
     pub fn modules(&self) -> &[ModuleInfo] {
-        self.modules.as_slice()
+        self.modules.as_ref().map(|r| r.as_slice()).unwrap_or_default()
+    }
+
+    pub fn with_action(mut self, action: Actions) -> ArchetypeConfig {
+        self.add_action(action);
+        self
+    }
+
+    pub fn add_action(&mut self, action: Actions) {
+        let actions = self.actions.get_or_insert_with(|| Vec::new());
+        actions.push(action);
+    }
+
+    pub fn actions(&self) -> &[Actions] {
+        self.actions.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
     pub fn add_path_rule(&mut self, path_rule: RuleConfig) {
@@ -180,13 +205,15 @@ impl ArchetypeConfig {
 impl Default for ArchetypeConfig {
     fn default() -> Self {
         ArchetypeConfig {
+            requires: None,
             description: None,
             authors: None,
             languages: None,
             frameworks: None,
             tags: None,
             contents: None,
-            modules: Vec::new(),
+            modules: None,
+            actions: None,
             rules: None,
             variables: LinkedHashMap::new(),
         }
@@ -254,12 +281,12 @@ impl ModuleConfig {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::actions::{IterateAction, RenderAction, RenderType};
+    use crate::config::{ArchetypeInfo, PatternType, RuleAction};
     use indoc::indoc;
-    use crate::config::{PatternType, RuleAction, ArchetypeInfo};
 
     #[test]
     fn test_serialize_to_yaml() {
@@ -271,13 +298,22 @@ mod tests {
             .with_tag("Service")
             .with_tag("REST")
             .with_module(
-                ArchetypeInfo::new("~/modules/jpa-persistence-module").with_destination("{{ name | train_case }}")
+                ArchetypeInfo::new("~/modules/jpa-persistence-module")
+                    .with_destination("{{ name | train_case }}")
                     .with_answer("name", AnswerInfo::with_value("{{ name }} Service").build()),
             )
+            .with_action(Actions::Iterate(
+                IterateAction::new("services")
+                    .with_answer("service", AnswerInfo::with_value("{{ item | snake_case }}").build())
+                    .with_action(Actions::Render(RenderAction::new(RenderType::Directory, "."))),
+            ))
             .with_variable("organization", VariableInfo::with_prompt("Organization: ").build())
             .with_variable("author", VariableInfo::with_prompt("Author: ").build())
-            .with_path_rule(RuleConfig::new(PatternType::GLOB).with_pattern("*.jpg").with_action(RuleAction::COPY))
-            ;
+            .with_path_rule(
+                RuleConfig::new(PatternType::GLOB)
+                    .with_pattern("*.jpg")
+                    .with_action(RuleAction::COPY),
+            );
 
         let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);
@@ -292,6 +328,7 @@ mod tests {
             languages: ["Java"]
             frameworks: ["Spring", "Hessian"]
             tags: ["Service", "REST"]
+            requires: ^1.2.0
 
             variables:
               author:
@@ -309,6 +346,7 @@ mod tests {
                   answers:
                     name:
                       value: "{{ name }} Service"
+                      
             "#
         };
 
@@ -316,13 +354,22 @@ mod tests {
 
         assert_eq!(config.variables().len(), 2);
         assert_eq!(config.variables().get("author").unwrap().prompt().unwrap(), "Author: ");
-        assert_eq!(config.variables().get("organization").unwrap().prompt().unwrap(), "Organization: ");
-        assert_eq!(config.variables().get("organization").unwrap().default().unwrap(), "Acme Inc");
+        assert_eq!(
+            config.variables().get("organization").unwrap().prompt().unwrap(),
+            "Organization: "
+        );
+        assert_eq!(
+            config.variables().get("organization").unwrap().default().unwrap(),
+            "Acme Inc"
+        );
     }
 
     #[test]
     fn test_archetype_load() {
         let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
-        assert_eq!(config.variables().get("name").unwrap(), &VariableInfo::with_prompt("Application Name: ").build());
+        assert_eq!(
+            config.variables().get("name").unwrap(),
+            &VariableInfo::with_prompt("Application Name: ").build()
+        );
     }
 }

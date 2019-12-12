@@ -1,3 +1,4 @@
+mod actions;
 mod answers;
 mod archetype;
 mod catalog;
@@ -6,10 +7,10 @@ mod module;
 mod rule;
 mod variable;
 
-pub use answers::{AnswerInfo, AnswerConfig, AnswerConfigError};
+pub use answers::{AnswerConfig, AnswerConfigError, AnswerInfo};
 pub use archetype::{ArchetypeConfig, ModuleConfig};
-pub use catalog::{CatalogConfig, CatalogConfigError, CatalogConfigEntry, CatalogConfigEntryType};
-pub use catalog2::{Catalog, CatalogError, CatalogEntry, CATALOG_FILE_NAME};
-pub use module::{ModuleInfo, ArchetypeInfo, TemplateInfo };
+pub use catalog::{CatalogConfig, CatalogConfigEntry, CatalogConfigEntryType, CatalogConfigError};
+pub use catalog2::{Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME};
+pub use module::{ArchetypeInfo, ModuleInfo, TemplateInfo};
 pub use rule::{PatternType, RuleAction, RuleConfig};
 pub use variable::{VariableInfo, VariableInfoBuilder};

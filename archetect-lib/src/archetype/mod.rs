@@ -1,15 +1,20 @@
-use crate::config::{AnswerInfo, ArchetypeConfig, ModuleInfo, PatternType, RuleAction, RuleConfig, ArchetypeInfo, TemplateInfo};
-use crate::errors::RenderError;
-use crate::template_engine::{Context, Tera};
-use crate::util::{Source, SourceError};
-use crate::Archetect;
-use log::{trace, warn};
-use read_input::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use log::{trace, warn};
+use read_input::prelude::*;
+use semver::{Version, VersionReq};
+
+use crate::config::{
+    AnswerInfo, ArchetypeConfig, ArchetypeInfo, ModuleInfo, PatternType, RuleAction, RuleConfig, TemplateInfo,
+};
+use crate::errors::RenderError;
+use crate::template_engine::{Context, Tera};
+use crate::util::{Source, SourceError};
+use crate::Archetect;
 
 pub struct Archetype {
     tera: Tera,
@@ -41,7 +46,7 @@ impl Archetype {
                     let source = Source::detect(archetect, archetype_info.source(), Some(source.clone()))?;
                     let archetype = Archetype::from_source(archetect, source, offline)?;
                     modules.push(Module::Archetype(archetype, archetype_info.clone()));
-                },
+                }
                 ModuleInfo::TemplateDirectory(template_info) => {
                     modules.push(Module::Template(template_info.clone()));
                 }
@@ -244,7 +249,7 @@ impl Archetype {
                         self.path.clone().join(template_info.source()),
                         &destination,
                     )?;
-                },
+                }
                 Module::Archetype(archetype, archetype_info) => {
                     let subdirectory = self.render_path(archetype_info.destination().unwrap_or("."), &context)?;
                     let destination = destination.clone().join(subdirectory);
@@ -254,8 +259,7 @@ impl Archetype {
                             if let Some(value) = answer_info.value() {
                                 answers.insert(
                                     identifier.to_owned(),
-                                    AnswerInfo::with_value(
-                                        &self.render_string(value, context.clone())?).build(),
+                                    AnswerInfo::with_value(&self.render_string(value, context.clone())?).build(),
                                 );
                             }
                         }
@@ -263,7 +267,7 @@ impl Archetype {
 
                     let context = archetype.get_context(&answers, Some(seed.clone()))?;
                     archetype.render(destination, context)?;
-                },
+                }
             }
         }
         Ok(())
@@ -283,10 +287,7 @@ impl Archetype {
                 if let Some(value) = answer.value() {
                     context.insert(
                         identifier,
-                        self.tera
-                            .render_string(value, context.clone())
-                            .unwrap()
-                            .as_str(),
+                        self.tera.render_string(value, context.clone()).unwrap().as_str(),
                     );
                 }
             }
@@ -301,10 +302,7 @@ impl Archetype {
             if let Some(value) = variable_info.value() {
                 context.insert(
                     identifier.as_str(),
-                    self.tera
-                        .render_string(value, context.clone())
-                        .unwrap()
-                        .as_str(),
+                    self.tera.render_string(value, context.clone()).unwrap().as_str(),
                 );
                 continue;
             }
@@ -370,6 +368,7 @@ impl Module {
 #[derive(Debug)]
 pub enum ArchetypeError {
     ArchetypeInvalid,
+    UnsatisfiedRequirements(Version, VersionReq),
     InvalidAnswersConfig,
     ArchetypeSaveFailed,
     SourceError(SourceError),
@@ -390,8 +389,9 @@ impl From<RenderError> for ArchetypeError {
 
 #[cfg(test)]
 mod tests {
-    use glob::Pattern;
     use std::path::Path;
+
+    use glob::Pattern;
 
     #[test]
     fn test_glob_full_directory_path() {

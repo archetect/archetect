@@ -1,10 +1,13 @@
 use std::rc::Rc;
 
-use crate::{Archetype, ArchetectError};
-use crate::template_engine::Context;
-use crate::system::layout::{dot_home_layout, SystemLayout, LayoutType, NativeSystemLayout};
+use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
+use crate::template_engine::Context;
 use crate::util::Source;
+use crate::{ArchetectError, Archetype, ArchetypeError};
+
+use clap::crate_version;
+use semver::Version;
 
 pub struct Archetect {
     paths: Rc<Box<dyn SystemLayout>>,
@@ -12,7 +15,6 @@ pub struct Archetect {
 }
 
 impl Archetect {
-
     pub fn layout(&self) -> Rc<Box<dyn SystemLayout>> {
         self.paths.clone()
     }
@@ -30,12 +32,27 @@ impl Archetect {
     }
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
-        let source = Source::detect(self,source, relative_to)?;
-        Archetype::from_source(self, source, self.offline).map_err(|e| e.into())
+        let source = Source::detect(self, source, relative_to)?;
+        let archetype = Archetype::from_source(self, source, self.offline)?;
+
+        if let Some(requirements) = archetype.configuration().requirements() {
+            if !requirements.matches(&self.version()) {
+                return Err(ArchetectError::ArchetypeError(ArchetypeError::UnsatisfiedRequirements(
+                    self.version().clone(),
+                    requirements.to_owned(),
+                )));
+            }
+        }
+
+        Ok(archetype)
     }
 
     pub fn render_string(&self, _template: &str, _context: Context) -> Result<String, String> {
         unimplemented!()
+    }
+
+    pub fn version(&self) -> Version {
+        Version::parse(crate_version!()).unwrap()
     }
 }
 
@@ -46,14 +63,20 @@ pub struct ArchetectBuilder {
 
 impl ArchetectBuilder {
     fn new() -> ArchetectBuilder {
-        ArchetectBuilder{ layout: None, offline: false }
+        ArchetectBuilder {
+            layout: None,
+            offline: false,
+        }
     }
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {
         let layout = dot_home_layout()?;
         let paths = self.layout.unwrap_or_else(|| Box::new(layout));
         let paths = Rc::new(paths);
-        Ok(Archetect{ paths, offline: self.offline })
+        Ok(Archetect {
+            paths,
+            offline: self.offline,
+        })
     }
 
     pub fn with_layout<P: SystemLayout + 'static>(mut self, layout: P) -> ArchetectBuilder {
@@ -84,7 +107,10 @@ mod tests {
 
     #[test]
     fn test_explicit_native_paths() {
-        let archetect = Archetect::builder().with_layout(NativeSystemLayout::new().unwrap()).build().unwrap();
+        let archetect = Archetect::builder()
+            .with_layout(NativeSystemLayout::new().unwrap())
+            .build()
+            .unwrap();
 
         println!("{}", archetect.layout().user_config().display());
     }
@@ -100,7 +126,7 @@ mod tests {
     #[test]
     fn test_implicit() {
         let archetect = Archetect::build().unwrap();
-        
+
         println!("{}", archetect.layout().user_config().display());
 
         std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");
