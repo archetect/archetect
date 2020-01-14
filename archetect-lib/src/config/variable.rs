@@ -13,6 +13,17 @@ pub struct VariableInfo {
 }
 
 impl VariableInfo {
+    pub fn new() -> VariableInfoBuilder {
+        VariableInfoBuilder {
+            variable_info: VariableInfo {
+                value: None,
+                default: None,
+                prompt: None,
+                inherit: None
+            }
+        }
+    }
+
     pub fn with_default<D: Into<String>>(default: D) -> VariableInfoBuilder {
         VariableInfoBuilder {
             variable_info: VariableInfo {
@@ -81,7 +92,7 @@ pub struct VariableInfoBuilder {
 }
 
 impl VariableInfoBuilder {
-    pub fn with_prompt(mut self, prompt: &str) -> VariableInfoBuilder {
+    pub fn with_prompt<P: Into<String>>(mut self, prompt: P) -> VariableInfoBuilder {
         self.variable_info.prompt = Some(prompt.into());
         self
     }

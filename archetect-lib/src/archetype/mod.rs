@@ -1,18 +1,25 @@
-use crate::config::{AnswerInfo, ArchetypeConfig, ModuleInfo, PatternType, RuleAction, RuleConfig, ArchetypeInfo, TemplateInfo};
-use crate::errors::RenderError;
-use crate::template_engine::{Context, Tera};
-use crate::util::{Source, SourceError};
-use crate::Archetect;
-use log::{trace, warn};
-use read_input::prelude::*;
-use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use linked_hash_map::LinkedHashMap;
+use log::{trace, warn};
+use read_input::prelude::*;
+use semver::{Version, VersionReq};
+
+use crate::{Archetect, ArchetectError};
+use crate::actions::{ActionId};
+use crate::config::{
+    AnswerInfo, ArchetypeConfig, ArchetypeInfo, ModuleInfo, PatternType, RuleAction, RuleConfig, TemplateInfo,
+};
+use crate::errors::RenderError;
+use crate::template_engine::{Context, Tera};
+use crate::util::{Source, SourceError};
+
 pub struct Archetype {
     tera: Tera,
+    source: Source,
     config: ArchetypeConfig,
     path: PathBuf,
     modules: Vec<Module>,
@@ -29,6 +36,7 @@ impl Archetype {
         let mut archetype = Archetype {
             tera,
             config,
+            source: source.clone(),
             path: local_path.to_owned(),
             modules: vec![],
         };
@@ -41,7 +49,7 @@ impl Archetype {
                     let source = Source::detect(archetect, archetype_info.source(), Some(source.clone()))?;
                     let archetype = Archetype::from_source(archetect, source, offline)?;
                     modules.push(Module::Archetype(archetype, archetype_info.clone()));
-                },
+                }
                 ModuleInfo::TemplateDirectory(template_info) => {
                     modules.push(Module::Template(template_info.clone()));
                 }
@@ -55,8 +63,16 @@ impl Archetype {
         Ok(archetype)
     }
 
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
     pub fn configuration(&self) -> &ArchetypeConfig {
         &self.config
+    }
+
+    pub fn source(&self) -> &Source {
+        &self.source
     }
 
     fn render_directory<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
@@ -223,15 +239,17 @@ impl Archetype {
         Ok(())
     }
 
-    pub fn render<D: Into<PathBuf>>(&self, destination: D, context: Context) -> Result<(), ArchetypeError> {
+    pub fn render_modules<D: Into<PathBuf>>(&self, archetect: &Archetect, destination: D, context: Context) -> Result<(), ArchetectError> {
         let destination = destination.into();
         fs::create_dir_all(&destination).unwrap();
         let mut seed = Context::new();
 
-        for (identifier, variable_info) in self.configuration().variables() {
-            if variable_info.is_inheritable() {
-                if let Some(value) = context.get(identifier) {
-                    seed.insert_value(identifier, value);
+        if let Some(variables) = self.configuration().variables() {
+            for (identifier, variable_info) in variables {
+                if variable_info.is_inheritable() {
+                    if let Some(value) = context.get(identifier) {
+                        seed.insert_value(identifier, value);
+                    }
                 }
             }
         }
@@ -244,108 +262,120 @@ impl Archetype {
                         self.path.clone().join(template_info.source()),
                         &destination,
                     )?;
-                },
+                }
                 Module::Archetype(archetype, archetype_info) => {
                     let subdirectory = self.render_path(archetype_info.destination().unwrap_or("."), &context)?;
                     let destination = destination.clone().join(subdirectory);
-                    let mut answers = HashMap::new();
+                    let mut answers = LinkedHashMap::new();
                     if let Some(answers_configs) = archetype_info.answers() {
                         for (identifier, answer_info) in answers_configs {
                             if let Some(value) = answer_info.value() {
                                 answers.insert(
                                     identifier.to_owned(),
-                                    AnswerInfo::with_value(
-                                        &self.render_string(value, context.clone())?).build(),
+                                    AnswerInfo::with_value(&self.render_string(value, context.clone())?).build(),
                                 );
                             }
                         }
                     };
 
                     let context = archetype.get_context(&answers, Some(seed.clone()))?;
-                    archetype.render(destination, context)?;
-                },
+                    archetype.render_modules(archetect, &destination, context)?;
+                    archetype.execute_script(archetect, &destination, &answers)?;
+                }
             }
         }
+
         Ok(())
+    }
+
+    pub fn execute_script<D: AsRef<Path>>(&self,
+                                            archetect: &Archetect,
+                                            destination: D,
+                                            answers: &LinkedHashMap<String, AnswerInfo>
+    ) -> Result<(), ArchetectError> {
+        let destination = destination.as_ref();
+        fs::create_dir_all(destination).unwrap();
+
+        let mut context = Context::new();
+        
+        let root_action = ActionId::from(self.config.actions());
+        
+        root_action.execute(archetect, self, destination, answers, &mut context)
     }
 
     pub fn get_context(
         &self,
-        answers: &HashMap<String, AnswerInfo>,
+        answers: &LinkedHashMap<String, AnswerInfo>,
         seed: Option<Context>,
     ) -> Result<Context, ArchetypeError> {
         let mut context = seed.unwrap_or_else(|| Context::new());
 
-        for (identifier, variable_info) in self.config.variables() {
-            // First, if an explicit answer was provided, use that, overriding an existing context
-            // value if necessary.
-            if let Some(answer) = answers.get(identifier) {
-                if let Some(value) = answer.value() {
-                    context.insert(
-                        identifier,
-                        self.tera
-                            .render_string(value, context.clone())
-                            .unwrap()
-                            .as_str(),
-                    );
+        if let Some(variables) = self.config.variables() {
+            for (identifier, variable_info) in variables {
+                // First, if an explicit answer was provided, use that, overriding an existing context
+                // value if necessary.
+                if let Some(answer) = answers.get(identifier) {
+                    if let Some(value) = answer.value() {
+                        context.insert(
+                            identifier,
+                            self.tera.render_string(value, context.clone()).unwrap().as_str(),
+                        );
+                    }
                 }
-            }
 
-            // If the context already contains a value, it was either inherited or answered, and
-            // should therefore not be overwritten
-            if context.contains(identifier) {
-                continue;
-            }
+                // If the context already contains a value, it was either inherited or answered, and
+                // should therefore not be overwritten
+                if context.contains(identifier) {
+                    continue;
+                }
 
-            // Insert a value if one was specified in the archetype's configuration file.
-            if let Some(value) = variable_info.value() {
-                context.insert(
-                    identifier.as_str(),
-                    self.tera
-                        .render_string(value, context.clone())
-                        .unwrap()
-                        .as_str(),
-                );
-                continue;
-            }
+                // Insert a value if one was specified in the archetype's configuration file.
+                if let Some(value) = variable_info.value() {
+                    context.insert(
+                        identifier.as_str(),
+                        self.tera.render_string(value, context.clone()).unwrap().as_str(),
+                    );
+                    continue;
+                }
 
-            // If we've reached this point, we'll need to prompt the user for an answer.
+                // If we've reached this point, we'll need to prompt the user for an answer.
 
-            // Determine if a default can be provided.
-            let default = if let Some(answer) = answers.get(identifier) {
-                if let Some(default) = answer.default() {
+                // Determine if a default can be provided.
+                let default = if let Some(answer) = answers.get(identifier) {
+                    if let Some(default) = answer.default() {
+                        Some(self.render_string(default, context.clone())?)
+                    } else {
+                        None
+                    }
+                } else if let Some(default) = variable_info.default() {
                     Some(self.render_string(default, context.clone())?)
                 } else {
                     None
-                }
-            } else if let Some(default) = variable_info.default() {
-                Some(self.render_string(default, context.clone())?)
-            } else {
-                None
-            };
+                };
 
-            let mut prompt = if let Some(prompt) = variable_info.prompt() {
-                format!("{} ", prompt.trim())
-            } else {
-                format!("{}: ", identifier)
-            };
+                let mut prompt = if let Some(prompt) = variable_info.prompt() {
+                    format!("{} ", prompt.trim())
+                } else {
+                    format!("{}: ", identifier)
+                };
 
-            if let Some(default) = &default {
-                prompt.push_str(format!("[{}] ", default).as_str());
-            };
+                if let Some(default) = &default {
+                    prompt.push_str(format!("[{}] ", default).as_str());
+                };
 
-            let input_builder = input::<String>()
-                .msg(&prompt)
-                .add_test(|value| value.len() > 0)
-                .repeat_msg(&prompt)
-                .err("Must be at least 1 character.  Please try again.");
-            let value = if let Some(default) = &default {
-                input_builder.default(default.clone().to_owned()).get()
-            } else {
-                input_builder.get()
-            };
+                let input_builder = input::<String>()
+                    .msg(&prompt)
+                    .add_test(|value| value.len() > 0)
+                    .repeat_msg(&prompt)
+                    .err("Must be at least 1 character.  Please try again.");
+                let value = if let Some(default) = &default {
+                    input_builder.default(default.clone().to_owned()).get()
+                } else {
+                    input_builder.get()
+                };
 
-            context.insert(identifier, &value);
+                context.insert(identifier, &value);
+            }
         }
 
         Ok(context)
@@ -370,6 +400,7 @@ impl Module {
 #[derive(Debug)]
 pub enum ArchetypeError {
     ArchetypeInvalid,
+    UnsatisfiedRequirements(Version, VersionReq),
     InvalidAnswersConfig,
     ArchetypeSaveFailed,
     SourceError(SourceError),
@@ -390,8 +421,9 @@ impl From<RenderError> for ArchetypeError {
 
 #[cfg(test)]
 mod tests {
-    use glob::Pattern;
     use std::path::Path;
+
+    use glob::Pattern;
 
     #[test]
     fn test_glob_full_directory_path() {

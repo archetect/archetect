@@ -14,9 +14,11 @@ mod core;
 mod errors;
 pub mod heck;
 
+pub mod actions;
 pub mod archetype;
 pub mod config;
 pub mod input;
+pub mod loggerv;
 pub mod system;
 pub mod template_engine;
 pub mod util;

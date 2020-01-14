@@ -1,18 +1,27 @@
 use std::rc::Rc;
 
-use crate::{Archetype, ArchetectError};
-use crate::template_engine::Context;
-use crate::system::layout::{dot_home_layout, SystemLayout, LayoutType, NativeSystemLayout};
+use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
+use crate::template_engine::{Context, Tera};
 use crate::util::Source;
+use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
+
+use clap::crate_version;
+use log::{trace, warn};
+use semver::Version;
+use std::path::{Path, PathBuf};
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use crate::config::{RuleAction, PatternType, RuleConfig};
 
 pub struct Archetect {
+    tera: Tera,
     paths: Rc<Box<dyn SystemLayout>>,
     offline: bool,
 }
 
 impl Archetect {
-
     pub fn layout(&self) -> Rc<Box<dyn SystemLayout>> {
         self.paths.clone()
     }
@@ -30,12 +39,181 @@ impl Archetect {
     }
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
-        let source = Source::detect(self,source, relative_to)?;
-        Archetype::from_source(self, source, self.offline).map_err(|e| e.into())
+        let source = Source::detect(self, source, relative_to)?;
+        let archetype = Archetype::from_source(self, source, self.offline)?;
+
+        if let Some(requirements) = archetype.configuration().requirements() {
+            if !requirements.matches(&self.version()) {
+                return Err(ArchetectError::ArchetypeError(ArchetypeError::UnsatisfiedRequirements(
+                    self.version().clone(),
+                    requirements.to_owned(),
+                )));
+            }
+        }
+
+        Ok(archetype)
     }
 
-    pub fn render_string(&self, _template: &str, _context: Context) -> Result<String, String> {
-        unimplemented!()
+    pub fn render_string(&self, template: &str, context: &Context) -> Result<String, RenderError> {
+        match self.tera.render_string(template, context.clone()) {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                // TODO: Get a better error message.
+                let message = String::new();
+                Err(RenderError::StringRenderError {
+                    source: template.to_owned(),
+                    error: err,
+                    message
+                })
+            },
+        }
+    }
+
+    pub fn render_contents<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+        let path = path.as_ref();
+        let template = match fs::read_to_string(path) {
+            Ok(template) => template,
+            Err(error) => {
+                return Err(RenderError::FileRenderIOError {
+                    source: path.to_owned(),
+                    error,
+                    message: "".to_string(),
+                });
+            }
+        };
+        match self.tera.render_string(&template, context.clone()) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                // TODO: Get a better error message.
+                let message = String::new();
+                Err(RenderError::FileRenderError {
+                    source: path.into(),
+                    error,
+                    message,
+                })
+            }
+        }
+    }
+
+    pub fn render_directory<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
+        &self,
+        context: &Context,
+        source: SRC,
+        destination: DEST,
+    ) -> Result<(), RenderError> {
+        let source = source.into();
+        let destination = destination.into();
+
+        'walking: for entry in fs::read_dir(&source)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                let destination = self.render_destination(&destination, &path, &context)?;
+                trace!("Generating {:?}", &destination);
+                fs::create_dir_all(destination.as_path()).unwrap();
+                self.render_directory(context, path, destination)?;
+            } else if path.is_file() {
+                match self.match_rules(&path, &Vec::new()) {
+                    Ok(None) => {
+                        let destination = self.render_destination(&destination, &path, &context)?;
+                        let contents = self.render_contents(&path, &context)?;
+                        self.write_contents(&destination, &contents)?;
+                    }
+                    Ok(Some(rule)) => {
+                        let destination = self.render_destination(&destination, &path, &context)?;
+                        if let Some(filter) = rule.filter() {
+                            warn!("'filter = (true|false)' in [[rules]] are deprecated.  Please use 'action = (\"{:?}\"|\"{:?}\"|\"{:?}\")', instead.", RuleAction::RENDER, RuleAction::COPY, RuleAction::SKIP);
+                            if filter {
+                                let contents = self.render_contents(&path, &context)?;
+                                self.write_contents(&destination, &contents)?;
+                            } else {
+                                self.copy_contents(&path, &destination)?;
+                            };
+                        } else {
+                            match rule.action() {
+                                RuleAction::RENDER => {
+                                    self.render_contents(&path, &context)?;
+                                }
+                                RuleAction::COPY => {
+                                    self.copy_contents(&path, &destination)?;
+                                }
+                                RuleAction::SKIP => {
+                                    trace!("Skipping   {:?}", destination);
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => return Err(err),
+                };
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(
+        &self,
+        parent: P,
+        child: C,
+        context: &Context,
+    ) -> Result<PathBuf, RenderError> {
+        let mut destination = parent.as_ref().to_owned();
+        let child = child.as_ref();
+        let name = self.render_path(&child, &context)?;
+        destination.push(name);
+        Ok(destination)
+    }
+
+    fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+        let path = path.as_ref();
+        let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
+        match self.tera.render_string(path, context.clone()) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                // TODO: Get a better error message.
+                let message = String::new();
+                Err(RenderError::PathRenderError {
+                    source: path.into(),
+                    error,
+                    message,
+                })
+            }
+        }
+    }
+
+    fn match_rules<P: AsRef<Path>>(&self, path: P, rules: &[RuleConfig]) -> Result<Option<RuleConfig>, RenderError> {
+        let path = path.as_ref();
+        for path_rule in rules {
+            if path_rule.pattern_type() == &PatternType::GLOB {
+                for pattern in path_rule.patterns() {
+                    let matcher = glob::Pattern::new(pattern).unwrap();
+                    if matcher.matches_path(&path) {
+                        return Ok(Some(path_rule.to_owned()));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
+        let destination = destination.as_ref();
+        trace!("Generating {:?}", destination);
+        let mut output = File::create(&destination)?;
+        output.write(contents.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {
+        let source = source.as_ref();
+        let destination = destination.as_ref();
+        trace!("Copying    {:?}", destination);
+        fs::copy(source, destination)?;
+        Ok(())
+    }
+
+    pub fn version(&self) -> Version {
+        Version::parse(crate_version!()).unwrap()
     }
 }
 
@@ -46,14 +224,21 @@ pub struct ArchetectBuilder {
 
 impl ArchetectBuilder {
     fn new() -> ArchetectBuilder {
-        ArchetectBuilder{ layout: None, offline: false }
+        ArchetectBuilder {
+            layout: None,
+            offline: false,
+        }
     }
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {
         let layout = dot_home_layout()?;
         let paths = self.layout.unwrap_or_else(|| Box::new(layout));
         let paths = Rc::new(paths);
-        Ok(Archetect{ paths, offline: self.offline })
+        Ok(Archetect {
+            tera: Tera::default(),
+            paths,
+            offline: self.offline,
+        })
     }
 
     pub fn with_layout<P: SystemLayout + 'static>(mut self, layout: P) -> ArchetectBuilder {
@@ -84,7 +269,10 @@ mod tests {
 
     #[test]
     fn test_explicit_native_paths() {
-        let archetect = Archetect::builder().with_layout(NativeSystemLayout::new().unwrap()).build().unwrap();
+        let archetect = Archetect::builder()
+            .with_layout(NativeSystemLayout::new().unwrap())
+            .build()
+            .unwrap();
 
         println!("{}", archetect.layout().user_config().display());
     }
@@ -100,7 +288,7 @@ mod tests {
     #[test]
     fn test_implicit() {
         let archetect = Archetect::build().unwrap();
-        
+
         println!("{}", archetect.layout().user_config().display());
 
         std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");

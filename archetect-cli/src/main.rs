@@ -1,24 +1,25 @@
 mod cli;
 
-use archetect::config::{AnswerInfo, AnswerConfig, ArchetypeConfig, CatalogConfig, CatalogEntry, CatalogConfigEntryType, VariableInfo, CatalogConfigEntry, Catalog, CatalogError, CATALOG_FILE_NAME};
-use archetect::input::{CatalogSelectError, select_from_catalog, you_are_sure};
+use archetect::config::{
+    AnswerConfig, AnswerInfo, ArchetypeConfig, Catalog, CatalogConfig, CatalogConfigEntry, CatalogConfigEntryType,
+    CatalogEntry, CatalogError, VariableInfo, CATALOG_FILE_NAME,
+};
+use archetect::input::{select_from_catalog, CatalogSelectError};
 use archetect::system::SystemError;
-use archetect::util::{SourceError, Source};
+use archetect::util::{Source, SourceError};
 use archetect::RenderError;
 use archetect::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
 use indoc::indoc;
 use log::{error, info, warn};
-use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::ffi::OsStr;
-
-pub mod loggerv;
+use linked_hash_map::LinkedHashMap;
 
 fn main() {
     let matches = cli::get_matches().get_matches();
@@ -36,7 +37,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         .with_offline(matches.is_present("offline"))
         .build()?;
 
-    let mut answers = HashMap::new();
+    let mut answers = LinkedHashMap::new();
 
     if let Ok(user_answers) = AnswerConfig::load(archetect.layout().answers_config()) {
         for (identifier, answer_info) in user_answers.answers() {
@@ -106,7 +107,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
         }
         let context = archetype.get_context(&answers, None).unwrap();
-        return archetype.render(destination, context).map_err(|e| e.into());
+        archetype.render_modules(&archetect, &destination, context)?;
+        archetype.execute_script(&archetect, &destination, &answers)?;
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
             let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
@@ -140,7 +142,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                         Author: {{ author | title_case }}
                     "#
                     )
-                        .as_bytes(),
+                    .as_bytes(),
                 )
                 .expect("Error writing README.md");
             File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
@@ -157,13 +159,12 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
 
         if let Some(_matches) = matches.subcommand_matches("clear") {
-//            if you_are_sure(format!("Are you sure you want to clear the catalog at '{}'?", local_path.to_str().unwrap()).as_str()) {
-//                let catalog = Catalog::new();
-//                catalog.save_to_file(local_path)?;
-//                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
-//            }
+            //            if you_are_sure(format!("Are you sure you want to clear the catalog at '{}'?", local_path.to_str().unwrap()).as_str()) {
+            //                let catalog = Catalog::new();
+            //                catalog.save_to_file(local_path)?;
+            //                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
+            //            }
         } else if let Some(_matches) = matches.subcommand_matches("add") {
-            
         } else {
             if source.local_path().exists() {
                 let catalog_file = source.local_path();
@@ -189,7 +190,9 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                                     }
                                 }
                                 let context = archetype.get_context(&answers, None).unwrap();
-                                return archetype.render(destination, context).map_err(|e| e.into());
+                                archetype.render_modules(&archetect, &destination, context)?;
+                                archetype.execute_script(&archetect, &destination, &answers)?;
+                                return Ok(());
                             }
                             CatalogConfigEntry {
                                 entry_type: CatalogConfigEntryType::Catalog,
@@ -227,13 +230,15 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                                 }
                             }
                             let context = archetype.get_context(&answers, None).unwrap();
-                            return archetype.render(destination, context).map_err(|e| e.into());
-                        },
+                            archetype.render_modules(&archetect, &destination, context)?;
+                            archetype.execute_script(&archetect, &destination, &answers)?;
+                            return Ok(())
+                        }
                         _ => unreachable!(),
                     }
                 }
             } else {
-                info!("No archetypes in your catalog. Try adding one, first.");
+                info!("There are no items registered in your catalog. Try registering one first.");
             }
         }
     }
@@ -259,6 +264,12 @@ fn handle_archetype_error(error: ArchetypeError) {
         ArchetypeError::RenderError(error) => handle_render_error(error),
         ArchetypeError::ArchetypeSaveFailed => {}
         ArchetypeError::SourceError(error) => handle_source_error(error),
+        ArchetypeError::UnsatisfiedRequirements(version, requirements) => error!(
+            "This archetype requires features that are unavailable in this version of Archetect.  This archetype \
+             requires Archetect {}, but you are on Archetect {}.  Try \
+             upgrading to the latest available version.",
+            requirements, version
+        ),
     }
 }
 
@@ -330,11 +341,11 @@ fn handle_render_error(error: RenderError) {
 
 fn handle_catalog_error(error: CatalogError) {
     match error {
-        CatalogError::EmptyCatalog => { error!("Empty Catalog") }
-        CatalogError::EmptyGroup => { error!("Empty Catalog Group") }
-        CatalogError::SourceError(error) => { error!("Catalog Source Error: {:?}", error) }
-        CatalogError::NotFound(error) => { error!("Catalog not found: {}", error.to_str().unwrap()) }
-        CatalogError::IOError(error) => { error!("Catalog IO Error: {}", error) }
-        CatalogError::YamlError(error) => { error!("Catalog YAML Read Error: {}", error) }
+        CatalogError::EmptyCatalog => error!("Empty Catalog"),
+        CatalogError::EmptyGroup => error!("Empty Catalog Group"),
+        CatalogError::SourceError(error) => error!("Catalog Source Error: {:?}", error),
+        CatalogError::NotFound(error) => error!("Catalog not found: {}", error.to_str().unwrap()),
+        CatalogError::IOError(error) => error!("Catalog IO Error: {}", error),
+        CatalogError::YamlError(error) => error!("Catalog YAML Read Error: {}", error),
     }
 }
