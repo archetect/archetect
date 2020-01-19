@@ -9,6 +9,7 @@ use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, ActionId};
 use crate::config::VariableInfo;
 use crate::template_engine::Context;
+use crate::rules::RulesContext;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
@@ -77,6 +78,7 @@ impl Action for IfAction {
                                archetect: &Archetect,
                                archetype: &Archetype,
                                destination: D,
+                               rules_context: &mut RulesContext,
                                answers: &LinkedHashMap<String, VariableInfo>,
                                context: &mut Context,
     ) -> Result<(), ArchetectError> {
@@ -87,7 +89,7 @@ impl Action for IfAction {
         }
 
         for action in &self.actions {
-            action.execute(archetect, archetype, destination.as_ref(), answers, context)?;
+            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
         }
 
         Ok(())

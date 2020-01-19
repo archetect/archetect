@@ -19,6 +19,8 @@ pub mod archetype;
 pub mod config;
 pub mod input;
 pub mod loggerv;
+pub mod rendering;
+pub mod rules;
 pub mod system;
 pub mod template_engine;
 pub mod util;

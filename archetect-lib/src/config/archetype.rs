@@ -1,4 +1,3 @@
-use crate::config::rule::RuleConfig;
 use crate::config::VariableInfo;
 use crate::config::{AnswerInfo, ModuleInfo};
 use crate::ArchetypeError;
@@ -30,11 +29,8 @@ pub struct ArchetypeConfig {
     contents: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     modules: Option<Vec<ModuleInfo>>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "actions")]    
+    #[serde(skip_serializing_if = "Option::is_none", alias = "actions")]
     script: Option<Vec<ActionId>>,
-    #[serde(alias = "path")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rules: Option<Vec<RuleConfig>>,
 }
 
 impl ArchetypeConfig {
@@ -165,20 +161,6 @@ impl ArchetypeConfig {
         self.script.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn add_path_rule(&mut self, path_rule: RuleConfig) {
-        let path_rules = self.rules.get_or_insert_with(|| vec![]);
-        path_rules.push(path_rule);
-    }
-
-    pub fn with_path_rule(mut self, path_rule: RuleConfig) -> ArchetypeConfig {
-        self.add_path_rule(path_rule);
-        self
-    }
-
-    pub fn path_rules(&self) -> &[RuleConfig] {
-        self.rules.as_ref().map(|pr| pr.as_slice()).unwrap_or_default()
-    }
-
     pub fn add_variable<I: Into<String>>(&mut self, identifier: I, variable_info: VariableInfo) {
         let variables = self.variables.get_or_insert_with(|| LinkedHashMap::new());
         variables.insert(identifier.into(), variable_info);
@@ -215,7 +197,6 @@ impl Default for ArchetypeConfig {
             contents: None,
             modules: None,
             script: None,
-            rules: None,
             variables: None,
         }
     }
@@ -285,7 +266,7 @@ impl ModuleConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ArchetypeInfo, PatternType, RuleAction};
+    use crate::config::{ArchetypeInfo};
     use indoc::indoc;
     use crate::actions::iterate::IterateAction;
     use crate::actions::render::{RenderAction, DirectoryOptions};
@@ -311,67 +292,63 @@ mod tests {
             ))
             .with_variable("organization", VariableInfo::with_prompt("Organization: ").build())
             .with_variable("author", VariableInfo::with_prompt("Author: ").build())
-            .with_path_rule(
-                RuleConfig::new(PatternType::GLOB)
-                    .with_pattern("*.jpg")
-                    .with_action(RuleAction::COPY),
-            );
+            ;
 
         let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);
     }
 
-    #[test]
-    fn test_deserialize_from_yaml() {
-        let input = indoc! {
-            r#"
-            ---
-            description: Simple REST Service
-            languages: ["Java"]
-            frameworks: ["Spring", "Hessian"]
-            tags: ["Service", "REST"]
-            requires: ^1.2.0
+//    #[test]
+//    fn test_deserialize_from_yaml() {
+//        let input = indoc! {
+//            r#"
+//            ---
+//            description: Simple REST Service
+//            languages: ["Java"]
+//            frameworks: ["Spring", "Hessian"]
+//            tags: ["Service", "REST"]
+//            requires: ^1.2.0
+//
+//            variables:
+//              author:
+//                prompt: "Author: "
+//              organization:
+//                prompt: "Organization: "
+//                default: "Acme Inc"
+//
+//            modules:
+//              - template:
+//                  source: "contents"
+//              - archetype:
+//                  source: ~/modules/jpa-persistence-module
+//                  destination: "{{ name | train_case }}"
+//                  answers:
+//                    name:
+//                      value: "{{ name }} Service"
+//
+//            "#
+//        };
+//
+//        let config = serde_yaml::from_str::<ArchetypeConfig>(&input).unwrap();
+//
+//        assert_eq!(config.variables().unwrap().len(), 2);
+//        assert_eq!(config.variables().unwrap().get("author").unwrap().prompt().unwrap(), "Author: ");
+//        assert_eq!(
+//            config.variables().unwrap().get("organization").unwrap().prompt().unwrap(),
+//            "Organization: "
+//        );
+//        assert_eq!(
+//            config.variables().unwrap().get("organization").unwrap().default().unwrap(),
+//            "Acme Inc"
+//        );
+//    }
 
-            variables:
-              author:
-                prompt: "Author: "
-              organization:
-                prompt: "Organization: "
-                default: "Acme Inc"
-                
-            modules:
-              - template:
-                  source: "contents"
-              - archetype:
-                  source: ~/modules/jpa-persistence-module
-                  destination: "{{ name | train_case }}"
-                  answers:
-                    name:
-                      value: "{{ name }} Service"
-                      
-            "#
-        };
-
-        let config = serde_yaml::from_str::<ArchetypeConfig>(&input).unwrap();
-
-        assert_eq!(config.variables().unwrap().len(), 2);
-        assert_eq!(config.variables().unwrap().get("author").unwrap().prompt().unwrap(), "Author: ");
-        assert_eq!(
-            config.variables().unwrap().get("organization").unwrap().prompt().unwrap(),
-            "Organization: "
-        );
-        assert_eq!(
-            config.variables().unwrap().get("organization").unwrap().default().unwrap(),
-            "Acme Inc"
-        );
-    }
-
-    #[test]
-    fn test_archetype_load() {
-        let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
-        assert_eq!(
-            config.variables().unwrap().get("name").unwrap(),
-            &VariableInfo::with_prompt("Application Name: ").build()
-        );
-    }
+//    #[test]
+//    fn test_archetype_load() {
+//        let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
+//        assert_eq!(
+//            config.variables().unwrap().get("name").unwrap(),
+//            &VariableInfo::with_prompt("Application Name: ").build()
+//        );
+//    }
 }

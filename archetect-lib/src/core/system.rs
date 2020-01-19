@@ -7,13 +7,14 @@ use crate::util::Source;
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
 use clap::crate_version;
-use log::{trace, warn};
+use log::{trace, debug};
 use semver::Version;
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use crate::config::{RuleAction, PatternType, RuleConfig};
+use crate::config::{RuleAction};
+use crate::rules::RulesContext;
 
 pub struct Archetect {
     tera: Tera,
@@ -36,6 +37,10 @@ impl Archetect {
 
     pub fn build() -> Result<Archetect, ArchetectError> {
         ArchetectBuilder::new().build()
+    }
+
+    pub fn template_engine(&self) -> &Tera {
+        &self.tera
     }
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
@@ -100,6 +105,7 @@ impl Archetect {
         context: &Context,
         source: SRC,
         destination: DEST,
+        rules_context: &mut RulesContext,
     ) -> Result<(), RenderError> {
         let source = source.into();
         let destination = destination.into();
@@ -107,44 +113,30 @@ impl Archetect {
         'walking: for entry in fs::read_dir(&source)? {
             let entry = entry?;
             let path = entry.path();
+
+            let action = rules_context.get_source_action(path.as_path());
+
             if path.is_dir() {
                 let destination = self.render_destination(&destination, &path, &context)?;
-                trace!("Generating {:?}", &destination);
+                trace!("Rendering {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
-                self.render_directory(context, path, destination)?;
+                self.render_directory(context, path, destination, rules_context)?;
             } else if path.is_file() {
-                match self.match_rules(&path, &Vec::new()) {
-                    Ok(None) => {
-                        let destination = self.render_destination(&destination, &path, &context)?;
+                let destination = self.render_destination(&destination, &path, &context)?;
+                match action {
+                    RuleAction::RENDER => {
+                        debug!("Rendering {:?}", destination);
                         let contents = self.render_contents(&path, &context)?;
-                        self.write_contents(&destination, &contents)?;
+                        self.write_contents(destination, &contents)?;
                     }
-                    Ok(Some(rule)) => {
-                        let destination = self.render_destination(&destination, &path, &context)?;
-                        if let Some(filter) = rule.filter() {
-                            warn!("'filter = (true|false)' in [[rules]] are deprecated.  Please use 'action = (\"{:?}\"|\"{:?}\"|\"{:?}\")', instead.", RuleAction::RENDER, RuleAction::COPY, RuleAction::SKIP);
-                            if filter {
-                                let contents = self.render_contents(&path, &context)?;
-                                self.write_contents(&destination, &contents)?;
-                            } else {
-                                self.copy_contents(&path, &destination)?;
-                            };
-                        } else {
-                            match rule.action() {
-                                RuleAction::RENDER => {
-                                    self.render_contents(&path, &context)?;
-                                }
-                                RuleAction::COPY => {
-                                    self.copy_contents(&path, &destination)?;
-                                }
-                                RuleAction::SKIP => {
-                                    trace!("Skipping   {:?}", destination);
-                                }
-                            }
-                        }
+                    RuleAction::COPY => {
+                        debug!("Copying   {:?}", destination);
+                        self.copy_contents(&path, &destination)?;
                     }
-                    Err(err) => return Err(err),
-                };
+                    RuleAction::SKIP => {
+                        debug!("Skipping  {:?}", destination);
+                    }
+                }
             }
         }
 
@@ -180,25 +172,9 @@ impl Archetect {
             }
         }
     }
-
-    fn match_rules<P: AsRef<Path>>(&self, path: P, rules: &[RuleConfig]) -> Result<Option<RuleConfig>, RenderError> {
-        let path = path.as_ref();
-        for path_rule in rules {
-            if path_rule.pattern_type() == &PatternType::GLOB {
-                for pattern in path_rule.patterns() {
-                    let matcher = glob::Pattern::new(pattern).unwrap();
-                    if matcher.matches_path(&path) {
-                        return Ok(Some(path_rule.to_owned()));
-                    }
-                }
-            }
-        }
-        Ok(None)
-    }
-
+    
     pub fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
         let destination = destination.as_ref();
-        trace!("Generating {:?}", destination);
         let mut output = File::create(&destination)?;
         output.write(contents.as_bytes())?;
         Ok(())
@@ -207,7 +183,6 @@ impl Archetect {
     pub fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {
         let source = source.as_ref();
         let destination = destination.as_ref();
-        trace!("Copying    {:?}", destination);
         fs::copy(source, destination)?;
         Ok(())
     }

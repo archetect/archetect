@@ -11,10 +11,14 @@ use crate::actions::split::SplitAction;
 use crate::config::{AnswerInfo, VariableInfo};
 use crate::template_engine::Context;
 use crate::actions::conditionals::IfAction;
+use crate::rendering::Renderable;
+use crate::rules::RulesContext;
+use crate::actions::rules::{RuleType};
 
 pub mod conditionals;
 pub mod iterate;
 pub mod render;
+pub mod rules;
 pub mod set;
 pub mod split;
 
@@ -34,6 +38,8 @@ pub enum ActionId {
     Iterate(IterateAction),
     #[serde(rename = "if")]
     If(IfAction),
+    #[serde(rename = "rules")]
+    Rules(Vec<RuleType>),
 
     // Logging
     #[serde(rename = "trace")]
@@ -49,35 +55,47 @@ pub enum ActionId {
 }
 
 impl ActionId {
-    pub fn execute<D: AsRef<Path>>(&self, archetect: &Archetect, archetype: &Archetype, destination: D,
-                                   answers: &LinkedHashMap<String, AnswerInfo>, context: &mut Context) -> Result<(), ArchetectError> {
+    pub fn execute<D: AsRef<Path>>(&self,
+                                   archetect: &Archetect,
+                                   archetype: &Archetype,
+                                   destination: D,
+                                   rules_context: &mut RulesContext,
+                                   answers: &LinkedHashMap<String, AnswerInfo>,
+                                   context: &mut Context,
+    ) -> Result<(), ArchetectError> {
         let destination = destination.as_ref();
         match self {
             ActionId::Set(variables) => {
                 set::populate_context(archetect, variables, answers, context)?;
             }
-            ActionId::Render(action) => { action.execute(archetect, archetype, destination, answers, context)? }
+            ActionId::Render(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
             ActionId::Actions(action_ids) => {
                 for action_id in action_ids {
-                    action_id.execute(archetect, archetype, destination, answers, context)?;
+                    action_id.execute(archetect, archetype, destination, rules_context, answers, context)?;
                 }
             }
-            ActionId::Iterate(action) => { action.execute(archetect, archetype, destination, answers, context)? }
+            ActionId::Iterate(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
 
             // Logging
-            ActionId::LogTrace(message) => { trace!("{}", archetect.render_string(message, context)?) }
-            ActionId::LogDebug(message) => { debug!("{}", archetect.render_string(message, context)?) }
-            ActionId::LogInfo(message) => { info!("{}", archetect.render_string(message, context)?) }
-            ActionId::LogWarn(message) => { warn!("{}", archetect.render_string(message, context)?) }
-            ActionId::LogError(message) => { error!("{}", archetect.render_string(message, context)?) }
+            ActionId::LogTrace(message) => { trace!("{}", message.render(&archetect, context)?) }
+            ActionId::LogDebug(message) => { debug!("{}", message.render(&archetect, context)?) }
+            ActionId::LogInfo(message) => { info!("{}", message.render(&archetect, context)?) }
+            ActionId::LogWarn(message) => { warn!("{}", message.render(&archetect, context)?) }
+            ActionId::LogError(message) => { error!("{}", message.render(&archetect, context)?) }
 
             ActionId::Scope(actions) => {
+                let mut rules_context = rules_context.clone();
                 let mut scope_context = context.clone();
                 let action = ActionId::from(actions.as_ref());
-                action.execute(archetect, archetype, destination, answers, &mut scope_context)?;
+                action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut scope_context)?;
             }
-            ActionId::Split(action) => { action.execute(archetect, archetype, destination, answers, context)? }
-            ActionId::If(action) => { action.execute(archetect, archetype, destination, answers, context)? }
+            ActionId::Split(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
+            ActionId::If(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
+            ActionId::Rules(actions) => {
+                for action in actions {
+                    action.execute(archetect, archetype, destination, rules_context, answers, context)?;
+                }
+            }
         }
 
         Ok(())
@@ -98,8 +116,14 @@ impl From<&[ActionId]> for ActionId {
 }
 
 pub trait Action {
-    fn execute<D: AsRef<Path>>(&self, archetect: &Archetect, archetype: &Archetype, destination: D,
-                               answers: &LinkedHashMap<String, AnswerInfo>, context: &mut Context) -> Result<(), ArchetectError>;
+    fn execute<D: AsRef<Path>>(&self,
+                               archetect: &Archetect,
+                               archetype: &Archetype,
+                               destination: D,
+                               rules_context: &mut RulesContext,
+                               answers: &LinkedHashMap<String, AnswerInfo>,
+                               context: &mut Context,
+    ) -> Result<(), ArchetectError>;
 }
 
 

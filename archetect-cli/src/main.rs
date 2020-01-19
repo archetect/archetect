@@ -106,8 +106,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 answers.insert(identifier.to_owned(), answer_info.clone());
             }
         }
-        let context = archetype.get_context(&answers, None).unwrap();
-        archetype.render_modules(&archetect, &destination, context)?;
         archetype.execute_script(&archetect, &destination, &answers)?;
     } else if let Some(matches) = matches.subcommand_matches("archetype") {
         if let Some(matches) = matches.subcommand_matches("init") {
@@ -189,8 +187,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                                         }
                                     }
                                 }
-                                let context = archetype.get_context(&answers, None).unwrap();
-                                archetype.render_modules(&archetect, &destination, context)?;
                                 archetype.execute_script(&archetect, &destination, &answers)?;
                                 return Ok(());
                             }
@@ -229,8 +225,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                                     }
                                 }
                             }
-                            let context = archetype.get_context(&answers, None).unwrap();
-                            archetype.render_modules(&archetect, &destination, context)?;
                             archetype.execute_script(&archetect, &destination, &answers)?;
                             return Ok(())
                         }
@@ -335,6 +329,9 @@ fn handle_render_error(error: RenderError) {
         }
         RenderError::IOError { error: _, message } => {
             error!("Unexpected IO Error:\n{}", message);
+        }
+        RenderError::InvalidPathCharacters { source} => {
+            error!("Unable read path '{}' as a UTF-8 template", source.display());
         }
     }
 }

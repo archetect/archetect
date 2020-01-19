@@ -198,7 +198,7 @@ mod tests {
                     .next()
                     .unwrap()
             ),
-            ("key|".to_owned(), AnswerInfo::with_value("value").build())
+            ("key".to_owned(), AnswerInfo::with_value("value").build())
         );
 
         assert_eq!(

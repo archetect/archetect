@@ -1,21 +1,19 @@
 use std::fs;
-use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use linked_hash_map::LinkedHashMap;
-use log::{trace, warn};
 use read_input::prelude::*;
 use semver::{Version, VersionReq};
 
 use crate::{Archetect, ArchetectError};
-use crate::actions::{ActionId};
+use crate::actions::ActionId;
 use crate::config::{
-    AnswerInfo, ArchetypeConfig, ArchetypeInfo, ModuleInfo, PatternType, RuleAction, RuleConfig, TemplateInfo,
+    AnswerInfo, ArchetypeConfig, ArchetypeInfo, ModuleInfo, TemplateInfo,
 };
 use crate::errors::RenderError;
 use crate::template_engine::{Context, Tera};
 use crate::util::{Source, SourceError};
+use crate::rules::RulesContext;
 
 pub struct Archetype {
     tera: Tera,
@@ -75,143 +73,6 @@ impl Archetype {
         &self.source
     }
 
-    fn render_directory<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
-        &self,
-        context: Context,
-        source: SRC,
-        destination: DEST,
-    ) -> Result<(), RenderError> {
-        let source = source.into();
-        let destination = destination.into();
-
-        if !source.is_dir() {
-            if self.configuration().modules().is_empty() {
-                warn!(
-                    "The archetypes's '{}' directory does not exist, and there are no submodules. Nothing to render.",
-                    source.display()
-                );
-            }
-            return Ok(());
-        }
-
-        'walking: for entry in fs::read_dir(&source)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                let destination = self.render_destination(&destination, &path, &context)?;
-                trace!("Generating {:?}", &destination);
-                fs::create_dir_all(destination.as_path()).unwrap();
-                self.render_directory(context.clone(), path, destination)?;
-            } else if path.is_file() {
-                match self.match_rules(&path) {
-                    Ok(None) => {
-                        let destination = self.render_destination(&destination, &path, &context)?;
-                        let contents = self.render_contents(&path, &context)?;
-                        self.write_contents(&destination, &contents)?;
-                    }
-                    Ok(Some(rule)) => {
-                        let destination = self.render_destination(&destination, &path, &context)?;
-                        if let Some(filter) = rule.filter() {
-                            warn!("'filter = (true|false)' in [[rules]] are deprecated.  Please use 'action = (\"{:?}\"|\"{:?}\"|\"{:?}\")', instead.", RuleAction::RENDER, RuleAction::COPY, RuleAction::SKIP);
-                            if filter {
-                                let contents = self.render_contents(&path, &context)?;
-                                self.write_contents(&destination, &contents)?;
-                            } else {
-                                self.copy_contents(&path, &destination)?;
-                            };
-                        } else {
-                            match rule.action() {
-                                RuleAction::RENDER => {
-                                    self.render_contents(&path, &context)?;
-                                }
-                                RuleAction::COPY => {
-                                    self.copy_contents(&path, &destination)?;
-                                }
-                                RuleAction::SKIP => {
-                                    trace!("Skipping   {:?}", destination);
-                                }
-                            }
-                        }
-                    }
-                    Err(err) => return Err(err),
-                };
-            }
-        }
-
-        Ok(())
-    }
-
-    fn match_rules<P: AsRef<Path>>(&self, path: P) -> Result<Option<RuleConfig>, RenderError> {
-        let path = path.as_ref();
-        for path_rule in self.configuration().path_rules() {
-            if path_rule.pattern_type() == &PatternType::GLOB {
-                for pattern in path_rule.patterns() {
-                    let matcher = glob::Pattern::new(pattern).unwrap();
-                    if matcher.matches_path(&path) {
-                        return Ok(Some(path_rule.to_owned()));
-                    }
-                }
-            }
-        }
-        Ok(None)
-    }
-
-    fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
-        let path = path.as_ref();
-        let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
-        match self.tera.render_string(path, context.clone()) {
-            Ok(result) => Ok(result),
-            Err(error) => {
-                // TODO: Get a better error message.
-                let message = String::new();
-                Err(RenderError::PathRenderError {
-                    source: path.into(),
-                    error,
-                    message,
-                })
-            }
-        }
-    }
-
-    fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(
-        &self,
-        parent: P,
-        child: C,
-        context: &Context,
-    ) -> Result<PathBuf, RenderError> {
-        let mut destination = parent.as_ref().to_owned();
-        let child = child.as_ref();
-        let name = self.render_path(&child, &context)?;
-        destination.push(name);
-        Ok(destination)
-    }
-
-    fn render_contents<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
-        let path = path.as_ref();
-        let template = match fs::read_to_string(path) {
-            Ok(template) => template,
-            Err(error) => {
-                return Err(RenderError::FileRenderIOError {
-                    source: path.to_owned(),
-                    error,
-                    message: "".to_string(),
-                });
-            }
-        };
-        match self.tera.render_string(&template, context.clone()) {
-            Ok(result) => Ok(result),
-            Err(error) => {
-                // TODO: Get a better error message.
-                let message = String::new();
-                Err(RenderError::FileRenderError {
-                    source: path.into(),
-                    error,
-                    message,
-                })
-            }
-        }
-    }
-
     fn render_string(&self, contents: &str, context: Context) -> Result<String, RenderError> {
         match self.tera.render_string(contents, context) {
             Ok(contents) => Ok(contents),
@@ -223,84 +84,20 @@ impl Archetype {
         }
     }
 
-    fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
-        let destination = destination.as_ref();
-        trace!("Generating {:?}", destination);
-        let mut output = File::create(&destination)?;
-        output.write(contents.as_bytes())?;
-        Ok(())
-    }
-
-    fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {
-        let source = source.as_ref();
-        let destination = destination.as_ref();
-        trace!("Copying    {:?}", destination);
-        fs::copy(source, destination)?;
-        Ok(())
-    }
-
-    pub fn render_modules<D: Into<PathBuf>>(&self, archetect: &Archetect, destination: D, context: Context) -> Result<(), ArchetectError> {
-        let destination = destination.into();
-        fs::create_dir_all(&destination).unwrap();
-        let mut seed = Context::new();
-
-        if let Some(variables) = self.configuration().variables() {
-            for (identifier, variable_info) in variables {
-                if variable_info.is_inheritable() {
-                    if let Some(value) = context.get(identifier) {
-                        seed.insert_value(identifier, value);
-                    }
-                }
-            }
-        }
-
-        for module in &self.modules {
-            match module {
-                Module::Template(template_info) => {
-                    self.render_directory(
-                        context.clone(),
-                        self.path.clone().join(template_info.source()),
-                        &destination,
-                    )?;
-                }
-                Module::Archetype(archetype, archetype_info) => {
-                    let subdirectory = self.render_path(archetype_info.destination().unwrap_or("."), &context)?;
-                    let destination = destination.clone().join(subdirectory);
-                    let mut answers = LinkedHashMap::new();
-                    if let Some(answers_configs) = archetype_info.answers() {
-                        for (identifier, answer_info) in answers_configs {
-                            if let Some(value) = answer_info.value() {
-                                answers.insert(
-                                    identifier.to_owned(),
-                                    AnswerInfo::with_value(&self.render_string(value, context.clone())?).build(),
-                                );
-                            }
-                        }
-                    };
-
-                    let context = archetype.get_context(&answers, Some(seed.clone()))?;
-                    archetype.render_modules(archetect, &destination, context)?;
-                    archetype.execute_script(archetect, &destination, &answers)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn execute_script<D: AsRef<Path>>(&self,
-                                            archetect: &Archetect,
-                                            destination: D,
-                                            answers: &LinkedHashMap<String, AnswerInfo>
+                                          archetect: &Archetect,
+                                          destination: D,
+                                          answers: &LinkedHashMap<String, AnswerInfo>,
     ) -> Result<(), ArchetectError> {
         let destination = destination.as_ref();
         fs::create_dir_all(destination).unwrap();
 
+        let mut rules_context = RulesContext::new();
         let mut context = Context::new();
-        
+
         let root_action = ActionId::from(self.config.actions());
-        
-        root_action.execute(archetect, self, destination, answers, &mut context)
+
+        root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)
     }
 
     pub fn get_context(

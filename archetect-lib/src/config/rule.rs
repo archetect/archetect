@@ -93,15 +93,34 @@ impl Default for RuleAction {
 #[cfg(test)]
 mod tests {
     use crate::config::rule::{RuleConfig, PatternType};
+    use crate::config::RuleAction;
 
     #[test]
-    fn test_serialize_path_config() {
-        let result = toml::ser::to_string(
+    fn test_serialize_rule_config() {
+        let result = serde_yaml::to_string(
             &RuleConfig::new(PatternType::GLOB)
                 .with_pattern("*.jpg")
-                .with_pattern("*.gif"),
+                .with_pattern("*.gif")
+                .with_action(RuleAction::COPY)
+            ,
         )
         .unwrap();
+        println!("{}", result);
+    }
+
+    #[test]
+    fn test_serialize_vec_rule_config() {
+        let rules = vec![
+            RuleConfig::new(PatternType::GLOB)
+                .with_pattern("*.jpg")
+                .with_pattern("*.gif")
+                .with_action(RuleAction::COPY),
+            RuleConfig::new(PatternType::REGEX)
+                .with_pattern("^(.*)*.java")
+                .with_action(RuleAction::RENDER)
+        ];
+
+        let result = serde_yaml::to_string(&rules).unwrap();
         println!("{}", result);
     }
 }

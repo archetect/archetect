@@ -4,6 +4,7 @@ use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{ActionId, Action};
 use std::path::{Path};
 use crate::template_engine::Context;
+use crate::rules::RulesContext;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IterateAction {
@@ -42,6 +43,7 @@ impl Action for IterateAction {
                archetect: &Archetect,
                archetype: &Archetype,
                destination: D,
+               rules_context: &mut RulesContext,
                answers: &LinkedHashMap<String, AnswerInfo>,
                context: &mut Context
     ) -> Result<(), ArchetectError> {
@@ -50,7 +52,7 @@ impl Action for IterateAction {
         if let Some(actions) = self.actions.as_ref() {
             for action in actions {
 
-                action.execute(archetect, archetype, destination, answers, context)?;
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?;
             }
         }
         Ok(())

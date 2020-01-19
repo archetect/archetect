@@ -6,6 +6,7 @@ use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, set};
 use crate::config::AnswerInfo;
 use crate::template_engine::Context;
+use crate::rules::RulesContext;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RenderAction {
@@ -68,6 +69,7 @@ impl Action for RenderAction {
                archetect: &Archetect,
                archetype: &Archetype,
                destination: D,
+               rules_context: &mut RulesContext,
                _answers: &LinkedHashMap<String, AnswerInfo>,
                context: &mut Context,
     ) -> Result<(), ArchetectError> {
@@ -79,7 +81,7 @@ impl Action for RenderAction {
                 } else {
                     destination.as_ref().to_owned()
                 };
-                archetect.render_directory(context, source, destination)?;
+                archetect.render_directory(context, source, destination, rules_context)?;
             }
 
             RenderAction::Archetype(options) => {
@@ -112,9 +114,6 @@ impl Action for RenderAction {
                     }
                 };
 
-                let context = archetype.get_context(&scoped_answers, Some(context.clone()))?;
-                archetype.render_modules(archetect, &destination, context.clone())?;
-                
                 archetype.execute_script(archetect, &destination, &scoped_answers)?;
             }
         }

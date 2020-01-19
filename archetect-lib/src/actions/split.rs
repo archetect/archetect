@@ -6,6 +6,7 @@ use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, ActionId};
 use crate::config::AnswerInfo;
 use crate::template_engine::Context;
+use crate::rules::RulesContext;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitAction {
@@ -19,6 +20,7 @@ impl Action for SplitAction {
                archetect: &Archetect,
                archetype: &Archetype,
                destination: D,
+               rules_context: &mut RulesContext,
                answers: &LinkedHashMap<String, AnswerInfo>,
                context: &mut Context
     ) -> Result<(), ArchetectError> {
@@ -31,7 +33,7 @@ impl Action for SplitAction {
             context.insert("split", split);
 
             for action in &self.actions {
-                action.execute(archetect, archetype, destination, answers, &mut context)?;
+                action.execute(archetect, archetype, destination, rules_context, answers, &mut context)?;
             }
         }
 

@@ -53,8 +53,10 @@ impl From<CatalogError> for ArchetectError {
 
 #[derive(Debug)]
 pub enum RenderError {
+    InvalidPathCharacters { source: PathBuf },
     PathRenderError{ source: PathBuf, error: crate::template_engine::Error, message: String },
     FileRenderError{ source: PathBuf, error: crate::template_engine::Error, message: String },
+
     FileRenderIOError { source: PathBuf, error: std::io::Error, message: String },
     StringRenderError { source: String, error: crate::template_engine::Error, message: String },
     IOError { error: std::io::Error, message: String },
