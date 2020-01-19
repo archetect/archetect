@@ -44,6 +44,16 @@ pub fn get_matches() -> App<'static, 'static> {
                 }),
         )
         .arg(
+            Arg::with_name("switches")
+                .short("s")
+                .long("switch")
+                .takes_value(true)
+                .multiple(true)
+                .global(true)
+                .empty_values(true)
+                .help("Enable switches that may trigger functionality within Archetypes")
+        )
+        .arg(
             Arg::with_name("answer-file")
                 .short("A")
                 .long("answer-file")

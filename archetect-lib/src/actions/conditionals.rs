@@ -29,6 +29,10 @@ pub enum Condition {
     IsFile(String),
     #[serde(rename = "is-directory")]
     IsDirectory(String),
+    #[serde(rename = "switch-enabled")]
+    SwitchEnabled(String),
+    #[serde(rename = "switch-disabled")]
+    SwitchDisabled(String),
 }
 
 impl Condition {
@@ -68,6 +72,12 @@ impl Condition {
                 let path = archetect.render_string(path, context)?;
                 let path = destination.as_ref().join(path);
                 Ok(path.exists() && path.is_dir())
+            }
+            Condition::SwitchEnabled(switch) => {
+                Ok(archetect.switches().contains(switch))
+            }
+            Condition::SwitchDisabled(switch) => {
+                Ok(!archetect.switches().contains(switch))
             }
         }
     }

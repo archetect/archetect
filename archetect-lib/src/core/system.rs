@@ -15,11 +15,13 @@ use std::fs::File;
 use std::io::Write;
 use crate::config::{RuleAction};
 use crate::rules::RulesContext;
+use std::collections::HashSet;
 
 pub struct Archetect {
     tera: Tera,
     paths: Rc<Box<dyn SystemLayout>>,
     offline: bool,
+    switches: HashSet<String>,
 }
 
 impl Archetect {
@@ -41,6 +43,14 @@ impl Archetect {
 
     pub fn template_engine(&self) -> &Tera {
         &self.tera
+    }
+
+    pub fn enable_switch<S: Into<String>>(&mut self, switch: S) {
+        self.switches.insert(switch.into());
+    }
+
+    pub fn switches(&self) -> &HashSet<String> {
+        &self.switches
     }
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
@@ -195,6 +205,7 @@ impl Archetect {
 pub struct ArchetectBuilder {
     layout: Option<Box<dyn SystemLayout>>,
     offline: bool,
+    switches: HashSet<String>,
 }
 
 impl ArchetectBuilder {
@@ -202,6 +213,7 @@ impl ArchetectBuilder {
         ArchetectBuilder {
             layout: None,
             offline: false,
+            switches: HashSet::new(),
         }
     }
 
@@ -213,6 +225,7 @@ impl ArchetectBuilder {
             tera: Tera::default(),
             paths,
             offline: self.offline,
+            switches: self.switches,
         })
     }
 

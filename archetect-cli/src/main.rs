@@ -30,7 +30,7 @@ fn main() {
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
-    let archetect = archetect::Archetect::builder()
+    let mut archetect = archetect::Archetect::builder()
         .with_offline(matches.is_present("offline"))
         .build()?;
 
@@ -53,6 +53,12 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Some(matches) = matches.values_of("answer") {
         for (identifier, answer_info) in matches.map(|m| AnswerInfo::parse(m).unwrap()) {
             answers.insert(identifier, answer_info);
+        }
+    }
+
+    if let Some(matches) = matches.values_of("switches") {
+        for switch in matches {
+            archetect.enable_switch(switch);
         }
     }
 
