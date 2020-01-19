@@ -1,17 +1,13 @@
-use crate::archetype::ArchetypeError;
-
-use log::debug;
-
-use std::fmt::{Display, Formatter};
+use std::{fs};
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::{fmt, fs};
 
+use linked_hash_map::LinkedHashMap;
+use log::debug;
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
+
 use crate::config::VariableInfo;
-use linked_hash_map::LinkedHashMap;
 
 pub type AnswerInfo = VariableInfo;
 
@@ -81,23 +77,6 @@ impl AnswerConfig {
 impl Default for AnswerConfig {
     fn default() -> Self {
         AnswerConfig { answers: LinkedHashMap::new() }
-    }
-}
-
-impl FromStr for AnswerConfig {
-    type Err = ArchetypeError;
-
-    fn from_str(config: &str) -> Result<Self, Self::Err> {
-        toml::de::from_str::<AnswerConfig>(config).map_err(|_| ArchetypeError::ArchetypeInvalid)
-    }
-}
-
-impl Display for AnswerConfig {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match toml::ser::to_string_pretty(self) {
-            Ok(config) => write!(f, "{}", config),
-            Err(_) => Err(fmt::Error),
-        }
     }
 }
 

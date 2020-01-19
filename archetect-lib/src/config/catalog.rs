@@ -1,21 +1,11 @@
-use std::fs;
-use std::path::Path;
-
 #[derive(Debug)]
 pub enum CatalogConfigError {
-    CatalogConfigTomlParseError(toml::de::Error),
     IOError(std::io::Error),
 }
 
 impl From<std::io::Error> for CatalogConfigError {
     fn from(cause: std::io::Error) -> Self {
         CatalogConfigError::IOError(cause)
-    }
-}
-
-impl From<toml::de::Error> for CatalogConfigError {
-    fn from(cause: toml::de::Error) -> Self {
-        CatalogConfigError::CatalogConfigTomlParseError(cause)
     }
 }
 
@@ -46,11 +36,6 @@ impl CatalogConfig {
 
     pub fn add_entry(&mut self, entry: CatalogConfigEntry) {
         self.entries.push(entry);
-    }
-
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<CatalogConfig, CatalogConfigError> {
-        let config_text = fs::read_to_string(path)?;
-        toml::de::from_str::<CatalogConfig>(&config_text).map_err(|e| CatalogConfigError::CatalogConfigTomlParseError(e))
     }
 }
 
@@ -92,50 +77,4 @@ impl CatalogConfigEntry {
 pub enum CatalogConfigEntryType {
     Catalog,
     Archetype,
-}
-
-//#[derive(Debug, Deserialize, Serialize, Clone)]
-//pub struct ArchetypeEntry {
-//    description: String,
-//    source: String,
-//}
-//
-//impl ArchetypeEntry {
-//    pub fn new(description: &str, location: &str) -> ArchetypeEntry {
-//        ArchetypeEntry {
-//            description: description.into(),
-//            source: location.into(),
-//        }
-//    }
-//
-//    pub fn description(&self) -> &str {
-//        self.description.as_str()
-//    }
-//
-//    pub fn source(&self) -> &str {
-//        self.source.as_str()
-//    }
-//}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-//    use indoc::indoc;
-
-    #[test]
-    fn test_catalog_serialization() {
-        let catalog = CatalogConfig::new()
-            .with_entry(CatalogConfigEntry::new(
-                "Rust CLI",
-                "~/projects/archetypes/foo/",
-                CatalogConfigEntryType::Archetype,
-            ))
-            .with_entry(CatalogConfigEntry::new(
-                "Rust Archetypes",
-                "http://www.example.com/catalog.toml",
-                CatalogConfigEntryType::Catalog,
-            ));
-
-        println!("{}", toml::ser::to_string(&catalog).unwrap());
-    }
 }

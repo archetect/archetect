@@ -35,14 +35,6 @@ pub trait SystemLayout {
     fn catalog(&self) -> PathBuf {
         self.configs_dir().join(CATALOG_FILE_NAME)
     }
-
-    fn catalog_registry(&self) -> PathBuf {
-        self.configs_dir().join("catalog_registry.toml")
-    }
-
-    fn user_config(&self) -> PathBuf {
-        self.configs_dir().join("archetect.toml")
-    }
 }
 
 #[derive(Debug)]
@@ -107,7 +99,6 @@ impl Display for dyn SystemLayout {
         writeln!(f, "{}: {}", "Configs Directory", self.configs_dir().display())?;
         writeln!(f, "{}: {}", "User Answers", self.answers_config().display())?;
         writeln!(f, "{}: {}", "User Catalog", self.catalog().display())?;
-        writeln!(f, "{}: {}", "User Config", self.user_config().display())?;
         writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir().display())?;
         writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir().display())?;
         Ok(())

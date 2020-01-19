@@ -7,7 +7,7 @@ use crate::util::Source;
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
 use clap::crate_version;
-use log::{trace, debug};
+use log::{debug};
 use semver::Version;
 use std::path::{Path, PathBuf};
 use std::fs;
@@ -118,7 +118,7 @@ impl Archetect {
 
             if path.is_dir() {
                 let destination = self.render_destination(&destination, &path, &context)?;
-                trace!("Rendering {:?}", &destination);
+                debug!("Rendering {:?}", &destination);
                 fs::create_dir_all(destination.as_path()).unwrap();
                 self.render_directory(context, path, destination, rules_context)?;
             } else if path.is_file() {
@@ -249,7 +249,7 @@ mod tests {
             .build()
             .unwrap();
 
-        println!("{}", archetect.layout().user_config().display());
+        println!("{}", archetect.layout().catalog_cache_dir().display());
     }
 
     #[test]
@@ -257,14 +257,14 @@ mod tests {
         let paths = RootedSystemLayout::new("~/.archetect/").unwrap();
         let archetect = Archetect::builder().with_layout(paths).build().unwrap();
 
-        println!("{}", archetect.layout().user_config().display());
+        println!("{}", archetect.layout().catalog_cache_dir().display());
     }
 
     #[test]
     fn test_implicit() {
         let archetect = Archetect::build().unwrap();
 
-        println!("{}", archetect.layout().user_config().display());
+        println!("{}", archetect.layout().catalog_cache_dir().display());
 
         std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");
         std::fs::create_dir_all(archetect.layout().git_cache_dir()).expect("Error creating directory");

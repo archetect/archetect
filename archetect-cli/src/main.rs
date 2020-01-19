@@ -1,22 +1,19 @@
 mod cli;
 
 use archetect::config::{
-    AnswerConfig, AnswerInfo, ArchetypeConfig, Catalog, CatalogConfig, CatalogConfigEntry, CatalogConfigEntryType,
-    CatalogEntry, CatalogError, VariableInfo, CATALOG_FILE_NAME,
+    AnswerConfig, AnswerInfo, Catalog,
+    CatalogEntry, CatalogError, CATALOG_FILE_NAME,
 };
-use archetect::input::{select_from_catalog, CatalogSelectError};
+use archetect::input::{select_from_catalog};
 use archetect::system::SystemError;
 use archetect::util::{Source, SourceError};
 use archetect::RenderError;
 use archetect::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
-use indoc::indoc;
+//use indoc::indoc;
 use log::{error, info, warn};
 use std::error::Error;
-use std::ffi::OsStr;
 use std::fs;
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use linked_hash_map::LinkedHashMap;
@@ -107,44 +104,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             }
         }
         archetype.execute_script(&archetect, &destination, &answers)?;
-    } else if let Some(matches) = matches.subcommand_matches("archetype") {
-        if let Some(matches) = matches.subcommand_matches("init") {
-            let output_dir = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
-            if !output_dir.exists() {
-                fs::create_dir_all(&output_dir).unwrap();
-            }
-
-            let mut config = ArchetypeConfig::default();
-            config.add_variable("name", VariableInfo::with_prompt("Application Name: ").build());
-            config.add_variable("author", VariableInfo::with_prompt("Author name: ").build());
-
-            let mut config_file = File::create(output_dir.clone().join("archetype.yml")).unwrap();
-            config_file
-                .write(toml::ser::to_string_pretty(&config).unwrap().as_bytes())
-                .unwrap();
-
-            File::create(output_dir.clone().join("README.md")).expect("Error creating archetype README.md");
-            File::create(output_dir.clone().join(".gitignore")).expect("Error creating archetype .gitignore");
-
-            let project_dir = output_dir.clone().join("contents/{{ name # train_case }}");
-
-            fs::create_dir_all(&project_dir).unwrap();
-
-            let mut project_readme =
-                File::create(project_dir.clone().join("README.md")).expect("Error creating project README.md");
-            project_readme
-                .write_all(
-                    indoc!(
-                        r#"
-                        Project: {{ name | title_case }}
-                        Author: {{ author | title_case }}
-                    "#
-                    )
-                    .as_bytes(),
-                )
-                .expect("Error writing README.md");
-            File::create(project_dir.clone().join(".gitignore")).expect("Error creating project .gitignore");
-        }
     }
 
     if let Some(matches) = matches.subcommand_matches("catalog") {
@@ -166,72 +125,29 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         } else {
             if source.local_path().exists() {
                 let catalog_file = source.local_path();
-                if catalog_file.extension().eq(&Some(OsStr::new("toml"))) {
-                    let catalog = CatalogConfig::load(catalog_file).unwrap();
+                let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
+                let catalog = Catalog::load(source.clone())?;
 
-                    match archetect::input::select_from_catalog_config(&archetect, &catalog) {
-                        Ok(entry) => match entry {
-                            CatalogConfigEntry {
-                                entry_type: CatalogConfigEntryType::Archetype,
-                                description: _,
-                                source,
-                            } => {
-                                let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+                let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
 
-                                let archetype = archetect.load_archetype(&source, None)?;
+                match catalog_entry {
+                    CatalogEntry::Archetype { description: _, source } => {
+                        let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
-                                if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                                    for (identifier, answer_info) in answer_config.answers() {
-                                        if !answers.contains_key(identifier) {
-                                            answers.insert(identifier.to_owned(), answer_info.clone());
-                                        }
-                                    }
-                                }
-                                archetype.execute_script(&archetect, &destination, &answers)?;
-                                return Ok(());
-                            }
-                            CatalogConfigEntry {
-                                entry_type: CatalogConfigEntryType::Catalog,
-                                description: _,
-                                source: _,
-                            } => unreachable!("This is not a possibility."),
-                        },
-                        Err(CatalogSelectError::EmptyCatalog) => {
-                            info!("No archetypes in your catalog. Try adding one, first.");
-                        }
-                        Err(CatalogSelectError::SourceError(e)) => {
-                            error!("Error reading from source: {:?}", e);
-                        }
-                        Err(CatalogSelectError::UnsupportedCatalogSource(source)) => {
-                            error!("'{}' is not a valid catalog.", source);
-                        }
-                    }
-                } else {
-                    let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
-                    let catalog = Catalog::load(source.clone())?;
+                        let archetype = archetect.load_archetype(&source, None)?;
 
-                    let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
-
-                    match catalog_entry {
-                        CatalogEntry::Archetype { description: _, source } => {
-                            let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
-
-                            let archetype = archetect.load_archetype(&source, None)?;
-
-                            if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                                for (identifier, answer_info) in answer_config.answers() {
-                                    if !answers.contains_key(identifier) {
-                                        answers.insert(identifier.to_owned(), answer_info.clone());
-                                    }
+                        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+                            for (identifier, answer_info) in answer_config.answers() {
+                                if !answers.contains_key(identifier) {
+                                    answers.insert(identifier.to_owned(), answer_info.clone());
                                 }
                             }
-                            archetype.execute_script(&archetect, &destination, &answers)?;
-                            return Ok(())
                         }
-                        _ => unreachable!(),
+                        archetype.execute_script(&archetect, &destination, &answers)?;
+                        return Ok(())
                     }
-                }
-            } else {
+                    _ => unreachable!(),
+                }            } else {
                 info!("There are no items registered in your catalog. Try registering one first.");
             }
         }

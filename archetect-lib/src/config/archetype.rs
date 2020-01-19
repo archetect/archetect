@@ -3,10 +3,8 @@ use crate::config::{AnswerInfo, ModuleInfo};
 use crate::ArchetypeError;
 use linked_hash_map::LinkedHashMap;
 use semver::VersionReq;
-use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::{fmt, fs};
+use std::{fs};
 use crate::actions::ActionId;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -60,16 +58,6 @@ impl ArchetypeConfig {
 
     pub fn requirements(&self) -> Option<&VersionReq> {
         self.requires.as_ref()
-    }
-
-    pub fn save<P: Into<PathBuf>>(&self, path: P) -> Result<(), ArchetypeError> {
-        let mut path = path.into();
-        if path.is_dir() {
-            path.push("archetype.yaml");
-        }
-        fs::write(path, self.to_string().as_bytes()).unwrap();
-
-        Ok(())
     }
 
     pub fn with_description(mut self, description: &str) -> ArchetypeConfig {
@@ -202,26 +190,6 @@ impl Default for ArchetypeConfig {
     }
 }
 
-impl Display for ArchetypeConfig {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match toml::ser::to_string(self) {
-            Ok(config) => write!(f, "{}", config),
-            Err(_) => Err(fmt::Error),
-        }
-    }
-}
-
-impl FromStr for ArchetypeConfig {
-    type Err = ArchetypeError;
-
-    fn from_str(config: &str) -> Result<Self, Self::Err> {
-        let result = toml::de::from_str::<ArchetypeConfig>(config);
-        println!("{:?}", result);
-
-        result.map_err(|_| ArchetypeError::ArchetypeInvalid)
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModuleConfig {
     #[serde(alias = "location")]
@@ -267,7 +235,6 @@ impl ModuleConfig {
 mod tests {
     use super::*;
     use crate::config::{ArchetypeInfo};
-    use indoc::indoc;
     use crate::actions::iterate::IterateAction;
     use crate::actions::render::{RenderAction, DirectoryOptions};
 

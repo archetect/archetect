@@ -1,4 +1,4 @@
-use crate::config::{CatalogConfig, CatalogEntry, CatalogConfigEntryType, CatalogConfigEntry, Catalog, CatalogError};
+use crate::config::{CatalogEntry, Catalog, CatalogError};
 
 use read_input::shortcut::input;
 use read_input::InputBuild;
@@ -24,54 +24,6 @@ pub fn you_are_sure(message: &str) -> bool {
         .msg(format!("{} [false]: ", message))
         .default(false)
         .get()
-}
-
-pub fn select_from_catalog_config(archetect: &Archetect, catalog: &CatalogConfig) -> Result<CatalogConfigEntry, CatalogSelectError> {
-    if catalog.entries().len() == 0 {
-        return Err(CatalogSelectError::EmptyCatalog);
-    }
-
-    let mut catalog = catalog.clone();
-
-    loop {
-        if catalog.entries().len() == 0 {
-            return Err(CatalogSelectError::EmptyCatalog);
-        }
-
-        let mut choices = catalog
-            .entries()
-            .iter()
-            .enumerate()
-            .map(|(id, entry)| (id + 1, entry.clone()))
-            .collect::<HashMap<_, _>>();
-
-        for (id, entry) in catalog.entries().iter().enumerate() {
-            println!("{:>2}) {}", id + 1, entry.description());
-        }
-
-        let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
-        let result = input::<usize>()
-            .msg("\nSelect an entry: ")
-            .add_test(move |value| test_values.contains(value))
-            .err("Please enter the number of a selection from the list.")
-            .repeat_msg("Select an entry: ")
-            .get();
-
-        let choice = choices.remove(&result).unwrap();
-        if choice.entry_type() == &CatalogConfigEntryType::Catalog {
-            let source = Source::detect(archetect, choice.source(), None)?;
-            let path = match source {
-                Source::RemoteGit { url, .. } => return Err(CatalogSelectError::UnsupportedCatalogSource(url)),
-                Source::RemoteHttp { path, .. } => path,
-                Source::LocalDirectory { path } => return Err(CatalogSelectError::UnsupportedCatalogSource(path.display().to_string())),
-                Source::LocalFile { path } => path,
-            };
-            catalog = CatalogConfig::load(shellexpand::full(path.to_str().unwrap()).unwrap().as_ref()).unwrap();
-            continue;
-        } else {
-            return Ok(choice);
-        }
-    }
 }
 
 pub fn select_from_catalog(archetect: &Archetect, catalog: &Catalog, current_source: &Source) -> Result<CatalogEntry, CatalogError> {
