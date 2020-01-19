@@ -55,7 +55,7 @@ impl Archetect {
 
     pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
         let source = Source::detect(self, source, relative_to)?;
-        let archetype = Archetype::from_source(self, source, self.offline)?;
+        let archetype = Archetype::from_source(source)?;
 
         if let Some(requirements) = archetype.configuration().requirements() {
             if !requirements.matches(&self.version()) {
