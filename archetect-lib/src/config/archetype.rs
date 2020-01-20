@@ -1,13 +1,10 @@
 use crate::ArchetypeError;
-use semver::VersionReq;
 use std::path::PathBuf;
 use std::{fs};
 use crate::actions::ActionId;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    requires: Option<VersionReq>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,10 +42,6 @@ impl ArchetypeConfig {
             let config = serde_yaml::from_str::<ArchetypeConfig>(&config).unwrap();
             Ok(config)
         }
-    }
-
-    pub fn requirements(&self) -> Option<&VersionReq> {
-        self.requires.as_ref()
     }
 
     pub fn with_description(mut self, description: &str) -> ArchetypeConfig {
@@ -130,7 +123,6 @@ impl ArchetypeConfig {
 impl Default for ArchetypeConfig {
     fn default() -> Self {
         ArchetypeConfig {
-            requires: None,
             description: None,
             authors: None,
             languages: None,

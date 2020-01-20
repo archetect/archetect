@@ -1,21 +1,21 @@
+use std::collections::HashSet;
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use clap::crate_version;
+use log::debug;
+use semver::Version;
+
+use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
+use crate::config::RuleAction;
+use crate::rules::RulesContext;
 use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
 use crate::template_engine::{Context, Tera};
 use crate::util::Source;
-use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
-
-use clap::crate_version;
-use log::{debug};
-use semver::Version;
-use std::path::{Path, PathBuf};
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use crate::config::{RuleAction};
-use crate::rules::RulesContext;
-use std::collections::HashSet;
 
 pub struct Archetect {
     tera: Tera,
@@ -53,19 +53,9 @@ impl Archetect {
         &self.switches
     }
 
-    pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetectError> {
+    pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetypeError> {
         let source = Source::detect(self, source, relative_to)?;
-        let archetype = Archetype::from_source(source)?;
-
-        if let Some(requirements) = archetype.configuration().requirements() {
-            if !requirements.matches(&self.version()) {
-                return Err(ArchetectError::ArchetypeError(ArchetypeError::UnsatisfiedRequirements(
-                    self.version().clone(),
-                    requirements.to_owned(),
-                )));
-            }
-        }
-
+        let archetype = Archetype::from_source(&source)?;
         Ok(archetype)
     }
 

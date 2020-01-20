@@ -4,7 +4,7 @@ use archetect::config::{
     AnswerConfig, AnswerInfo, Catalog,
     CatalogEntry, CatalogError, CATALOG_FILE_NAME,
 };
-use archetect::input::{select_from_catalog};
+use archetect::input::select_from_catalog;
 use archetect::system::SystemError;
 use archetect::util::{Source, SourceError};
 use archetect::RenderError;
@@ -17,6 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use linked_hash_map::LinkedHashMap;
+use archetect::requirements::RequirementsError;
 
 fn main() {
     let matches = cli::get_matches().get_matches();
@@ -127,8 +128,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             //                catalog.save_to_file(local_path)?;
             //                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
             //            }
-        } else if let Some(_matches) = matches.subcommand_matches("add") {
-        } else {
+        } else if let Some(_matches) = matches.subcommand_matches("add") {} else {
             if source.local_path().exists() {
                 let catalog_file = source.local_path();
                 let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
@@ -150,10 +150,11 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                             }
                         }
                         archetype.execute_script(&archetect, &destination, &answers)?;
-                        return Ok(())
+                        return Ok(());
                     }
                     _ => unreachable!(),
-                }            } else {
+                }
+            } else {
                 info!("There are no items registered in your catalog. Try registering one first.");
             }
         }
@@ -173,6 +174,23 @@ fn handle_archetect_error(error: ArchetectError) {
     }
 }
 
+fn handle_requirements_error(path: String, error: RequirementsError) {
+    match error {
+        RequirementsError::DeserializationError { path, cause } => {
+            error!("Error reading requirements from: {}\n{}", path.display(), cause);
+        }
+        RequirementsError::ArchetectVersion(version, requirements) => {
+            error!("'{}' requires features that are unavailable in this version of \
+                    Archetect.  Archetect {} is required, but you are on Archetect {}.  \
+                    Try upgrading to the latest available version.", path, requirements, version
+            );
+        }
+        RequirementsError::IoError(cause) => {
+            error!("Error reading requirements: {}", cause);
+        }
+    }
+}
+
 fn handle_archetype_error(error: ArchetypeError) {
     match error {
         ArchetypeError::ArchetypeInvalid => panic!(),
@@ -180,14 +198,9 @@ fn handle_archetype_error(error: ArchetypeError) {
         ArchetypeError::RenderError(error) => handle_render_error(error),
         ArchetypeError::ArchetypeSaveFailed => {}
         ArchetypeError::SourceError(error) => handle_source_error(error),
-        ArchetypeError::UnsatisfiedRequirements(version, requirements) => error!(
-            "This archetype requires features that are unavailable in this version of Archetect.  This archetype \
-             requires Archetect {}, but you are on Archetect {}.  Try \
-             upgrading to the latest available version.",
-            requirements, version
-        ),
     }
 }
+
 
 fn handle_source_error(error: SourceError) {
     match error {
@@ -201,6 +214,9 @@ fn handle_source_error(error: SourceError) {
         ),
         SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
         SourceError::IOError(err) => error!("IO Error: {}", err),
+        SourceError::RequirementsError { path, cause } => {
+            handle_requirements_error(path, cause);
+        }
     };
 }
 
@@ -252,7 +268,7 @@ fn handle_render_error(error: RenderError) {
         RenderError::IOError { error: _, message } => {
             error!("Unexpected IO Error:\n{}", message);
         }
-        RenderError::InvalidPathCharacters { source} => {
+        RenderError::InvalidPathCharacters { source } => {
             error!("Unable read path '{}' as a UTF-8 template", source.display());
         }
     }

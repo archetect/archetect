@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use linked_hash_map::LinkedHashMap;
-use semver::{Version, VersionReq};
 
 use crate::{Archetect, ArchetectError};
 use crate::actions::ActionId;
@@ -21,7 +20,7 @@ pub struct Archetype {
 }
 
 impl Archetype {
-    pub fn from_source(source: Source) -> Result<Archetype, ArchetypeError> {
+    pub fn from_source(source: &Source) -> Result<Archetype, ArchetypeError> {
         let local_path = source.local_path();
 
         let config = ArchetypeConfig::load(local_path)?;
@@ -67,7 +66,6 @@ impl Archetype {
 #[derive(Debug)]
 pub enum ArchetypeError {
     ArchetypeInvalid,
-    UnsatisfiedRequirements(Version, VersionReq),
     InvalidAnswersConfig,
     ArchetypeSaveFailed,
     SourceError(SourceError),

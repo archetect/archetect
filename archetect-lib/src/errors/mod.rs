@@ -50,7 +50,6 @@ impl From<CatalogError> for ArchetectError {
     }
 }
 
-
 #[derive(Debug)]
 pub enum RenderError {
     InvalidPathCharacters { source: PathBuf },

@@ -8,6 +8,7 @@ use regex::Regex;
 use url::Url;
 
 use crate::Archetect;
+use crate::requirements::{Requirements, RequirementsError};
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -17,7 +18,7 @@ pub enum Source {
     LocalFile { path: PathBuf },
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug)]
 pub enum SourceError {
     SourceUnsupported(String),
     SourceNotFound(String),
@@ -26,6 +27,7 @@ pub enum SourceError {
     RemoteSourceError(String),
     OfflineAndNotCached(String),
     IOError(String),
+    RequirementsError { path: String, cause: RequirementsError },
 }
 
 lazy_static! {
@@ -35,6 +37,7 @@ lazy_static! {
 
 impl Source {
     pub fn detect(archetect: &Archetect, path: &str, relative_to: Option<Source>) -> Result<Source, SourceError> {
+        let source = path;
         let git_cache = archetect.layout().git_cache_dir();
 
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
@@ -44,6 +47,7 @@ impl Source {
             if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                 return Err(error);
             }
+            verify_requirements(archetect, source, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -60,6 +64,7 @@ impl Source {
                 if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
+                verify_requirements(archetect, source, &cache_path)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -73,6 +78,7 @@ impl Source {
                 if let Err(error) = cache_http_resource(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
+                verify_requirements(archetect, source, &cache_path)?;
                 return Ok(Source::RemoteHttp {
                     url: path.to_owned(),
                     path: cache_path,
@@ -81,6 +87,7 @@ impl Source {
 
             if let Ok(local_path) = url.to_file_path() {
                 if local_path.exists() {
+                    verify_requirements(archetect, source, &local_path)?;
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
                     return Err(SourceError::SourceNotFound(local_path.display().to_string()));
@@ -96,6 +103,7 @@ impl Source {
                 if let Some(parent) = relative_to {
                     let local_path = parent.local_path().clone().join(local_path);
                     if local_path.exists() && local_path.is_dir() {
+                        verify_requirements(archetect, source, &local_path)?;
                         return Ok(Source::LocalDirectory { path: local_path });
                     } else {
                         return Err(SourceError::SourceNotFound(local_path.display().to_string()));
@@ -104,6 +112,7 @@ impl Source {
             }
             if local_path.exists() {
                 if local_path.is_dir() {
+                    verify_requirements(archetect, source, &local_path)?;
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
                     return Ok(Source::LocalFile { path: local_path });
@@ -124,6 +133,22 @@ impl Source {
             Source::LocalFile { path } => path.as_path(),
         }
     }
+}
+
+fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Result<(), SourceError> {
+    match Requirements::load(&path) {
+        Ok(results) => {
+            if let Some(requirements) = results {
+                if let Err(error) = requirements.verify(archetect) {
+                    return Err(SourceError::RequirementsError { path: source.to_owned(), cause: error });
+                }
+            }
+        }
+        Err(error) => {
+            return Err(SourceError::RequirementsError { path: path.display().to_string(), cause: error });
+        }
+    }
+    Ok(())
 }
 
 fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
