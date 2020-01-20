@@ -2,10 +2,11 @@ use std::path::PathBuf;
 use crate::ArchetypeError;
 use crate::system::SystemError;
 use crate::util::SourceError;
-use crate::config::{CatalogError};
+use crate::config::{CatalogError, AnswerConfigError};
 
 #[derive(Debug)]
 pub enum ArchetectError {
+    AnswerConfigError{ source: String, cause: AnswerConfigError },
     ArchetypeError(ArchetypeError),
     GenericError(String),
     RenderError(RenderError),

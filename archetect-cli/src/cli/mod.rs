@@ -76,19 +76,6 @@ pub fn get_matches() -> App<'static, 'static> {
                 }),
         )
         .subcommand(
-            SubCommand::with_name("archetype")
-                .about("Archetype Authoring Tools")
-                .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(
-                    SubCommand::with_name("init").about("Creates a minimal template").arg(
-                        Arg::with_name("destination")
-                            .takes_value(true)
-                            .help("Destination")
-                            .required(true),
-                    ),
-                ),
-        )
-        .subcommand(
             SubCommand::with_name("catalog")
                 .about("Select From a Catalog")
                 .arg(
@@ -176,14 +163,14 @@ pub fn get_matches() -> App<'static, 'static> {
                 .about("Creates content from an Archetype")
                 .arg(
                     Arg::with_name("source")
-                        .help("The source archetype directory or git URL")
+                        .help("The Archetype source directory or git URL")
                         .takes_value(true)
                         .required(true),
                 )
                 .arg(
                     Arg::with_name("destination")
                         .default_value(".")
-                        .help("The directory to initialize the Archetype template in.")
+                        .help("The directory the Archetype should be rendered into.")
                         .takes_value(true),
                 ),
         )

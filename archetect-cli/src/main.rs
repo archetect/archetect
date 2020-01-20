@@ -1,9 +1,6 @@
 mod cli;
 
-use archetect::config::{
-    AnswerConfig, AnswerInfo, Catalog,
-    CatalogEntry, CatalogError, CATALOG_FILE_NAME,
-};
+use archetect::config::{AnswerConfig, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME, AnswerConfigError};
 use archetect::input::select_from_catalog;
 use archetect::system::SystemError;
 use archetect::util::{Source, SourceError};
@@ -44,9 +41,16 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     if let Some(matches) = matches.values_of("answer-file") {
-        for f in matches.map(|m| AnswerConfig::load(m).unwrap()) {
-            for (identifier, answer_info) in f.answers() {
-                answers.insert(identifier.to_owned(), answer_info.clone());
+        for answer_file in matches {
+            match AnswerConfig::load(answer_file) {
+                Ok(answer_config) => {
+                    for (identifier, answer_info) in answer_config.answers() {
+                        answers.insert(identifier.to_owned(), answer_info.clone());
+                    }
+                }
+                Err(cause) => {
+                    return Err(ArchetectError::AnswerConfigError { source: answer_file.to_owned(), cause });
+                }
             }
         }
     }
@@ -172,6 +176,19 @@ fn handle_archetect_error(error: ArchetectError) {
         ArchetectError::SystemError(error) => handle_system_error(error),
         ArchetectError::CatalogError(error) => handle_catalog_error(error),
         ArchetectError::IoError(error) => handle_io_error(error),
+        ArchetectError::AnswerConfigError { source, cause } =>
+            handle_answer_config_error(source, cause),
+    }
+}
+
+fn handle_answer_config_error(source: String, error: AnswerConfigError) {
+    match error {
+        AnswerConfigError::MissingError => {
+            error!("{} does not exist.", source);
+        }
+        AnswerConfigError::ParseError(cause) => {
+            error!("Error parsing {}: {}", source, cause);
+        }
     }
 }
 

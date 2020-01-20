@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use clap::crate_version;
-use log::debug;
+use log::{debug, trace};
 use semver::Version;
 
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
@@ -118,23 +118,31 @@ impl Archetect {
 
             if path.is_dir() {
                 let destination = self.render_destination(&destination, &path, &context)?;
-                debug!("Rendering {:?}", &destination);
+                debug!("Rendering   {:?}", &destination);
                 fs::create_dir_all(destination.as_path())?;
                 self.render_directory(context, path, destination, rules_context)?;
             } else if path.is_file() {
                 let destination = self.render_destination(&destination, &path, &context)?;
                 match action {
                     RuleAction::RENDER => {
-                        debug!("Rendering {:?}", destination);
-                        let contents = self.render_contents(&path, &context)?;
-                        self.write_contents(destination, &contents)?;
+                        if !destination.exists() {
+                            debug!("Rendering   {:?}", destination);
+                            let contents = self.render_contents(&path, &context)?;
+                            self.write_contents(destination, &contents)?;
+                        } else if rules_context.ovewrite() {
+                            debug!("Overwriting {:?}", destination);
+                            let contents = self.render_contents(&path, &context)?;
+                            self.write_contents(destination, &contents)?;
+                        } else {
+                            trace!("Preserving  {:?}", destination);
+                        }
                     }
                     RuleAction::COPY => {
-                        debug!("Copying   {:?}", destination);
+                        debug!("Copying     {:?}", destination);
                         self.copy_contents(&path, &destination)?;
                     }
                     RuleAction::SKIP => {
-                        debug!("Skipping  {:?}", destination);
+                        trace!("Skipping    {:?}", destination);
                     }
                 }
             }
