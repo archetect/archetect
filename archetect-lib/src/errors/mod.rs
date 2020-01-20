@@ -12,6 +12,7 @@ pub enum ArchetectError {
     SystemError(SystemError),
     SourceError(SourceError),
     CatalogError(CatalogError),
+    IoError(std::io::Error),
 }
 
 impl From<ArchetypeError> for ArchetectError {
@@ -47,6 +48,12 @@ impl From<SourceError> for ArchetectError {
 impl From<CatalogError> for ArchetectError {
     fn from(error: CatalogError) -> Self {
         ArchetectError::CatalogError(error)
+    }
+}
+
+impl From<std::io::Error> for ArchetectError {
+    fn from(error: std::io::Error) -> ArchetectError {
+        ArchetectError::IoError(error)
     }
 }
 

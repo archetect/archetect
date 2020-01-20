@@ -26,8 +26,14 @@ pub enum SourceError {
     SourceInvalidEncoding(String),
     RemoteSourceError(String),
     OfflineAndNotCached(String),
-    IOError(String),
+    IoError(std::io::Error),
     RequirementsError { path: String, cause: RequirementsError },
+}
+
+impl From<std::io::Error> for SourceError {
+    fn from(error: std::io::Error) -> SourceError {
+        SourceError::IoError(error)
+    }
 }
 
 lazy_static! {
@@ -187,9 +193,8 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
                 if response.status().is_success() {
                     // TODO: convert to match
                     if let Ok(body) = response.text() {
-                        std::fs::create_dir_all(&cache_destination.parent().unwrap()).unwrap();
-                        return std::fs::write(cache_destination, body)
-                            .map_err(|e| SourceError::IOError(e.to_string()));
+                        std::fs::create_dir_all(&cache_destination.parent().unwrap())?;
+                        std::fs::write(cache_destination, body)?;
                     } else {
                         return Err(SourceError::RemoteSourceError(format!("Not successful caching '{}'", url)));
                     }
@@ -216,7 +221,7 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
             ))),
             None => Err(SourceError::RemoteSourceError("Git interrupted by signal".to_owned())),
         },
-        Err(err) => Err(SourceError::IOError(err.to_string())),
+        Err(err) => Err(SourceError::IoError(err)),
     }
 }
 

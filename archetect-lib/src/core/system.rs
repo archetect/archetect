@@ -119,7 +119,7 @@ impl Archetect {
             if path.is_dir() {
                 let destination = self.render_destination(&destination, &path, &context)?;
                 debug!("Rendering {:?}", &destination);
-                fs::create_dir_all(destination.as_path()).unwrap();
+                fs::create_dir_all(destination.as_path())?;
                 self.render_directory(context, path, destination, rules_context)?;
             } else if path.is_file() {
                 let destination = self.render_destination(&destination, &path, &context)?;

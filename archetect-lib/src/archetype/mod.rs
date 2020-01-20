@@ -52,7 +52,7 @@ impl Archetype {
                                           answers: &LinkedHashMap<String, AnswerInfo>,
     ) -> Result<(), ArchetectError> {
         let destination = destination.as_ref();
-        fs::create_dir_all(destination).unwrap();
+        fs::create_dir_all(destination)?;
 
         let mut rules_context = RulesContext::new();
         let mut context = Context::new();
@@ -70,6 +70,8 @@ pub enum ArchetypeError {
     ArchetypeSaveFailed,
     SourceError(SourceError),
     RenderError(RenderError),
+    IoError(std::io::Error),
+    YamlError { path: PathBuf, cause: serde_yaml::Error },
 }
 
 impl From<SourceError> for ArchetypeError {
@@ -81,6 +83,12 @@ impl From<SourceError> for ArchetypeError {
 impl From<RenderError> for ArchetypeError {
     fn from(error: RenderError) -> Self {
         ArchetypeError::RenderError(error)
+    }
+}
+
+impl From<std::io::Error> for ArchetypeError {
+    fn from(error: std::io::Error) -> ArchetypeError {
+        ArchetypeError::IoError(error)
     }
 }
 

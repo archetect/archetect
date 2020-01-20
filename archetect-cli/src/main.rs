@@ -171,13 +171,18 @@ fn handle_archetect_error(error: ArchetectError) {
         ArchetectError::RenderError(error) => handle_render_error(error),
         ArchetectError::SystemError(error) => handle_system_error(error),
         ArchetectError::CatalogError(error) => handle_catalog_error(error),
+        ArchetectError::IoError(error) => handle_io_error(error),
     }
+}
+
+fn handle_io_error(error: std::io::Error) {
+    error!("IO Error: {}", error);
 }
 
 fn handle_requirements_error(path: String, error: RequirementsError) {
     match error {
         RequirementsError::DeserializationError { path, cause } => {
-            error!("Error reading requirements from: {}\n{}", path.display(), cause);
+            error!("Error reading {}:\n{}", path.display(), cause);
         }
         RequirementsError::ArchetectVersion(version, requirements) => {
             error!("'{}' requires features that are unavailable in this version of \
@@ -198,6 +203,10 @@ fn handle_archetype_error(error: ArchetypeError) {
         ArchetypeError::RenderError(error) => handle_render_error(error),
         ArchetypeError::ArchetypeSaveFailed => {}
         ArchetypeError::SourceError(error) => handle_source_error(error),
+        ArchetypeError::IoError(error) => handle_io_error(error),
+        ArchetypeError::YamlError { path, cause } => {
+            error!("Error reading {}:\n{}", path.display(), cause);
+        }
     }
 }
 
@@ -213,7 +222,7 @@ fn handle_source_error(error: SourceError) {
             source
         ),
         SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
-        SourceError::IOError(err) => error!("IO Error: {}", err),
+        SourceError::IoError(err) => error!("IO Error: {}", err),
         SourceError::RequirementsError { path, cause } => {
             handle_requirements_error(path, cause);
         }

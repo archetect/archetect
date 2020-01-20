@@ -3,7 +3,7 @@ use std::path::Path;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 
-use log::{trace};
+use log::trace;
 
 use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, ActionId};
@@ -19,34 +19,34 @@ pub struct IfAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Condition {
-    #[serde(rename = "is-not-blank")]
-    IsNotBlank(String),
+    #[serde(rename = "is-blank")]
+    IsBlank(String),
     #[serde(rename = "path-exists")]
     PathExists(String),
-    #[serde(rename = "path-not-exists")]
-    PathNotExists(String),
     #[serde(rename = "is-file")]
     IsFile(String),
     #[serde(rename = "is-directory")]
     IsDirectory(String),
     #[serde(rename = "switch-enabled")]
     SwitchEnabled(String),
-    #[serde(rename = "switch-disabled")]
-    SwitchDisabled(String),
+    #[serde(rename = "not")]
+    Not(Box<Condition>),
+    #[serde(rename = "any-of")]
+    AnyOf(Vec<Condition>),
 }
 
 impl Condition {
     pub fn evaluate<D: AsRef<Path>>(&self,
                                     archetect: &Archetect,
-                                    _archetype: &Archetype,
+                                    archetype: &Archetype,
                                     destination: D,
                                     context: &Context,
     ) -> Result<bool, ArchetectError> {
         match self {
-            Condition::IsNotBlank(input) => {
+            Condition::IsBlank(input) => {
                 if let Some(value) = context.get(input) {
                     if let Some(string) = value.as_str() {
-                        return Ok(!string.trim().is_empty());
+                        return Ok(string.trim().is_empty());
                     }
                 }
                 Ok(false)
@@ -56,16 +56,11 @@ impl Condition {
                 let path = destination.as_ref().join(path);
                 Ok(path.exists())
             }
-            Condition::PathNotExists(path) => {
-                let path = archetect.render_string(path, context)?;
-                let path = destination.as_ref().join(path);
-                Ok(!path.exists())
-            }
             Condition::IsFile(path) => {
                 let path = archetect.render_string(path, context)?;
                 let path = destination.as_ref().join(path);
                 let exists = path.exists() && path.is_file();
-                trace!("[File Exists] {}: {}", path.to_str().unwrap(), exists);
+                trace!("[File Exists] {}: {}", path.display(), exists);
                 Ok(exists)
             }
             Condition::IsDirectory(path) => {
@@ -76,8 +71,18 @@ impl Condition {
             Condition::SwitchEnabled(switch) => {
                 Ok(archetect.switches().contains(switch))
             }
-            Condition::SwitchDisabled(switch) => {
-                Ok(!archetect.switches().contains(switch))
+            Condition::Not(condition) => {
+                let value = condition.evaluate(archetect, archetype, destination, context)?;
+                Ok(!value)
+            }
+            Condition::AnyOf(conditions) => {
+                for condition in conditions {
+                    let value = condition.evaluate(archetect, archetype, destination.as_ref(), context)?;
+                    if value {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
             }
         }
     }
@@ -113,7 +118,7 @@ mod tests {
     use crate::actions::render::{DirectoryOptions, RenderAction};
 
     #[test]
-    pub fn test_serialize() {
+    pub fn test_serialize() -> Result<(), serde_yaml::Error> {
         let action = IfAction {
             conditions: vec![
                 Condition::IsNotBlank("organization".to_owned()),
@@ -125,7 +130,7 @@ mod tests {
             actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
         };
 
-        let yaml = serde_yaml::to_string(&action).unwrap();
+        let yaml = serde_yaml::to_string(&action)?;
         println!("{}", yaml);
     }
 }
