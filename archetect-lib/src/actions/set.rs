@@ -120,9 +120,6 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
     if let Some(default) = default {
         if options.contains(default) {
             message.push_str(format!("[{}] ", default).as_str());
-        } else {
-            use log::info;
-            info!("{} not found in {:?}", default, options);
         }
     };
 
@@ -135,7 +132,11 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
         .repeat_msg(&message);
 
     let value = if let Some(default) = default {
-        input_builder.default(options.iter().position(|e| e.eq(default)).unwrap() + 1).get()
+        if let Some(index) = options.iter().position(|e| e.eq(default)) {
+            input_builder.default(index + 1).get()
+        } else {
+            input_builder.get()
+        }
     } else {
         input_builder.get()
     };
