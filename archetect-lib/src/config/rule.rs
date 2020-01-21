@@ -3,9 +3,7 @@
 pub struct RuleConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-    patterns: Vec<String>,
-    #[serde(rename = "type")]
-    pattern_type: PatternType,
+    patterns: Vec<Pattern>,
     #[serde(skip_serializing_if = "Option::is_none")]
     filter: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -13,23 +11,22 @@ pub struct RuleConfig {
 }
 
 impl RuleConfig {
-    pub fn new(pattern_type: PatternType) -> RuleConfig {
+    pub fn new() -> RuleConfig {
         RuleConfig {
             description: None,
-            pattern_type,
             patterns: vec![],
             filter: None,
             action: None,
         }
     }
 
-    pub fn with_pattern(mut self, pattern: &str) -> RuleConfig {
+    pub fn with_pattern(mut self, pattern: Pattern) -> RuleConfig {
         self.add_pattern(pattern);
         self
     }
 
-    pub fn add_pattern(&mut self, pattern: &str) {
-        self.patterns.push(pattern.to_owned());
+    pub fn add_pattern(&mut self, pattern: Pattern) {
+        self.patterns.push(pattern);
     }
 
     pub fn with_action(mut self, action: RuleAction) -> RuleConfig {
@@ -45,12 +42,8 @@ impl RuleConfig {
         self.action.as_ref().map(|a| a.clone()).unwrap_or_default()
     }
 
-    pub fn patterns(&self) -> &[String] {
+    pub fn patterns(&self) -> &[Pattern] {
         self.patterns.as_slice()
-    }
-
-    pub fn pattern_type(&self) -> &PatternType {
-        &self.pattern_type
     }
 
     pub fn add_description(&mut self, description: &str) {
@@ -72,9 +65,11 @@ impl RuleConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, PartialEq, Clone)]
-pub enum PatternType {
-    GLOB,
-    REGEX,
+pub enum Pattern {
+    #[serde(rename = "glob")]
+    GLOB(String),
+    #[serde(rename = "regex")]
+    REGEX(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -92,15 +87,15 @@ impl Default for RuleAction {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::rule::{RuleConfig, PatternType};
+    use crate::config::rule::{RuleConfig, Pattern};
     use crate::config::RuleAction;
 
     #[test]
     fn test_serialize_rule_config() {
         let result = serde_yaml::to_string(
-            &RuleConfig::new(PatternType::GLOB)
-                .with_pattern("*.jpg")
-                .with_pattern("*.gif")
+            &RuleConfig::new()
+                .with_pattern(Pattern::GLOB("*.jpg".to_owned()))
+                .with_pattern(Pattern::GLOB("*.gif".to_owned()))
                 .with_action(RuleAction::COPY)
             ,
         )
@@ -111,12 +106,12 @@ mod tests {
     #[test]
     fn test_serialize_vec_rule_config() {
         let rules = vec![
-            RuleConfig::new(PatternType::GLOB)
-                .with_pattern("*.jpg")
-                .with_pattern("*.gif")
+            RuleConfig::new()
+                .with_pattern(Pattern::GLOB("*.jpg".to_owned()))
+                .with_pattern(Pattern::GLOB("*.gif".to_owned()))
                 .with_action(RuleAction::COPY),
-            RuleConfig::new(PatternType::REGEX)
-                .with_pattern("^(.*)*.java")
+            RuleConfig::new()
+                .with_pattern(Pattern::REGEX("^(.*)*.java".to_owned()))
                 .with_action(RuleAction::RENDER)
         ];
 

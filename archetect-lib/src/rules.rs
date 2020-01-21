@@ -3,7 +3,7 @@ use std::path::Path;
 use linked_hash_map::LinkedHashMap;
 use log::{trace};
 
-use crate::config::{PatternType, RuleAction, RuleConfig};
+use crate::config::{Pattern, RuleAction, RuleConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RulesContext {
@@ -56,20 +56,19 @@ impl RulesContext {
         if let Some(path_rules) = self.path_rules() {
             let path = path.as_ref();
             for (name, path_rule) in path_rules {
-                match path_rule.pattern_type() {
-                    PatternType::GLOB => {
-                        for pattern in path_rule.patterns() {
+                for pattern in path_rule.patterns() {
+                    match pattern {
+                        Pattern::GLOB(pattern) => {
                             let matcher = glob::Pattern::new(pattern).unwrap();
                             if matcher.matches_path(&path) {
-                                trace!("Source Rule [{}: {:?} {:?}('{}')] matched '{}'",
-                                       name, &path_rule.action(), &path_rule.pattern_type(), pattern, path.display());
+                                trace!("Source Rule [{}: {:?} {:?}] matched '{}'",
+                                       name, &path_rule.action(), pattern, path.display());
                                 return path_rule.action().clone();
                             }
                         }
+                        _ => unimplemented!()
                     }
-                    _ => unimplemented!()
                 }
-
             }
         }
         RuleAction::RENDER
