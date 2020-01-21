@@ -1,6 +1,6 @@
 use crate::ArchetypeError;
 use std::path::PathBuf;
-use std::{fs};
+use std::fs;
 use crate::actions::ActionId;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -140,10 +140,17 @@ mod tests {
     use super::*;
     use crate::actions::iterate::IterateAction;
     use crate::actions::render::{RenderAction, DirectoryOptions};
-    use crate::config::AnswerInfo;
+    use crate::config::{AnswerInfo, VariableInfo};
+    use linked_hash_map::LinkedHashMap;
+    use crate::config::variable::VariableType;
 
     #[test]
     fn test_serialize_to_yaml() {
+        let mut variables = LinkedHashMap::new();
+        variables.insert("name".to_owned(), VariableInfo::with_prompt("What is your first name?")
+            .with_type(VariableType::Enum(vec!["DynamoDb".to_owned(), "JPA".to_owned()]))
+            .build());
+
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")
             .with_language("Java")
@@ -151,6 +158,7 @@ mod tests {
             .with_framework("Hessian")
             .with_tag("Service")
             .with_tag("REST")
+            .with_action(ActionId::Set(variables))
             .with_action(ActionId::Iterate(
                 IterateAction::new("services")
                     .with_answer("service", AnswerInfo::with_value("{{ item | snake_case }}").build())
@@ -161,58 +169,4 @@ mod tests {
         let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);
     }
-
-//    #[test]
-//    fn test_deserialize_from_yaml() {
-//        let input = indoc! {
-//            r#"
-//            ---
-//            description: Simple REST Service
-//            languages: ["Java"]
-//            frameworks: ["Spring", "Hessian"]
-//            tags: ["Service", "REST"]
-//            requires: ^1.2.0
-//
-//            variables:
-//              author:
-//                prompt: "Author: "
-//              organization:
-//                prompt: "Organization: "
-//                default: "Acme Inc"
-//
-//            modules:
-//              - template:
-//                  source: "contents"
-//              - archetype:
-//                  source: ~/modules/jpa-persistence-module
-//                  destination: "{{ name | train_case }}"
-//                  answers:
-//                    name:
-//                      value: "{{ name }} Service"
-//
-//            "#
-//        };
-//
-//        let config = serde_yaml::from_str::<ArchetypeConfig>(&input).unwrap();
-//
-//        assert_eq!(config.variables().unwrap().len(), 2);
-//        assert_eq!(config.variables().unwrap().get("author").unwrap().prompt().unwrap(), "Author: ");
-//        assert_eq!(
-//            config.variables().unwrap().get("organization").unwrap().prompt().unwrap(),
-//            "Organization: "
-//        );
-//        assert_eq!(
-//            config.variables().unwrap().get("organization").unwrap().default().unwrap(),
-//            "Acme Inc"
-//        );
-//    }
-
-//    #[test]
-//    fn test_archetype_load() {
-//        let config = ArchetypeConfig::load("archetypes/arch-java-maven").unwrap();
-//        assert_eq!(
-//            config.variables().unwrap().get("name").unwrap(),
-//            &VariableInfo::with_prompt("Application Name: ").build()
-//        );
-//    }
 }

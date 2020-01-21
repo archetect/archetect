@@ -1,5 +1,3 @@
-
-
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct VariableInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -9,7 +7,9 @@ pub struct VariableInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     prompt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    inherit: Option<bool>,
+    required: Option<bool>,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    variable_type: Option<VariableType>,
 }
 
 impl VariableInfo {
@@ -19,7 +19,8 @@ impl VariableInfo {
                 value: None,
                 default: None,
                 prompt: None,
-                inherit: None
+                required: None,
+                variable_type: None,
             }
         }
     }
@@ -30,7 +31,8 @@ impl VariableInfo {
                 value: None,
                 default: Some(default.into()),
                 prompt: None,
-                inherit: None,
+                required: None,
+                variable_type: None,
             }
         }
     }
@@ -41,7 +43,8 @@ impl VariableInfo {
                 value: Some(value.into()),
                 default: None,
                 prompt: None,
-                inherit: None,
+                required: None,
+                variable_type: None,
             }
         }
     }
@@ -52,7 +55,8 @@ impl VariableInfo {
                 prompt: Some(prompt.into()),
                 value: None,
                 default: None,
-                inherit: None,
+                required: None,
+                variable_type: None,
             },
         }
     }
@@ -78,13 +82,31 @@ impl VariableInfo {
         }
     }
 
-    pub fn is_inheritable(&self) -> bool {
-        self.inherit.unwrap_or(true)
+    pub fn variable_type(&self) -> VariableType {
+        self.variable_type.clone().unwrap_or(VariableType::String)
+    }
+
+    pub fn required(&self) -> bool {
+        self.required.unwrap_or(true)
     }
 
     pub fn has_derived_value(&self) -> bool {
         self.prompt.is_none() && self.default.is_none() && self.value.is_some()
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub enum VariableType {
+    #[serde(rename = "string")]
+    String,
+    #[serde(rename = "i32")]
+    I32,
+    #[serde(rename = "bool")]
+    Bool,
+    #[serde(rename = "enum")]
+    Enum(Vec<String>),
+    #[serde(rename = "list")]
+    List,
 }
 
 pub struct VariableInfoBuilder {
@@ -107,8 +129,8 @@ impl VariableInfoBuilder {
         self
     }
 
-    pub fn inheritable(mut self) -> VariableInfoBuilder {
-        self.variable_info.inherit = Some(true);
+    pub fn with_type(mut self, variable_type: VariableType) -> VariableInfoBuilder {
+        self.variable_info.variable_type = Some(variable_type);
         self
     }
 

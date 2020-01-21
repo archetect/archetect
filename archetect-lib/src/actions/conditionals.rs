@@ -121,16 +121,16 @@ mod tests {
     pub fn test_serialize() -> Result<(), serde_yaml::Error> {
         let action = IfAction {
             conditions: vec![
-                Condition::IsNotBlank("organization".to_owned()),
                 Condition::IsFile("example.txt".to_owned()),
                 Condition::IsDirectory("src/main/java".to_owned()),
                 Condition::PathExists("{{ service }}".to_owned()),
-                Condition::PathNotExists("{{ service }}".to_owned()),
             ],
             actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
         };
 
         let yaml = serde_yaml::to_string(&action)?;
         println!("{}", yaml);
+
+        Ok(())
     }
 }

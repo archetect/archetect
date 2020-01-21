@@ -10,4 +10,4 @@ pub use archetype::{ArchetypeConfig};
 pub use catalog::{CatalogConfig, CatalogConfigEntry, CatalogConfigEntryType, CatalogConfigError};
 pub use catalog2::{Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME};
 pub use rule::{PatternType, RuleAction, RuleConfig};
-pub use variable::{VariableInfo, VariableInfoBuilder};
+pub use variable::{VariableInfo, VariableType, VariableInfoBuilder};
