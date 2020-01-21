@@ -19,7 +19,9 @@ pub struct IfAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Condition {
-    #[serde(rename = "is-blank")]
+    #[serde(rename = "equals")]
+    Equals { input: String, value: String },
+    #[serde(rename = "is-blank", alias = "is-empty")]
     IsBlank(String),
     #[serde(rename = "path-exists")]
     PathExists(String),
@@ -83,6 +85,10 @@ impl Condition {
                     }
                 }
                 Ok(false)
+            }
+            Condition::Equals { input, value } => {
+                let input = archetect.render_string(input, context)?;
+                return Ok(input.eq(value))
             }
         }
     }

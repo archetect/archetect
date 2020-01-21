@@ -99,8 +99,8 @@ impl VariableInfo {
 pub enum VariableType {
     #[serde(rename = "string")]
     String,
-    #[serde(rename = "i32")]
-    I32,
+    #[serde(rename = "int")]
+    Int,
     #[serde(rename = "bool")]
     Bool,
     #[serde(rename = "enum")]

@@ -7,6 +7,7 @@ use crate::actions::{Action, set};
 use crate::config::AnswerInfo;
 use crate::template_engine::Context;
 use crate::rules::RulesContext;
+use std::fs;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RenderAction {
@@ -81,6 +82,7 @@ impl Action for RenderAction {
                 } else {
                     destination.as_ref().to_owned()
                 };
+                fs::create_dir_all(destination.as_path())?;
                 archetect.render_directory(context, source, destination, rules_context)?;
             }
 

@@ -1,58 +1,115 @@
+use std::collections::{HashMap, HashSet};
+
 use linked_hash_map::LinkedHashMap;
 use read_input::prelude::*;
+use serde_json::Value;
 
 use crate::{Archetect, ArchetectError};
 use crate::config::{AnswerInfo, VariableInfo, VariableType};
 use crate::template_engine::Context;
-use serde_json::Value;
-use std::collections::{HashMap, HashSet};
 
 pub fn populate_context(
     archetect: &Archetect,
     variables: &LinkedHashMap<String, VariableInfo>,
     answers: &LinkedHashMap<String, AnswerInfo>,
-    context: &mut Context
+    context: &mut Context,
 ) -> Result<(), ArchetectError> {
-
     for (identifier, variable_info) in variables {
+
         // 1) If there is an answer for this variable, and has an explicit value, use that first.
         if let Some(answer) = answers.get(identifier) {
+            let mut answer_satisfied = false;
+
             if let Some(value) = answer.value() {
                 match variable_info.variable_type() {
                     VariableType::Enum(options) => {
                         if options.contains(&value.to_owned()) {
                             context.insert(
                                 identifier.as_str(),
-                                &archetect.render_string(value, context)?
+                                &archetect.render_string(value, context)?,
                             );
-                            continue;
+                            answer_satisfied = true;
                         }
                     }
-                    _ => {
+                    VariableType::Bool => {
+                        if let Ok(value) = value.parse::<bool>() {
+                            context.insert(
+                                identifier.as_str(),
+                                &value,
+                            );
+                            answer_satisfied = true;
+                        }
+                    }
+                    VariableType::Int => {
+                        if let Ok(value) = value.parse::<i64>() {
+                            context.insert(
+                                identifier.as_str(),
+                                &value,
+                            );
+                            answer_satisfied = true;
+                        }
+                    }
+                    VariableType::String => {
                         context.insert(
                             identifier.as_str(),
-                            &archetect.render_string(value, context)?
+                            &archetect.render_string(value, context)?,
                         );
-                        continue;
+                        answer_satisfied = true;
+                    }
+                    VariableType::List => {
+                        if let Some(variable_value) = variable_info.value() {
+                            let mut temp_context = context.clone();
+                            temp_context.insert("item", value);
+                            context.insert(
+                                identifier.as_str(),
+                                &archetect.render_string(variable_value, &temp_context)?,
+                            );
+                            answer_satisfied = true;
+                        } else {
+                            context.insert(
+                                identifier.as_str(),
+                                &archetect.render_string(value, context)?,
+                            );
+                        }
                     }
                 }
             }
+
+            if answer_satisfied {
+                // Allow answered variables to be formatted or derived
+                if let Some(value) = variable_info.value() {
+                    match variable_info.variable_type() {
+                        // Special handling for lists
+                        VariableType::List => {},
+                        _ => {
+                            context.insert(
+                                identifier.as_str(),
+                                &archetect.render_string(value, context)?,
+                            );
+                        }
+                    }
+                }
+                continue;
+            }
         }
+
+        // Insert wholly derived values
+        if variable_info.has_derived_value() {
+            if let Some(value) = variable_info.value() {
+                context.insert(
+                    identifier.as_str(),
+                    &archetect.render_string(value, context)?,
+                );
+                continue;
+            }
+        }
+
 
         let mut prompt = if let Some(prompt) = variable_info.prompt() {
             format!("{} ", archetect.render_string(prompt.trim(), context)?)
         } else {
             format!("{}: ", identifier)
         };
-
-        // Insert a value if one was specified in the archetype's configuration file.
-        if let Some(value) = variable_info.value() {
-            context.insert(
-                identifier.as_str(),
-                &archetect.render_string(value, context)?,
-            );
-            continue;
-        }
 
         // Determine if a default can be provided.
         let default = if let Some(answer) = answers.get(identifier) {
@@ -73,18 +130,42 @@ pub fn populate_context(
             VariableType::Enum(values) => {
                 prompt_for_enum(&mut prompt, &values, &default)
             }
-            _ => { prompt_for_string(&mut prompt, &default, variable_info.required())}
+            VariableType::Bool => {
+                prompt_for_bool(&mut prompt, &default)
+            }
+            VariableType::Int => {
+                prompt_for_int(&mut prompt, &default)
+            }
+            VariableType::List => {
+                prompt_for_list(archetect, context, &prompt, variable_info)?
+            }
+            VariableType::String => {
+                prompt_for_string(&mut prompt, &default, variable_info.required())
+            }
         };
 
         if let Some(value) = value {
             context.insert(identifier, &value);
+
+            // Allow prompted variables to be formatted or derived
+            if let Some(value) = variable_info.value() {
+                match variable_info.variable_type() {
+                    VariableType::List => (),
+                    _ => {
+                        context.insert(
+                            identifier.as_str(),
+                            &archetect.render_string(value, context)?,
+                        );
+                    }
+                }
+            }
         }
     }
 
     Ok(())
 }
 
-fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bool) ->  Option<Value> {
+fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bool) -> Option<Value> {
     if let Some(default) = &default {
         prompt.push_str(format!("[{}] ", default).as_str());
     };
@@ -92,8 +173,8 @@ fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bo
 
     if required {
         input_builder = input_builder.add_test(|value| value.len() > 0)
-        .repeat_msg(&prompt)
-        .err("Must be at least 1 character.  Please try again.");
+            .repeat_msg(&prompt)
+            .err("Please provide a value.");
     }
 
     let value = if let Some(default) = &default {
@@ -104,7 +185,91 @@ fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bo
     Some(Value::String(value))
 }
 
-fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<String>) ->  Option<Value> {
+fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value> {
+    let default = default.as_ref().map_or(None, |value| value.parse::<i64>().ok());
+
+    if let Some(default) = default {
+        prompt.push_str(format!("[{}] ", default).as_str());
+    }
+
+    let input_builder = input::<i64>()
+        .msg(&prompt)
+        .err("Please specify an integer.")
+        .repeat_msg(&prompt)
+        ;
+
+    let value = if let Some(default) = default {
+        input_builder.default(default).get()
+    } else {
+        input_builder.get()
+    };
+
+    Some(Value::from(value))
+}
+
+fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Value> {
+    let default = default.as_ref().map_or(None, |value| value.parse::<bool>().ok());
+
+    if let Some(default) = default {
+        prompt.push_str(format!("[{}] ", default).as_str());
+    }
+
+    let input_builder = input::<bool>()
+        .msg(&prompt)
+        .err("Please specify a value of true or false.")
+        .repeat_msg(&prompt)
+        ;
+
+    let value = if let Some(default) = default {
+        input_builder.default(default).get()
+    } else {
+        input_builder.get()
+    };
+
+    Some(Value::Bool(value))
+}
+
+fn prompt_for_list(
+    archetect: &Archetect,
+    context: &Context,
+    prompt: &String,
+    variable_info: &VariableInfo,
+) -> Result<Option<Value>, ArchetectError> {
+    println!("{}", &prompt);
+
+    let mut results = vec![];
+
+
+    loop {
+        let count = results.len();
+        let mut input_builder = input::<String>()
+            .msg("Item: ")
+            ;
+
+        if variable_info.required() {
+            input_builder = input_builder.add_test(move |value| count > 0 || !value.trim().is_empty())
+                .err("This list requires at least one item.")
+                .repeat_msg("Item: ")
+        }
+        let mut item = input_builder.get();
+
+        if item.trim().is_empty() {
+            break;
+        }
+
+        if let Some(value) = variable_info.value() {
+            let mut context = context.clone();
+            context.insert("item", &item);
+            item = archetect.render_string(value, &context)?;
+        }
+
+        results.push(Value::String(item));
+    }
+
+    Ok(Some(Value::Array(results)))
+}
+
+fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<String>) -> Option<Value> {
     println!("{}", &prompt);
     let choices = options
         .iter()
@@ -148,7 +313,7 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
 pub fn render_answers(
     archetect: &Archetect,
     answers: &LinkedHashMap<String, AnswerInfo>,
-    context: &Context
+    context: &Context,
 ) -> Result<LinkedHashMap<String, AnswerInfo>, ArchetectError> {
     let mut results = LinkedHashMap::new();
     for (identifier, answer_info) in answers {

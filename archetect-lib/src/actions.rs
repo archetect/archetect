@@ -5,22 +5,20 @@ use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{Archetect, ArchetectError, Archetype};
-use crate::actions::iterate::IterateAction;
 use crate::actions::render::RenderAction;
-use crate::actions::split::SplitAction;
 use crate::config::{AnswerInfo, VariableInfo};
 use crate::template_engine::Context;
 use crate::actions::conditionals::IfAction;
 use crate::rendering::Renderable;
 use crate::rules::RulesContext;
 use crate::actions::rules::{RuleType};
+use crate::actions::foreach::ForEachAction;
 
 pub mod conditionals;
-pub mod iterate;
+pub mod foreach;
 pub mod render;
 pub mod rules;
 pub mod set;
-pub mod split;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ActionId {
@@ -28,14 +26,12 @@ pub enum ActionId {
     Set(LinkedHashMap<String, VariableInfo>),
     #[serde(rename = "scope")]
     Scope(Vec<ActionId>),
-    #[serde(rename = "split")]
-    Split(SplitAction),
     #[serde(rename = "actions")]
     Actions(Vec<ActionId>),
     #[serde(rename = "render")]
     Render(RenderAction),
-    #[serde(rename = "iterate")]
-    Iterate(IterateAction),
+    #[serde(rename = "for-each")]
+    ForEach(ForEachAction),
     #[serde(rename = "if")]
     If(IfAction),
     #[serde(rename = "rules")]
@@ -74,7 +70,6 @@ impl ActionId {
                     action_id.execute(archetect, archetype, destination, rules_context, answers, context)?;
                 }
             }
-            ActionId::Iterate(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
 
             // Logging
             ActionId::LogTrace(message) => { trace!("{}", message.render(&archetect, context)?) }
@@ -89,12 +84,14 @@ impl ActionId {
                 let action = ActionId::from(actions.as_ref());
                 action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut scope_context)?;
             }
-            ActionId::Split(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
             ActionId::If(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
             ActionId::Rules(actions) => {
                 for action in actions {
                     action.execute(archetect, archetype, destination, rules_context, answers, context)?;
                 }
+            }
+            ActionId::ForEach(action) => {
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?;
             }
         }
 
@@ -130,22 +127,13 @@ pub trait Action {
 #[cfg(test)]
 mod tests {
     use crate::actions::render::{ArchetypeOptions, DirectoryOptions};
-    use crate::config::AnswerInfo;
-
+    
     use super::*;
 
     #[test]
     fn test_serialize() {
         let actions = vec![
             ActionId::LogWarn("Warning!!".to_owned()),
-            ActionId::Iterate(
-                IterateAction::new("customers")
-                    .with_answer("customer", AnswerInfo::with_value("{{ item }}").build())
-                    .with_action(ActionId::Render(
-                        RenderAction::Directory(DirectoryOptions::new("git@github.com:archetect/archetype-rust-cli.git")
-                            .with_destination("{{ artifact_id }}")),
-                    )),
-            ),
             ActionId::Render(RenderAction::Directory(DirectoryOptions::new("."))),
             ActionId::Render(RenderAction::Archetype(ArchetypeOptions::new("git@github.com:archetect/archetype-rust-cli.git"))),
         ];

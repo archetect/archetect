@@ -138,9 +138,7 @@ impl Default for ArchetypeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actions::iterate::IterateAction;
-    use crate::actions::render::{RenderAction, DirectoryOptions};
-    use crate::config::{AnswerInfo, VariableInfo};
+    use crate::config::{VariableInfo};
     use linked_hash_map::LinkedHashMap;
     use crate::config::variable::VariableType;
 
@@ -159,11 +157,6 @@ mod tests {
             .with_tag("Service")
             .with_tag("REST")
             .with_action(ActionId::Set(variables))
-            .with_action(ActionId::Iterate(
-                IterateAction::new("services")
-                    .with_answer("service", AnswerInfo::with_value("{{ item | snake_case }}").build())
-                    .with_action(ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))),
-            ))
             ;
 
         let output = serde_yaml::to_string(&config).unwrap();
