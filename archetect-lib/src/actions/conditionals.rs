@@ -14,7 +14,10 @@ use crate::rules::RulesContext;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
     conditions: Vec<Condition>,
-    actions: Vec<ActionId>,
+    #[serde(rename = "then", alias = "actions")]
+    then_actions: Vec<ActionId>,
+    #[serde(rename = "else")]
+    else_actions: Option<Vec<ActionId>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,16 +106,26 @@ impl Action for IfAction {
                                answers: &LinkedHashMap<String, VariableInfo>,
                                context: &mut Context,
     ) -> Result<(), ArchetectError> {
+        let mut conditions_are_met = true;
         for condition in &self.conditions {
             if condition.evaluate(archetect, archetype, destination.as_ref(), context)? == false {
-                return Ok(());
+                conditions_are_met = false;
+                break;
             }
         }
 
-        for action in &self.actions {
-            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
+        if conditions_are_met {
+            for action in &self.then_actions {
+                action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
+            }
+        } else {
+            if let Some(actions) = &self.else_actions {
+                for action in actions {
+                    action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
+                }
+            }
         }
-
+        
         Ok(())
     }
 }
@@ -131,7 +144,7 @@ mod tests {
                 Condition::IsDirectory("src/main/java".to_owned()),
                 Condition::PathExists("{{ service }}".to_owned()),
             ],
-            actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
+            then_actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
         };
 
         let yaml = serde_yaml::to_string(&action)?;

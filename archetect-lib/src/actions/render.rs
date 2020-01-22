@@ -78,6 +78,10 @@ impl Action for RenderAction {
             RenderAction::Directory(options) => {
                 let source = archetype.path().join(&options.source);
                 let destination = if let Some(dest) = &options.destination {
+                    if let Ok(result) = shellexpand::full(dest) {
+                        use log::debug;
+                        debug!("Archetype ShellExpand Dest: {}", result);
+                    }
                     destination.as_ref().join(archetect.render_string(dest, context)?)
                 } else {
                     destination.as_ref().to_owned()

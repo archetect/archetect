@@ -10,6 +10,7 @@ use crate::template_engine::Context;
 pub struct ForEachAction {
     #[serde(rename = "in")]
     source: ForEachSource,
+    #[serde(rename = "do", alias = "actions")]
     actions: Vec<ActionId>,
 }
 

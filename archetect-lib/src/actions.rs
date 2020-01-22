@@ -5,14 +5,14 @@ use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{Archetect, ArchetectError, Archetype};
-use crate::actions::render::RenderAction;
-use crate::config::{AnswerInfo, VariableInfo};
-use crate::template_engine::Context;
 use crate::actions::conditionals::IfAction;
+use crate::actions::foreach::ForEachAction;
+use crate::actions::render::RenderAction;
+use crate::actions::rules::RuleType;
+use crate::config::{AnswerInfo, VariableInfo};
 use crate::rendering::Renderable;
 use crate::rules::RulesContext;
-use crate::actions::rules::{RuleType};
-use crate::actions::foreach::ForEachAction;
+use crate::template_engine::Context;
 
 pub mod conditionals;
 pub mod foreach;
@@ -37,7 +37,7 @@ pub enum ActionId {
     #[serde(rename = "rules")]
     Rules(Vec<RuleType>),
 
-    // Logging
+    // Output
     #[serde(rename = "trace")]
     LogTrace(String),
     #[serde(rename = "debug")]
@@ -48,6 +48,8 @@ pub enum ActionId {
     LogWarn(String),
     #[serde(rename = "error")]
     LogError(String),
+    #[serde(rename = "print")]
+    Print(String),
 }
 
 impl ActionId {
@@ -77,6 +79,7 @@ impl ActionId {
             ActionId::LogInfo(message) => { info!("{}", message.render(&archetect, context)?) }
             ActionId::LogWarn(message) => { warn!("{}", message.render(&archetect, context)?) }
             ActionId::LogError(message) => { error!("{}", message.render(&archetect, context)?) }
+            ActionId::Print(message) => { println!("{}", message.render(&archetect, context)?) }
 
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
@@ -127,7 +130,7 @@ pub trait Action {
 #[cfg(test)]
 mod tests {
     use crate::actions::render::{ArchetypeOptions, DirectoryOptions};
-    
+
     use super::*;
 
     #[test]
