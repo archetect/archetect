@@ -129,7 +129,7 @@ impl Archetect {
                             debug!("Rendering   {:?}", destination);
                             let contents = self.render_contents(&path, &context)?;
                             self.write_contents(destination, &contents)?;
-                        } else if rules_context.ovewrite() {
+                        } else if rules_context.overwrite() {
                             debug!("Overwriting {:?}", destination);
                             let contents = self.render_contents(&path, &context)?;
                             self.write_contents(destination, &contents)?;

@@ -1,4 +1,4 @@
-use crate::actions::{ActionId, Action};
+use crate::actions::{ActionId, Action, LoopContext};
 use std::path::Path;
 use crate::{Archetect, Archetype, ArchetectError};
 use crate::rules::RulesContext;
@@ -45,16 +45,30 @@ impl Action for ForEachAction {
                             let mut context = context.clone();
                             context.insert("item", item);
 
+                            let mut rules_context = rules_context.clone();
+
                             for action in &self.actions {
-                                action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, &mut context)?;
+                                action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
                             }
                         }
                     } else if let Some(item) = value.as_str() {
                         let mut context = context.clone();
                         context.insert("item", item);
 
+                        let mut context = context.clone();
+                        context.insert("item", item);
+
+                        let mut rules_context = rules_context.clone();
+                        rules_context.set_break_triggered(false);
+
+                        let mut loop_context = LoopContext{ index: 0 };
                         for action in &self.actions {
-                            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, &mut context)?;
+                            context.insert("loop", &loop_context);
+                            action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                            if rules_context.break_triggered() {
+                                break;
+                            }
+                            loop_context.index = loop_context + 1;
                         }
                     }
                 }
@@ -69,8 +83,17 @@ impl Action for ForEachAction {
                         let mut context = context.clone();
                         context.insert("item", split);
 
+                        let mut rules_context = rules_context.clone();
+                        rules_context.set_break_triggered(false);
+
+                        let mut loop_context = LoopContext{ index: 0 };
                         for action in &self.actions {
-                            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, &mut context)?;
+                            context.insert("loop", &loop_context);
+                            action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                            if rules_context.break_triggered() {
+                                break;
+                            }
+                            loop_context.index = loop_context + 1;
                         }
                     }
                 }

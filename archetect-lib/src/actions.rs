@@ -32,6 +32,10 @@ pub enum ActionId {
     Render(RenderAction),
     #[serde(rename = "for-each")]
     ForEach(ForEachAction),
+    #[serde(rename = "loop")]
+    Loop(Vec<ActionId>),
+    #[serde(rename = "break")]
+    Break,
     #[serde(rename = "if")]
     If(IfAction),
     #[serde(rename = "rules")]
@@ -96,10 +100,32 @@ impl ActionId {
             ActionId::ForEach(action) => {
                 action.execute(archetect, archetype, destination, rules_context, answers, context)?;
             }
+            ActionId::Loop(actions) => {
+                let mut context = context.clone();
+                let mut rules_context = rules_context.clone();
+                rules_context.set_break_triggered(false);
+
+                let mut loop_context = LoopContext{ index: 0 };
+                while !rules_context.break_triggered() {
+                    context.insert("loop", &loop_context);
+                    for action in actions {
+                        action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut context)?;
+                    }
+                    loop_context.index = loop_context.index + 1;
+                }
+            }
+            ActionId::Break => {
+                rules_context.set_break_triggered(true);
+            }
         }
 
         Ok(())
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoopContext {
+    pub index: i32,
 }
 
 impl From<Vec<ActionId>> for ActionId {

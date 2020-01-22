@@ -10,6 +10,7 @@ pub struct RulesContext {
     overwrite: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     path_rules: Option<LinkedHashMap<String, RuleConfig>>,
+    break_triggered: bool,
 }
 
 impl RulesContext {
@@ -17,6 +18,7 @@ impl RulesContext {
         RulesContext {
             overwrite: false,
             path_rules: None,
+            break_triggered: false,
         }
     }
 
@@ -24,7 +26,7 @@ impl RulesContext {
         self.overwrite = overwrite;
     }
 
-    pub fn ovewrite(&self) -> bool {
+    pub fn overwrite(&self) -> bool {
         self.overwrite
     }
 
@@ -34,6 +36,14 @@ impl RulesContext {
 
     pub fn path_rules(&self) -> Option<&LinkedHashMap<String, RuleConfig>> {
         self.path_rules.as_ref()
+    }
+
+    pub fn break_triggered(&self) -> bool {
+        self.break_triggered
+    }
+
+    pub fn set_break_triggered(&mut self, break_triggered: bool) {
+        self.break_triggered = break_triggered;
     }
 
     pub fn insert_path_rules(&mut self, insert: &LinkedHashMap<String, RuleConfig>) {
