@@ -32,7 +32,12 @@ pub fn populate_context(
                         }
                     }
                     VariableType::Bool => {
-                        if let Ok(value) = value.parse::<bool>() {
+                        let value = value.to_lowercase();
+                        if ACCEPTABLE_BOOLEANS.contains(&value.as_str()) {
+                            let value = match ACCEPTABLE_BOOLEANS.iter().position(|i| i == &value.as_str()).unwrap() {
+                                0..=3 => true,
+                                _ => false,
+                            };
                             context.insert(
                                 identifier.as_str(),
                                 &value,
@@ -80,7 +85,7 @@ pub fn populate_context(
                 if let Some(value) = variable_info.value() {
                     match variable_info.variable_type() {
                         // Special handling for lists
-                        VariableType::List => {},
+                        VariableType::List => {}
                         _ => {
                             context.insert(
                                 identifier.as_str(),
@@ -207,11 +212,12 @@ fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value
     Some(Value::from(value))
 }
 
+const ACCEPTABLE_BOOLEANS: [&str; 8] = ["y", "yes", "true", "t", "n", "no", "false", "f"];
+
 fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Value> {
-    let acceptable_answers = ["y", "yes", "true", "t", "n", "no", "false", "f"];
     let default = default.as_ref().map_or(None, |value| {
         let value = value.to_lowercase();
-        if acceptable_answers.contains(&value.as_str()) {
+        if ACCEPTABLE_BOOLEANS.contains(&value.as_str()) {
             Some(value.to_owned())
         } else {
             None
@@ -230,7 +236,7 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
             }
         })
         .msg(&prompt)
-        .err(format!("Please specify a value of {:?}.", acceptable_answers))
+        .err(format!("Please specify a value of {:?}.", ACCEPTABLE_BOOLEANS))
         .repeat_msg(&prompt)
         ;
 
@@ -240,8 +246,8 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
         input_builder.get()
     };
 
-    let value = match acceptable_answers.iter().position(|i| i == &value.as_str()).unwrap() {
-        0 ..= 3 => true,
+    let value = match ACCEPTABLE_BOOLEANS.iter().position(|i| i == &value.as_str()).unwrap() {
+        0..=3 => true,
         _ => false,
     };
 
