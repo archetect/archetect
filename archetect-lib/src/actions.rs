@@ -74,6 +74,9 @@ impl ActionId {
             ActionId::Actions(action_ids) => {
                 for action_id in action_ids {
                     action_id.execute(archetect, archetype, destination, rules_context, answers, context)?;
+                    if rules_context.break_triggered() {
+                        break;
+                    }
                 }
             }
 
@@ -88,7 +91,7 @@ impl ActionId {
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
                 let mut scope_context = context.clone();
-                let action = ActionId::from(actions.as_ref());
+                let action: ActionId = actions.into();
                 action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut scope_context)?;
             }
             ActionId::If(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
@@ -108,9 +111,8 @@ impl ActionId {
                 let mut loop_context = LoopContext{ index: 0 };
                 while !rules_context.break_triggered() {
                     context.insert("loop", &loop_context);
-                    for action in actions {
-                        action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut context)?;
-                    }
+                    let action: ActionId = actions[..].into();
+                    action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut context)?;
                     loop_context.index = loop_context.index + 1;
                 }
             }
@@ -136,6 +138,13 @@ impl From<Vec<ActionId>> for ActionId {
 
 impl From<&[ActionId]> for ActionId {
     fn from(action_ids: &[ActionId]) -> Self {
+        let actions: Vec<ActionId> = action_ids.iter().map(|i| i.to_owned()).collect();
+        ActionId::Actions(actions)
+    }
+}
+
+impl From<&Vec<ActionId>> for ActionId {
+    fn from(action_ids: &Vec<ActionId>) -> Self {
         let actions: Vec<ActionId> = action_ids.iter().map(|i| i.to_owned()).collect();
         ActionId::Actions(actions)
     }

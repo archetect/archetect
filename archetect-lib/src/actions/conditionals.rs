@@ -22,8 +22,8 @@ pub struct IfAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Condition {
-    #[serde(rename = "equals")]
-    Equals { input: String, value: String },
+    #[serde(rename = "equals", alias = "matches")]
+    Equals (String, String),
     #[serde(rename = "is-blank", alias = "is-empty")]
     IsBlank(String),
     #[serde(rename = "path-exists")]
@@ -38,6 +38,16 @@ pub enum Condition {
     Not(Box<Condition>),
     #[serde(rename = "any-of")]
     AnyOf(Vec<Condition>),
+}
+
+impl IfAction {
+    pub fn then_actions(&self) -> &Vec<ActionId> {
+        self.then_actions.as_ref()
+    }
+
+    pub fn else_actions(&self) -> Option<&Vec<ActionId>> {
+        self.else_actions.as_ref()
+    }
 }
 
 impl Condition {
@@ -89,9 +99,10 @@ impl Condition {
                 }
                 Ok(false)
             }
-            Condition::Equals { input, value } => {
-                let input = archetect.render_string(input, context)?;
-                return Ok(input.eq(value))
+            Condition::Equals (left, right) => {
+                let left = archetect.render_string(left, context)?;
+                let right = archetect.render_string(right, context)?;
+                return Ok(left.eq(&right))
             }
         }
     }
@@ -115,14 +126,12 @@ impl Action for IfAction {
         }
 
         if conditions_are_met {
-            for action in &self.then_actions {
-                action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
-            }
+            let action: ActionId = self.then_actions().into();
+            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
         } else {
-            if let Some(actions) = &self.else_actions {
-                for action in actions {
-                    action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
-                }
+            if let Some(actions) = self.else_actions() {
+                let action: ActionId = actions[..].into();
+                action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
             }
         }
         
@@ -143,8 +152,10 @@ mod tests {
                 Condition::IsFile("example.txt".to_owned()),
                 Condition::IsDirectory("src/main/java".to_owned()),
                 Condition::PathExists("{{ service }}".to_owned()),
+                Condition::Equals("{{ one }}".to_owned(), "{{ two }}".to_owned())
             ],
             then_actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
+            else_actions: None
         };
 
         let yaml = serde_yaml::to_string(&action)?;

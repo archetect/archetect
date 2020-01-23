@@ -208,22 +208,41 @@ fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value
 }
 
 fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Value> {
-    let default = default.as_ref().map_or(None, |value| value.parse::<bool>().ok());
+    let acceptable_answers = ["y", "yes", "true", "t", "n", "no", "false", "f"];
+    let default = default.as_ref().map_or(None, |value| {
+        let value = value.to_lowercase();
+        if acceptable_answers.contains(&value.as_str()) {
+            Some(value.to_owned())
+        } else {
+            None
+        }
+    });
 
-    if let Some(default) = default {
+    if let Some(default) = default.clone() {
         prompt.push_str(format!("[{}] ", default).as_str());
     }
 
-    let input_builder = input::<bool>()
+    let input_builder = input::<String>()
+        .add_test(|value| {
+            match value.to_lowercase().as_str() {
+                "y" | "yes" | "t" | "true" | "n" | "no" | "f" | "false" => true,
+                _ => false
+            }
+        })
         .msg(&prompt)
-        .err("Please specify a value of true or false.")
+        .err(format!("Please specify a value of {:?}.", acceptable_answers))
         .repeat_msg(&prompt)
         ;
 
-    let value = if let Some(default) = default {
-        input_builder.default(default).get()
+    let value = if let Some(default) = default.clone() {
+        input_builder.default(default.to_owned()).get()
     } else {
         input_builder.get()
+    };
+
+    let value = match acceptable_answers.iter().position(|i| i == &value.as_str()).unwrap() {
+        0 ..= 3 => true,
+        _ => false,
     };
 
     Some(Value::Bool(value))
