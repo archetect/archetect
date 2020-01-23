@@ -8,6 +8,8 @@ use crate::{Archetect, ArchetectError};
 use crate::config::{AnswerInfo, VariableInfo, VariableType};
 use crate::template_engine::Context;
 
+const ACCEPTABLE_BOOLEANS: [&str; 8] = ["y", "yes", "true", "t", "n", "no", "false", "f"];
+
 pub fn populate_context(
     archetect: &Archetect,
     variables: &LinkedHashMap<String, VariableInfo>,
@@ -211,8 +213,6 @@ fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value
 
     Some(Value::from(value))
 }
-
-const ACCEPTABLE_BOOLEANS: [&str; 8] = ["y", "yes", "true", "t", "n", "no", "false", "f"];
 
 fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Value> {
     let default = default.as_ref().map_or(None, |value| {
