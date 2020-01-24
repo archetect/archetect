@@ -139,6 +139,15 @@ impl Source {
             Source::LocalFile { path } => path.as_path(),
         }
     }
+
+    pub fn source(&self) -> &str {
+        match self {
+            Source::RemoteGit { url, path: _ } => url,
+            Source::RemoteHttp { url, path: _ } => url,
+            Source::LocalDirectory { path } => path.to_str().unwrap(),
+            Source::LocalFile { path } => path.to_str().unwrap(),
+        }
+    }
 }
 
 fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Result<(), SourceError> {

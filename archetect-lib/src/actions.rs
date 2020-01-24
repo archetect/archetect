@@ -13,8 +13,10 @@ use crate::config::{AnswerInfo, VariableInfo};
 use crate::rendering::Renderable;
 use crate::rules::RulesContext;
 use crate::template_engine::Context;
+use crate::actions::exec::ExecAction;
 
 pub mod conditionals;
+pub mod exec;
 pub mod foreach;
 pub mod render;
 pub mod rules;
@@ -40,6 +42,9 @@ pub enum ActionId {
     If(IfAction),
     #[serde(rename = "rules")]
     Rules(Vec<RuleType>),
+
+    #[serde(rename = "exec")]
+    Exec(ExecAction),
 
     // Output
     #[serde(rename = "trace")]
@@ -118,6 +123,9 @@ impl ActionId {
             }
             ActionId::Break => {
                 rules_context.set_break_triggered(true);
+            }
+            ActionId::Exec(action) => {
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?;
             }
         }
 

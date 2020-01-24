@@ -57,10 +57,37 @@ impl Archetype {
         let mut rules_context = RulesContext::new();
         let mut context = Context::new();
 
+        use clap::crate_version;
+        let archetect_info = ArchetectInfo {
+            offline: archetect.offline(),
+            version: crate_version!().to_owned(),
+        };
+        context.insert("archetect", &archetect_info);
+
+        let archetype_info = ArchetypeInfo {
+            source: self.source().source().to_owned(),
+            destination: destination.to_str().unwrap().to_owned(),
+            local_path: self.source().local_path().to_str().unwrap().to_owned(),
+        };
+        context.insert("archetype", &archetype_info);
+
         let root_action = ActionId::from(self.config.actions());
 
         root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ArchetypeInfo {
+    source: String,
+    destination: String,
+    local_path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ArchetectInfo {
+    offline: bool,
+    version: String,
 }
 
 #[derive(Debug)]
