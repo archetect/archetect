@@ -119,12 +119,12 @@ impl ActionId {
                 let mut rules_context = rules_context.clone();
                 rules_context.set_break_triggered(false);
 
-                let mut loop_context = LoopContext{ index: 0 };
+                let mut loop_context = LoopContext::new();
                 while !rules_context.break_triggered() {
                     context.insert("loop", &loop_context);
                     let action: ActionId = actions[..].into();
                     action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut context)?;
-                    loop_context.index = loop_context.index + 1;
+                    loop_context.increment();
                 }
             }
             ActionId::Break => {
@@ -141,7 +141,22 @@ impl ActionId {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoopContext {
-    pub index: i32,
+    index: i32,
+    index0: i32,
+}
+
+impl LoopContext {
+    fn new() -> LoopContext {
+        LoopContext{
+            index: 1,
+            index0: 0,
+        }
+    }
+
+    fn increment(&mut self) {
+        self.index = self.index + 1;
+        self.index0 = self.index0 + 1;
+    }
 }
 
 impl From<Vec<ActionId>> for ActionId {

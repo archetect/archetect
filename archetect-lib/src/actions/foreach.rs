@@ -53,7 +53,7 @@ impl Action for ForEachAction {
                         let mut rules_context = rules_context.clone();
                         rules_context.set_break_triggered(false);
 
-                        let mut loop_context = LoopContext{ index: 0 };
+                        let mut loop_context = LoopContext::new();
 
                         for item in items {
                             if rules_context.break_triggered() {
@@ -63,7 +63,7 @@ impl Action for ForEachAction {
                             context.insert("loop", &loop_context);
                             let action: ActionId = self.actions().into();
                             action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
-                            loop_context.index = loop_context.index + 1;
+                            loop_context.increment();
                         }
                     } else {
                         let item = {
@@ -79,7 +79,7 @@ impl Action for ForEachAction {
                         let mut context = context.clone();
                         let mut rules_context = rules_context.clone();
                         rules_context.set_break_triggered(false);
-                        let loop_context = LoopContext{ index: 0 };
+                        let loop_context = LoopContext::new();
                         context.insert("item", &item);
                         context.insert("loop", &loop_context);
 
@@ -96,7 +96,7 @@ impl Action for ForEachAction {
                 let mut rules_context = rules_context.clone();
                 rules_context.set_break_triggered(false);
 
-                let mut loop_context = LoopContext{ index: 0 };
+                let mut loop_context = LoopContext::new();
                 for split in splits {
                     if rules_context.break_triggered() {
                         break;
@@ -107,7 +107,7 @@ impl Action for ForEachAction {
                         context.insert("loop", &loop_context);
                         let action: ActionId = self.actions().into();
                         action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
-                        loop_context.index = loop_context.index + 1;
+                        loop_context.increment();
                     }
                 }
             }
@@ -131,6 +131,7 @@ pub enum ForOptions {
         #[serde(rename = "in")]
         identifier: String,
         name: Option<String>,
+        value: Option<String>,
     },
     #[serde(rename = "split")]
     Split {
@@ -139,6 +140,7 @@ pub enum ForOptions {
         #[serde(rename = "sep")]
         separator: Option<String>,
         name: Option<String>,
+        value: Option<String>,
     }
 }
 
@@ -158,24 +160,29 @@ impl Action for ForAction {
                                context: &mut Context
     ) -> Result<(), ArchetectError> {
         match &self.options {
-            ForOptions::Item { identifier, name } => {
+            ForOptions::Item { identifier, name, value } => {
+                let format = value;
                 if let Some(value) = context.get(identifier) {
                     if let Some(items) = value.as_array() {
                         let mut context = context.clone();
                         let mut rules_context = rules_context.clone();
                         rules_context.set_break_triggered(false);
 
-                        let mut loop_context = LoopContext{ index: 0 };
+                        let mut loop_context = LoopContext::new();
 
                         for item in items {
                             if rules_context.break_triggered() {
                                 break;
                             }
                             context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), item);
+                            if let Some(format) = format {
+                                let format = archetect.render_string(format, &context)?;
+                                context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                            }
                             context.insert("loop", &loop_context);
                             let action: ActionId = self.actions().into();
                             action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
-                            loop_context.index = loop_context.index + 1;
+                            loop_context.increment();
                         }
                     } else {
                         let item = {
@@ -191,8 +198,12 @@ impl Action for ForAction {
                         let mut context = context.clone();
                         let mut rules_context = rules_context.clone();
                         rules_context.set_break_triggered(false);
-                        let loop_context = LoopContext{ index: 0 };
+                        let loop_context = LoopContext::new();
                         context.insert(name.clone().unwrap_or("item".to_owned()).as_str(), &item);
+                        if let Some(format) = format {
+                            let format = archetect.render_string(format, &context)?;
+                            context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                        }
                         context.insert("loop", &loop_context);
 
                         let action: ActionId = self.actions().into();
@@ -200,7 +211,8 @@ impl Action for ForAction {
                     }
                 }
             }
-            ForOptions::Split { input, separator, name } => {
+            ForOptions::Split { input, separator, name, value } => {
+                let format = value;
                 let input = archetect.render_string(input, context)?;
                 let separator = separator.clone().unwrap_or(",".to_owned());
                 let splits = input.split(&separator);
@@ -209,7 +221,7 @@ impl Action for ForAction {
                 let mut rules_context = rules_context.clone();
                 rules_context.set_break_triggered(false);
 
-                let mut loop_context = LoopContext{ index: 0 };
+                let mut loop_context = LoopContext::new();
                 for split in splits {
                     if rules_context.break_triggered() {
                         break;
@@ -217,10 +229,14 @@ impl Action for ForAction {
                     let split = split.trim();
                     if !split.is_empty() {
                         context.insert(name.clone().unwrap_or("item".to_owned()).as_str(), split);
+                        if let Some(format) = format {
+                            let format = archetect.render_string(format, &context)?;
+                            context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                        }
                         context.insert("loop", &loop_context);
                         let action: ActionId = self.actions().into();
                         action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
-                        loop_context.index = loop_context.index + 1;
+                        loop_context.increment();
                     }
                 }
             }
