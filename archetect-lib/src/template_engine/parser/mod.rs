@@ -913,6 +913,17 @@ fn parse_content(pair: Pair<Rule>) -> Vec<Node> {
     nodes
 }
 
+pub fn parse_list(input: &str) -> Result<Vec<String>, String> {
+    let pairs = TeraParser::parse(Rule::array, input);
+    if let Ok(pairs) = pairs {
+        for pair in pairs {
+            print!("{:?}", pair);
+        }
+    }
+
+    Err("Not a list".to_owned())
+}
+
 pub fn parse(input: &str) -> TeraResult<Vec<Node>> {
     let mut pairs = match TeraParser::parse(Rule::template, input) {
         Ok(p) => p,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::conditionals::IfAction;
-use crate::actions::foreach::ForEachAction;
+use crate::actions::foreach::{ForEachAction, ForAction};
 use crate::actions::render::RenderAction;
 use crate::actions::rules::RuleType;
 use crate::config::{AnswerInfo, VariableInfo};
@@ -34,6 +34,8 @@ pub enum ActionId {
     Render(RenderAction),
     #[serde(rename = "for-each")]
     ForEach(ForEachAction),
+    #[serde(rename = "for")]
+    For(ForAction),
     #[serde(rename = "loop")]
     Loop(Vec<ActionId>),
     #[serde(rename = "break")]
@@ -108,6 +110,10 @@ impl ActionId {
             ActionId::ForEach(action) => {
                 action.execute(archetect, archetype, destination, rules_context, answers, context)?;
             }
+            ActionId::For(action) => {
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?;
+            }
+
             ActionId::Loop(actions) => {
                 let mut context = context.clone();
                 let mut rules_context = rules_context.clone();
