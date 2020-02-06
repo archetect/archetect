@@ -114,20 +114,3 @@ pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
     let temp_dir = tempdir()?;
     Ok(RootedSystemLayout::new(temp_dir.path())?)
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::system::layout::{NativeSystemLayout, RootedSystemLayout, SystemLayout};
-
-    #[test]
-    fn test_native_system_paths() {
-        let native_paths: Box<dyn SystemLayout> = Box::new(NativeSystemLayout::new().unwrap());
-        print!("{}", native_paths);
-    }
-
-    #[test]
-    fn test_directory_system_paths() {
-        let native_paths: Box<dyn SystemLayout> = Box::new(RootedSystemLayout::new(directories::UserDirs.home_dir().join(".archetect").unwrap()));
-        print!("{}", native_paths);
-    }
-}

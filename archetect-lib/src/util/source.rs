@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 
 use log::{debug, info, trace};
@@ -217,6 +217,8 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
+    command.stdin(Stdio::piped());
+    command.stdout(Stdio::piped());
     match command.output() {
         Ok(output) => match output.status.code() {
             Some(0) => Ok(()),
