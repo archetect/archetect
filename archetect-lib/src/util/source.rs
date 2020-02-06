@@ -98,8 +98,6 @@ impl Source {
                 } else {
                     return Err(SourceError::SourceNotFound(local_path.display().to_string()));
                 }
-            } else {
-                return Err(SourceError::SourceUnsupported(path.to_string()));
             }
         }
 
