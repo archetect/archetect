@@ -106,8 +106,8 @@ impl Display for dyn SystemLayout {
 }
 
 pub fn dot_home_layout() -> Result<RootedSystemLayout, SystemError> {
-    let result = shellexpand::full("~/.archetect/").unwrap();
-    Ok(RootedSystemLayout::new(result.to_string())?)
+    let result = directories::UserDirs::new().unwrap().home_dir().join(".archetect");
+    Ok(RootedSystemLayout::new(result.to_str().unwrap().to_string())?)
 }
 
 pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
