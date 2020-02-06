@@ -105,8 +105,8 @@ pub enum VariableType {
     Bool,
     #[serde(rename = "enum")]
     Enum(Vec<String>),
-    #[serde(rename = "list")]
-    List,
+    #[serde(rename = "array", alias = "list")]
+    Array,
 }
 
 pub struct VariableInfoBuilder {

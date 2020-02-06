@@ -18,6 +18,7 @@ use crate::actions::exec::ExecAction;
 pub mod conditionals;
 pub mod exec;
 pub mod foreach;
+pub mod load;
 pub mod render;
 pub mod rules;
 pub mod set;

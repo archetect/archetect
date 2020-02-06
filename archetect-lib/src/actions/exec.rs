@@ -14,18 +14,63 @@ use crate::template_engine::Context;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExecAction {
     command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     env: Option<LinkedHashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     cwd: Option<String>,
 }
 
 impl ExecAction {
+    pub fn new<C: Into<String>>(command: C) -> ExecAction {
+        ExecAction {
+            command: command.into(),
+            args: None,
+            env: None,
+            cwd: None
+        }
+    }
+
     pub fn args(&self) -> Option<&Vec<String>> {
         self.args.as_ref()
     }
 
+    pub fn with_arg<A: Into<String>>(mut self, arg: A) -> ExecAction {
+        self.add_arg(arg);
+        self
+    }
+
+    pub fn add_arg<A: Into<String>>(&mut self, arg: A) {
+        let args = self.args.get_or_insert_with(|| Default::default());
+        args.push(arg.into());
+    }
+
     pub fn env(&self) -> Option<&LinkedHashMap<String, String>> {
         self.env.as_ref()
+    }
+
+    pub fn with_environment_variable<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> ExecAction {
+        self.add_environment_variable(key, value);
+        self
+    }
+
+    pub fn add_environment_variable<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
+        let env = self.env.get_or_insert_with( || Default::default());
+        env.insert(key.into(), value.into());
+    }
+
+    pub fn cwd(&self) -> Option<&String> {
+        self.cwd.as_ref()
+    }
+
+    pub fn with_working_directory<D: Into<String>>(mut self, directory: D) -> ExecAction {
+        self.set_working_directory(directory);
+        self
+    }
+
+    pub fn set_working_directory<D: Into<String>>(&mut self, directory: D) {
+        self.cwd = Some(directory.into());
     }
 }
 

@@ -63,7 +63,7 @@ pub fn populate_context(
                         );
                         answer_satisfied = true;
                     }
-                    VariableType::List => {
+                    VariableType::Array => {
                         if let Some(variable_value) = variable_info.value() {
                             let mut temp_context = context.clone();
                             temp_context.insert("item", value);
@@ -87,7 +87,7 @@ pub fn populate_context(
                 if let Some(value) = variable_info.value() {
                     match variable_info.variable_type() {
                         // Special handling for lists
-                        VariableType::List => {}
+                        VariableType::Array => {}
                         _ => {
                             context.insert(
                                 identifier.as_str(),
@@ -143,7 +143,7 @@ pub fn populate_context(
             VariableType::Int => {
                 prompt_for_int(&mut prompt, &default)
             }
-            VariableType::List => {
+            VariableType::Array => {
                 prompt_for_list(archetect, context, &prompt, variable_info)?
             }
             VariableType::String => {
@@ -157,7 +157,7 @@ pub fn populate_context(
             // Allow prompted variables to be formatted or derived
             if let Some(value) = variable_info.value() {
                 match variable_info.variable_type() {
-                    VariableType::List => (),
+                    VariableType::Array => (),
                     _ => {
                         context.insert(
                             identifier.as_str(),
@@ -230,10 +230,7 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
 
     let input_builder = input::<String>()
         .add_test(|value| {
-            match value.to_lowercase().as_str() {
-                "y" | "yes" | "t" | "true" | "n" | "no" | "f" | "false" => true,
-                _ => false
-            }
+            ACCEPTABLE_BOOLEANS.contains(&value.to_lowercase().as_str())
         })
         .msg(&prompt)
         .err(format!("Please specify a value of {:?}.", ACCEPTABLE_BOOLEANS))
@@ -274,7 +271,7 @@ fn prompt_for_list(
         if variable_info.required() {
             input_builder = input_builder.add_test(move |value| count > 0 || !value.trim().is_empty())
                 .err("This list requires at least one item.")
-                .repeat_msg("Item: ")
+                .repeat_msg(" - ")
         }
         let mut item = input_builder.get();
 
@@ -355,4 +352,119 @@ pub fn render_answers(
         results.insert(identifier.to_owned(), result.build());
     }
     Ok(results)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum VariableDescriptor {
+    #[serde(rename = "object!")]
+    Object {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt: Option<String>,
+        //        #[serde(flatten)]
+        items: LinkedHashMap<String, Box<VariableDescriptor>>,
+    },
+
+    #[serde(rename = "array!")]
+    Array {
+        prompt: String,
+        //        #[serde(flatten)]
+        item: Box<VariableDescriptor>,
+    },
+
+    #[serde(rename = "string!")]
+    String {
+        prompt: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default: Option<String>,
+    },
+
+    #[serde(rename = "enum!")]
+    Enum {
+        prompt: String,
+        options: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default: Option<String>,
+    },
+
+    #[serde(rename = "bool!")]
+    Bool {
+        prompt: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default: Option<String>,
+    },
+
+    #[serde(rename = "number!")]
+    Number {
+        prompt: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default: Option<String>,
+    },
+
+    #[serde(rename = "json!")]
+    Json {
+        content: String,
+        render: Option<bool>,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::actions::set::VariableDescriptor;
+    use linked_hash_map::LinkedHashMap;
+
+    #[test]
+    fn test_serialize() {
+        let object = VariableDescriptor::Object {
+            prompt: Some("Schema:".to_string()),
+            items:
+            values_map(vec![
+                ("tables",
+                 VariableDescriptor::Array {
+                     prompt: "Tables: ".to_string(),
+                     item: Box::new(VariableDescriptor::Object {
+                         prompt: None,
+                         items:
+                         values_map(vec![
+                             ("name",
+                              VariableDescriptor::String {
+                                  prompt: "Table Name: ".to_string(),
+                                  default: None,
+                              }),
+                             ("fields",
+                              VariableDescriptor::Array {
+                                  prompt: "Fields: ".to_string(),
+                                  item: Box::new(VariableDescriptor::Object {
+                                      prompt: None,
+                                      items: values_map(vec![
+                                          ("type",
+                                           VariableDescriptor::Enum {
+                                               prompt: "Field Type: ".to_string(),
+                                               options: vec!["String".to_owned(), "Integer".to_owned()],
+                                               default: Some("String".to_owned()),
+                                           }),
+                                          ("name",
+                                           VariableDescriptor::String {
+                                               prompt: "Field Name: ".to_string(),
+                                               default: None,
+                                           }),
+                                      ], ),
+                                  }),
+                              }),
+                         ]),
+                     }),
+                 }),
+            ]),
+        };
+
+        let yaml = serde_yaml::to_string(&object).unwrap();
+        println!("{}", yaml);
+    }
+
+    fn values_map<K: Into<String>, V>(values: Vec<(K, V)>) -> LinkedHashMap<String, Box<V>> {
+        let mut results = LinkedHashMap::new();
+        for (identifier, value) in values {
+            results.insert(identifier.into(), Box::new(value));
+        }
+        results
+    }
 }

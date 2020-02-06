@@ -126,7 +126,7 @@ pub struct ForAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ForOptions {
-    #[serde(rename = "item")]
+    #[serde(rename = "each", alias ="item")]
     Item {
         #[serde(rename = "in")]
         identifier: String,
@@ -256,8 +256,9 @@ mod tests {
     fn test_serialize_for_item() {
         let action = ForAction{
             options: ForOptions::Item {
-                variable: "products".to_owned(),
+                identifier: "products".to_owned(),
                 name: Some("product".to_owned()),
+                value: None,
             },
             actions: vec![
                 ActionId::Break,
@@ -274,6 +275,7 @@ mod tests {
                 input: "{{ products }}".to_owned(),
                 separator: Some(",".to_owned()),
                 name: Some("product".to_owned()),
+                value: None,
             },
             actions: vec![
                 ActionId::Break,
