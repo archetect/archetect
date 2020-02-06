@@ -110,7 +110,7 @@ impl Archetect {
         let source = source.into();
         let destination = destination.into();
 
-        'walking: for entry in fs::read_dir(&source)? {
+        for entry in fs::read_dir(&source)? {
             let entry = entry?;
             let path = entry.path();
 

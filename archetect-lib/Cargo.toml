@@ -13,6 +13,7 @@ clap = "2"
 directories = "2.0.2"
 indoc = "0.3"
 glob = "0.3"
+Inflector = "0.11"
 linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
 log = { version = "0.4", features = ["std"] }
 memchr = { version = "2", default-features = false }

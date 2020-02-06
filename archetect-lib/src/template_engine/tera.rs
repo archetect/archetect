@@ -565,6 +565,10 @@ impl Tera {
         self.register_filter("package_to_directory", string::package_to_directory);
         self.register_filter("directory_to_package", string::directory_to_package);
 
+        self.register_filter("pluralize", string::pluralize);
+        self.register_filter("singular", string::singular);
+        self.register_filter("ordinalize", string::ordinalize);
+
         self.register_filter("upper_case", string::upper);
         self.register_filter("lower_case", string::lower);
         self.register_filter("upper", string::upper);
@@ -593,7 +597,6 @@ impl Tera {
         self.register_filter("filter", array::filter);
         self.register_filter("concat", array::concat);
 
-        self.register_filter("pluralize", number::pluralize);
         self.register_filter("round", number::round);
         self.register_filter("filesizeformat", number::filesizeformat);
 

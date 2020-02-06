@@ -68,6 +68,44 @@ pub fn directory_to_package(value: &Value, _: &HashMap<String, Value>) -> Result
     Ok(to_value(&s.replace("/", ".")).unwrap())
 }
 
+
+pub fn pluralize(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    if value.is_string() {
+        let input = try_get_value!("pluralize", "value", String, value);
+        if let Some(val) = args.get("count") {
+            let count = try_get_value!("pluralize", "count", f64, val);
+            if (count.abs() - 1.).abs() > ::std::f64::EPSILON {
+                let plural = inflector::string::pluralize::to_plural(&input);
+                return Ok(to_value(plural).unwrap());
+            } else {
+                return Ok(to_value(input).unwrap());
+            }
+        } else {
+            let plural = inflector::string::pluralize::to_plural(&input);
+            return Ok(to_value(plural).unwrap())
+        };
+    } else {
+        return super::number::pluralize(value, args);
+    }
+}
+
+pub fn singular(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let input = try_get_value!("singular", "value", String, value);
+    let plural = inflector::string::singularize::to_singular(&input);
+
+    Ok(to_value(plural).unwrap())
+}
+
+pub fn ordinalize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let input = try_get_value!("ordinalize", "value", String, value);
+    let plural = inflector::numbers::ordinalize::ordinalize(&input);
+
+    Ok(to_value(plural).unwrap())
+}
+
+
+
+
 /// Convert a value to uppercase.
 pub fn upper(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("upper", "value", String, value);
@@ -271,6 +309,94 @@ mod tests {
     use serde_json::value::to_value;
 
     use super::*;
+
+    #[test]
+    fn test_pluralize_without_count() {
+        assert_eq!(
+            pluralize(&to_value("box").unwrap(), &HashMap::new()).unwrap(),
+            to_value("boxes").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("tax").unwrap(), &HashMap::new()).unwrap(),
+            to_value("taxes").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("squirrel").unwrap(), &HashMap::new()).unwrap(),
+            to_value("squirrels").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("ox").unwrap(), &HashMap::new()).unwrap(),
+            to_value("oxen").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_pluralize_with_counts() {
+        assert_eq!(
+            pluralize(&to_value("box").unwrap(), &args(&[("count", 1.into())])).unwrap(),
+            to_value("box").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("box").unwrap(), &args(&[("count", 0.5.into())])).unwrap(),
+            to_value("boxes").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("tax").unwrap(), &args(&[("count", Value::from(-0.5f32))])).unwrap(),
+            to_value("taxes").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("squirrel").unwrap(), &args(&[("count", Value::from(-1))])).unwrap(),
+            to_value("squirrel").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value("ox").unwrap(), &args(&[("count", Value::from(-2))])).unwrap(),
+            to_value("oxen").unwrap()
+        );
+    }
+
+
+    #[test]
+    fn test_pluralize_legacy() {
+        assert_eq!(
+            pluralize(&to_value(12).unwrap(), &HashMap::new()).unwrap(),
+            to_value("s").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value(1).unwrap(), &HashMap::new()).unwrap(),
+            to_value("").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value(-1).unwrap(), &HashMap::new()).unwrap(),
+            to_value("").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value(-0.5).unwrap(), &HashMap::new()).unwrap(),
+            to_value("s").unwrap()
+        );
+
+        assert_eq!(
+            pluralize(&to_value(-1.5).unwrap(), &args(&[("suffix", "es".into())])).unwrap(),
+            to_value("es").unwrap()
+        );
+    }
+
+    fn args(args: &[(&str, Value)]) -> HashMap<String, Value> {
+        let mut results = HashMap::new();
+        for (key, value) in args.to_vec() {
+            results.insert(key.to_string(), value);
+        }
+        results
+    }
 
     #[test]
     fn test_upper() {
