@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_directory_system_paths() {
-        let native_paths: Box<dyn SystemLayout> = Box::new(RootedSystemLayout::new("~/.archetect/").unwrap());
+        let native_paths: Box<dyn SystemLayout> = Box::new(RootedSystemLayout::new(directories::UserDirs.home_dir().join(".archetect").unwrap()));
         print!("{}", native_paths);
     }
 }
