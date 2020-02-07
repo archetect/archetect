@@ -219,6 +219,7 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
     command.stdin(Stdio::inherit());
     command.stdout(Stdio::inherit());
+    command.stderr(Stdio::inherit());
     match command.output() {
         Ok(output) => match output.status.code() {
             Some(0) => Ok(()),
