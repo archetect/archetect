@@ -160,7 +160,7 @@ fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Resu
         Err(error) => {
             return Err(SourceError::RequirementsError { path: path.display().to_string(), cause: error });
         }
-    }
+    }                                                                                                                                                            
     Ok(())
 }
 
@@ -168,8 +168,8 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
     if !cache_destination.exists() {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
-            handle_git(Command::new("git").args(&["clone", &url, &format!("{}", cache_destination.display())]))?;
-            trace!("Cloned to {}", cache_destination.display());
+            trace!("Cloning to {}", cache_destination.to_str().unwrap());
+            handle_git(Command::new("git").args(&["clone", &url, cache_destination.to_str().unwrap()]))?;
             Ok(())
         } else {
             Err(SourceError::OfflineAndNotCached(url.to_owned()))
@@ -217,8 +217,8 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
-    command.stdin(Stdio::piped());
-    command.stdout(Stdio::piped());
+    command.stdin(Stdio::inherit());
+    command.stdout(Stdio::inherit());
     match command.output() {
         Ok(output) => match output.status.code() {
             Some(0) => Ok(()),
