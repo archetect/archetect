@@ -179,7 +179,6 @@ pub fn get_matches() -> App<'static, 'static> {
 pub fn configure(matches: &ArgMatches) {
     loggerv::Logger::new()
         .verbosity(matches.occurrences_of("verbosity"))
-        .colors(!cfg!(target_os = "windows"))
         .level(false)
         .prefix("archetect")
         .no_module_path()
