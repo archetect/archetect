@@ -49,7 +49,7 @@ impl Source {
         if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
             let cache_path = git_cache
                 .clone()
-                .join(format!("{}_{}", &captures[1], &captures[2].replace("/", ".")));
+                .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
             if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                 return Err(error);
             }
@@ -62,10 +62,10 @@ impl Source {
 
         if let Ok(url) = Url::parse(&path) {
             if path.ends_with(".git") && url.has_host() {
-                let cache_path = git_cache.clone().join(format!(
-                    "{}_{}",
+                let cache_path = git_cache.clone().join(get_cache_key(format!(
+                    "{}/{}",
                     url.host_str().unwrap(),
-                    url.path().trim_start_matches('/').replace("/", ".")
+                    url.path())
                 ));
                 if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                     return Err(error);
@@ -80,7 +80,7 @@ impl Source {
                     archetect
                         .layout()
                         .http_cache_dir()
-                        .join(format!("{}/{}", url.host_str().unwrap(), url.path()));
+                        .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 if let Err(error) = cache_http_resource(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
@@ -146,6 +146,15 @@ impl Source {
             Source::LocalFile { path } => path.to_str().unwrap(),
         }
     }
+}
+
+fn get_cache_hash<S: AsRef<[u8]>>(input: S) -> u64 {
+    let result = farmhash::fingerprint64(input.as_ref());
+    result
+}
+
+fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
+    format!("{}", get_cache_hash(input))
 }
 
 fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Result<(), SourceError> {
@@ -217,9 +226,10 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
-    command.stdin(Stdio::inherit());
-    command.stdout(Stdio::inherit());
-    command.stderr(Stdio::inherit());
+    if cfg!(target_os = "windows") {
+        command.stdin(Stdio::inherit());
+        command.stderr(Stdio::inherit());
+    }
     match command.output() {
         Ok(output) => match output.status.code() {
             Some(0) => Ok(()),
@@ -238,6 +248,14 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cache_hash() {
+        println!("{}", get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT"));
+        println!("{}", get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT"));
+        println!("{}", get_cache_hash("f"));
+        println!("{}", get_cache_hash("1"));
+    }
 
     #[test]
     fn test_reqwest_request() {
