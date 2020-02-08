@@ -1,6 +1,6 @@
 [package]
 name = "archetect-cli"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
 license = "MIT"
