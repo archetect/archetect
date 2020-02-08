@@ -1,4 +1,3 @@
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RuleConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,7 +86,7 @@ impl Default for RuleAction {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::rule::{RuleConfig, Pattern};
+    use crate::config::rule::{Pattern, RuleConfig};
     use crate::config::RuleAction;
 
     #[test]
@@ -96,8 +95,7 @@ mod tests {
             &RuleConfig::new()
                 .with_pattern(Pattern::GLOB("*.jpg".to_owned()))
                 .with_pattern(Pattern::GLOB("*.gif".to_owned()))
-                .with_action(RuleAction::COPY)
-            ,
+                .with_action(RuleAction::COPY),
         )
         .unwrap();
         println!("{}", result);
@@ -112,7 +110,7 @@ mod tests {
                 .with_action(RuleAction::COPY),
             RuleConfig::new()
                 .with_pattern(Pattern::REGEX("^(.*)*.java".to_owned()))
-                .with_action(RuleAction::RENDER)
+                .with_action(RuleAction::RENDER),
         ];
 
         let result = serde_yaml::to_string(&rules).unwrap();

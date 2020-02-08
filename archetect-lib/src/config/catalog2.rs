@@ -1,6 +1,6 @@
 use crate::util::{Source, SourceError};
 use std::fs;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 pub const CATALOG_FILE_NAME: &str = "catalog.yml";
 
@@ -11,7 +11,7 @@ pub struct Catalog {
 
 impl Catalog {
     pub fn new() -> Catalog {
-        Catalog{ entries: vec![] }
+        Catalog { entries: vec![] }
     }
 
     pub fn load(source: Source) -> Result<Catalog, CatalogError> {
@@ -49,7 +49,10 @@ impl Catalog {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CatalogEntry {
     #[serde(rename = "group")]
-    Group { description: String, entries: Vec<CatalogEntry> },
+    Group {
+        description: String,
+        entries: Vec<CatalogEntry>,
+    },
     #[serde(rename = "catalog")]
     Catalog { description: String, source: String },
     #[serde(rename = "archetype")]
@@ -59,15 +62,12 @@ pub enum CatalogEntry {
 impl CatalogEntry {
     pub fn description(&self) -> &str {
         match self {
-            CatalogEntry::Group { description, entries: _ } => {
-                description.as_str()
-            }
-            CatalogEntry::Catalog { description, source: _ } => {
-                description.as_str()
-            }
-            CatalogEntry::Archetype { description, source: _ } => {
-                description.as_str()
-            }
+            CatalogEntry::Group {
+                description,
+                entries: _,
+            } => description.as_str(),
+            CatalogEntry::Catalog { description, source: _ } => description.as_str(),
+            CatalogEntry::Archetype { description, source: _ } => description.as_str(),
         }
     }
 }
@@ -123,45 +123,49 @@ mod tests {
         Catalog {
             entries: vec![
                 lang_group(),
-                CatalogEntry::Catalog { description: "Java".to_owned(), source: "~/projects/catalogs/java.yml".to_owned() },
-            ]
+                CatalogEntry::Catalog {
+                    description: "Java".to_owned(),
+                    source: "~/projects/catalogs/java.yml".to_owned(),
+                },
+            ],
         }
     }
 
     fn lang_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Languages".to_owned(),
-            entries: vec![
-                rust_group(),
-                python_group(),
-            ],
+            entries: vec![rust_group(), python_group()],
         }
     }
 
     fn rust_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Rust".to_owned(),
-            entries: vec![
-                rust_cli_archetype(),
-                rust_cli_workspace_archetype(),
-            ],
+            entries: vec![rust_cli_archetype(), rust_cli_workspace_archetype()],
         }
     }
 
     fn rust_cli_archetype() -> CatalogEntry {
-        CatalogEntry::Archetype { description: "Rust CLI".to_owned(), source: "~/projects/archetypes/rust-cie".to_owned() }
+        CatalogEntry::Archetype {
+            description: "Rust CLI".to_owned(),
+            source: "~/projects/archetypes/rust-cie".to_owned(),
+        }
     }
 
     fn rust_cli_workspace_archetype() -> CatalogEntry {
-        CatalogEntry::Archetype { description: "Rust CLI Workspace".to_owned(), source: "~/projects/archetypes/rust-cie".to_owned() }
+        CatalogEntry::Archetype {
+            description: "Rust CLI Workspace".to_owned(),
+            source: "~/projects/archetypes/rust-cie".to_owned(),
+        }
     }
 
     fn python_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Python".to_owned(),
-            entries: vec![
-                CatalogEntry::Archetype { description: "Python Service".to_owned(), source: "~/projects/python/python-service".to_owned() },
-            ],
+            entries: vec![CatalogEntry::Archetype {
+                description: "Python Service".to_owned(),
+                source: "~/projects/python/python-service".to_owned(),
+            }],
         }
     }
 }

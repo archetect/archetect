@@ -21,7 +21,7 @@ impl VariableInfo {
                 prompt: None,
                 required: None,
                 variable_type: None,
-            }
+            },
         }
     }
 
@@ -33,7 +33,7 @@ impl VariableInfo {
                 prompt: None,
                 required: None,
                 variable_type: None,
-            }
+            },
         }
     }
 
@@ -45,7 +45,7 @@ impl VariableInfo {
                 prompt: None,
                 required: None,
                 variable_type: None,
-            }
+            },
         }
     }
 

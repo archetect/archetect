@@ -1,10 +1,10 @@
-use crate::config::{RuleConfig, VariableInfo};
 use crate::actions::Action;
-use std::path::Path;
-use crate::{Archetect, Archetype, ArchetectError};
+use crate::config::{RuleConfig, VariableInfo};
 use crate::rules::RulesContext;
-use linked_hash_map::LinkedHashMap;
 use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError, Archetype};
+use linked_hash_map::LinkedHashMap;
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RuleType {
@@ -20,13 +20,14 @@ pub struct DestinationOptions {
 }
 
 impl Action for RuleType {
-    fn execute<D: AsRef<Path>>(&self,
-                               _archetect: &Archetect,
-                               _archetype: &Archetype,
-                               _destination: D,
-                               rules_context: &mut RulesContext,
-                               _answers: &LinkedHashMap<String, VariableInfo>,
-                               _context: &mut Context
+    fn execute<D: AsRef<Path>>(
+        &self,
+        _archetect: &Archetect,
+        _archetype: &Archetype,
+        _destination: D,
+        rules_context: &mut RulesContext,
+        _answers: &LinkedHashMap<String, VariableInfo>,
+        _context: &mut Context,
     ) -> Result<(), ArchetectError> {
         match self {
             RuleType::SourceRules(rules) => {

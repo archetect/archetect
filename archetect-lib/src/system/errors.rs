@@ -1,7 +1,9 @@
-
 #[derive(Debug)]
 pub enum SystemError {
-    IOError{ error: std::io::Error, message: Option<String> },
+    IOError {
+        error: std::io::Error,
+        message: Option<String>,
+    },
     GenericError(String),
 }
 

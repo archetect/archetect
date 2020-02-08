@@ -28,12 +28,12 @@ pub enum LoadOptions {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
     use serde_json;
     use serde_yaml;
-    use indoc::indoc;
 
-    use crate::actions::load::{LoadAction, LoadOptions};
     use crate::actions::exec::ExecAction;
+    use crate::actions::load::{LoadAction, LoadOptions};
 
     #[test]
     fn test_serialize_from_file() {
@@ -66,7 +66,9 @@ mod tests {
     fn test_serialize_inline() {
         let action = LoadAction {
             into: "schema".to_string(),
-            options: LoadOptions::Inline(indoc!(r#"
+            options: LoadOptions::Inline(
+                indoc!(
+                    r#"
                 {
                   "into": "schema",
                   "exec": {
@@ -77,7 +79,9 @@ mod tests {
                   },
                   "render": true
                 }
-            "#).to_string()
+            "#
+                )
+                .to_string(),
             ),
             render: None,
         };
@@ -88,7 +92,8 @@ mod tests {
 
     #[test]
     fn test_deserialize_inline() {
-        let yaml = indoc!(r#"
+        let yaml = indoc!(
+            r#"
             ---
             into: schema
             inline: |
@@ -102,13 +107,13 @@ mod tests {
                   },
                   "render": true
                 }   
-        "#);
+        "#
+        );
 
         let action: LoadAction = serde_yaml::from_str(&yaml).unwrap();
         if let LoadOptions::Inline(json) = action.options {
             println!("{}", json);
         }
-
     }
 
     #[test]

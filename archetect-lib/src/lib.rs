@@ -27,6 +27,5 @@ pub mod template_engine;
 pub mod util;
 
 pub use crate::archetype::{Archetype, ArchetypeError};
-pub use crate::core::{Archetect};
+pub use crate::core::Archetect;
 pub use crate::errors::{ArchetectError, RenderError};
-

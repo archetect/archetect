@@ -2,11 +2,11 @@ use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
 
-use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, ActionId, LoopContext};
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
 use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError, Archetype};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ForEachAction {
@@ -21,7 +21,7 @@ pub enum ForEachSource {
     #[serde(rename = "variable")]
     Variable(String),
     #[serde(rename = "split")]
-    Split(SplitOptions)
+    Split(SplitOptions),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -37,13 +37,14 @@ impl ForEachAction {
 }
 
 impl Action for ForEachAction {
-    fn execute<D: AsRef<Path>>(&self,
-                               archetect: &Archetect,
-                               archetype: &Archetype,
-                               destination: D,
-                               rules_context: &mut RulesContext,
-                               answers: &LinkedHashMap<String, VariableInfo>,
-                               context: &mut Context
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        answers: &LinkedHashMap<String, VariableInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         match &self.source {
             ForEachSource::Variable(identifier) => {
@@ -62,7 +63,14 @@ impl Action for ForEachAction {
                             context.insert("item", item);
                             context.insert("loop", &loop_context);
                             let action: ActionId = self.actions().into();
-                            action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                            action.execute(
+                                archetect,
+                                archetype,
+                                destination.as_ref(),
+                                &mut rules_context,
+                                answers,
+                                &mut context,
+                            )?;
                             loop_context.increment();
                         }
                     } else {
@@ -84,7 +92,14 @@ impl Action for ForEachAction {
                         context.insert("loop", &loop_context);
 
                         let action: ActionId = self.actions().into();
-                        action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                        action.execute(
+                            archetect,
+                            archetype,
+                            destination.as_ref(),
+                            &mut rules_context,
+                            answers,
+                            &mut context,
+                        )?;
                     }
                 }
             }
@@ -106,7 +121,14 @@ impl Action for ForEachAction {
                         context.insert("item", split);
                         context.insert("loop", &loop_context);
                         let action: ActionId = self.actions().into();
-                        action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                        action.execute(
+                            archetect,
+                            archetype,
+                            destination.as_ref(),
+                            &mut rules_context,
+                            answers,
+                            &mut context,
+                        )?;
                         loop_context.increment();
                     }
                 }
@@ -126,7 +148,7 @@ pub struct ForAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ForOptions {
-    #[serde(rename = "each", alias ="item")]
+    #[serde(rename = "each", alias = "item")]
     Item {
         #[serde(rename = "in")]
         identifier: String,
@@ -141,7 +163,7 @@ pub enum ForOptions {
         separator: Option<String>,
         name: Option<String>,
         value: Option<String>,
-    }
+    },
 }
 
 impl ForAction {
@@ -151,16 +173,21 @@ impl ForAction {
 }
 
 impl Action for ForAction {
-    fn execute<D: AsRef<Path>>(&self,
-                               archetect: &Archetect,
-                               archetype: &Archetype,
-                               destination: D,
-                               rules_context: &mut RulesContext,
-                               answers: &LinkedHashMap<String, VariableInfo>,
-                               context: &mut Context
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        answers: &LinkedHashMap<String, VariableInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         match &self.options {
-            ForOptions::Item { identifier, name, value } => {
+            ForOptions::Item {
+                identifier,
+                name,
+                value,
+            } => {
                 let format = value;
                 if let Some(value) = context.get(identifier) {
                     if let Some(items) = value.as_array() {
@@ -181,7 +208,14 @@ impl Action for ForAction {
                             }
                             context.insert("loop", &loop_context);
                             let action: ActionId = self.actions().into();
-                            action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                            action.execute(
+                                archetect,
+                                archetype,
+                                destination.as_ref(),
+                                &mut rules_context,
+                                answers,
+                                &mut context,
+                            )?;
                             loop_context.increment();
                         }
                     } else {
@@ -207,11 +241,23 @@ impl Action for ForAction {
                         context.insert("loop", &loop_context);
 
                         let action: ActionId = self.actions().into();
-                        action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                        action.execute(
+                            archetect,
+                            archetype,
+                            destination.as_ref(),
+                            &mut rules_context,
+                            answers,
+                            &mut context,
+                        )?;
                     }
                 }
             }
-            ForOptions::Split { input, separator, name, value } => {
+            ForOptions::Split {
+                input,
+                separator,
+                name,
+                value,
+            } => {
                 let format = value;
                 let input = archetect.render_string(input, context)?;
                 let separator = separator.clone().unwrap_or(",".to_owned());
@@ -235,7 +281,14 @@ impl Action for ForAction {
                         }
                         context.insert("loop", &loop_context);
                         let action: ActionId = self.actions().into();
-                        action.execute(archetect, archetype, destination.as_ref(), &mut rules_context, answers, &mut context)?;
+                        action.execute(
+                            archetect,
+                            archetype,
+                            destination.as_ref(),
+                            &mut rules_context,
+                            answers,
+                            &mut context,
+                        )?;
                         loop_context.increment();
                     }
                 }
@@ -249,20 +302,18 @@ impl Action for ForAction {
 mod tests {
     use serde_yaml;
 
-    use crate::actions::ActionId;
     use crate::actions::foreach::{ForAction, ForOptions};
+    use crate::actions::ActionId;
 
     #[test]
     fn test_serialize_for_item() {
-        let action = ForAction{
+        let action = ForAction {
             options: ForOptions::Item {
                 identifier: "products".to_owned(),
                 name: Some("product".to_owned()),
                 value: None,
             },
-            actions: vec![
-                ActionId::Break,
-            ],
+            actions: vec![ActionId::Break],
         };
 
         println!("{}", serde_yaml::to_string(&action).unwrap());
@@ -270,16 +321,14 @@ mod tests {
 
     #[test]
     fn test_serialize_for_split() {
-        let action = ForAction{
+        let action = ForAction {
             options: ForOptions::Split {
                 input: "{{ products }}".to_owned(),
                 separator: Some(",".to_owned()),
                 name: Some("product".to_owned()),
                 value: None,
             },
-            actions: vec![
-                ActionId::Break,
-            ],
+            actions: vec![ActionId::Break],
         };
 
         println!("{}", serde_yaml::to_string(&action).unwrap());

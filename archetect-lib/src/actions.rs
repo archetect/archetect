@@ -4,16 +4,16 @@ use linked_hash_map::LinkedHashMap;
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 
-use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::conditionals::IfAction;
-use crate::actions::foreach::{ForEachAction, ForAction};
+use crate::actions::exec::ExecAction;
+use crate::actions::foreach::{ForAction, ForEachAction};
 use crate::actions::render::RenderAction;
 use crate::actions::rules::RuleType;
 use crate::config::{AnswerInfo, VariableInfo};
 use crate::rendering::Renderable;
 use crate::rules::RulesContext;
 use crate::template_engine::Context;
-use crate::actions::exec::ExecAction;
+use crate::{Archetect, ArchetectError, Archetype};
 
 pub mod conditionals;
 pub mod exec;
@@ -65,20 +65,23 @@ pub enum ActionId {
 }
 
 impl ActionId {
-    pub fn execute<D: AsRef<Path>>(&self,
-                                   archetect: &Archetect,
-                                   archetype: &Archetype,
-                                   destination: D,
-                                   rules_context: &mut RulesContext,
-                                   answers: &LinkedHashMap<String, AnswerInfo>,
-                                   context: &mut Context,
+    pub fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        answers: &LinkedHashMap<String, AnswerInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         let destination = destination.as_ref();
         match self {
             ActionId::Set(variables) => {
                 set::populate_context(archetect, variables, answers, context)?;
             }
-            ActionId::Render(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
+            ActionId::Render(action) => {
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?
+            }
             ActionId::Actions(action_ids) => {
                 for action_id in action_ids {
                     action_id.execute(archetect, archetype, destination, rules_context, answers, context)?;
@@ -89,20 +92,29 @@ impl ActionId {
             }
 
             // Logging
-            ActionId::LogTrace(message) => { trace!("{}", message.render(&archetect, context)?) }
-            ActionId::LogDebug(message) => { debug!("{}", message.render(&archetect, context)?) }
-            ActionId::LogInfo(message) => { info!("{}", message.render(&archetect, context)?) }
-            ActionId::LogWarn(message) => { warn!("{}", message.render(&archetect, context)?) }
-            ActionId::LogError(message) => { error!("{}", message.render(&archetect, context)?) }
-            ActionId::Print(message) => { println!("{}", message.render(&archetect, context)?) }
+            ActionId::LogTrace(message) => trace!("{}", message.render(&archetect, context)?),
+            ActionId::LogDebug(message) => debug!("{}", message.render(&archetect, context)?),
+            ActionId::LogInfo(message) => info!("{}", message.render(&archetect, context)?),
+            ActionId::LogWarn(message) => warn!("{}", message.render(&archetect, context)?),
+            ActionId::LogError(message) => error!("{}", message.render(&archetect, context)?),
+            ActionId::Print(message) => println!("{}", message.render(&archetect, context)?),
 
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
                 let mut scope_context = context.clone();
                 let action: ActionId = actions.into();
-                action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut scope_context)?;
+                action.execute(
+                    archetect,
+                    archetype,
+                    destination,
+                    &mut rules_context,
+                    answers,
+                    &mut scope_context,
+                )?;
             }
-            ActionId::If(action) => { action.execute(archetect, archetype, destination, rules_context, answers, context)? }
+            ActionId::If(action) => {
+                action.execute(archetect, archetype, destination, rules_context, answers, context)?
+            }
             ActionId::Rules(actions) => {
                 for action in actions {
                     action.execute(archetect, archetype, destination, rules_context, answers, context)?;
@@ -124,7 +136,14 @@ impl ActionId {
                 while !rules_context.break_triggered() {
                     context.insert("loop", &loop_context);
                     let action: ActionId = actions[..].into();
-                    action.execute(archetect, archetype, destination, &mut rules_context, answers, &mut context)?;
+                    action.execute(
+                        archetect,
+                        archetype,
+                        destination,
+                        &mut rules_context,
+                        answers,
+                        &mut context,
+                    )?;
                     loop_context.increment();
                 }
             }
@@ -148,10 +167,7 @@ pub struct LoopContext {
 
 impl LoopContext {
     fn new() -> LoopContext {
-        LoopContext{
-            index: 1,
-            index0: 0,
-        }
+        LoopContext { index: 1, index0: 0 }
     }
 
     fn increment(&mut self) {
@@ -181,16 +197,16 @@ impl From<&Vec<ActionId>> for ActionId {
 }
 
 pub trait Action {
-    fn execute<D: AsRef<Path>>(&self,
-                               archetect: &Archetect,
-                               archetype: &Archetype,
-                               destination: D,
-                               rules_context: &mut RulesContext,
-                               answers: &LinkedHashMap<String, AnswerInfo>,
-                               context: &mut Context,
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        answers: &LinkedHashMap<String, AnswerInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError>;
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -203,7 +219,9 @@ mod tests {
         let actions = vec![
             ActionId::LogWarn("Warning!!".to_owned()),
             ActionId::Render(RenderAction::Directory(DirectoryOptions::new("."))),
-            ActionId::Render(RenderAction::Archetype(ArchetypeOptions::new("git@github.com:archetect/archetype-rust-cli.git"))),
+            ActionId::Render(RenderAction::Archetype(ArchetypeOptions::new(
+                "git@github.com:archetect/archetype-rust-cli.git",
+            ))),
         ];
 
         let yaml = serde_yaml::to_string(&actions).unwrap();

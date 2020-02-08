@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use log::trace;
 
-use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::{Action, ActionId};
 use crate::config::VariableInfo;
-use crate::template_engine::Context;
 use crate::rules::RulesContext;
+use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError, Archetype};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
@@ -23,7 +23,7 @@ pub struct IfAction {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Condition {
     #[serde(rename = "equals", alias = "matches")]
-    Equals (String, String),
+    Equals(String, String),
     #[serde(rename = "is-blank", alias = "is-empty")]
     IsBlank(String),
     #[serde(rename = "path-exists")]
@@ -51,11 +51,12 @@ impl IfAction {
 }
 
 impl Condition {
-    pub fn evaluate<D: AsRef<Path>>(&self,
-                                    archetect: &Archetect,
-                                    archetype: &Archetype,
-                                    destination: D,
-                                    context: &Context,
+    pub fn evaluate<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        context: &Context,
     ) -> Result<bool, ArchetectError> {
         match self {
             Condition::IsBlank(input) => {
@@ -83,9 +84,7 @@ impl Condition {
                 let path = destination.as_ref().join(path);
                 Ok(path.exists() && path.is_dir())
             }
-            Condition::SwitchEnabled(switch) => {
-                Ok(archetect.switches().contains(switch))
-            }
+            Condition::SwitchEnabled(switch) => Ok(archetect.switches().contains(switch)),
             Condition::Not(condition) => {
                 let value = condition.evaluate(archetect, archetype, destination, context)?;
                 Ok(!value)
@@ -99,23 +98,24 @@ impl Condition {
                 }
                 Ok(false)
             }
-            Condition::Equals (left, right) => {
+            Condition::Equals(left, right) => {
                 let left = archetect.render_string(left, context)?;
                 let right = archetect.render_string(right, context)?;
-                return Ok(left.eq(&right))
+                return Ok(left.eq(&right));
             }
         }
     }
 }
 
 impl Action for IfAction {
-    fn execute<D: AsRef<Path>>(&self,
-                               archetect: &Archetect,
-                               archetype: &Archetype,
-                               destination: D,
-                               rules_context: &mut RulesContext,
-                               answers: &LinkedHashMap<String, VariableInfo>,
-                               context: &mut Context,
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        answers: &LinkedHashMap<String, VariableInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         let mut conditions_are_met = true;
         for condition in &self.conditions {
@@ -127,23 +127,37 @@ impl Action for IfAction {
 
         if conditions_are_met {
             let action: ActionId = self.then_actions().into();
-            action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
+            action.execute(
+                archetect,
+                archetype,
+                destination.as_ref(),
+                rules_context,
+                answers,
+                context,
+            )?;
         } else {
             if let Some(actions) = self.else_actions() {
                 let action: ActionId = actions[..].into();
-                action.execute(archetect, archetype, destination.as_ref(), rules_context, answers, context)?;
+                action.execute(
+                    archetect,
+                    archetype,
+                    destination.as_ref(),
+                    rules_context,
+                    answers,
+                    context,
+                )?;
             }
         }
-        
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::actions::ActionId;
     use crate::actions::conditionals::{Condition, IfAction};
     use crate::actions::render::{DirectoryOptions, RenderAction};
+    use crate::actions::ActionId;
 
     #[test]
     pub fn test_serialize() -> Result<(), serde_yaml::Error> {
@@ -152,10 +166,10 @@ mod tests {
                 Condition::IsFile("example.txt".to_owned()),
                 Condition::IsDirectory("src/main/java".to_owned()),
                 Condition::PathExists("{{ service }}".to_owned()),
-                Condition::Equals("{{ one }}".to_owned(), "{{ two }}".to_owned())
+                Condition::Equals("{{ one }}".to_owned(), "{{ two }}".to_owned()),
             ],
             then_actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
-            else_actions: None
+            else_actions: None,
         };
 
         let yaml = serde_yaml::to_string(&action)?;

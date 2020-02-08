@@ -3,15 +3,13 @@ use std::path::{Path, PathBuf};
 
 use linked_hash_map::LinkedHashMap;
 
-use crate::{Archetect, ArchetectError};
 use crate::actions::ActionId;
-use crate::config::{
-    AnswerInfo, ArchetypeConfig,
-};
+use crate::config::{AnswerInfo, ArchetypeConfig};
 use crate::errors::RenderError;
 use crate::rules::RulesContext;
 use crate::template_engine::Context;
 use crate::util::{Source, SourceError};
+use crate::{Archetect, ArchetectError};
 
 pub struct Archetype {
     source: Source,
@@ -46,10 +44,11 @@ impl Archetype {
         &self.source
     }
 
-    pub fn execute_script<D: AsRef<Path>>(&self,
-                                          archetect: &Archetect,
-                                          destination: D,
-                                          answers: &LinkedHashMap<String, AnswerInfo>,
+    pub fn execute_script<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        destination: D,
+        answers: &LinkedHashMap<String, AnswerInfo>,
     ) -> Result<(), ArchetectError> {
         let destination = destination.as_ref();
         fs::create_dir_all(destination)?;

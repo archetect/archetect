@@ -9,13 +9,13 @@ use clap::crate_version;
 use log::{debug, trace};
 use semver::Version;
 
-use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 use crate::config::RuleAction;
 use crate::rules::RulesContext;
 use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
 use crate::template_engine::{Context, Tera};
 use crate::util::Source;
+use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
 pub struct Archetect {
     tera: Tera,
@@ -68,9 +68,9 @@ impl Archetect {
                 Err(RenderError::StringRenderError {
                     source: template.to_owned(),
                     error: err,
-                    message
+                    message,
                 })
-            },
+            }
         }
     }
 
@@ -180,7 +180,7 @@ impl Archetect {
             }
         }
     }
-    
+
     pub fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
         let destination = destination.as_ref();
         let mut output = File::create(&destination)?;

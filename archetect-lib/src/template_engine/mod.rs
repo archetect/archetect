@@ -18,11 +18,11 @@ pub use crate::template_engine::builtins::functions::Function;
 pub use crate::template_engine::builtins::testers::Test;
 pub use crate::template_engine::context::Context;
 pub use crate::template_engine::errors::{Error, ErrorKind, Result};
+pub use crate::template_engine::parser::parse_list;
 #[doc(hidden)]
 pub use crate::template_engine::template::Template;
 pub use crate::template_engine::tera::Tera;
 pub use crate::template_engine::utils::escape_html;
-pub use crate::template_engine::parser::parse_list;
 /// Re-export Value and other useful things from serde
 /// so apps/tools can encode data in Tera types
 pub use serde_json::value::{from_value, to_value, Map, Number, Value};

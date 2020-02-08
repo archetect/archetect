@@ -1,9 +1,9 @@
+use crate::config::CATALOG_FILE_NAME;
 use crate::system::SystemError;
 use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
-use crate::config::CATALOG_FILE_NAME;
 
 pub enum LayoutType {
     Native,

@@ -4,9 +4,9 @@ use linked_hash_map::LinkedHashMap;
 use read_input::prelude::*;
 use serde_json::Value;
 
-use crate::{Archetect, ArchetectError};
 use crate::config::{AnswerInfo, VariableInfo, VariableType};
 use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError};
 
 const ACCEPTABLE_BOOLEANS: [&str; 8] = ["y", "yes", "true", "t", "n", "no", "false", "f"];
 
@@ -17,7 +17,6 @@ pub fn populate_context(
     context: &mut Context,
 ) -> Result<(), ArchetectError> {
     for (identifier, variable_info) in variables {
-
         // 1) If there is an answer for this variable, and has an explicit value, use that first.
         if let Some(answer) = answers.get(identifier) {
             let mut answer_satisfied = false;
@@ -26,10 +25,7 @@ pub fn populate_context(
                 match variable_info.variable_type() {
                     VariableType::Enum(options) => {
                         if options.contains(&value.to_owned()) {
-                            context.insert(
-                                identifier.as_str(),
-                                &archetect.render_string(value, context)?,
-                            );
+                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                             answer_satisfied = true;
                         }
                     }
@@ -40,27 +36,18 @@ pub fn populate_context(
                                 0..=3 => true,
                                 _ => false,
                             };
-                            context.insert(
-                                identifier.as_str(),
-                                &value,
-                            );
+                            context.insert(identifier.as_str(), &value);
                             answer_satisfied = true;
                         }
                     }
                     VariableType::Int => {
                         if let Ok(value) = value.parse::<i64>() {
-                            context.insert(
-                                identifier.as_str(),
-                                &value,
-                            );
+                            context.insert(identifier.as_str(), &value);
                             answer_satisfied = true;
                         }
                     }
                     VariableType::String => {
-                        context.insert(
-                            identifier.as_str(),
-                            &archetect.render_string(value, context)?,
-                        );
+                        context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                         answer_satisfied = true;
                     }
                     VariableType::Array => {
@@ -73,10 +60,7 @@ pub fn populate_context(
                             );
                             answer_satisfied = true;
                         } else {
-                            context.insert(
-                                identifier.as_str(),
-                                &archetect.render_string(value, context)?,
-                            );
+                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                         }
                     }
                 }
@@ -89,10 +73,7 @@ pub fn populate_context(
                         // Special handling for lists
                         VariableType::Array => {}
                         _ => {
-                            context.insert(
-                                identifier.as_str(),
-                                &archetect.render_string(value, context)?,
-                            );
+                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                         }
                     }
                 }
@@ -103,14 +84,10 @@ pub fn populate_context(
         // Insert wholly derived values
         if variable_info.has_derived_value() {
             if let Some(value) = variable_info.value() {
-                context.insert(
-                    identifier.as_str(),
-                    &archetect.render_string(value, context)?,
-                );
+                context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                 continue;
             }
         }
-
 
         let mut prompt = if let Some(prompt) = variable_info.prompt() {
             format!("{} ", archetect.render_string(prompt.trim(), context)?)
@@ -134,21 +111,11 @@ pub fn populate_context(
         };
 
         let value = match variable_info.variable_type() {
-            VariableType::Enum(values) => {
-                prompt_for_enum(&mut prompt, &values, &default)
-            }
-            VariableType::Bool => {
-                prompt_for_bool(&mut prompt, &default)
-            }
-            VariableType::Int => {
-                prompt_for_int(&mut prompt, &default)
-            }
-            VariableType::Array => {
-                prompt_for_list(archetect, context, &prompt, variable_info)?
-            }
-            VariableType::String => {
-                prompt_for_string(&mut prompt, &default, variable_info.required())
-            }
+            VariableType::Enum(values) => prompt_for_enum(&mut prompt, &values, &default),
+            VariableType::Bool => prompt_for_bool(&mut prompt, &default),
+            VariableType::Int => prompt_for_int(&mut prompt, &default),
+            VariableType::Array => prompt_for_list(archetect, context, &prompt, variable_info)?,
+            VariableType::String => prompt_for_string(&mut prompt, &default, variable_info.required()),
         };
 
         if let Some(value) = value {
@@ -159,10 +126,7 @@ pub fn populate_context(
                 match variable_info.variable_type() {
                     VariableType::Array => (),
                     _ => {
-                        context.insert(
-                            identifier.as_str(),
-                            &archetect.render_string(value, context)?,
-                        );
+                        context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
                     }
                 }
             }
@@ -179,7 +143,8 @@ fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bo
     let mut input_builder = input::<String>().msg(&prompt);
 
     if required {
-        input_builder = input_builder.add_test(|value| value.len() > 0)
+        input_builder = input_builder
+            .add_test(|value| value.len() > 0)
             .repeat_msg(&prompt)
             .err("Please provide a value.");
     }
@@ -202,8 +167,7 @@ fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value
     let input_builder = input::<i64>()
         .msg(&prompt)
         .err("Please specify an integer.")
-        .repeat_msg(&prompt)
-        ;
+        .repeat_msg(&prompt);
 
     let value = if let Some(default) = default {
         input_builder.default(default).get()
@@ -229,13 +193,10 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
     }
 
     let input_builder = input::<String>()
-        .add_test(|value| {
-            ACCEPTABLE_BOOLEANS.contains(&value.to_lowercase().as_str())
-        })
+        .add_test(|value| ACCEPTABLE_BOOLEANS.contains(&value.to_lowercase().as_str()))
         .msg(&prompt)
         .err(format!("Please specify a value of {:?}.", ACCEPTABLE_BOOLEANS))
-        .repeat_msg(&prompt)
-        ;
+        .repeat_msg(&prompt);
 
     let value = if let Some(default) = default.clone() {
         input_builder.default(default.to_owned()).get()
@@ -261,15 +222,13 @@ fn prompt_for_list(
 
     let mut results = vec![];
 
-
     loop {
         let count = results.len();
-        let mut input_builder = input::<String>()
-            .msg("Item: ")
-            ;
+        let mut input_builder = input::<String>().msg("Item: ");
 
         if variable_info.required() {
-            input_builder = input_builder.add_test(move |value| count > 0 || !value.trim().is_empty())
+            input_builder = input_builder
+                .add_test(move |value| count > 0 || !value.trim().is_empty())
                 .err("This list requires at least one item.")
                 .repeat_msg(" - ")
         }
@@ -330,7 +289,6 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
 
     Some(Value::String(choices.get(&value).unwrap().to_owned()))
 }
-
 
 pub fn render_answers(
     archetect: &Archetect,
@@ -401,10 +359,7 @@ pub enum VariableDescriptor {
     },
 
     #[serde(rename = "json!")]
-    Json {
-        content: String,
-        render: Option<bool>,
-    },
+    Json { content: String, render: Option<bool> },
 }
 
 #[cfg(test)]
@@ -416,44 +371,50 @@ mod tests {
     fn test_serialize() {
         let object = VariableDescriptor::Object {
             prompt: Some("Schema:".to_string()),
-            items:
-            values_map(vec![
-                ("tables",
-                 VariableDescriptor::Array {
-                     prompt: "Tables: ".to_string(),
-                     item: Box::new(VariableDescriptor::Object {
-                         prompt: None,
-                         items:
-                         values_map(vec![
-                             ("name",
-                              VariableDescriptor::String {
-                                  prompt: "Table Name: ".to_string(),
-                                  default: None,
-                              }),
-                             ("fields",
-                              VariableDescriptor::Array {
-                                  prompt: "Fields: ".to_string(),
-                                  item: Box::new(VariableDescriptor::Object {
-                                      prompt: None,
-                                      items: values_map(vec![
-                                          ("type",
-                                           VariableDescriptor::Enum {
-                                               prompt: "Field Type: ".to_string(),
-                                               options: vec!["String".to_owned(), "Integer".to_owned()],
-                                               default: Some("String".to_owned()),
-                                           }),
-                                          ("name",
-                                           VariableDescriptor::String {
-                                               prompt: "Field Name: ".to_string(),
-                                               default: None,
-                                           }),
-                                      ], ),
-                                  }),
-                              }),
-                         ]),
-                     }),
-                 }),
-            ]),
+            items: values_map(vec![(
+                "tables",
+                VariableDescriptor::Array {
+                    prompt: "Tables: ".to_string(),
+                    item: Box::new(VariableDescriptor::Object {
+                        prompt: None,
+                        items: values_map(vec![
+                            (
+                                "name",
+                                VariableDescriptor::String {
+                                    prompt: "Table Name: ".to_string(),
+                                    default: None,
+                                },
+                            ),
+                            (
+                                "fields",
+                                VariableDescriptor::Array {
+                                    prompt: "Fields: ".to_string(),
+                                    item: Box::new(VariableDescriptor::Object {
+                                        prompt: None,
+                                        items: values_map(vec![
+                                            (
+                                                "type",
+                                                VariableDescriptor::Enum {
+                                                    prompt: "Field Type: ".to_string(),
+                                                    options: vec!["String".to_owned(), "Integer".to_owned()],
+                                                    default: Some("String".to_owned()),
+                                                },
+                                            ),
+                                            (
+                                                "name",
+                                                VariableDescriptor::String {
+                                                    prompt: "Field Name: ".to_string(),
+                                                    default: None,
+                                                },
+                                            ),
+                                        ]),
+                                    }),
+                                },
+                            ),
+                        ]),
+                    }),
+                },
+            )]),
         };
 
         let yaml = serde_yaml::to_string(&object).unwrap();

@@ -64,5 +64,4 @@ mod tests {
     t!(test25: "ABcDE" => "a/bc/de");
     t!(test26: "package.case" => "package/case");
     t!(test27: "directory/case" => "directory/case");
-
 }

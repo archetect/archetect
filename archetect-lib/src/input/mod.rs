@@ -1,10 +1,10 @@
-use crate::config::{CatalogEntry, Catalog, CatalogError};
+use crate::config::{Catalog, CatalogEntry, CatalogError};
 
+use crate::util::{Source, SourceError};
+use crate::Archetect;
 use read_input::shortcut::input;
 use read_input::InputBuild;
 use std::collections::{HashMap, HashSet};
-use crate::Archetect;
-use crate::util::{Source, SourceError};
 
 #[derive(Debug)]
 pub enum CatalogSelectError {
@@ -26,10 +26,14 @@ pub fn you_are_sure(message: &str) -> bool {
         .get()
 }
 
-pub fn select_from_catalog(archetect: &Archetect, catalog: &Catalog, current_source: &Source) -> Result<CatalogEntry, CatalogError> {
+pub fn select_from_catalog(
+    archetect: &Archetect,
+    catalog: &Catalog,
+    current_source: &Source,
+) -> Result<CatalogEntry, CatalogError> {
     let mut catalog = catalog.clone();
     let mut current_source = current_source.clone();
-    
+
     loop {
         if catalog.entries().is_empty() {
             return Err(CatalogError::EmptyCatalog);
@@ -43,17 +47,26 @@ pub fn select_from_catalog(archetect: &Archetect, catalog: &Catalog, current_sou
                 current_source = source.clone();
                 catalog = Catalog::load(source)?;
             }
-            CatalogEntry::Archetype { description: _, source: _ } => {
+            CatalogEntry::Archetype {
+                description: _,
+                source: _,
+            } => {
                 return Ok(choice);
             }
-            CatalogEntry::Group { description: _, entries: _ } => { unreachable!() }
+            CatalogEntry::Group {
+                description: _,
+                entries: _,
+            } => unreachable!(),
         }
-    };
+    }
 }
 
-pub fn select_from_entries(_archetect: &Archetect, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
+pub fn select_from_entries(
+    _archetect: &Archetect,
+    mut entry_items: Vec<CatalogEntry>,
+) -> Result<CatalogEntry, CatalogError> {
     if entry_items.is_empty() {
-        return Err(CatalogError::EmptyGroup)
+        return Err(CatalogError::EmptyGroup);
     }
 
     loop {
@@ -78,15 +91,20 @@ pub fn select_from_entries(_archetect: &Archetect, mut entry_items: Vec<CatalogE
         let choice = choices.remove(&result).unwrap();
 
         match choice {
-            CatalogEntry::Group { description: _, entries } => {
+            CatalogEntry::Group {
+                description: _,
+                entries,
+            } => {
                 entry_items = entries;
             }
-            CatalogEntry::Catalog { description: _, source: _ } => {
-                return Ok(choice)
-            }
-            CatalogEntry::Archetype { description: _, source: _ } => {
-                return Ok(choice)
-            }
+            CatalogEntry::Catalog {
+                description: _,
+                source: _,
+            } => return Ok(choice),
+            CatalogEntry::Archetype {
+                description: _,
+                source: _,
+            } => return Ok(choice),
         }
     }
 }

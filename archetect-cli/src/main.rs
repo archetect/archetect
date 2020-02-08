@@ -1,6 +1,8 @@
 mod cli;
 
-use archetect::config::{AnswerConfig, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME, AnswerConfigError};
+use archetect::config::{
+    AnswerConfig, AnswerConfigError, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME,
+};
 use archetect::input::select_from_catalog;
 use archetect::system::SystemError;
 use archetect::util::{Source, SourceError};
@@ -8,13 +10,13 @@ use archetect::RenderError;
 use archetect::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
 //use indoc::indoc;
+use archetect::requirements::RequirementsError;
+use linked_hash_map::LinkedHashMap;
 use log::{error, info, warn};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use linked_hash_map::LinkedHashMap;
-use archetect::requirements::RequirementsError;
 
 fn main() {
     let matches = cli::get_matches().get_matches();
@@ -49,7 +51,10 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                     }
                 }
                 Err(cause) => {
-                    return Err(ArchetectError::AnswerConfigError { source: answer_file.to_owned(), cause });
+                    return Err(ArchetectError::AnswerConfigError {
+                        source: answer_file.to_owned(),
+                        cause,
+                    });
                 }
             }
         }
@@ -132,7 +137,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
             //                catalog.save_to_file(local_path)?;
             //                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
             //            }
-        } else if let Some(_matches) = matches.subcommand_matches("add") {} else {
+        } else if let Some(_matches) = matches.subcommand_matches("add") {
+        } else {
             if source.local_path().exists() {
                 let catalog_file = source.local_path();
                 let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
@@ -176,8 +182,7 @@ fn handle_archetect_error(error: ArchetectError) {
         ArchetectError::SystemError(error) => handle_system_error(error),
         ArchetectError::CatalogError(error) => handle_catalog_error(error),
         ArchetectError::IoError(error) => handle_io_error(error),
-        ArchetectError::AnswerConfigError { source, cause } =>
-            handle_answer_config_error(source, cause),
+        ArchetectError::AnswerConfigError { source, cause } => handle_answer_config_error(source, cause),
     }
 }
 
@@ -202,9 +207,11 @@ fn handle_requirements_error(path: String, error: RequirementsError) {
             error!("Error reading {}:\n{}", path.display(), cause);
         }
         RequirementsError::ArchetectVersion(version, requirements) => {
-            error!("'{}' requires features that are unavailable in this version of \
+            error!(
+                "'{}' requires features that are unavailable in this version of \
                     Archetect.  Archetect {} is required, but you are on Archetect {}.  \
-                    Try upgrading to the latest available version.", path, requirements, version
+                    Try upgrading to the latest available version.",
+                path, requirements, version
             );
         }
         RequirementsError::IoError(cause) => {
@@ -226,7 +233,6 @@ fn handle_archetype_error(error: ArchetypeError) {
         }
     }
 }
-
 
 fn handle_source_error(error: SourceError) {
     match error {

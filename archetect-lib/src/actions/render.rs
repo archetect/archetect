@@ -1,12 +1,12 @@
-use std::path::{Path};
+use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
 
-use crate::{Archetect, ArchetectError, Archetype};
-use crate::actions::{Action, set};
+use crate::actions::{set, Action};
 use crate::config::AnswerInfo;
-use crate::template_engine::Context;
 use crate::rules::RulesContext;
+use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError, Archetype};
 use std::fs;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -26,7 +26,7 @@ pub struct DirectoryOptions {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArchetypeOptions {
-    #[serde(skip_serializing_if = "Option::is_none", rename="answers-include")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "answers-include")]
     answers_include: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     answers: Option<LinkedHashMap<String, AnswerInfo>>,
@@ -66,13 +66,14 @@ impl ArchetypeOptions {
 }
 
 impl Action for RenderAction {
-    fn execute<D: AsRef<Path>>(&self,
-               archetect: &Archetect,
-               archetype: &Archetype,
-               destination: D,
-               rules_context: &mut RulesContext,
-               _answers: &LinkedHashMap<String, AnswerInfo>,
-               context: &mut Context,
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        archetype: &Archetype,
+        destination: D,
+        rules_context: &mut RulesContext,
+        _answers: &LinkedHashMap<String, AnswerInfo>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         match self {
             RenderAction::Directory(options) => {

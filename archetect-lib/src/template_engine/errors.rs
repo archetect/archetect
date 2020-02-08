@@ -34,7 +34,9 @@ pub enum ErrorKind {
     FunctionNotFound(String),
     /// An error happened while serializing JSON
     Json(serde_json::Error),
-    UnresolvedVariable{ identifier: String },
+    UnresolvedVariable {
+        identifier: String,
+    },
     /// This enum may grow additional variants, so this makes sure clients
     /// don't count on exhaustive matching. (Otherwise, adding a new variant
     /// could break existing code.)
@@ -180,7 +182,7 @@ impl Error {
         let identifier = identifier.into();
         Self {
             kind: ErrorKind::UnresolvedVariable { identifier },
-            source: None
+            source: None,
         }
     }
 }

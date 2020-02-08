@@ -848,5 +848,4 @@ fn parse_string_concat_multiple() {
 #[test]
 fn test_parse_array() {
     let _parsed = crate::template_engine::parse_list("[one, two, three]");
-
 }

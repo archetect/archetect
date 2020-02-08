@@ -1,5 +1,5 @@
-use crate::{Archetect, RenderError};
 use crate::template_engine::Context;
+use crate::{Archetect, RenderError};
 use std::path::{Path, PathBuf};
 
 pub trait Renderable {
@@ -47,12 +47,11 @@ impl Renderable for &Path {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::Archetect;
-    use crate::template_engine::Context;
     use crate::rendering::Renderable;
+    use crate::template_engine::Context;
+    use crate::Archetect;
     use std::path::{Path, PathBuf};
 
     #[test]

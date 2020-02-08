@@ -1,4 +1,4 @@
-use std::{fs};
+use std::fs;
 use std::path::PathBuf;
 
 use linked_hash_map::LinkedHashMap;
@@ -40,7 +40,14 @@ impl AnswerConfig {
     pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
         let path = path.into();
         if path.is_dir() {
-            let answer_file_names = vec!["archetect.yml", ".archetect.yml", "archetect.yaml", ".archetect.yaml", ".answers.yaml", "answers.yaml"];
+            let answer_file_names = vec![
+                "archetect.yml",
+                ".archetect.yml",
+                "archetect.yaml",
+                ".archetect.yaml",
+                ".answers.yaml",
+                "answers.yaml",
+            ];
             for answer_file_name in answer_file_names {
                 let answers = path.join(answer_file_name);
                 if answers.exists() {
@@ -61,7 +68,8 @@ impl AnswerConfig {
     }
 
     pub fn add_answer(&mut self, identifier: &str, value: &str) {
-        self.answers.insert(identifier.to_owned(), AnswerInfo::with_value(value).build());
+        self.answers
+            .insert(identifier.to_owned(), AnswerInfo::with_value(value).build());
     }
 
     pub fn with_answer(mut self, identifier: &str, value: &str) -> AnswerConfig {
@@ -76,7 +84,9 @@ impl AnswerConfig {
 
 impl Default for AnswerConfig {
     fn default() -> Self {
-        AnswerConfig { answers: LinkedHashMap::new() }
+        AnswerConfig {
+            answers: LinkedHashMap::new(),
+        }
     }
 }
 
@@ -105,7 +115,10 @@ fn parse_answer(pair: Pair<Rule>) -> (String, AnswerInfo) {
     let mut iter = pair.into_inner();
     let identifier_pair = iter.next().unwrap();
     let value_pair = iter.next().unwrap();
-    (parse_identifier(identifier_pair), AnswerInfo::with_value(parse_value(value_pair)).build())
+    (
+        parse_identifier(identifier_pair),
+        AnswerInfo::with_value(parse_value(value_pair)).build(),
+    )
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
@@ -130,29 +143,65 @@ mod tests {
 
     #[test]
     fn test_parse_success() {
-        assert_eq!(parse("key=value"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key=value"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key = value"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key = value"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key = value set"), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
+        assert_eq!(
+            parse("key = value set"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
+        );
 
-        assert_eq!(parse("key='value'"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key='value'"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key='value set'"), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
+        assert_eq!(
+            parse("key='value set'"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
+        );
 
-        assert_eq!(parse("key = 'value'"), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key = 'value'"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key=\"value\""), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key=\"value\""),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key=\"value set\""), Ok(("key".to_owned(), AnswerInfo::with_value("value set").build())));
+        assert_eq!(
+            parse("key=\"value set\""),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
+        );
 
-        assert_eq!(parse("key = \"value\""), Ok(("key".to_owned(), AnswerInfo::with_value("value").build())));
+        assert_eq!(
+            parse("key = \"value\""),
+            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
+        );
 
-        assert_eq!(parse("key ="), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
+        assert_eq!(
+            parse("key ="),
+            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
+        );
 
-        assert_eq!(parse("key =''"), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
+        assert_eq!(
+            parse("key =''"),
+            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
+        );
 
-        assert_eq!(parse(" key =\"\""), Ok(("key".to_owned(), AnswerInfo::with_value("").build())));
+        assert_eq!(
+            parse(" key =\"\""),
+            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
+        );
     }
 
     #[test]

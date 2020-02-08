@@ -1,7 +1,7 @@
-use crate::ArchetypeError;
-use std::path::PathBuf;
-use std::fs;
 use crate::actions::ActionId;
+use crate::ArchetypeError;
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
@@ -138,16 +138,19 @@ impl Default for ArchetypeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{VariableInfo};
-    use linked_hash_map::LinkedHashMap;
     use crate::config::variable::VariableType;
+    use crate::config::VariableInfo;
+    use linked_hash_map::LinkedHashMap;
 
     #[test]
     fn test_serialize_to_yaml() {
         let mut variables = LinkedHashMap::new();
-        variables.insert("name".to_owned(), VariableInfo::with_prompt("What is your first name?")
-            .with_type(VariableType::Enum(vec!["DynamoDb".to_owned(), "JPA".to_owned()]))
-            .build());
+        variables.insert(
+            "name".to_owned(),
+            VariableInfo::with_prompt("What is your first name?")
+                .with_type(VariableType::Enum(vec!["DynamoDb".to_owned(), "JPA".to_owned()]))
+                .build(),
+        );
 
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")
@@ -156,8 +159,7 @@ mod tests {
             .with_framework("Hessian")
             .with_tag("Service")
             .with_tag("REST")
-            .with_action(ActionId::Set(variables))
-            ;
+            .with_action(ActionId::Set(variables));
 
         let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);

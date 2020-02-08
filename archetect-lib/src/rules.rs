@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
-use log::{trace};
+use log::trace;
 
 use crate::config::{Pattern, RuleAction, RuleConfig};
 
@@ -71,12 +71,17 @@ impl RulesContext {
                         Pattern::GLOB(pattern) => {
                             let matcher = glob::Pattern::new(pattern).unwrap();
                             if matcher.matches_path(&path) {
-                                trace!("Source Rule [{}: {:?} {:?}] matched '{}'",
-                                       name, &path_rule.action(), pattern, path.display());
+                                trace!(
+                                    "Source Rule [{}: {:?} {:?}] matched '{}'",
+                                    name,
+                                    &path_rule.action(),
+                                    pattern,
+                                    path.display()
+                                );
                                 return path_rule.action().clone();
                             }
                         }
-                        _ => unimplemented!()
+                        _ => unimplemented!(),
                     }
                 }
             }

@@ -5,11 +5,11 @@ use std::process::Command;
 use linked_hash_map::LinkedHashMap;
 use log::{debug, warn};
 
-use crate::{Archetect, ArchetectError, Archetype};
 use crate::actions::Action;
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
 use crate::template_engine::Context;
+use crate::{Archetect, ArchetectError, Archetype};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExecAction {
@@ -28,7 +28,7 @@ impl ExecAction {
             command: command.into(),
             args: None,
             env: None,
-            cwd: None
+            cwd: None,
         }
     }
 
@@ -56,7 +56,7 @@ impl ExecAction {
     }
 
     pub fn add_environment_variable<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-        let env = self.env.get_or_insert_with( || Default::default());
+        let env = self.env.get_or_insert_with(|| Default::default());
         env.insert(key.into(), value.into());
     }
 
@@ -75,13 +75,14 @@ impl ExecAction {
 }
 
 impl Action for ExecAction {
-    fn execute<D: AsRef<Path>>(&self,
-                               archetect: &Archetect,
-                               _archetype: &Archetype,
-                               destination: D,
-                               _rules_context: &mut RulesContext,
-                               _answers: &LinkedHashMap<String, VariableInfo, RandomState>,
-                               context: &mut Context,
+    fn execute<D: AsRef<Path>>(
+        &self,
+        archetect: &Archetect,
+        _archetype: &Archetype,
+        destination: D,
+        _rules_context: &mut RulesContext,
+        _answers: &LinkedHashMap<String, VariableInfo, RandomState>,
+        context: &mut Context,
     ) -> Result<(), ArchetectError> {
         let mut command = Command::new(&self.command);
 
@@ -92,7 +93,7 @@ impl Action for ExecAction {
         }
 
         if let Some(env) = self.env() {
-            for (key, value) in env  {
+            for (key, value) in env {
                 command.env(
                     archetect.render_string(key, context)?,
                     archetect.render_string(value, context)?,
@@ -104,8 +105,11 @@ impl Action for ExecAction {
             if let Ok(cwd) = shellexpand::full(cwd) {
                 let cwd = Path::new(cwd.as_ref());
                 if cwd.is_relative() {
-                    command.current_dir(destination.as_ref()
-                        .join(archetect.render_string(cwd.display().to_string().as_str(), context)?));
+                    command.current_dir(
+                        destination
+                            .as_ref()
+                            .join(archetect.render_string(cwd.display().to_string().as_str(), context)?),
+                    );
                 } else {
                     command.current_dir(archetect.render_string(cwd.display().to_string().as_str(), context)?);
                 }
@@ -131,8 +135,8 @@ impl Action for ExecAction {
 #[cfg(test)]
 mod tests {
     use crate::actions::exec::ExecAction;
-    use serde_yaml;
     use linked_hash_map::LinkedHashMap;
+    use serde_yaml;
 
     #[test]
     fn test_serialize() {
@@ -146,7 +150,7 @@ mod tests {
             command: "mvn".to_string(),
             args: Some(vec!["install".to_owned()]),
             env: Some(env),
-            cwd: None
+            cwd: None,
         };
 
         println!("{}", serde_yaml::to_string(&action).unwrap());

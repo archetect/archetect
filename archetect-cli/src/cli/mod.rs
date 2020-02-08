@@ -1,5 +1,5 @@
+use archetect::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
 use archetect::loggerv;
-use archetect::config::{AnswerInfo, AnswerConfig, AnswerConfigError};
 use clap::{crate_authors, crate_description, crate_version};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 

@@ -1,7 +1,7 @@
-use semver::{VersionReq, Version};
-use std::path::{PathBuf};
-use std::fs;
 use crate::Archetect;
+use semver::{Version, VersionReq};
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Requirements {
@@ -11,7 +11,9 @@ pub struct Requirements {
 
 impl Requirements {
     pub fn new(archetect_version: VersionReq) -> Requirements {
-        Requirements{ archetect_requirement: archetect_version }
+        Requirements {
+            archetect_requirement: archetect_version,
+        }
     }
 
     pub fn archetect_version(&self) -> &VersionReq {
@@ -39,7 +41,10 @@ impl Requirements {
                     return Ok(Some(result));
                 }
                 Err(error) => {
-                    return Err(RequirementsError::DeserializationError { path: path, cause: error });
+                    return Err(RequirementsError::DeserializationError {
+                        path: path,
+                        cause: error,
+                    });
                 }
             }
         }
@@ -47,7 +52,10 @@ impl Requirements {
 
     pub fn verify(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
         if !self.archetect_requirement.matches(&archetect.version()) {
-            Err(RequirementsError::ArchetectVersion(archetect.version().clone(), self.archetect_requirement.clone()))
+            Err(RequirementsError::ArchetectVersion(
+                archetect.version().clone(),
+                self.archetect_requirement.clone(),
+            ))
         } else {
             Ok(())
         }
@@ -58,7 +66,7 @@ impl Requirements {
 pub enum RequirementsError {
     DeserializationError { path: PathBuf, cause: serde_yaml::Error },
     ArchetectVersion(Version, VersionReq),
-    IoError(std::io::Error)
+    IoError(std::io::Error),
 }
 
 impl From<std::io::Error> for RequirementsError {

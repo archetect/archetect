@@ -1,12 +1,12 @@
-use std::path::PathBuf;
-use crate::ArchetypeError;
+use crate::config::{AnswerConfigError, CatalogError};
 use crate::system::SystemError;
 use crate::util::SourceError;
-use crate::config::{CatalogError, AnswerConfigError};
+use crate::ArchetypeError;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub enum ArchetectError {
-    AnswerConfigError{ source: String, cause: AnswerConfigError },
+    AnswerConfigError { source: String, cause: AnswerConfigError },
     ArchetypeError(ArchetypeError),
     GenericError(String),
     RenderError(RenderError),
@@ -60,13 +60,34 @@ impl From<std::io::Error> for ArchetectError {
 
 #[derive(Debug)]
 pub enum RenderError {
-    InvalidPathCharacters { source: PathBuf },
-    PathRenderError{ source: PathBuf, error: crate::template_engine::Error, message: String },
-    FileRenderError{ source: PathBuf, error: crate::template_engine::Error, message: String },
+    InvalidPathCharacters {
+        source: PathBuf,
+    },
+    PathRenderError {
+        source: PathBuf,
+        error: crate::template_engine::Error,
+        message: String,
+    },
+    FileRenderError {
+        source: PathBuf,
+        error: crate::template_engine::Error,
+        message: String,
+    },
 
-    FileRenderIOError { source: PathBuf, error: std::io::Error, message: String },
-    StringRenderError { source: String, error: crate::template_engine::Error, message: String },
-    IOError { error: std::io::Error, message: String },
+    FileRenderIOError {
+        source: PathBuf,
+        error: std::io::Error,
+        message: String,
+    },
+    StringRenderError {
+        source: String,
+        error: crate::template_engine::Error,
+        message: String,
+    },
+    IOError {
+        error: std::io::Error,
+        message: String,
+    },
 }
 
 impl From<std::io::Error> for RenderError {

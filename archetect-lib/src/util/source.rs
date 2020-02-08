@@ -7,8 +7,8 @@ use log::{debug, info, trace};
 use regex::Regex;
 use url::Url;
 
-use crate::Archetect;
 use crate::requirements::{Requirements, RequirementsError};
+use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -62,11 +62,10 @@ impl Source {
 
         if let Ok(url) = Url::parse(&path) {
             if path.ends_with(".git") && url.has_host() {
-                let cache_path = git_cache.clone().join(get_cache_key(format!(
-                    "{}/{}",
-                    url.host_str().unwrap(),
-                    url.path())
-                ));
+                let cache_path =
+                    git_cache
+                        .clone()
+                        .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
@@ -76,11 +75,11 @@ impl Source {
                     path: cache_path,
                 });
             } else if url.has_host() {
-                let cache_path =
-                    archetect
-                        .layout()
-                        .http_cache_dir()
-                        .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
+                let cache_path = archetect.layout().http_cache_dir().join(get_cache_key(format!(
+                    "{}/{}",
+                    url.host_str().unwrap(),
+                    url.path()
+                )));
                 if let Err(error) = cache_http_resource(&path, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
@@ -162,14 +161,20 @@ fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Resu
         Ok(results) => {
             if let Some(requirements) = results {
                 if let Err(error) = requirements.verify(archetect) {
-                    return Err(SourceError::RequirementsError { path: source.to_owned(), cause: error });
+                    return Err(SourceError::RequirementsError {
+                        path: source.to_owned(),
+                        cause: error,
+                    });
                 }
             }
         }
         Err(error) => {
-            return Err(SourceError::RequirementsError { path: path.display().to_string(), cause: error });
+            return Err(SourceError::RequirementsError {
+                path: path.display().to_string(),
+                cause: error,
+            });
         }
-    }                                                                                                                                                            
+    }
     Ok(())
 }
 
@@ -212,7 +217,10 @@ fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Re
                         std::fs::create_dir_all(&cache_destination.parent().unwrap())?;
                         std::fs::write(cache_destination, body)?;
                     } else {
-                        return Err(SourceError::RemoteSourceError(format!("Not successful caching '{}'", url)));
+                        return Err(SourceError::RemoteSourceError(format!(
+                            "Not successful caching '{}'",
+                            url
+                        )));
                     }
                 }
             }
@@ -251,8 +259,14 @@ mod tests {
 
     #[test]
     fn test_cache_hash() {
-        println!("{}", get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT"));
-        println!("{}", get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT"));
+        println!(
+            "{}",
+            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT")
+        );
+        println!(
+            "{}",
+            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT")
+        );
         println!("{}", get_cache_hash("f"));
         println!("{}", get_cache_hash("1"));
     }
@@ -269,7 +283,11 @@ mod tests {
     #[test]
     fn test_http_source() {
         let archetect = Archetect::build().unwrap();
-        let source = Source::detect(&archetect, "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT", None);
+        let source = Source::detect(
+            &archetect,
+            "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT",
+            None,
+        );
         println!("{:?}", source);
     }
     //    use super::*;
