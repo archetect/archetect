@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
-use serde::{Deserialize, Serialize};
 
 use log::trace;
 

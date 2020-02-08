@@ -88,8 +88,8 @@ pub fn pluralize(value: &Value, args: &HashMap<String, Value>) -> Result<Value> 
     }
 }
 
-pub fn singular(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
-    let input = try_get_value!("singular", "value", String, value);
+pub fn singularize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let input = try_get_value!("singularize", "value", String, value);
     let plural = inflector::string::singularize::to_singular(&input);
 
     Ok(to_value(plural).unwrap())

@@ -566,7 +566,7 @@ impl Tera {
         self.register_filter("directory_to_package", string::directory_to_package);
 
         self.register_filter("pluralize", string::pluralize);
-        self.register_filter("singular", string::singular);
+        self.register_filter("singularize", string::singularize);
         self.register_filter("ordinalize", string::ordinalize);
 
         self.register_filter("upper_case", string::upper);

@@ -2,7 +2,6 @@ use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
 use log::{debug, error, info, trace, warn};
-use serde::{Deserialize, Serialize};
 
 use crate::actions::conditionals::IfAction;
 use crate::actions::exec::ExecAction;

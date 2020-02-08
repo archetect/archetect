@@ -74,20 +74,6 @@ impl Source {
                     url: path.to_owned(),
                     path: cache_path,
                 });
-            } else if url.has_host() {
-                let cache_path = archetect.layout().http_cache_dir().join(get_cache_key(format!(
-                    "{}/{}",
-                    url.host_str().unwrap(),
-                    url.path()
-                )));
-                if let Err(error) = cache_http_resource(&path, &cache_path, archetect.offline()) {
-                    return Err(error);
-                }
-                verify_requirements(archetect, source, &cache_path)?;
-                return Ok(Source::RemoteHttp {
-                    url: path.to_owned(),
-                    path: cache_path,
-                });
             }
 
             if let Ok(local_path) = url.to_file_path() {
@@ -204,35 +190,6 @@ fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<
     }
 }
 
-fn cache_http_resource(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
-    // TODO: return a response for a cached resource, even if there is an error downloading a new copy
-    if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-        debug!("Caching {}", url);
-        let result = reqwest::get(url);
-        match result {
-            Ok(mut response) => {
-                if response.status().is_success() {
-                    // TODO: convert to match
-                    if let Ok(body) = response.text() {
-                        std::fs::create_dir_all(&cache_destination.parent().unwrap())?;
-                        std::fs::write(cache_destination, body)?;
-                    } else {
-                        return Err(SourceError::RemoteSourceError(format!(
-                            "Not successful caching '{}'",
-                            url
-                        )));
-                    }
-                }
-            }
-            Err(error) => return Err(SourceError::RemoteSourceError(error.to_string())),
-        }
-    } else if offline && cache_destination.exists() {
-        return Ok(());
-    }
-
-    Ok(())
-}
-
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
     if cfg!(target_os = "windows") {
         command.stdin(Stdio::inherit());
@@ -269,15 +226,6 @@ mod tests {
         );
         println!("{}", get_cache_hash("f"));
         println!("{}", get_cache_hash("1"));
-    }
-
-    #[test]
-    fn test_reqwest_request() {
-        let result = reqwest::get("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT");
-        let mut response = result.unwrap();
-        if response.status().is_success() {}
-        println!("Status: {}", response.status());
-        println!("Response:\n{}", response.text().unwrap());
     }
 
     #[test]
