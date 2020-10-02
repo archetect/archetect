@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use linked_hash_map::LinkedHashMap;
+use log::{trace};
 use read_input::prelude::*;
 use serde_json::Value;
 
@@ -67,25 +68,28 @@ pub fn populate_context(
             }
 
             if answer_satisfied {
-                // Allow answered variables to be formatted or derived
-                if let Some(value) = variable_info.value() {
-                    match variable_info.variable_type() {
-                        // Special handling for lists
-                        VariableType::Array => {}
-                        _ => {
-                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
+                // Reformatting values should only be allowed on prompted variables
+                if !variable_info.has_derived_value() {
+                    if let Some(value) = variable_info.value() {
+                        match variable_info.variable_type() {
+                            // Special handling for lists
+                            VariableType::Array => {}
+                            _ => {
+                                context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
+                            }
                         }
                     }
                 }
                 continue;
             }
-        }
-
-        // Insert wholly derived values
-        if variable_info.has_derived_value() {
-            if let Some(value) = variable_info.value() {
-                context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                continue;
+        } else {
+            // Insert wholly derived values for which there was no answer previously provided
+            if variable_info.has_derived_value() {
+                if let Some(value) = variable_info.value() {
+                    trace!("Inserting derived variable {:?}={:?}", identifier.as_str(), value);
+                    context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
+                    continue;
+                }
             }
         }
 
