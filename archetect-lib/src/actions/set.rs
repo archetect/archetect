@@ -36,6 +36,8 @@ pub fn populate_context(
             }
         }
 
+        trace!("Attempting to satisfy {} ({:?})", identifier, variable_info);
+
         // If we've made it this far, there was not an acceptable answer or explicit value.  We need to prompt for a
         // valid value
         let mut prompt = if let Some(prompt) = variable_info.prompt() {
