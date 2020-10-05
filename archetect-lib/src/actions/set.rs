@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use linked_hash_map::LinkedHashMap;
-use log::{trace};
+use log::{trace, warn};
 use read_input::prelude::*;
 use serde_json::Value;
 
@@ -18,81 +18,26 @@ pub fn populate_context(
     context: &mut Context,
 ) -> Result<(), ArchetectError> {
     for (identifier, variable_info) in variables {
-        // 1) If there is an answer for this variable, and has an explicit value, use that first.
         if let Some(answer) = answers.get(identifier) {
-            let mut answer_satisfied = false;
-
             if let Some(value) = answer.value() {
-                match variable_info.variable_type() {
-                    VariableType::Enum(options) => {
-                        if options.contains(&value.to_owned()) {
-                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                            answer_satisfied = true;
-                        }
-                    }
-                    VariableType::Bool => {
-                        let value = value.to_lowercase();
-                        if ACCEPTABLE_BOOLEANS.contains(&value.as_str()) {
-                            let value = match ACCEPTABLE_BOOLEANS.iter().position(|i| i == &value.as_str()).unwrap() {
-                                0..=3 => true,
-                                _ => false,
-                            };
-                            context.insert(identifier.as_str(), &value);
-                            answer_satisfied = true;
-                        }
-                    }
-                    VariableType::Int => {
-                        if let Ok(value) = value.parse::<i64>() {
-                            context.insert(identifier.as_str(), &value);
-                            answer_satisfied = true;
-                        }
-                    }
-                    VariableType::String => {
-                        context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                        answer_satisfied = true;
-                    }
-                    VariableType::Array => {
-                        if let Some(variable_value) = variable_info.value() {
-                            let mut temp_context = context.clone();
-                            temp_context.insert("item", value);
-                            context.insert(
-                                identifier.as_str(),
-                                &archetect.render_string(variable_value, &temp_context)?,
-                            );
-                            answer_satisfied = true;
-                        } else {
-                            context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                        }
-                    }
+                // If there is an answer for this variable, it has an explicit value, and it is an acceptable answer,
+                // use that.
+                if insert_answered_variable(archetect, identifier, value, &variable_info.variable_type(), context)? {
+                    continue;
                 }
-            }
-
-            if answer_satisfied {
-                // Reformatting values should only be allowed on prompted variables
-                if !variable_info.has_derived_value() {
-                    if let Some(value) = variable_info.value() {
-                        match variable_info.variable_type() {
-                            // Special handling for lists
-                            VariableType::Array => {}
-                            _ => {
-                                context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                            }
-                        }
-                    }
-                }
-                continue;
             }
         } else {
-            // Insert wholly derived values for which there was no answer previously provided
-            if variable_info.has_derived_value() {
-                if let Some(value) = variable_info.value() {
-                    trace!("Inserting derived variable {:?}={:?}", identifier.as_str(), value);
-                    context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
+            if let Some(value) = variable_info.value() {
+                // If no answer was provided, there is an explicit value on the variable definition, and it is an
+                // acceptable value, use that.
+                if insert_answered_variable(archetect, identifier, value, &variable_info.variable_type(), context)? {
                     continue;
                 }
             }
         }
 
+        // If we've made it this far, there was not an acceptable answer or explicit value.  We need to prompt for a
+        // valid value
         let mut prompt = if let Some(prompt) = variable_info.prompt() {
             format!("{} ", archetect.render_string(prompt.trim(), context)?)
         } else {
@@ -124,20 +69,61 @@ pub fn populate_context(
 
         if let Some(value) = value {
             context.insert(identifier, &value);
-
-            // Allow prompted variables to be formatted or derived
-            if let Some(value) = variable_info.value() {
-                match variable_info.variable_type() {
-                    VariableType::Array => (),
-                    _ => {
-                        context.insert(identifier.as_str(), &archetect.render_string(value, context)?);
-                    }
-                }
-            }
         }
     }
 
     Ok(())
+}
+
+fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str, variable_type: &VariableType,
+                            context: &mut Context) -> Result<bool, ArchetectError> {
+
+    trace!("Setting variable answer {:?}={:?}", identifier, value);
+    
+    match variable_type {
+        VariableType::Enum(options) => {
+            // If the provided answer matches one of the enum values, use that; otherwise, we'll have to
+            // prompt the user for a valid answer
+            if options.contains(&value.to_owned()) {
+                context.insert(identifier, &archetect.render_string(value, context)?);
+                return Ok(true);
+            }
+        }
+        VariableType::Bool => {
+            let value = value.to_lowercase();
+            // If the provided answer is anything that resembled a boolean value, use that; otherwise, we'll
+            // have to prompt the user for a valid answer
+            if ACCEPTABLE_BOOLEANS.contains(&value.as_str()) {
+                let value = match ACCEPTABLE_BOOLEANS.iter().position(|i| i == &value.as_str()).unwrap() {
+                    0..=3 => true,
+                    _ => false,
+                };
+                context.insert(identifier, &value);
+                return Ok(true);
+            }
+        }
+        VariableType::Int => {
+            // If the provided answer parses to an integer, use that; otherwise, we'll have to prompt the
+            // user for a proper integer
+            if let Ok(value) = &archetect.render_string(value, context)?.parse::<i64>() {
+                context.insert(identifier, &value);
+                return Ok(true);
+            } else {
+                trace!("'{}' failed to parse as an int", value);
+            }
+        }
+        VariableType::String => {
+            context.insert(identifier, &archetect.render_string(value, context)?);
+            return Ok(true);
+        }
+        VariableType::Array => {
+            context.insert(identifier, &archetect.render_string(value, context)?);
+            return Ok(true);
+        }
+    }
+
+    warn!("'{:?}' is not a valid answer for {:?} with type {:?}", value, identifier, variable_type);
+    return Ok(false);
 }
 
 fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bool) -> Option<Value> {

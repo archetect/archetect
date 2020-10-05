@@ -1,9 +1,7 @@
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct VariableInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    value: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default: Option<String>,
+    #[serde(flatten)]
+    value_info: Option<ValueInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     prompt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12,12 +10,19 @@ pub struct VariableInfo {
     variable_type: Option<VariableType>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub enum ValueInfo {
+    #[serde(rename = "value")]
+    Value(String),
+    #[serde(rename = "default")]
+    Default(String),
+}
+
 impl VariableInfo {
     pub fn new() -> VariableInfoBuilder {
         VariableInfoBuilder {
             variable_info: VariableInfo {
-                value: None,
-                default: None,
+                value_info: None,
                 prompt: None,
                 required: None,
                 variable_type: None,
@@ -28,8 +33,7 @@ impl VariableInfo {
     pub fn with_default<D: Into<String>>(default: D) -> VariableInfoBuilder {
         VariableInfoBuilder {
             variable_info: VariableInfo {
-                value: None,
-                default: Some(default.into()),
+                value_info: Some(ValueInfo::Default(default.into())),
                 prompt: None,
                 required: None,
                 variable_type: None,
@@ -40,8 +44,7 @@ impl VariableInfo {
     pub fn with_value<V: Into<String>>(value: V) -> VariableInfoBuilder {
         VariableInfoBuilder {
             variable_info: VariableInfo {
-                value: Some(value.into()),
-                default: None,
+                value_info: Some(ValueInfo::Value(value.into())),
                 prompt: None,
                 required: None,
                 variable_type: None,
@@ -53,8 +56,7 @@ impl VariableInfo {
         VariableInfoBuilder {
             variable_info: VariableInfo {
                 prompt: Some(prompt.into()),
-                value: None,
-                default: None,
+                value_info: None,
                 required: None,
                 variable_type: None,
             },
@@ -68,17 +70,21 @@ impl VariableInfo {
         }
     }
 
+    pub fn value_info(&self) -> Option<&ValueInfo> {
+        self.value_info.as_ref()
+    }
+
     pub fn value(&self) -> Option<&str> {
-        match &self.value {
-            Some(value) => Some(value.as_str()),
-            None => None,
+        match &self.value_info {
+            Some(ValueInfo::Value(value)) => Some(value),
+            _ => None
         }
     }
 
     pub fn default(&self) -> Option<&str> {
-        match &self.default {
-            Some(default) => Some(default.as_str()),
-            None => None,
+        match &self.value_info {
+            Some(ValueInfo::Default(default)) => Some(default),
+            _ => None
         }
     }
 
@@ -91,7 +97,7 @@ impl VariableInfo {
     }
 
     pub fn has_derived_value(&self) -> bool {
-        self.prompt.is_none() && self.default.is_none() && self.value.is_some()
+        self.value().is_some()
     }
 }
 
@@ -120,12 +126,12 @@ impl VariableInfoBuilder {
     }
 
     pub fn with_value<V: Into<String>>(mut self, value: V) -> VariableInfoBuilder {
-        self.variable_info.value = Some(value.into());
+        self.variable_info.value_info = Some(ValueInfo::Value(value.into()));
         self
     }
 
     pub fn with_default<D: Into<String>>(mut self, default: D) -> VariableInfoBuilder {
-        self.variable_info.default = Some(default.into());
+        self.variable_info.value_info = Some(ValueInfo::Default(default.into()));
         self
     }
 
