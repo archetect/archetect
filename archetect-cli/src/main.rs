@@ -98,12 +98,12 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Some(matches) = matches.subcommand_matches("system") {
         if let Some(matches) = matches.subcommand_matches("layout") {
             match matches.subcommand() {
-                ("git", Some(_)) => println!("{}", archetect.layout().git_cache_dir().display()),
-                ("http", Some(_)) => println!("{}", archetect.layout().http_cache_dir().display()),
-                ("answers", Some(_)) => println!("{}", archetect.layout().answers_config().display()),
-                ("catalogs", Some(_)) => println!("{}", archetect.layout().catalog_cache_dir().display()),
-                ("config", Some(_)) => println!("{}", archetect.layout().configs_dir().display()),
-                _ => println!("{}", archetect.layout()),
+                ("git", Some(_)) => eprintln!("{}", archetect.layout().git_cache_dir().display()),
+                ("http", Some(_)) => eprintln!("{}", archetect.layout().http_cache_dir().display()),
+                ("answers", Some(_)) => eprintln!("{}", archetect.layout().answers_config().display()),
+                ("catalogs", Some(_)) => eprintln!("{}", archetect.layout().catalog_cache_dir().display()),
+                ("config", Some(_)) => eprintln!("{}", archetect.layout().configs_dir().display()),
+                _ => eprintln!("{}", archetect.layout()),
             }
         }
     }

@@ -21,6 +21,7 @@ impl From<SourceError> for CatalogSelectError {
 
 pub fn you_are_sure(message: &str) -> bool {
     input::<bool>()
+        .prompting_on_stderr()
         .msg(format!("{} [false]: ", message))
         .default(false)
         .get()
@@ -77,11 +78,12 @@ pub fn select_from_entries(
             .collect::<HashMap<_, _>>();
 
         for (id, entry) in entry_items.iter().enumerate() {
-            println!("{:>2}) {}", id + 1, entry.description());
+            eprintln!("{:>2}) {}", id + 1, entry.description());
         }
 
         let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
         let result = input::<usize>()
+            .prompting_on_stderr()
             .msg("\nSelect an entry: ")
             .add_test(move |value| test_values.contains(value))
             .err("Please enter the number of a selection from the list.")

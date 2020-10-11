@@ -22,7 +22,7 @@ pub fn populate_context(
             if let Some(value) = answer.value() {
                 // If there is an answer for this variable, it has an explicit value, and it is an acceptable answer,
                 // use that.
-                if insert_answered_variable(archetect, identifier, value, &variable_info.variable_type(), context)? {
+                if insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
                     continue;
                 }
             }
@@ -30,7 +30,7 @@ pub fn populate_context(
             if let Some(value) = variable_info.value() {
                 // If no answer was provided, there is an explicit value on the variable definition, and it is an
                 // acceptable value, use that.
-                if insert_answered_variable(archetect, identifier, value, &variable_info.variable_type(), context)? {
+                if insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
                     continue;
                 }
             }
@@ -65,7 +65,7 @@ pub fn populate_context(
             VariableType::Enum(values) => prompt_for_enum(&mut prompt, &values, &default),
             VariableType::Bool => prompt_for_bool(&mut prompt, &default),
             VariableType::Int => prompt_for_int(&mut prompt, &default),
-            VariableType::Array => prompt_for_list(archetect, context, &prompt, variable_info)?,
+            VariableType::Array => prompt_for_list(archetect, context, &mut prompt, &default, variable_info)?,
             VariableType::String => prompt_for_string(&mut prompt, &default, variable_info.required()),
         };
 
@@ -77,12 +77,12 @@ pub fn populate_context(
     Ok(())
 }
 
-fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str, variable_type: &VariableType,
+fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str, variable_info: &VariableInfo,
                             context: &mut Context) -> Result<bool, ArchetectError> {
 
     trace!("Setting variable answer {:?}={:?}", identifier, value);
     
-    match variable_type {
+    match variable_info.variable_type() {
         VariableType::Enum(options) => {
             // If the provided answer matches one of the enum values, use that; otherwise, we'll have to
             // prompt the user for a valid answer
@@ -119,23 +119,40 @@ fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str
             return Ok(true);
         }
         VariableType::Array => {
-            context.insert(identifier, &archetect.render_string(value, context)?);
-            return Ok(true);
+            let values = convert_to_list(archetect, context, value)?;
+            if !values.is_empty() || !variable_info.required() {
+                trace!("Inserting {}={:?}", identifier, values);
+                context.insert_value(identifier, &Value::Array(values));
+                return Ok(true);
+            }
         }
     }
 
-    warn!("'{:?}' is not a valid answer for {:?} with type {:?}", value, identifier, variable_type);
+    warn!("'{:?}' is not a valid answer for {:?} with type {:?}", value, identifier, variable_info.variable_type());
     return Ok(false);
+}
+
+fn convert_to_list(archetect: &Archetect, context: &Context, value: &str) -> Result<Vec<Value>, ArchetectError> {
+    let mut values = Vec::new();
+    let splits: Vec<&str> = value.split(",")
+        .map(|split| split.trim()).collect();
+    for split in splits {
+        if !split.is_empty() {
+            values.push(Value::String(archetect.render_string(split, context)?))
+        }
+    }
+    Ok(values)
 }
 
 fn prompt_for_string(prompt: &mut String, default: &Option<String>, required: bool) -> Option<Value> {
     if let Some(default) = &default {
         prompt.push_str(format!("[{}] ", default).as_str());
     };
-    let mut input_builder = input::<String>().msg(&prompt);
+    let mut input_builder = input::<String>().prompting_on_stderr().msg(&prompt);
 
     if required {
         input_builder = input_builder
+
             .add_test(|value| value.len() > 0)
             .repeat_msg(&prompt)
             .err("Please provide a value.");
@@ -157,6 +174,7 @@ fn prompt_for_int(prompt: &mut String, default: &Option<String>) -> Option<Value
     }
 
     let input_builder = input::<i64>()
+        .prompting_on_stderr()
         .msg(&prompt)
         .err("Please specify an integer.")
         .repeat_msg(&prompt);
@@ -185,6 +203,7 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
     }
 
     let input_builder = input::<String>()
+        .prompting_on_stderr()
         .add_test(|value| ACCEPTABLE_BOOLEANS.contains(&value.to_lowercase().as_str()))
         .msg(&prompt)
         .err(format!("Please specify a value of {:?}.", ACCEPTABLE_BOOLEANS))
@@ -207,43 +226,54 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
 fn prompt_for_list(
     archetect: &Archetect,
     context: &Context,
-    prompt: &String,
+    prompt: &mut String,
+    default: &Option<String>,
     variable_info: &VariableInfo,
 ) -> Result<Option<Value>, ArchetectError> {
-    println!("{}", &prompt);
+    if let Some(default) = &default {
+        prompt.push_str(format!("[{}] ", default).as_str());
+    };
+    
+    eprintln!("{}", &prompt);
 
     let mut results = vec![];
 
     loop {
-        let count = results.len();
-        let mut input_builder = input::<String>().msg("Item: ");
+        let requirements_met = if let Some(default) = default {
+            !default.trim().is_empty()
+        } else {
+            !results.is_empty()
+        };
+
+        let mut input_builder = input::<String>().prompting_on_stderr().msg(" - ");
 
         if variable_info.required() {
             input_builder = input_builder
-                .add_test(move |value| count > 0 || !value.trim().is_empty())
+                .add_test(move |value| requirements_met || !value.trim().is_empty())
                 .err("This list requires at least one item.")
                 .repeat_msg(" - ")
         }
-        let mut item = input_builder.get();
+        let item = input_builder.get();
 
         if item.trim().is_empty() {
             break;
         }
 
-        if let Some(value) = variable_info.value() {
-            let mut context = context.clone();
-            context.insert("item", &item);
-            item = archetect.render_string(value, &context)?;
-        }
-
         results.push(Value::String(item));
     }
 
-    Ok(Some(Value::Array(results)))
+    if results.len() > 0 || !variable_info.required() {
+        Ok(Some(Value::Array(results)))
+    } else if let Some(default) = default {
+        Ok(Some(Value::Array(convert_to_list(archetect, context, default)?)))
+    } else {
+        Ok(None)
+    }
+
 }
 
 fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<String>) -> Option<Value> {
-    println!("{}", &prompt);
+    eprintln!("{}", &prompt);
     let choices = options
         .iter()
         .enumerate()
@@ -251,7 +281,7 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
         .collect::<HashMap<_, _>>();
 
     for (id, option) in options.iter().enumerate() {
-        println!("{:>2}) {}", id + 1, option);
+        eprintln!("{:>2}) {}", id + 1, option);
     }
 
     let mut message = String::from("Select and entry: ");
@@ -264,6 +294,7 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
     let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
 
     let input_builder = input::<usize>()
+        .prompting_on_stderr()
         .msg(&message)
         .add_test(move |value| test_values.contains(value))
         .err("Please enter the number of a selection from the list.")

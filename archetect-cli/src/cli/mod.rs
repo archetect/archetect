@@ -2,6 +2,8 @@ use archetect::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
 use archetect::loggerv;
 use clap::{crate_authors, crate_description, crate_version};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use archetect::loggerv::Output;
+use log::Level;
 
 pub fn get_matches() -> App<'static, 'static> {
     App::new("archetect")
@@ -178,6 +180,11 @@ pub fn get_matches() -> App<'static, 'static> {
 
 pub fn configure(matches: &ArgMatches) {
     loggerv::Logger::new()
+        .output(&Level::Error, Output::Stderr)
+        .output(&Level::Warn, Output::Stderr)
+        .output(&Level::Info, Output::Stderr)
+        .output(&Level::Debug, Output::Stderr)
+        .output(&Level::Trace, Output::Stderr)
         .verbosity(matches.occurrences_of("verbosity"))
         .level(false)
         .prefix("archetect")
