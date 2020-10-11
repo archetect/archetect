@@ -148,7 +148,7 @@ pub struct ForAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ForOptions {
-    #[serde(rename = "each", alias = "item")]
+    #[serde(rename = "item")]
     Item {
         #[serde(rename = "in")]
         identifier: String,
