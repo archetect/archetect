@@ -61,6 +61,8 @@ pub enum ActionId {
     LogError(String),
     #[serde(rename = "print")]
     Print(String),
+    #[serde(rename = "display")]
+    Display(String),
 }
 
 impl ActionId {
@@ -97,6 +99,7 @@ impl ActionId {
             ActionId::LogWarn(message) => warn!("{}", message.render(&archetect, context)?),
             ActionId::LogError(message) => error!("{}", message.render(&archetect, context)?),
             ActionId::Print(message) => println!("{}", message.render(&archetect, context)?),
+            ActionId::Display(message) => eprintln!("{}", message.render(&archetect, context)?),
 
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
