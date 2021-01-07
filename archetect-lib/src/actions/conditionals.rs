@@ -12,7 +12,8 @@ use crate::{Archetect, ArchetectError, Archetype};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
-    conditions: Vec<Condition>,
+    #[serde(flatten)]
+    condition: Condition,
     #[serde(rename = "then", alias = "actions")]
     then_actions: Vec<ActionId>,
     #[serde(rename = "else")]
@@ -21,10 +22,18 @@ pub struct IfAction {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Condition {
-    #[serde(rename = "equals", alias = "matches")]
+    #[serde(rename = "all-of")]
+    AllOf(Vec<Condition>),
+    #[serde(rename = "conditions")]
+    Conditions(Vec<Condition>),
+    #[serde(rename = "equals")]
     Equals(String, String),
-    #[serde(rename = "is-blank", alias = "is-empty")]
+    #[serde(rename = "matches")]
+    Matches(String, String),
+    #[serde(rename = "is-blank")]
     IsBlank(String),
+    #[serde(rename = "is-empty")]
+    IsEmpty(String),
     #[serde(rename = "path-exists")]
     PathExists(String),
     #[serde(rename = "is-file")]
@@ -66,6 +75,14 @@ impl Condition {
                 }
                 Ok(false)
             }
+            Condition::IsEmpty(input) => {
+                if let Some(value) = context.get(input) {
+                    if let Some(string) = value.as_str() {
+                        return Ok(string.trim().is_empty());
+                    }
+                }
+                Ok(false)
+            }
             Condition::PathExists(path) => {
                 let path = archetect.render_string(path, context)?;
                 let path = destination.as_ref().join(path);
@@ -88,6 +105,16 @@ impl Condition {
                 let value = condition.evaluate(archetect, archetype, destination, context)?;
                 Ok(!value)
             }
+            Condition::Equals(left, right) => {
+                let left = archetect.render_string(left, context)?;
+                let right = archetect.render_string(right, context)?;
+                return Ok(left.eq(&right));
+            }
+            Condition::Matches(left, right) => {
+                let left = archetect.render_string(left, context)?;
+                let right = archetect.render_string(right, context)?;
+                return Ok(left.eq(&right));
+            }
             Condition::AnyOf(conditions) => {
                 for condition in conditions {
                     let value = condition.evaluate(archetect, archetype, destination.as_ref(), context)?;
@@ -97,10 +124,23 @@ impl Condition {
                 }
                 Ok(false)
             }
-            Condition::Equals(left, right) => {
-                let left = archetect.render_string(left, context)?;
-                let right = archetect.render_string(right, context)?;
-                return Ok(left.eq(&right));
+            Condition::AllOf(conditions) => {
+                for condition in conditions {
+                    let value = condition.evaluate(archetect, archetype, destination.as_ref(), context)?;
+                    if !value {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Condition::Conditions(conditions) => {
+                for condition in conditions {
+                    let value = condition.evaluate(archetect, archetype, destination.as_ref(), context)?;
+                    if !value {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
             }
         }
     }
@@ -116,15 +156,7 @@ impl Action for IfAction {
         answers: &LinkedHashMap<String, VariableInfo>,
         context: &mut Context,
     ) -> Result<(), ArchetectError> {
-        let mut conditions_are_met = true;
-        for condition in &self.conditions {
-            if condition.evaluate(archetect, archetype, destination.as_ref(), context)? == false {
-                conditions_are_met = false;
-                break;
-            }
-        }
-
-        if conditions_are_met {
+        if self.condition.evaluate(archetect, archetype, destination.as_ref(), context)? {
             let action: ActionId = self.then_actions().into();
             action.execute(
                 archetect,
@@ -161,12 +193,12 @@ mod tests {
     #[test]
     pub fn test_serialize() -> Result<(), serde_yaml::Error> {
         let action = IfAction {
-            conditions: vec![
+            condition: Condition::AllOf(vec![
                 Condition::IsFile("example.txt".to_owned()),
                 Condition::IsDirectory("src/main/java".to_owned()),
                 Condition::PathExists("{{ service }}".to_owned()),
                 Condition::Equals("{{ one }}".to_owned(), "{{ two }}".to_owned()),
-            ],
+            ]),
             then_actions: vec![ActionId::Render(RenderAction::Directory(DirectoryOptions::new(".")))],
             else_actions: None,
         };

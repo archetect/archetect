@@ -1,6 +1,6 @@
 [package]
 name = "archetect"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -20,10 +20,10 @@ log = { version = "0.4", features = ["std"] }
 memchr = { version = "2", default-features = false }
 pest = "2"
 pest_derive = "2"
-read_input = "0.8"
+read_input = { git = "https://gitlab.com/jimmie.fulton/read_input.git" }
 semver = { version = "0.9", features = ["serde"] }
-serde = "1.0.90"
-serde_derive = "1.0.90"
+serde = "1.0.116"
+serde_derive = "1.0.116"
 serde_json = "1.0.40"
 serde_yaml = "0.8"
 shellexpand = "1"

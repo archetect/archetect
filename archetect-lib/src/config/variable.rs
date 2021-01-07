@@ -91,7 +91,7 @@ impl VariableInfo {
     }
 
     pub fn has_derived_value(&self) -> bool {
-        self.prompt.is_none() && self.default.is_none() && self.value.is_some()
+        self.value.is_some()
     }
 }
 
