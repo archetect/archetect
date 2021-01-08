@@ -47,7 +47,7 @@ pub fn get_matches() -> App<'static, 'static> {
         )
         .arg(
             Arg::with_name("switches")
-                .short("s")
+                .short("sw")
                 .long("switch")
                 .takes_value(true)
                 .multiple(true)
@@ -87,9 +87,9 @@ pub fn get_matches() -> App<'static, 'static> {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::with_name("source")
-                        .short("s")
-                        .long("source")
+                    Arg::with_name("c-source")
+                        //.short("s")
+                        .long("c-source")
                         .takes_value(true)
                         .global(true)
                         .help("Catalog source location")
@@ -99,7 +99,7 @@ pub fn get_matches() -> App<'static, 'static> {
                     SubCommand::with_name("add")
                         .arg(
                             Arg::with_name("source")
-                                .short("s")
+                                //.short("s")
                                 .long("source")
                                 .takes_value(true)
                                 .help("Archetype source location"),
@@ -164,7 +164,7 @@ pub fn get_matches() -> App<'static, 'static> {
                 .alias("create")
                 .about("Creates content from an Archetype")
                 .arg(
-                    Arg::with_name("source")
+                    Arg::with_name("a-source")
                         .help("The Archetype source directory or git URL")
                         .takes_value(true)
                         .required(true),
