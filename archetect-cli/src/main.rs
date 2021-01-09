@@ -126,47 +126,38 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         let default_source = archetect.layout().catalog().to_str().map(|s| s.to_owned()).unwrap();
         let source = matches.value_of("source").unwrap_or_else(|| &default_source);
         let source = Source::detect(&archetect, source, None)?;
-        let mut local_path = source.local_path().to_owned();
-        if local_path.is_dir() {
-            local_path.push(CATALOG_FILE_NAME);
+
+        let mut catalog_file = source.local_path().to_owned();
+        if catalog_file.is_dir() {
+            catalog_file.push(CATALOG_FILE_NAME);
         }
 
-        if let Some(_matches) = matches.subcommand_matches("clear") {
-            //            if you_are_sure(format!("Are you sure you want to clear the catalog at '{}'?", local_path.to_str().unwrap()).as_str()) {
-            //                let catalog = Catalog::new();
-            //                catalog.save_to_file(local_path)?;
-            //                info!("Catalog at '{}' cleared!", local_path.to_str().unwrap());
-            //            }
-        } else if let Some(_matches) = matches.subcommand_matches("add") {
-        } else {
-            if source.local_path().exists() {
-                let catalog_file = source.local_path();
-                let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
-                let catalog = Catalog::load(source.clone())?;
+        if catalog_file.exists() {
+            let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
+            let catalog = Catalog::load(source.clone())?;
 
-                let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
+            let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
 
-                match catalog_entry {
-                    CatalogEntry::Archetype { description: _, source } => {
-                        let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+            match catalog_entry {
+                CatalogEntry::Archetype { description: _, source } => {
+                    let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
-                        let archetype = archetect.load_archetype(&source, None)?;
+                    let archetype = archetect.load_archetype(&source, None)?;
 
-                        if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
-                            for (identifier, answer_info) in answer_config.answers() {
-                                if !answers.contains_key(identifier) {
-                                    answers.insert(identifier.to_owned(), answer_info.clone());
-                                }
+                    if let Ok(answer_config) = AnswerConfig::load(destination.clone()) {
+                        for (identifier, answer_info) in answer_config.answers() {
+                            if !answers.contains_key(identifier) {
+                                answers.insert(identifier.to_owned(), answer_info.clone());
                             }
                         }
-                        archetype.execute_script(&archetect, &destination, &answers)?;
-                        return Ok(());
                     }
-                    _ => unreachable!(),
+                    archetype.execute_script(&archetect, &destination, &answers)?;
+                    return Ok(());
                 }
-            } else {
-                info!("There are no items registered in your catalog. Try registering one first.");
+                _ => unreachable!(),
             }
+        } else {
+            info!("No catalog file exists at {:?}.", catalog_file);
         }
     }
 
