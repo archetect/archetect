@@ -88,35 +88,11 @@ pub fn get_matches() -> App<'static, 'static> {
                 )
                 .arg(
                     Arg::with_name("source")
-                        .short("s")
                         .long("source")
+                        .short("S")
                         .takes_value(true)
-                        .global(true)
                         .help("Catalog source location")
                     ,
-                )
-                .subcommand(
-                    SubCommand::with_name("add")
-                        .arg(
-                            Arg::with_name("source")
-                                .short("s")
-                                .long("source")
-                                .takes_value(true)
-                                .help("Archetype source location"),
-                        )
-                        .arg(
-                            Arg::with_name("description")
-                                .short("d")
-                                .long("description")
-                                .takes_value(true)
-                                .help("Archetype Description"),
-                        ),
-                )
-                .subcommand(
-                    SubCommand::with_name("clear")
-                        .help("Clears a local/cached target catalog.  This effectively overwrites a \
-                            catalog with an empty one in preparation for building up a new one through subsequent commands.")
-                        .help_short("Clears a local/cached target catalog.")
                 )
             ,
         )
