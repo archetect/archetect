@@ -47,7 +47,7 @@ pub fn get_matches() -> App<'static, 'static> {
         )
         .arg(
             Arg::with_name("switches")
-                .short("sw")
+                .short("s")
                 .long("switch")
                 .takes_value(true)
                 .multiple(true)
