@@ -1,4 +1,4 @@
-FROM rust:1.39.0 as build
+FROM rust:1.49.0 as build
 
 COPY . .
 RUN cargo build --package archetect-cli --release
