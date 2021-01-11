@@ -4,7 +4,7 @@ A powerful code-centric content generator
 ![Rust](https://github.com/archetect/archetect/workflows/Rust/badge.svg)
 
 ## Documentation 
-[Archetect Documentation](https://arc:x!hetect.github.io/archetect.html)
+[Archetect Documentation](https://archetect.github.io/archetect.html)
 
 ## Binary Releases
 [Releases for OSX, Windows, and Linux](https://github.com/archetect/archetect/releases)
