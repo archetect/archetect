@@ -3,7 +3,16 @@ A powerful code-centric content generator
 
 ![Rust](https://github.com/archetect/archetect/workflows/Rust/badge.svg)
 
-*Usage:*
+## Documentation 
+[Archetect Documentation](https://arc:x!hetect.github.io/archetect.html)
+
+## Binary Releases
+[Releases for OSX, Windows, and Linux](https://github.com/archetect/archetect/releases)
+
+## Installation
+[Installation Guide](https://archetect.github.io/getting_started/installation.html)
+
+## *Usage*
 ```
 archetect 0.3.1
 Jimmie Fulton <jimmie.fulton@gmail.com>
