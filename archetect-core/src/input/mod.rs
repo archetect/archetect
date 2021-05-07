@@ -2,8 +2,8 @@ use crate::config::{Catalog, CatalogEntry, CatalogError};
 
 use crate::util::{Source, SourceError};
 use crate::Archetect;
-use read_input::shortcut::input;
-use read_input::InputBuild;
+use crate::vendor::read_input::shortcut::input;
+use crate::vendor::read_input::InputBuild;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]

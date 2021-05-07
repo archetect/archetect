@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use linked_hash_map::LinkedHashMap;
 use log::{trace, warn};
-use read_input::prelude::*;
+use crate::vendor::read_input::prelude::*;
 use serde_json::Value;
 
 use crate::config::{AnswerInfo, VariableInfo, VariableType};

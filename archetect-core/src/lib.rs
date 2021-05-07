@@ -25,6 +25,7 @@ pub mod rules;
 pub mod system;
 pub mod template_engine;
 pub mod util;
+pub mod vendor;
 
 pub use crate::archetype::{Archetype, ArchetypeError};
 pub use crate::core::Archetect;
