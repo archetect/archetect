@@ -8,7 +8,7 @@
 ///
 /// fn main() {
 ///
-///     use archetect::heck::PackageCase;
+///     use archetect_core::heck::PackageCase;
 ///
 ///     let sentence = "We are going to inherit the earth.";
 ///     assert_eq!(sentence.to_package_case(), "we.are.going.to.inherit.the.earth");

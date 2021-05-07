@@ -7,7 +7,7 @@
 /// ```rust
 /// fn main() {
 ///
-///     use archetect::heck::DirectoryCase;
+///     use archetect_core::heck::DirectoryCase;
 ///
 ///     let sentence = "We carry a new world here, in our hearts.";
 ///     assert_eq!(sentence.to_directory_case(), "we/carry/a/new/world/here/in/our/hearts");

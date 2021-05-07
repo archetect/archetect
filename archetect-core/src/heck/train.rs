@@ -8,7 +8,7 @@
 ///
 /// fn main() {
 ///     
-///     use archetect::heck::TrainCase;
+///     use archetect_core::heck::TrainCase;
 ///
 ///     let sentence = "We are going to inherit the earth.";
 ///     assert_eq!(sentence.to_train_case(), "we-are-going-to-inherit-the-earth");

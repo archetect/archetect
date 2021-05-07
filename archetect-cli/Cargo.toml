@@ -1,5 +1,10 @@
 [package]
-name = "archetect-cli"
+name = "archetect"
+description = "Generates Content from Archetype Template Directories and Git Repositories."
+homepage = "https://archetect.github.io"
+repository = "https://github.com/archetect/archetect"
+keywords = ["code generation", "content generation", "jinja2", "cli"]
+readme = "../README.md"
 version = "0.5.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
@@ -11,7 +16,7 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-archetect = { path = "../archetect-lib" }
+archetect-core = { path = "../archetect-core", version = "0.5.0" }
 clap = "2"
 indoc = "0.3"
 lazy_static = "1.0"

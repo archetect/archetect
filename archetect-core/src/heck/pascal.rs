@@ -6,11 +6,11 @@
 /// ## Example:
 ///
 /// ```rust
-/// use archetect::heck;
+/// use archetect_core::heck;
 ///
 /// fn main() {
 ///     
-///     use archetect::heck::PascalCase;
+///     use archetect_core::heck::PascalCase;
 ///
 ///     let sentence = "We are not in the least afraid of ruins.";
 ///     assert_eq!(sentence.to_pascal_case(), "WeAreNotInTheLeastAfraidOfRuins");

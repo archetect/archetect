@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect::heck::CamelCase;
+///     use archetect_core::heck::CamelCase;
 ///
 ///     let sentence = "It is we who built these palaces and cities.";
 ///     assert_eq!(sentence.to_camel_case(), "itIsWeWhoBuiltThesePalacesAndCities");

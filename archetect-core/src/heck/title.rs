@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect::heck::TitleCase;
+///     use archetect_core::heck::TitleCase;
 ///
 ///     let sentence = "We have always lived in slums and holes in the wall.";
 ///     assert_eq!(sentence.to_title_case(), "We Have Always Lived In Slums And Holes In The Wall");

@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_explicit_native_paths() {
-        let archetect = Archetect::builder()
+        let archetect = archetect_core::builder()
             .with_layout(NativeSystemLayout::new().unwrap())
             .build()
             .unwrap();
@@ -266,14 +266,14 @@ mod tests {
     #[test]
     fn test_explicit_directory_paths() {
         let paths = RootedSystemLayout::new("~/.archetect/").unwrap();
-        let archetect = Archetect::builder().with_layout(paths).build().unwrap();
+        let archetect = archetect_core::builder().with_layout(paths).build().unwrap();
 
         println!("{}", archetect.layout().catalog_cache_dir().display());
     }
 
     #[test]
     fn test_implicit() {
-        let archetect = Archetect::build().unwrap();
+        let archetect = archetect_core::build().unwrap();
 
         println!("{}", archetect.layout().catalog_cache_dir().display());
 

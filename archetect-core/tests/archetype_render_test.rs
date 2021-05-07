@@ -1,13 +1,13 @@
-//use archetect::archetype::ArchetypeError::ArchetypeInvalid;
-//use archetect::system::layout::LayoutType;
-//use archetect::template_engine::Context;
-use archetect::ArchetectError;
+//use archetect_core::archetype::ArchetypeError::ArchetypeInvalid;
+//use archetect_core::system::layout::LayoutType;
+//use archetect_core::template_engine::Context;
+use archetect_core::ArchetectError;
 //use std::fs;
 
 #[test]
 #[ignore]
 fn render_archetypes() -> Result<(), ArchetectError> {
-    //    let archetect = archetect::Archetect::builder()
+    //    let archetect = archetect_core::archetect::builder()
     //        .with_layout_type(LayoutType::Temp)?
     //        .build()?;
     //

@@ -1,16 +1,16 @@
 mod cli;
 
-use archetect::config::{
+use archetect_core::config::{
     AnswerConfig, AnswerConfigError, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME,
 };
-use archetect::input::select_from_catalog;
-use archetect::system::SystemError;
-use archetect::util::{Source, SourceError};
-use archetect::RenderError;
-use archetect::{self, ArchetectError, ArchetypeError};
+use archetect_core::input::select_from_catalog;
+use archetect_core::system::SystemError;
+use archetect_core::util::{Source, SourceError};
+use archetect_core::RenderError;
+use archetect_core::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
 //use indoc::indoc;
-use archetect::requirements::RequirementsError;
+use archetect_core::requirements::RequirementsError;
 use linked_hash_map::LinkedHashMap;
 use log::{error, info, warn};
 use std::error::Error;
@@ -30,7 +30,7 @@ fn main() {
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
-    let mut archetect = archetect::Archetect::builder()
+    let mut archetect = archetect_core::Archetect::builder()
         .with_offline(matches.is_present("offline"))
         .build()?;
 

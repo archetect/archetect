@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect::heck::ConstantCase;
+///     use archetect_core::heck::ConstantCase;
 ///
 ///     let sentence = "That world is growing in this minute.";
 ///     assert_eq!(sentence.to_constant_case(), "THAT_WORLD_IS_GROWING_IN_THIS_MINUTE");

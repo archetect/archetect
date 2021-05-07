@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_http_source() {
-        let archetect = Archetect::build().unwrap();
+        let archetect = archetect_core::build().unwrap();
         let source = Source::detect(
             &archetect,
             "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT",

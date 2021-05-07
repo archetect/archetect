@@ -7,7 +7,7 @@
 /// ```rust
 /// fn main() {
 ///
-///     use archetect::heck::SnakeCase;
+///     use archetect_core::heck::SnakeCase;
 ///
 ///     let sentence = "We carry a new world here, in our hearts.";
 ///     assert_eq!(sentence.to_snake_case(), "we_carry_a_new_world_here_in_our_hearts");
