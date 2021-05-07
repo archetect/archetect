@@ -6,7 +6,7 @@ use archetect_core::config::{
 use archetect_core::input::select_from_catalog;
 use archetect_core::system::SystemError;
 use archetect_core::util::{Source, SourceError};
-use archetect_core::RenderError;
+use archetect_core::{RenderError, Archetect};
 use archetect_core::{self, ArchetectError, ArchetypeError};
 use clap::{ArgMatches, Shell};
 //use indoc::indoc;
@@ -30,7 +30,7 @@ fn main() {
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
-    let mut archetect = archetect_core::Archetect::builder()
+    let mut archetect = Archetect::builder()
         .with_offline(matches.is_present("offline"))
         .build()?;
 

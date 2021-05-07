@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     pub fn test_render_str_successfully() {
-        let archetect = archetect_core::builder().build().unwrap();
+        let archetect = Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("subject", "world");
 
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     pub fn test_render_path_successfully() {
-        let archetect = archetect_core::builder().build().unwrap();
+        let archetect = Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("parent", "hello");
         context.insert("child", "world");
@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     pub fn test_render_empty_path() {
-        let archetect = archetect_core::builder().build().unwrap();
+        let archetect = Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("parent", "hello");
         context.insert("child", "world");

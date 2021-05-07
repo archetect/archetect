@@ -32,7 +32,7 @@
 //!             .help("Sets the level of verbosity"))
 //!         .get_matches();
 //!
-//!     crate::archetect::loggerv::init_with_verbosity(args.occurrences_of("v")).unwrap();
+//!     crate::archetect_core::loggerv::init_with_verbosity(args.occurrences_of("v")).unwrap();
 //!
 //!     error!("This is always printed");
 //!     warn!("This too is always printed to stderr");
@@ -55,7 +55,7 @@
 //! use log::Level;
 //!
 //! fn main() {
-//!     crate::archetect::loggerv::init_with_level(Level::Info).unwrap();
+//!     crate::archetect_core::loggerv::init_with_level(Level::Info).unwrap();
 //!     debug!("This is a debug {}", "message"); // Not printed to stdout
 //!     error!("This is printed by default");    // Printed to stderr
 //! }
@@ -70,7 +70,7 @@
 //! #[macro_use] extern crate log;
 //!
 //! fn main() {
-//!     crate::archetect::loggerv::init_quiet().unwrap();
+//!     crate::archetect_core::loggerv::init_quiet().unwrap();
 //!     info!("Hidden");
 //!     error!("This is printed by default");
 //! }
@@ -94,7 +94,7 @@
 //!                             .help("Sets the level of verbosity"))
 //!                    .get_matches();
 //!
-//!     crate::archetect::loggerv::Logger::new()
+//!     crate::archetect_core::loggerv::Logger::new()
 //!         .verbosity(args.occurrences_of("v"))
 //!         .level(true)
 //!         .line_numbers(true)
@@ -228,7 +228,7 @@ impl Logger {
     /// use ansi_term::Colour;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .color(&Level::Error, Colour::Fixed(7))
     ///         .init()
     ///         .unwrap();
@@ -262,7 +262,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .separator(" = ")
     ///         .init()
     ///         .unwrap();
@@ -291,7 +291,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .colors(false)
     ///         .init()
     ///         .unwrap();
@@ -315,7 +315,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .no_colors()
     ///         .init()
     ///         .unwrap();
@@ -338,7 +338,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .line_numbers(true)
     ///         .init()
     ///         .unwrap();
@@ -364,7 +364,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .level(true)
     ///         .init()
     ///         .unwrap();
@@ -386,7 +386,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .max_level(log::Level::Info)
     ///         .init()
     ///         .unwrap();
@@ -419,7 +419,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .module_path(false)
     ///         .init()
     ///         .unwrap();
@@ -443,7 +443,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .no_module_path()
     ///         .init()
     ///         .unwrap();
@@ -470,7 +470,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .base_level(log::Level::Error)
     ///         .verbosity(0)
     ///         .init()
@@ -488,7 +488,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .base_level(log::Level::Info)
     ///         .verbosity(0)
     ///         .init()
@@ -521,10 +521,10 @@ impl Logger {
     ///
     /// use log::Level;
     /// use log::{trace, debug, info, warn, error};
-    /// use crate::archetect::loggerv::Output;
+    /// use crate::archetect_core::loggerv::Output;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .output(&Level::Error, Output::Stdout)
     ///         .output(&Level::Warn, Output::Stdout)
     ///         .output(&Level::Info, Output::Stderr)
@@ -565,7 +565,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .verbosity(1)
     ///         .init()
     ///         .unwrap();
@@ -592,7 +592,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .init()
     ///         .unwrap();
     ///
@@ -615,7 +615,7 @@ impl Logger {
     /// #[macro_use] extern crate log;
     ///
     /// fn main() {
-    ///     crate::archetect::loggerv::Logger::new()
+    ///     crate::archetect_core::loggerv::Logger::new()
     ///         .module_path(false)
     ///         .level(false)
     ///         .line_numbers(false)
