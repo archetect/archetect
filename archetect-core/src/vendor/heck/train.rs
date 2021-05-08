@@ -8,7 +8,7 @@
 ///
 /// fn main() {
 ///     
-///     use archetect_core::heck::TrainCase;
+///     use archetect_core::vendor::heck::TrainCase;
 ///
 ///     let sentence = "We are going to inherit the earth.";
 ///     assert_eq!(sentence.to_train_case(), "we-are-going-to-inherit-the-earth");
@@ -21,7 +21,7 @@ pub trait TrainCase: ToOwned {
 
 impl TrainCase for str {
     fn to_train_case(&self) -> Self::Owned {
-        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('-'))
+        crate::vendor::heck::transform(self, crate::vendor::heck::lowercase, |s| s.push('-'))
     }
 }
 

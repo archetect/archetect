@@ -6,11 +6,11 @@
 /// ## Example:
 ///
 /// ```rust
-/// use archetect_core::heck;
+/// use archetect_core::vendor::heck;
 ///
 /// fn main() {
 ///     
-///     use archetect_core::heck::PascalCase;
+///     use archetect_core::vendor::heck::PascalCase;
 ///
 ///     let sentence = "We are not in the least afraid of ruins.";
 ///     assert_eq!(sentence.to_pascal_case(), "WeAreNotInTheLeastAfraidOfRuins");
@@ -23,7 +23,7 @@ pub trait PascalCase: ToOwned {
 
 impl PascalCase for str {
     fn to_pascal_case(&self) -> String {
-        crate::heck::transform(self, crate::heck::capitalize, |_| {})
+        crate::vendor::heck::transform(self, crate::vendor::heck::capitalize, |_| {})
     }
 }
 

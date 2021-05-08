@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect_core::heck::CamelCase;
+///     use archetect_core::vendor::heck::CamelCase;
 ///
 ///     let sentence = "It is we who built these palaces and cities.";
 ///     assert_eq!(sentence.to_camel_case(), "itIsWeWhoBuiltThesePalacesAndCities");
@@ -21,13 +21,13 @@ pub trait CamelCase: ToOwned {
 
 impl CamelCase for str {
     fn to_camel_case(&self) -> String {
-        crate::heck::transform(
+        crate::vendor::heck::transform(
             self,
             |s, out| {
                 if out.is_empty() {
-                    crate::heck::lowercase(s, out);
+                    crate::vendor::heck::lowercase(s, out);
                 } else {
-                    crate::heck::capitalize(s, out)
+                    crate::vendor::heck::capitalize(s, out)
                 }
             },
             |_| {},

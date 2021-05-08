@@ -31,7 +31,7 @@ fn render_template(state: State<AppState>, template: &str) -> Result<HttpRespons
 }
 
 fn main() {
-   crate::heck::std::env::set_var("RUST_LOG", "actix_web=info");
+   crate::vendor::heck::std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
     server::new(|| {
@@ -39,7 +39,7 @@ fn main() {
             Ok(t) => t,
             Err(e) => {
                 println!("Parsing error(s): {}", e);
-               crate::heck::std::process::exit(1);
+               crate::vendor::heck::std::process::exit(1);
             }
         };
 

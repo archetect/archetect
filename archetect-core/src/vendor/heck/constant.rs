@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect_core::heck::ConstantCase;
+///     use archetect_core::vendor::heck::ConstantCase;
 ///
 ///     let sentence = "That world is growing in this minute.";
 ///     assert_eq!(sentence.to_constant_case(), "THAT_WORLD_IS_GROWING_IN_THIS_MINUTE");
@@ -21,7 +21,7 @@ pub trait ConstantCase: ToOwned {
 
 impl ConstantCase for str {
     fn to_constant_case(&self) -> Self::Owned {
-        crate::heck::transform(self, crate::heck::uppercase, |s| s.push('_'))
+        crate::vendor::heck::transform(self, crate::vendor::heck::uppercase, |s| s.push('_'))
     }
 }
 

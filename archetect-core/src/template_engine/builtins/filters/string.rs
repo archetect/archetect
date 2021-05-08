@@ -1,7 +1,7 @@
 /// Filters operating on string
 use std::collections::HashMap;
 
-use crate::heck::{CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase, TrainCase};
+use crate::vendor::heck::{CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase, TrainCase};
 
 use regex::{Captures, Regex};
 use serde_json::value::{to_value, Value};

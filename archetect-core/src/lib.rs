@@ -12,13 +12,11 @@ extern crate serde_json;
 
 mod core;
 mod errors;
-pub mod heck;
 
 pub mod actions;
 pub mod archetype;
 pub mod config;
 pub mod input;
-pub mod loggerv;
 pub mod rendering;
 pub mod requirements;
 pub mod rules;

@@ -218,11 +218,11 @@ mod tests {
     fn test_cache_hash() {
         println!(
             "{}",
-            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT")
+            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT")
         );
         println!(
             "{}",
-            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT")
+            get_cache_hash("https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT")
         );
         println!("{}", get_cache_hash("f"));
         println!("{}", get_cache_hash("1"));
@@ -233,7 +233,7 @@ mod tests {
         let archetect = Archetect::build().unwrap();
         let source = Source::detect(
             &archetect,
-            "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT",
+            "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT",
             None,
         );
         println!("{:?}", source);

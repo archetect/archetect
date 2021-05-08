@@ -7,7 +7,7 @@
 /// ```rust
 /// fn main() {
 ///
-///     use archetect_core::heck::DirectoryCase;
+///     use archetect_core::vendor::heck::DirectoryCase;
 ///
 ///     let sentence = "We carry a new world here, in our hearts.";
 ///     assert_eq!(sentence.to_directory_case(), "we/carry/a/new/world/here/in/our/hearts");
@@ -20,7 +20,7 @@ pub trait DirectoryCase: ToOwned {
 
 impl DirectoryCase for str {
     fn to_directory_case(&self) -> String {
-        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('/'))
+        crate::vendor::heck::transform(self, crate::vendor::heck::lowercase, |s| s.push('/'))
     }
 }
 

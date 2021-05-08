@@ -7,7 +7,7 @@
 /// ```rust
 /// fn main() {
 ///
-///     use archetect_core::heck::SnakeCase;
+///     use archetect_core::vendor::heck::SnakeCase;
 ///
 ///     let sentence = "We carry a new world here, in our hearts.";
 ///     assert_eq!(sentence.to_snake_case(), "we_carry_a_new_world_here_in_our_hearts");
@@ -20,7 +20,7 @@ pub trait SnakeCase: ToOwned {
 
 impl SnakeCase for str {
     fn to_snake_case(&self) -> String {
-        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('_'))
+        crate::vendor::heck::transform(self, crate::vendor::heck::lowercase, |s| s.push('_'))
     }
 }
 

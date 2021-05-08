@@ -8,7 +8,7 @@
 /// ```rust
 /// fn main() {
 ///     
-///     use archetect_core::heck::TitleCase;
+///     use archetect_core::vendor::heck::TitleCase;
 ///
 ///     let sentence = "We have always lived in slums and holes in the wall.";
 ///     assert_eq!(sentence.to_title_case(), "We Have Always Lived In Slums And Holes In The Wall");
@@ -21,7 +21,7 @@ pub trait TitleCase: ToOwned {
 
 impl TitleCase for str {
     fn to_title_case(&self) -> String {
-        crate::heck::transform(self, crate::heck::capitalize, |s| s.push(' '))
+        crate::vendor::heck::transform(self, crate::vendor::heck::capitalize, |s| s.push(' '))
     }
 }
 

@@ -1,4 +1,5 @@
 mod cli;
+pub mod vendor;
 
 use archetect_core::config::{
     AnswerConfig, AnswerConfigError, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME,

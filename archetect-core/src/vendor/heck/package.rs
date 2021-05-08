@@ -8,7 +8,7 @@
 ///
 /// fn main() {
 ///
-///     use archetect_core::heck::PackageCase;
+///     use archetect_core::vendor::heck::PackageCase;
 ///
 ///     let sentence = "We are going to inherit the earth.";
 ///     assert_eq!(sentence.to_package_case(), "we.are.going.to.inherit.the.earth");
@@ -21,7 +21,7 @@ pub trait PackageCase: ToOwned {
 
 impl PackageCase for str {
     fn to_package_case(&self) -> Self::Owned {
-        crate::heck::transform(self, crate::heck::lowercase, |s| s.push('.'))
+        crate::vendor::heck::transform(self, crate::vendor::heck::lowercase, |s| s.push('.'))
     }
 }
 
