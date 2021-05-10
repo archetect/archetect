@@ -16,14 +16,14 @@ For more in-depth instructions for getting started with Archetect, see the Docum
 
 Archetect is a CLI application, and can either be installed by downloading a pre-built binary from Archetect's 
 [Releases Page](https://github.com/archetect/archetect/releases/latest), or by installing with 
-[Rust Lang's](https://rustup.rs/) build too, cargo:
+[Rust Lang's](https://rustup.rs/) build tool, cargo:
 
 ```shell
-cargo install architect --force
+cargo install archetect --force
 ```
 
 Once you have Archetect successfully installed and added to your shell's path, you can test that everything is working while
-also initilizing some default settings by generating those setting with Archetect itself:
+also initializing some default settings by generating them with Archetect itself:
 
 ```shell
 archetect render https://github.com/archetect/archetect-initializer.git ~/.archetect/
@@ -36,7 +36,7 @@ inspect.
 
 From this point, browse the archetypes and catalogs within the [Archetect Github organization](https://github.com/archetect) 
 for some pre-made archetypes you can use immediately, or for inspiration in making your own.  The README.md files commonly
-have an archetect command line example that can be copy/pasted to your shell to render a new project.
+have an archetect command line example that can be copy/pasted to your shell to render new projects quickly and easily.
 
 Example:
 
