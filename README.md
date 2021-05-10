@@ -57,9 +57,9 @@ archetect catalog --source https://github.com/archetect/catalog-rust.git
 
 ## *Usage*
 ```
-archetect 0.3.1
+archetect 0.5.0
 Jimmie Fulton <jimmie.fulton@gmail.com>
-
+Generates Content from Archetype Template Directories and Git Repositories.
 
 USAGE:
     archetect [FLAGS] [OPTIONS] <SUBCOMMAND>
