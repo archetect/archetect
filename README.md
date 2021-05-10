@@ -10,7 +10,7 @@ Modules:
 
 ## Quick Start
 
-For more in-depth instruction for getting started with Archetect, see the Documentation section below.
+For more in-depth instructions for getting started with Archetect, see the Documentation section below.
 
 ### Installation
 
@@ -32,9 +32,11 @@ archetect render https://github.com/archetect/archetect-initializer.git ~/.arche
 This will prompt you for your name and email address, and write this into files within the `~/.archetect`, which you can
 inspect.
 
+### Rendering Archetypes
+
 From this point, browse the archetypes and catalogs within the [Archetect Github organization](https://github.com/archetect) 
-for some pre-made archetypes you can use immediately or for inspiration in making your own.  The README.md files commonly
-have the archetect command line example that can be copy/pasted to your shell to render a new project.
+for some pre-made archetypes you can use immediately, or for inspiration in making your own.  The README.md files commonly
+have an archetect command line example that can be copy/pasted to your shell to render a new project.
 
 Example:
 
