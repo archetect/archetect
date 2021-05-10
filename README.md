@@ -10,9 +10,9 @@ Modules:
 
 ## Quick Start
 
-For more in-depth instructions for getting started with Archetect, see the Documentation section below.
-
 ### Installation
+
+For a more in-depth guide to installing archetect, see the [Installation Guide](https://archetect.github.io/getting_started/installation.html).
 
 Archetect is a CLI application, and can either be installed by downloading a pre-built binary from Archetect's 
 [Releases Page](https://github.com/archetect/archetect/releases/latest), or by installing with 
@@ -48,14 +48,12 @@ archetect render https://github.com/archetect/archetype-rust-service-actix-diese
 archetect catalog --source https://github.com/archetect/catalog-rust.git
 ```
 
-## Documentation 
-[Archetect Documentation](https://archetect.github.io/archetect.html)
+## Documentation
+* [Installation Guide](https://archetect.github.io/getting_started/installation.html)
+* [Archetect Documentation](https://archetect.github.io/archetect.html)
 
 ## Binary Releases
 [Releases for OSX, Windows, and Linux](https://github.com/archetect/archetect/releases)
-
-## Installation
-[Installation Guide](https://archetect.github.io/getting_started/installation.html)
 
 ## *Usage*
 ```
