@@ -2,7 +2,17 @@
 
 ![Rust](https://github.com/archetect/archetect/workflows/Rust/badge.svg)
 
-A powerful code-centric content generator
+Archetect is a powerful code-centric, language agnostic content generator, capable of generating single files, complex 
+projects, or entire architectures.  Key features include:
+              
+* A Jinja2-like templating syntax
+* A yaml-based configuration DSL 
+* Easy installation
+* Easy archetype authoring and publishing (Git repos or local directories)
+* Smart pluralization and singularization functions (soliloquy->soliloquies, calf->calves)
+* Smart casing functions (camelCase, PascalCase, snake_case, title-case, CONSTANT_CASE)
+* Archetype compositions
+* A distributed menu/catalog system
 
 Modules:
 * [archetect_cli](archetect-cli/README.md)
