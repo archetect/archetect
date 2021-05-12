@@ -1,7 +1,7 @@
-use crate::errors::{Error, Result};
-use crate::parser::ast::MacroDefinition;
-use crate::template::Template;
-use crate::tera::Tera;
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::parser::ast::MacroDefinition;
+use crate::vendor::tera::template::Template;
+use crate::vendor::tera::tera::Tera;
 use std::collections::HashMap;
 
 // Types around Macros get complicated, simplify it a bit by using aliases

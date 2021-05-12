@@ -8,7 +8,7 @@ use crate::template_engine::errors::{Error, Result};
 /// Returns a value by a `key` argument from a given object
 pub fn get(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let key = match args.get("key") {
-        Some(val) => try_get_value!("get", "key", String, val),
+        Some(val) => try_get_value_old!("get", "key", String, val),
         None => return Err(Error::msg("The `get` filter has to have an `key` argument")),
     };
 

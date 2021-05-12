@@ -7,10 +7,10 @@ use lazy_static::lazy_static;
 use serde_derive::Serialize;
 use serde_json::{json, Value};
 
-use crate::builtins::functions::Function;
-use crate::context::Context;
-use crate::errors::Result;
-use crate::tera::Tera;
+use crate::vendor::tera::builtins::functions::Function;
+use crate::vendor::tera::context::Context;
+use crate::vendor::tera::errors::Result;
+use crate::vendor::tera::tera::Tera;
 
 use super::Review;
 
@@ -932,7 +932,7 @@ fn default_filter_works_in_condition() {
 #[test]
 fn safe_filter_works() {
     struct Safe;
-    impl crate::Filter for Safe {
+    impl crate::vendor::tera::Filter for Safe {
         fn filter(&self, value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
             Ok(Value::String(format!("<div>{}</div>", value.as_str().unwrap())))
         }
@@ -953,7 +953,7 @@ fn safe_filter_works() {
 #[test]
 fn safe_function_works() {
     struct Safe;
-    impl crate::Function for Safe {
+    impl crate::vendor::tera::Function for Safe {
         fn call(&self, _args: &HashMap<String, Value>) -> Result<Value> {
             Ok(Value::String("<div>Hello</div>".to_owned()))
         }

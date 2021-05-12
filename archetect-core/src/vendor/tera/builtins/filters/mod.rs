@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::errors::Result;
+use crate::vendor::tera::errors::Result;
 use serde_json::value::Value;
 
 pub mod array;

@@ -11,11 +11,11 @@ mod stack_frame;
 use std::io::Write;
 
 use self::processor::Processor;
-use crate::errors::Result;
-use crate::template::Template;
-use crate::tera::Tera;
-use crate::utils::buffer_to_string;
-use crate::Context;
+use crate::vendor::tera::errors::Result;
+use crate::vendor::tera::template::Template;
+use crate::vendor::tera::tera::Tera;
+use crate::vendor::tera::utils::buffer_to_string;
+use crate::vendor::tera::Context;
 
 /// Given a `Tera` and reference to `Template` and a `Context`, renders text
 #[derive(Debug)]

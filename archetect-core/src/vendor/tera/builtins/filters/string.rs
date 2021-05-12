@@ -4,14 +4,15 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use serde_json::value::{to_value, Value};
+use crate::try_get_value;
 
 #[cfg(feature = "builtins")]
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 #[cfg(feature = "builtins")]
 use unic_segment::GraphemeIndices;
 
-use crate::errors::{Error, Result};
-use crate::utils;
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::utils;
 
 /// https://url.spec.whatwg.org/#fragment-percent-encode-set
 #[cfg(feature = "builtins")]

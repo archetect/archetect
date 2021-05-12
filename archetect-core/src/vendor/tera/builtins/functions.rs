@@ -6,7 +6,7 @@ use chrono::prelude::*;
 use rand::Rng;
 use serde_json::value::{from_value, to_value, Value};
 
-use crate::errors::{Error, Result};
+use crate::vendor::tera::errors::{Error, Result};
 
 /// The global function type definition
 pub trait Function: Sync + Send {

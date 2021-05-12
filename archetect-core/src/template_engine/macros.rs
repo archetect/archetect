@@ -13,7 +13,7 @@
 /// let val = try_get_value!("pluralize", "suffix", String, val.clone());
 /// ```
 #[macro_export]
-macro_rules! try_get_value {
+macro_rules! try_get_value_old {
     ($filter_name:expr, $var_name:expr, $ty:ty, $val:expr) => {{
         match $crate::template_engine::from_value::<$ty>($val.clone()) {
             Ok(s) => s,

@@ -1,4 +1,4 @@
-use crate::parser::parse;
+use crate::vendor::tera::parser::parse;
 
 fn assert_err_msg(input: &str, needles: &[&str]) {
     let res = parse(input);

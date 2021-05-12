@@ -1,4 +1,4 @@
-use crate::errors::{Error, Result};
+use crate::vendor::tera::errors::{Error, Result};
 use serde_json::Value;
 use std::cmp::Ordering;
 
@@ -105,7 +105,7 @@ impl<K: GetValue> SortStrategy for SortPairs<K> {
 }
 
 pub fn get_sort_strategy_for_type(ty: &Value) -> Result<Box<dyn SortStrategy>> {
-    use crate::Value::*;
+    use crate::vendor::tera::Value::*;
     match *ty {
         Null => Err(Error::msg("Null is not a sortable value")),
         Bool(_) => Ok(Box::new(SortBools::default())),
@@ -158,7 +158,7 @@ pub fn get_unique_strategy_for_type(
     ty: &Value,
     case_sensitive: bool,
 ) -> Result<Box<dyn UniqueStrategy>> {
-    use crate::Value::*;
+    use crate::vendor::tera::Value::*;
     match *ty {
         Null => Err(Error::msg("Null is not a unique value")),
         Bool(_) => Ok(Box::new(UniqueBools::default())),

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::context::Context;
-use crate::tera::Tera;
+use crate::vendor::tera::context::Context;
+use crate::vendor::tera::tera::Tera;
 use serde_derive::Serialize;
 
 #[derive(Serialize)]

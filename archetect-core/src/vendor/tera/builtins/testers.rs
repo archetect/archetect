@@ -1,5 +1,5 @@
-use crate::context::ValueNumber;
-use crate::errors::{Error, Result};
+use crate::vendor::tera::context::ValueNumber;
+use crate::vendor::tera::errors::{Error, Result};
 use regex::Regex;
 use serde_json::value::Value;
 

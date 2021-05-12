@@ -4,7 +4,7 @@ use std::io::Write;
 use serde::ser::Serialize;
 use serde_json::value::{to_value, Map, Value};
 
-use crate::errors::{Error, Result as TeraResult};
+use crate::vendor::tera::errors::{Error, Result as TeraResult};
 
 /// The struct that holds the context of a template rendering.
 ///

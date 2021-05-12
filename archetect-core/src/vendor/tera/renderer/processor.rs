@@ -4,18 +4,18 @@ use std::io::Write;
 
 use serde_json::{to_string_pretty, to_value, Number, Value};
 
-use crate::context::{ValueRender, ValueTruthy};
-use crate::errors::{Error, Result};
-use crate::parser::ast::*;
-use crate::renderer::call_stack::CallStack;
-use crate::renderer::for_loop::ForLoop;
-use crate::renderer::macros::MacroCollection;
-use crate::renderer::square_brackets::pull_out_square_bracket;
-use crate::renderer::stack_frame::{FrameContext, FrameType, Val};
-use crate::template::Template;
-use crate::tera::Tera;
-use crate::utils::render_to_string;
-use crate::Context;
+use crate::vendor::tera::context::{ValueRender, ValueTruthy};
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::parser::ast::*;
+use crate::vendor::tera::renderer::call_stack::CallStack;
+use crate::vendor::tera::renderer::for_loop::ForLoop;
+use crate::vendor::tera::renderer::macros::MacroCollection;
+use crate::vendor::tera::renderer::square_brackets::pull_out_square_bracket;
+use crate::vendor::tera::renderer::stack_frame::{FrameContext, FrameType, Val};
+use crate::vendor::tera::template::Template;
+use crate::vendor::tera::tera::Tera;
+use crate::vendor::tera::utils::render_to_string;
+use crate::vendor::tera::Context;
 
 /// Special string indicating request to dump context
 static MAGICAL_DUMP_VAR: &str = "__tera_context";

@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use globwalk::glob_builder;
 
-use crate::builtins::filters::{array, common, number, object, string, Filter};
-use crate::builtins::functions::{self, Function};
-use crate::builtins::testers::{self, Test};
-use crate::context::Context;
-use crate::errors::{Error, Result};
-use crate::renderer::Renderer;
-use crate::template::Template;
-use crate::utils::escape_html;
+use crate::vendor::tera::builtins::filters::{array, common, number, object, string, Filter};
+use crate::vendor::tera::builtins::functions::{self, Function};
+use crate::vendor::tera::builtins::testers::{self, Test};
+use crate::vendor::tera::context::Context;
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::renderer::Renderer;
+use crate::vendor::tera::template::Template;
+use crate::vendor::tera::utils::escape_html;
 
 /// The of the the template used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -776,7 +776,7 @@ mod tests {
     use std::fs::File;
 
     use super::Tera;
-    use crate::context::Context;
+    use crate::vendor::tera::context::Context;
     use serde_json::{json, Value as JsonValue};
 
     #[test]

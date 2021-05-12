@@ -1,4 +1,4 @@
-use crate::errors::Error;
+use crate::vendor::tera::errors::Error;
 
 /// Escape HTML following [OWASP](https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet)
 ///

@@ -1,11 +1,12 @@
 /// Filters operating on array
 use std::collections::HashMap;
 
-use crate::context::{get_json_pointer, ValueRender};
-use crate::errors::{Error, Result};
-use crate::filter_utils::{get_sort_strategy_for_type, get_unique_strategy_for_type};
-use crate::utils::render_to_string;
+use crate::vendor::tera::context::{get_json_pointer, ValueRender};
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::filter_utils::{get_sort_strategy_for_type, get_unique_strategy_for_type};
+use crate::vendor::tera::utils::render_to_string;
 use serde_json::value::{to_value, Map, Value};
+use crate::try_get_value;
 
 /// Returns the nth value of an array
 /// If the array is empty, returns empty string

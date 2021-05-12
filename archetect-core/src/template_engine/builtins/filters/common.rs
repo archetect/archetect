@@ -59,7 +59,7 @@ pub fn json_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Value
 /// on [chrono docs](https://lifthrasiir.github.io/rust-chrono/chrono/format/strftime/index.html)
 pub fn date(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let format = match args.get("format") {
-        Some(val) => try_get_value!("date", "format", String, val),
+        Some(val) => try_get_value_old!("date", "format", String, val),
         None => "%Y-%m-%d".to_string(),
     };
 

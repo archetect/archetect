@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::errors::{Error, Result};
-use crate::parser::ast::{Block, MacroDefinition, Node};
-use crate::parser::{parse, remove_whitespace};
+use crate::vendor::tera::errors::{Error, Result};
+use crate::vendor::tera::parser::ast::{Block, MacroDefinition, Node};
+use crate::vendor::tera::parser::{parse, remove_whitespace};
 
 /// This is the parsed equivalent of a template file.
 /// It also does some pre-processing to ensure it does as little as possible at runtime

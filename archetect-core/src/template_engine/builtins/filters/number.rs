@@ -8,9 +8,9 @@ use crate::template_engine::errors::{Error, Result};
 
 /// Returns a suffix if the value is not equal to ±1. Suffix defaults to `s`
 pub fn pluralize(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let num = try_get_value!("pluralize", "value", f64, value);
+    let num = try_get_value_old!("pluralize", "value", f64, value);
     let suffix = match args.get("suffix") {
-        Some(val) => try_get_value!("pluralize", "suffix", String, val),
+        Some(val) => try_get_value_old!("pluralize", "suffix", String, val),
         None => "s".to_string(),
     };
 
@@ -27,13 +27,13 @@ pub fn pluralize(value: &Value, args: &HashMap<String, Value>) -> Result<Value> 
 /// `ceil` and `floor` are also available as method.
 /// `precision` defaults to `0`, meaning it will round to an integer
 pub fn round(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let num = try_get_value!("round", "value", f64, value);
+    let num = try_get_value_old!("round", "value", f64, value);
     let method = match args.get("method") {
-        Some(val) => try_get_value!("round", "method", String, val),
+        Some(val) => try_get_value_old!("round", "method", String, val),
         None => "common".to_string(),
     };
     let precision = match args.get("precision") {
-        Some(val) => try_get_value!("round", "precision", i32, val),
+        Some(val) => try_get_value_old!("round", "precision", i32, val),
         None => 0,
     };
     let multiplier = if precision == 0 { 1.0 } else { 10.0_f64.powi(precision) };
@@ -52,7 +52,7 @@ pub fn round(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
 /// Returns a human-readable file size (i.e. '110 MB') from an integer
 pub fn filesizeformat(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
-    let num = try_get_value!("filesizeformat", "value", i64, value);
+    let num = try_get_value_old!("filesizeformat", "value", i64, value);
     num.file_size(file_size_opts::CONVENTIONAL)
         .or_else(|_| {
             Err(Error::msg(format!(

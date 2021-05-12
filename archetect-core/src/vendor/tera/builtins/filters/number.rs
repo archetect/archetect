@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use humansize::{file_size_opts, FileSize};
 use serde_json::value::{to_value, Value};
 
-use crate::errors::{Error, Result};
+use crate::vendor::tera::errors::{Error, Result};
+use crate::try_get_value;
 
 /// Returns a plural suffix if the value is not equal to ±1, or a singular
 /// suffix otherwise. The plural suffix defaults to `s` and the singular suffix

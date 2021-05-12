@@ -6,14 +6,14 @@ use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest::Parser;
 use pest_derive::Parser;
 
-use crate::errors::{Error, Result as TeraResult};
+use crate::vendor::tera::errors::{Error, Result as TeraResult};
 
 // This include forces recompiling this source file if the grammar file changes.
 // Uncomment it when doing changes to the .pest file
 const _GRAMMAR: &str = include_str!("tera.pest");
 
 #[derive(Parser)]
-#[grammar = "parser/tera.pest"]
+#[grammar = "vendor/tera/parser/tera.pest"]
 pub struct TeraParser;
 
 /// The AST of Tera

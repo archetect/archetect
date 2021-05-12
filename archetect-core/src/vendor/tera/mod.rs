@@ -23,15 +23,15 @@ mod utils;
 // Library exports.
 
 // Template is meant to be used internally only but is exported for test/bench.
-pub use crate::builtins::filters::Filter;
-pub use crate::builtins::functions::Function;
-pub use crate::builtins::testers::Test;
-pub use crate::context::Context;
-pub use crate::errors::{Error, ErrorKind, Result};
+pub use crate::vendor::tera::builtins::filters::Filter;
+pub use crate::vendor::tera::builtins::functions::Function;
+pub use crate::vendor::tera::builtins::testers::Test;
+pub use crate::vendor::tera::context::Context;
+pub use crate::vendor::tera::errors::{Error, ErrorKind, Result};
 #[doc(hidden)]
-pub use crate::template::Template;
-pub use crate::tera::Tera;
-pub use crate::utils::escape_html;
+pub use crate::vendor::tera::template::Template;
+pub use crate::vendor::tera::tera::Tera;
+pub use crate::vendor::tera::utils::escape_html;
 /// Re-export Value and other useful things from serde
 /// so apps/tools can encode data in Tera types
 pub use serde_json::value::{from_value, to_value, Map, Number, Value};
@@ -39,12 +39,12 @@ pub use serde_json::value::{from_value, to_value, Map, Number, Value};
 // Exposes the AST if one needs it but changing the AST is not considered
 // a breaking change so it isn't public
 #[doc(hidden)]
-pub use crate::parser::ast;
+pub use crate::vendor::tera::parser::ast;
 
 /// Re-export some helper fns useful to write filters/fns/tests
 pub mod helpers {
     /// Functions helping writing tests
     pub mod tests {
-        pub use crate::builtins::testers::{extract_string, number_args_allowed, value_defined};
+        pub use crate::vendor::tera::builtins::testers::{extract_string, number_args_allowed, value_defined};
     }
 }

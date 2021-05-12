@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use serde_json::Value;
 
-use crate::renderer::stack_frame::Val;
+use crate::vendor::tera::renderer::stack_frame::Val;
 
 /// Enumerates the two types of for loops
 #[derive(Debug, PartialEq)]

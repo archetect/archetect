@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use crate::context::get_json_pointer;
-use crate::renderer::for_loop::ForLoop;
-use crate::template::Template;
+use crate::vendor::tera::context::get_json_pointer;
+use crate::vendor::tera::renderer::for_loop::ForLoop;
+use crate::vendor::tera::template::Template;
 
 pub type Val<'a> = Cow<'a, Value>;
 pub type FrameContext<'a> = HashMap<&'a str, Val<'a>>;
