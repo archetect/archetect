@@ -555,13 +555,17 @@ impl Tera {
 
     fn register_tera_filters(&mut self) {
         self.register_filter("pascal_case", string::pascal_case);
-        self.register_filter("package_case", string::package_case);
-        self.register_filter("directory_case", string::directory_case);
+        self.register_filter("PascalCase", string::pascal_case);
         self.register_filter("camel_case", string::camel_case);
+        self.register_filter("camelCase", string::camel_case);
         self.register_filter("title_case", string::title_case);
         self.register_filter("train_case", string::train_case);
+        self.register_filter("train-case", string::train_case);
         self.register_filter("snake_case", string::snake_case);
         self.register_filter("constant_case", string::constant_case);
+        self.register_filter("CONSTANT_CASE", string::constant_case);
+        self.register_filter("directory_case", string::directory_case);
+        self.register_filter("package_case", string::package_case);
         self.register_filter("package_to_directory", string::package_to_directory);
         self.register_filter("directory_to_package", string::directory_to_package);
 
