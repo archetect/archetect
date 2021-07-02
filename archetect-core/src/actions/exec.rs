@@ -8,8 +8,8 @@ use log::{debug, warn};
 use crate::actions::Action;
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
 use crate::{Archetect, ArchetectError, Archetype};
+use crate::vendor::tera::Context;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExecAction {
@@ -77,7 +77,7 @@ impl ExecAction {
 impl Action for ExecAction {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         _archetype: &Archetype,
         destination: D,
         _rules_context: &mut RulesContext,

@@ -65,12 +65,12 @@ pub enum RenderError {
     },
     PathRenderError {
         source: PathBuf,
-        error: crate::template_engine::Error,
+        error: crate::vendor::tera::Error,
         message: String,
     },
     FileRenderError {
         source: PathBuf,
-        error: crate::template_engine::Error,
+        error: crate::vendor::tera::Error,
         message: String,
     },
 
@@ -81,7 +81,7 @@ pub enum RenderError {
     },
     StringRenderError {
         source: String,
-        error: crate::template_engine::Error,
+        error: crate::vendor::tera::Error,
         message: String,
     },
     IOError {

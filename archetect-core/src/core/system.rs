@@ -13,9 +13,9 @@ use crate::config::RuleAction;
 use crate::rules::RulesContext;
 use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
-use crate::template_engine::{Context, Tera};
 use crate::util::Source;
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
+use crate::vendor::tera::{Tera, Context};
 
 pub struct Archetect {
     tera: Tera,
@@ -59,8 +59,8 @@ impl Archetect {
         Ok(archetype)
     }
 
-    pub fn render_string(&self, template: &str, context: &Context) -> Result<String, RenderError> {
-        match self.tera.render_string(template, context.clone()) {
+    pub fn render_string(&mut self, template: &str, context: &Context) -> Result<String, RenderError> {
+        match self.tera.render_str(template, &context.clone()) {
             Ok(result) => Ok(result),
             Err(err) => {
                 // TODO: Get a better error message.
@@ -74,7 +74,7 @@ impl Archetect {
         }
     }
 
-    pub fn render_contents<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+    pub fn render_contents<P: AsRef<Path>>(&mut self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
         let template = match fs::read_to_string(path) {
             Ok(template) => template,
@@ -86,7 +86,7 @@ impl Archetect {
                 });
             }
         };
-        match self.tera.render_string(&template, context.clone()) {
+        match self.tera.render_str(&template, &context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
                 // TODO: Get a better error message.
@@ -101,7 +101,7 @@ impl Archetect {
     }
 
     pub fn render_directory<SRC: Into<PathBuf>, DEST: Into<PathBuf>>(
-        &self,
+        &mut self,
         context: &Context,
         source: SRC,
         destination: DEST,
@@ -152,7 +152,7 @@ impl Archetect {
     }
 
     fn render_destination<P: AsRef<Path>, C: AsRef<Path>>(
-        &self,
+        &mut self,
         parent: P,
         child: C,
         context: &Context,
@@ -164,10 +164,10 @@ impl Archetect {
         Ok(destination)
     }
 
-    fn render_path<P: AsRef<Path>>(&self, path: P, context: &Context) -> Result<String, RenderError> {
+    fn render_path<P: AsRef<Path>>(&mut self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
         let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
-        match self.tera.render_string(path, context.clone()) {
+        match self.tera.render_str(path, &context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
                 // TODO: Get a better error message.
@@ -219,8 +219,32 @@ impl ArchetectBuilder {
         let layout = dot_home_layout()?;
         let paths = self.layout.unwrap_or_else(|| Box::new(layout));
         let paths = Rc::new(paths);
+
+        let mut tera = Tera::default();
+        tera.register_filter("pascal_case", crate::tera::filters::pascal_case);
+        tera.register_filter("PascalCase", crate::tera::filters::pascal_case);
+        tera.register_filter("camel_case", crate::tera::filters::camel_case);
+        tera.register_filter("camelCase", crate::tera::filters::camel_case);
+        tera.register_filter("title_case", crate::tera::filters::title_case);
+        tera.register_filter("train_case", crate::tera::filters::train_case);
+        tera.register_filter("train-case", crate::tera::filters::train_case);
+        tera.register_filter("snake_case", crate::tera::filters::snake_case);
+        tera.register_filter("constant_case", crate::tera::filters::constant_case);
+        tera.register_filter("CONSTANT_CASE", crate::tera::filters::constant_case);
+        tera.register_filter("directory_case", crate::tera::filters::directory_case);
+        tera.register_filter("package_case", crate::tera::filters::package_case);
+        tera.register_filter("package_to_directory", crate::tera::filters::package_to_directory);
+        tera.register_filter("directory_to_package", crate::tera::filters::directory_to_package);
+
+        tera.register_filter("pluralize", crate::tera::filters::pluralize);
+        tera.register_filter("singularize", crate::tera::filters::singularize);
+        tera.register_filter("ordinalize", crate::tera::filters::ordinalize);
+
+        tera.register_filter("upper_case", crate::tera::filters::upper);
+        tera.register_filter("lower_case", crate::tera::filters::lower);
+
         Ok(Archetect {
-            tera: Tera::default(),
+            tera,
             paths,
             offline: self.offline,
             switches: self.switches,

@@ -7,8 +7,8 @@ use log::trace;
 use crate::actions::{Action, ActionId};
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
 use crate::{Archetect, ArchetectError, Archetype};
+use crate::vendor::tera::Context;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
@@ -61,7 +61,7 @@ impl IfAction {
 impl Condition {
     pub fn evaluate<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         context: &Context,
@@ -149,7 +149,7 @@ impl Condition {
 impl Action for IfAction {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,

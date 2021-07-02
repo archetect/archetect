@@ -5,8 +5,8 @@ use linked_hash_map::LinkedHashMap;
 use crate::actions::{Action, ActionId, LoopContext};
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
 use crate::{Archetect, ArchetectError, Archetype};
+use crate::vendor::tera::Context;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ForEachAction {
@@ -39,7 +39,7 @@ impl ForEachAction {
 impl Action for ForEachAction {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,
@@ -175,7 +175,7 @@ impl ForAction {
 impl Action for ForAction {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,
@@ -201,10 +201,10 @@ impl Action for ForAction {
                             if rules_context.break_triggered() {
                                 break;
                             }
-                            context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), item);
+                            context.insert(name.clone().unwrap_or("item".to_owned()), item);
                             if let Some(format) = format {
                                 let format = archetect.render_string(format, &context)?;
-                                context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                                context.insert(name.clone().unwrap_or("item".to_owned()), &format);
                             }
                             context.insert("loop", &loop_context);
                             let action: ActionId = self.actions().into();
@@ -236,7 +236,7 @@ impl Action for ForAction {
                         context.insert(name.clone().unwrap_or("item".to_owned()).as_str(), &item);
                         if let Some(format) = format {
                             let format = archetect.render_string(format, &context)?;
-                            context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                            context.insert(name.clone().unwrap_or("item".to_owned()), &format);
                         }
                         context.insert("loop", &loop_context);
 
@@ -277,7 +277,7 @@ impl Action for ForAction {
                         context.insert(name.clone().unwrap_or("item".to_owned()).as_str(), split);
                         if let Some(format) = format {
                             let format = archetect.render_string(format, &context)?;
-                            context.insert(name.clone().unwrap_or("item".to_owned()).as_ref(), &format);
+                            context.insert(name.clone().unwrap_or("item".to_owned()), &format);
                         }
                         context.insert("loop", &loop_context);
                         let action: ActionId = self.actions().into();

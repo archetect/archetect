@@ -6,13 +6,13 @@ use crate::vendor::read_input::prelude::*;
 use serde_json::Value;
 
 use crate::config::{AnswerInfo, VariableInfo, VariableType};
-use crate::template_engine::Context;
+use crate::vendor::tera::Context;
 use crate::{Archetect, ArchetectError};
 
 const ACCEPTABLE_BOOLEANS: [&str; 8] = ["y", "yes", "true", "t", "n", "no", "false", "f"];
 
 pub fn populate_context(
-    archetect: &Archetect,
+    archetect: &mut Archetect,
     variables: &LinkedHashMap<String, VariableInfo>,
     answers: &LinkedHashMap<String, AnswerInfo>,
     context: &mut Context,
@@ -77,7 +77,7 @@ pub fn populate_context(
     Ok(())
 }
 
-fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str, variable_info: &VariableInfo,
+fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: &str, variable_info: &VariableInfo,
                             context: &mut Context) -> Result<bool, ArchetectError> {
 
     trace!("Setting variable answer {:?}={:?}", identifier, value);
@@ -122,7 +122,7 @@ fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str
             let values = convert_to_list(archetect, context, value)?;
             if !values.is_empty() || !variable_info.required() {
                 trace!("Inserting {}={:?}", identifier, values);
-                context.insert_value(identifier, &Value::Array(values));
+                context.insert(identifier, &Value::Array(values));
                 return Ok(true);
             }
         }
@@ -132,7 +132,7 @@ fn insert_answered_variable(archetect: &Archetect, identifier: &str, value: &str
     return Ok(false);
 }
 
-fn convert_to_list(archetect: &Archetect, context: &Context, value: &str) -> Result<Vec<Value>, ArchetectError> {
+fn convert_to_list(archetect: &mut Archetect, context: &Context, value: &str) -> Result<Vec<Value>, ArchetectError> {
     let mut values = Vec::new();
     let splits: Vec<&str> = value.split(",")
         .map(|split| split.trim()).collect();
@@ -224,7 +224,7 @@ fn prompt_for_bool(prompt: &mut String, default: &Option<String>) -> Option<Valu
 }
 
 fn prompt_for_list(
-    archetect: &Archetect,
+    archetect: &mut Archetect,
     context: &Context,
     prompt: &mut String,
     default: &Option<String>,
@@ -314,7 +314,7 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
 }
 
 pub fn render_answers(
-    archetect: &Archetect,
+    archetect: &mut Archetect,
     answers: &LinkedHashMap<String, AnswerInfo>,
     context: &Context,
 ) -> Result<LinkedHashMap<String, AnswerInfo>, ArchetectError> {

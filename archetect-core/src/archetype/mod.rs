@@ -7,7 +7,7 @@ use crate::actions::ActionId;
 use crate::config::{AnswerInfo, ArchetypeConfig};
 use crate::errors::RenderError;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
+use crate::vendor::tera::Context;
 use crate::util::{Source, SourceError};
 use crate::{Archetect, ArchetectError};
 
@@ -46,7 +46,7 @@ impl Archetype {
 
     pub fn execute_script<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         destination: D,
         answers: &LinkedHashMap<String, AnswerInfo>,
     ) -> Result<(), ArchetectError> {

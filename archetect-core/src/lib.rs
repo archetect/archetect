@@ -21,7 +21,8 @@ pub mod rendering;
 pub mod requirements;
 pub mod rules;
 pub mod system;
-pub mod template_engine;
+pub mod tera;
+// pub mod template_engine;
 pub mod util;
 pub mod vendor;
 

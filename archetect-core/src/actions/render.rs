@@ -5,7 +5,7 @@ use linked_hash_map::LinkedHashMap;
 use crate::actions::{set, Action};
 use crate::config::AnswerInfo;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
+use crate::vendor::tera::Context;
 use crate::{Archetect, ArchetectError, Archetype};
 use std::fs;
 
@@ -68,7 +68,7 @@ impl ArchetypeOptions {
 impl Action for RenderAction {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,

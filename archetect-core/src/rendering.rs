@@ -1,17 +1,17 @@
-use crate::template_engine::Context;
+use crate::vendor::tera::Context;
 use crate::{Archetect, RenderError};
 use std::path::{Path, PathBuf};
 
 pub trait Renderable {
     type Result;
 
-    fn render(&self, archetect: &Archetect, context: &Context) -> Result<Self::Result, RenderError>;
+    fn render(&self, archetect: &mut Archetect, context: &Context) -> Result<Self::Result, RenderError>;
 }
 
 impl Renderable for &str {
     type Result = String;
 
-    fn render(&self, archetect: &Archetect, context: &Context) -> Result<Self::Result, RenderError> {
+    fn render(&self, archetect: &mut Archetect, context: &Context) -> Result<Self::Result, RenderError> {
         archetect.render_string(&self, context)
     }
 }
@@ -19,7 +19,7 @@ impl Renderable for &str {
 impl Renderable for &String {
     type Result = String;
 
-    fn render(&self, archetect: &Archetect, context: &Context) -> Result<Self::Result, RenderError> {
+    fn render(&self, archetect: &mut Archetect, context: &Context) -> Result<Self::Result, RenderError> {
         archetect.render_string(&self, context)
     }
 }
@@ -27,16 +27,21 @@ impl Renderable for &String {
 impl Renderable for &Path {
     type Result = PathBuf;
 
-    fn render(&self, archetect: &Archetect, context: &Context) -> Result<Self::Result, RenderError> {
+    fn render(&self, archetect: &mut Archetect, context: &Context) -> Result<Self::Result, RenderError> {
         if let Some(string) = self.to_str() {
-            match archetect.template_engine().render_string(string, context.clone()) {
+            match archetect.render_string(string, &context.clone()) {
                 Ok(result) => return Ok(PathBuf::from(result)),
                 Err(error) => {
-                    return Err(RenderError::PathRenderError {
-                        source: self.into(),
-                        error,
-                        message: String::new(),
-                    });
+                    match error {
+                        RenderError::StringRenderError { source: _, error, message: _ } => {
+                            return Err(RenderError::PathRenderError {
+                                source: self.into(),
+                                error,
+                                message: String::new(),
+                            });
+                        }
+                        _ => panic!("Unexpected rendering error")
+                    }
                 }
             }
         } else {

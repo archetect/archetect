@@ -11,8 +11,8 @@ use crate::actions::rules::RuleType;
 use crate::config::{AnswerInfo, VariableInfo};
 use crate::rendering::Renderable;
 use crate::rules::RulesContext;
-use crate::template_engine::Context;
 use crate::{Archetect, ArchetectError, Archetype};
+use crate::vendor::tera::Context;
 
 pub mod conditionals;
 pub mod exec;
@@ -68,7 +68,7 @@ pub enum ActionId {
 impl ActionId {
     pub fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,
@@ -93,13 +93,13 @@ impl ActionId {
             }
 
             // Logging
-            ActionId::LogTrace(message) => trace!("{}", message.render(&archetect, context)?),
-            ActionId::LogDebug(message) => debug!("{}", message.render(&archetect, context)?),
-            ActionId::LogInfo(message) => info!("{}", message.render(&archetect, context)?),
-            ActionId::LogWarn(message) => warn!("{}", message.render(&archetect, context)?),
-            ActionId::LogError(message) => error!("{}", message.render(&archetect, context)?),
-            ActionId::Print(message) => println!("{}", message.render(&archetect, context)?),
-            ActionId::Display(message) => eprintln!("{}", message.render(&archetect, context)?),
+            ActionId::LogTrace(message) => trace!("{}", message.render(archetect, context)?),
+            ActionId::LogDebug(message) => debug!("{}", message.render(archetect, context)?),
+            ActionId::LogInfo(message) => info!("{}", message.render(archetect, context)?),
+            ActionId::LogWarn(message) => warn!("{}", message.render(archetect, context)?),
+            ActionId::LogError(message) => error!("{}", message.render(archetect, context)?),
+            ActionId::Print(message) => println!("{}", message.render(archetect, context)?),
+            ActionId::Display(message) => eprintln!("{}", message.render(archetect, context)?),
 
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
@@ -201,7 +201,7 @@ impl From<&Vec<ActionId>> for ActionId {
 pub trait Action {
     fn execute<D: AsRef<Path>>(
         &self,
-        archetect: &Archetect,
+        archetect: &mut Archetect,
         archetype: &Archetype,
         destination: D,
         rules_context: &mut RulesContext,
