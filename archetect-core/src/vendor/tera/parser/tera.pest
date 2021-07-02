@@ -46,7 +46,7 @@ op_modulo    = { "%" }
 
 /// Idents
 
-all_chars = _{'a'..'z' | 'A'..'Z' | "_" | '0'..'9'}
+all_chars = _{'a'..'z' | 'A'..'Z' | "_" | "-" | '0'..'9'}
 // Used everywhere where an ident is used, except when accessing
 // data from the context.
 // Eg block name, argument name, macro name etc

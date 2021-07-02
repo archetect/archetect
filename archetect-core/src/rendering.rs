@@ -55,42 +55,42 @@ impl Renderable for &Path {
 #[cfg(test)]
 mod tests {
     use crate::rendering::Renderable;
-    use crate::template_engine::Context;
     use crate::Archetect;
     use std::path::{Path, PathBuf};
+    use crate::vendor::tera::Context;
 
     #[test]
     pub fn test_render_str_successfully() {
-        let archetect = Archetect::builder().build().unwrap();
+        let mut archetect = Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("subject", "world");
 
-        let render = "Hello, {{ subject }}".render(&archetect, &context).unwrap();
+        let render = "Hello, {{ subject }}".render(&mut archetect, &context).unwrap();
         assert_eq!(render, "Hello, world".to_owned());
     }
 
     #[test]
     pub fn test_render_path_successfully() {
-        let archetect = Archetect::builder().build().unwrap();
+        let mut archetect = Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("parent", "hello");
         context.insert("child", "world");
 
         let path = Path::new("{{ parent }}/{{ child }}");
 
-        let render = path.render(&archetect, &context).unwrap();
+        let render = path.render(&mut archetect, &context).unwrap();
         assert_eq!(render, PathBuf::from("hello/world"));
     }
 
     #[test]
     pub fn test_render_empty_path() {
-        let archetect = Archetect::builder().build().unwrap();
+        let archetect = &mut Archetect::builder().build().unwrap();
         let mut context = Context::new();
         context.insert("parent", "hello");
         context.insert("child", "world");
 
         let path = Path::new("");
-        let render = path.render(&archetect, &context).unwrap();
+        let render = path.render(archetect, &context).unwrap();
         assert_eq!(render, PathBuf::from(String::new()));
     }
 }
