@@ -1,19 +1,13 @@
 /// Filters operating on string
 use std::collections::HashMap;
 
-use crate::vendor::heck::{CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase, TrainCase};
-
-use regex::{Regex};
+use crate::vendor::heck::{
+    CamelCase, ConstantCase, DirectoryCase, PackageCase, PascalCase, SnakeCase, TitleCase, TrainCase,
+};
+use crate::vendor::tera::Result;
 use serde_json::value::{to_value, Value};
 
-use crate::vendor::tera::{Result};
-
 use crate::try_get_value;
-
-lazy_static! {
-    static ref STRIPTAGS_RE: Regex = Regex::new(r"(<!--.*?-->|<[^>]*>)").unwrap();
-    static ref WORDS_RE: Regex = Regex::new(r"\b(?P<first>\w)(?P<rest>\w*)\b").unwrap();
-}
 
 pub fn pascal_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let s = try_get_value!("pascal_case", "value", String, value);
