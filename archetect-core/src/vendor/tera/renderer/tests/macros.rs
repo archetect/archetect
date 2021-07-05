@@ -145,7 +145,8 @@ fn render_recursive_macro() {
     tera.add_raw_templates(vec![
         (
             "macros",
-            "{% macro factorial(n) %}{% if n > 1 %}{{ n }} - {{ self::factorial(n=n-1) }}{% else %}1{% endif %}{{ n }}{% endmacro factorial %}",
+            "{% macro factorial(n) %}{% if n > 1 %}{{ n }} - {{ self::factorial(n=n - 1) }}{% else %}1{% endif %}{{ n \
+            }}{% endmacro factorial %}",
         ),
         ("hello.html", "{% import \"macros\" as macros %}{{macros::factorial(n=7)}}"),
     ]).unwrap();

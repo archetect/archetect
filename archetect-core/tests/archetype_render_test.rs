@@ -2,11 +2,19 @@
 //use archetect_core::system::layout::LayoutType;
 //use archetect_core::template_engine::Context;
 use archetect_core::ArchetectError;
-//use std::fs;
+use std::fs;
 
 #[test]
 #[ignore]
-fn render_archetypes() -> Result<(), ArchetectError> {
+fn render_archetypes() -> Result<(), Box<dyn std::error::Error>> {
+
+    for entry in fs::read_dir("archetypes")? {
+        let archetype_suite = entry?;
+        if archetype_suite.path().is_dir() {
+            println!("{:?}", archetype_suite.path());
+        }
+    }
+
     //    let archetect = archetect_core::archetect::builder()
     //        .with_layout_type(LayoutType::Temp)?
     //        .build()?;

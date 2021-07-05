@@ -1,9 +1,0 @@
----
-variables:
-  name:
-    prompt: "Application Name: "
-  author:
-    prompt: "Author name: "
-  root_package:
-    value: "com.example"
-
