@@ -14,8 +14,8 @@ use crate::rules::RulesContext;
 use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
 use crate::util::Source;
+use crate::vendor::tera::{Context, Tera};
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
-use crate::vendor::tera::{Tera, Context};
 
 pub struct Archetect {
     tera: Tera,
@@ -220,31 +220,8 @@ impl ArchetectBuilder {
         let paths = self.layout.unwrap_or_else(|| Box::new(layout));
         let paths = Rc::new(paths);
 
-        let mut tera = Tera::default();
-        tera.register_filter("pascal_case", crate::tera::filters::pascal_case);
-        tera.register_filter("PascalCase", crate::tera::filters::pascal_case);
-        tera.register_filter("camel_case", crate::tera::filters::camel_case);
-        tera.register_filter("camelCase", crate::tera::filters::camel_case);
-        tera.register_filter("title_case", crate::tera::filters::title_case);
-        tera.register_filter("train_case", crate::tera::filters::train_case);
-        tera.register_filter("train-case", crate::tera::filters::train_case);
-        tera.register_filter("snake_case", crate::tera::filters::snake_case);
-        tera.register_filter("constant_case", crate::tera::filters::constant_case);
-        tera.register_filter("CONSTANT_CASE", crate::tera::filters::constant_case);
-        tera.register_filter("directory_case", crate::tera::filters::directory_case);
-        tera.register_filter("package_case", crate::tera::filters::package_case);
-        tera.register_filter("package_to_directory", crate::tera::filters::package_to_directory);
-        tera.register_filter("directory_to_package", crate::tera::filters::directory_to_package);
-
-        tera.register_filter("pluralize", crate::tera::filters::pluralize);
-        tera.register_filter("singularize", crate::tera::filters::singularize);
-        tera.register_filter("ordinalize", crate::tera::filters::ordinalize);
-
-        tera.register_filter("upper_case", crate::tera::filters::upper);
-        tera.register_filter("lower_case", crate::tera::filters::lower);
-
         Ok(Archetect {
-            tera,
+            tera: crate::tera::create_tera(),
             paths,
             offline: self.offline,
             switches: self.switches,
