@@ -10,7 +10,7 @@
 
 #[macro_use]
 mod macros;
-mod builtins;
+pub(crate) mod builtins;
 mod context;
 mod errors;
 mod filter_utils;

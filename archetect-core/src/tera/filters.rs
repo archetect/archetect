@@ -29,8 +29,8 @@ pub fn apply_filters(tera: &mut Tera) {
     tera.register_filter("singularize", crate::tera::filters::singularize);
     tera.register_filter("ordinalize", crate::tera::filters::ordinalize);
 
-    tera.register_filter("upper_case", crate::vendor::tera::builtins::filters::upper);
-    tera.register_filter("lower_case", crate::tera::filters::lower);
+    tera.register_filter("upper_case", crate::vendor::tera::builtins::filters::string::upper);
+    tera.register_filter("lower_case", crate::vendor::tera::builtins::filters::string::lower);
 }
 
 pub fn pascal_case(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
@@ -99,20 +99,4 @@ pub fn ordinalize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let input = try_get_value!("ordinalize", "value", String, value);
     let plural = inflector::numbers::ordinalize::ordinalize(&input);
     Ok(to_value(plural).unwrap())
-}
-
-//noinspection DuplicatedCode
-/// Convert a value to uppercase.
-pub fn upper(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
-    let s = try_get_value!("upper", "value", String, value);
-
-    Ok(to_value(&s.to_uppercase()).unwrap())
-}
-
-//noinspection DuplicatedCode
-/// Convert a value to lowercase.
-pub fn lower(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
-    let s = try_get_value!("lower", "value", String, value);
-
-    Ok(to_value(&s.to_lowercase()).unwrap())
 }
