@@ -54,7 +54,7 @@ Example:
 # To generate a Rust microservice using Actix and Diesel
 archetect render https://github.com/archetect/archetype-rust-service-actix-diesel-workspace.git
 
-# To select from a catalog of archetypes using a command line menu system
+# To select from a catalog of test_archetypes using a command line menu system
 archetect catalog --source https://github.com/archetect/catalog-rust.git
 ```
 

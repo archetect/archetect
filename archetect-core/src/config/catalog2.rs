@@ -148,14 +148,14 @@ mod tests {
     fn rust_cli_archetype() -> CatalogEntry {
         CatalogEntry::Archetype {
             description: "Rust CLI".to_owned(),
-            source: "~/projects/archetypes/rust-cie".to_owned(),
+            source: "~/projects/test_archetypes/rust-cie".to_owned(),
         }
     }
 
     fn rust_cli_workspace_archetype() -> CatalogEntry {
         CatalogEntry::Archetype {
             description: "Rust CLI Workspace".to_owned(),
-            source: "~/projects/archetypes/rust-cie".to_owned(),
+            source: "~/projects/test_archetypes/rust-cie".to_owned(),
         }
     }
 

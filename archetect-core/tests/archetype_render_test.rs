@@ -1,14 +1,14 @@
 //use archetect_core::archetype::ArchetypeError::ArchetypeInvalid;
 //use archetect_core::system::layout::LayoutType;
 //use archetect_core::template_engine::Context;
-use archetect_core::ArchetectError;
+// use archetect_core::ArchetectError;
 use std::fs;
 
 #[test]
-#[ignore]
+// #[ignore]
 fn render_archetypes() -> Result<(), Box<dyn std::error::Error>> {
 
-    for entry in fs::read_dir("archetypes")? {
+    for entry in fs::read_dir("tests/archetypes")? {
         let archetype_suite = entry?;
         if archetype_suite.path().is_dir() {
             println!("{:?}", archetype_suite.path());
@@ -19,7 +19,7 @@ fn render_archetypes() -> Result<(), Box<dyn std::error::Error>> {
     //        .with_layout_type(LayoutType::Temp)?
     //        .build()?;
     //
-    //    for entry in fs::read_dir("../archetypes").unwrap() {
+    //    for entry in fs::read_dir("../test_archetypes").unwrap() {
     //        let entry = entry.unwrap();
     //        let path = entry.path();
     //        if path.is_dir() {

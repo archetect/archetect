@@ -1,0 +1,9 @@
+
+script:
+  - set:
+      project:
+        prompt: "Project:"
+
+  - render:
+      directory:
+        source: "contents"
