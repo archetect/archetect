@@ -18,15 +18,23 @@ pub enum Source {
     LocalFile { path: PathBuf },
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SourceError {
+    #[error("Unsupported source: `{0}`")]
     SourceUnsupported(String),
+    #[error("Source not found: `{0}`")]
     SourceNotFound(String),
+    #[error("Invalid Source Path: `{0}`")]
     SourceInvalidPath(String),
+    #[error("Invalid Source Encoding: `{0}`")]
     SourceInvalidEncoding(String),
+    #[error("Remote Source Error: `{0}`")]
     RemoteSourceError(String),
+    #[error("Remote Source is not cached, and Archetect was run in offline mode: `{0}`")]
     OfflineAndNotCached(String),
+    #[error("Source IO Error: `{0}`")]
     IoError(std::io::Error),
+    #[error("Requirements Error in `{path}`: {cause}")]
     RequirementsError { path: String, cause: RequirementsError },
 }
 

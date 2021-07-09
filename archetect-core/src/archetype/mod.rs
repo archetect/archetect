@@ -89,15 +89,20 @@ pub struct ArchetectInfo {
     version: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ArchetypeError {
+    #[error("Invalid Archetype")]
     ArchetypeInvalid,
+    #[error("Invalid Answers Config")]
     InvalidAnswersConfig,
-    ArchetypeSaveFailed,
+    #[error(transparent)]
     SourceError(SourceError),
+    #[error(transparent)]
     RenderError(RenderError),
+    #[error("IO Error in Archetype: {0}")]
     IoError(std::io::Error),
-    YamlError { path: PathBuf, cause: serde_yaml::Error },
+    #[error("Archetype Configuration Error in `{path}`: {source}")]
+    YamlError { path: PathBuf, source: serde_yaml::Error },
 }
 
 impl From<SourceError> for ArchetypeError {
@@ -121,7 +126,6 @@ impl From<std::io::Error> for ArchetypeError {
 #[cfg(test)]
 mod tests {
     use std::path::Path;
-
     use glob::Pattern;
 
     #[test]

@@ -1,23 +1,21 @@
-mod cli;
-pub mod vendor;
-
-use archetect_core::config::{
-    AnswerConfig, AnswerConfigError, AnswerInfo, Catalog, CatalogEntry, CatalogError, CATALOG_FILE_NAME,
-};
-use archetect_core::input::select_from_catalog;
-use archetect_core::system::SystemError;
-use archetect_core::util::{Source, SourceError};
-use archetect_core::{RenderError, Archetect};
-use archetect_core::{self, ArchetectError, ArchetypeError};
-use clap::{ArgMatches, Shell};
-//use indoc::indoc;
-use archetect_core::requirements::RequirementsError;
-use linked_hash_map::LinkedHashMap;
-use log::{error, info, warn};
-use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use clap::{ArgMatches, Shell};
+use linked_hash_map::LinkedHashMap;
+use log::{error, info, warn};
+
+use archetect_core::{Archetect};
+use archetect_core::{self, ArchetectError};
+use archetect_core::config::{
+    AnswerConfig, AnswerInfo, Catalog, CATALOG_FILE_NAME, CatalogEntry,
+};
+use archetect_core::input::select_from_catalog;
+use archetect_core::util::{Source};
+
+mod cli;
+pub mod vendor;
 
 fn main() {
     let matches = cli::get_matches().get_matches();
@@ -26,7 +24,7 @@ fn main() {
 
     match execute(matches) {
         Ok(()) => (),
-        Err(error) => handle_archetect_error(error),
+        Err(error) => error!("{}", error),
     }
 }
 
@@ -53,8 +51,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 }
                 Err(cause) => {
                     return Err(ArchetectError::AnswerConfigError {
-                        source: answer_file.to_owned(),
-                        cause,
+                        path: answer_file.to_owned(),
+                        source: cause,
                     });
                 }
             }
@@ -163,148 +161,4 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     Ok(())
-}
-
-fn handle_archetect_error(error: ArchetectError) {
-    match error {
-        ArchetectError::SourceError(error) => handle_source_error(error),
-        ArchetectError::ArchetypeError(error) => handle_archetype_error(error),
-        ArchetectError::GenericError(error) => error!("Archetect Error: {}", error),
-        ArchetectError::RenderError(error) => handle_render_error(error),
-        ArchetectError::SystemError(error) => handle_system_error(error),
-        ArchetectError::CatalogError(error) => handle_catalog_error(error),
-        ArchetectError::IoError(error) => handle_io_error(error),
-        ArchetectError::AnswerConfigError { source, cause } => handle_answer_config_error(source, cause),
-    }
-}
-
-fn handle_answer_config_error(source: String, error: AnswerConfigError) {
-    match error {
-        AnswerConfigError::MissingError => {
-            error!("{} does not exist.", source);
-        }
-        AnswerConfigError::ParseError(cause) => {
-            error!("Error parsing {}: {}", source, cause);
-        }
-    }
-}
-
-fn handle_io_error(error: std::io::Error) {
-    error!("IO Error: {}", error);
-}
-
-fn handle_requirements_error(path: String, error: RequirementsError) {
-    match error {
-        RequirementsError::DeserializationError { path, cause } => {
-            error!("Error reading {}:\n{}", path.display(), cause);
-        }
-        RequirementsError::ArchetectVersion(version, requirements) => {
-            error!(
-                "'{}' requires features that are unavailable in this version of \
-                    Archetect.  Archetect {} is required, but you are on Archetect {}.  \
-                    Try upgrading to the latest available version.",
-                path, requirements, version
-            );
-        }
-        RequirementsError::IoError(cause) => {
-            error!("Error reading requirements: {}", cause);
-        }
-    }
-}
-
-fn handle_archetype_error(error: ArchetypeError) {
-    match error {
-        ArchetypeError::ArchetypeInvalid => panic!(),
-        ArchetypeError::InvalidAnswersConfig => panic!(),
-        ArchetypeError::RenderError(error) => handle_render_error(error),
-        ArchetypeError::ArchetypeSaveFailed => {}
-        ArchetypeError::SourceError(error) => handle_source_error(error),
-        ArchetypeError::IoError(error) => handle_io_error(error),
-        ArchetypeError::YamlError { path, cause } => {
-            error!("Error reading {}:\n{}", path.display(), cause);
-        }
-    }
-}
-
-fn handle_source_error(error: SourceError) {
-    match error {
-        SourceError::SourceInvalidEncoding(source) => error!("\"{}\" is not valid UTF-8", source),
-        SourceError::SourceNotFound(source) => error!("\"{}\" does not exist", source),
-        SourceError::SourceUnsupported(source) => error!("\"{}\" is not a supported archetype path", source),
-        SourceError::SourceInvalidPath(source) => error!("\"{}\" is not a valid archetype path", source),
-        SourceError::OfflineAndNotCached(source) => error!(
-            "\"{}\" is not cached locally and cannot be cloned in offline mode",
-            source
-        ),
-        SourceError::RemoteSourceError(err) => error!("Remote Source Error\n{}", err),
-        SourceError::IoError(err) => error!("IO Error: {}", err),
-        SourceError::RequirementsError { path, cause } => {
-            handle_requirements_error(path, cause);
-        }
-    };
-}
-
-fn handle_system_error(error: SystemError) {
-    match error {
-        SystemError::GenericError(error) => error!("System Error: {}", error),
-        SystemError::IOError { error, message: _ } => error!("{}", error.to_string()),
-    }
-}
-
-fn handle_render_error(error: RenderError) {
-    match error {
-        RenderError::FileRenderError {
-            source,
-            error,
-            message: _,
-        } => {
-            if let Some(cause) = error.source() {
-                error!("{} in template \"{}\"", cause, source.display());
-            } else {
-                error!("Error rendering template \"{}\"\n\n{}", source.display(), error);
-            }
-        }
-        RenderError::FileRenderIOError {
-            source,
-            error,
-            message: _,
-        } => {
-            error!("IO Error: {} in template \"{}\"", error, source.display());
-        }
-        RenderError::PathRenderError {
-            source,
-            error,
-            message: _,
-        } => {
-            if let Some(cause) = error.source() {
-                error!("{} in path \"{}\"", cause, source.display());
-            } else {
-                error!("Error rendering path name \"{}\"\n\n{:?}", source.display(), error);
-            }
-        }
-        RenderError::StringRenderError {
-            source,
-            error: _,
-            message,
-        } => {
-            error!("IO Error: {} in \"{}\"", message, source);
-        }
-        RenderError::IOError { error: _, message } => {
-            error!("Unexpected IO Error:\n{}", message);
-        }
-        RenderError::InvalidPathCharacters { source } => {
-            error!("Unable read path '{}' as a UTF-8 template", source.display());
-        }
-    }
-}
-
-fn handle_catalog_error(error: CatalogError) {
-    match error {
-        CatalogError::EmptyCatalog => error!("Empty Catalog"),
-        CatalogError::EmptyGroup => error!("Empty Catalog Group"),
-        CatalogError::SourceError(error) => error!("Catalog Source Error: {:?}", error),
-        CatalogError::NotFound(error) => error!("Catalog not found: {}", error.to_str().unwrap()),
-        CatalogError::IOError(error) => error!("Catalog IO Error: {}", error),
-        CatalogError::YamlError(error) => error!("Catalog YAML Read Error: {}", error),
-    }
 }

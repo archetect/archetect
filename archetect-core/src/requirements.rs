@@ -62,10 +62,13 @@ impl Requirements {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum RequirementsError {
+    #[error("Error Deserializing Requirements File `{path}`: {cause}")]
     DeserializationError { path: PathBuf, cause: serde_yaml::Error },
+    #[error("Incompatible Archetect Version `{0}`. Requirements: {1}")]
     ArchetectVersion(Version, VersionReq),
+    #[error("IO Error Reading Requirements File `{0}`.")]
     IoError(std::io::Error),
 }
 

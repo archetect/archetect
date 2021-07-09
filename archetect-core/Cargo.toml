@@ -49,6 +49,7 @@ humansize = "1"
 chrono = "0.4"
 # used in truncate filter
 unic-segment = "0.9"
+thiserror = "1.0.26"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

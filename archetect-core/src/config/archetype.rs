@@ -41,7 +41,7 @@ impl ArchetypeConfig {
             let config = fs::read_to_string(&path)?;
             match serde_yaml::from_str::<ArchetypeConfig>(&config) {
                 Ok(config) => return Ok(config),
-                Err(cause) => return Err(ArchetypeError::YamlError { path, cause }),
+                Err(cause) => return Err(ArchetypeError::YamlError { path, source: cause }),
             }
         }
     }

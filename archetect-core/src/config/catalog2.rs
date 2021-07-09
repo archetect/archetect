@@ -72,13 +72,19 @@ impl CatalogEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
+    #[error("Catalog File is Empty")]
     EmptyCatalog,
+    #[error("Selected Catalog Group is Empty")]
     EmptyGroup,
+    #[error("Invalid Catalog Source: {0}")]
     SourceError(SourceError),
+    #[error("Catalog not found: {0}")]
     NotFound(PathBuf),
+    #[error("Catalog IO Error: {0}")]
     IOError(std::io::Error),
+    #[error("Catalog Format Error: {0}")]
     YamlError(serde_yaml::Error),
 }
 

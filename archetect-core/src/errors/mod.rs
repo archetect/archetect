@@ -4,15 +4,23 @@ use crate::util::SourceError;
 use crate::ArchetypeError;
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ArchetectError {
-    AnswerConfigError { source: String, cause: AnswerConfigError },
+    #[error("Error in answer file `{path}`: {source}")]
+    AnswerConfigError { path: String, source: AnswerConfigError },
+    #[error(transparent)]
     ArchetypeError(ArchetypeError),
+    #[error("{0}")]
     GenericError(String),
+    #[error(transparent)]
     RenderError(RenderError),
+    #[error(transparent)]
     SystemError(SystemError),
+    #[error(transparent)]
     SourceError(SourceError),
+    #[error(transparent)]
     CatalogError(CatalogError),
+    #[error(transparent)]
     IoError(std::io::Error),
 }
 
@@ -58,34 +66,37 @@ impl From<std::io::Error> for ArchetectError {
     }
 }
 
-#[derive(Debug)]
+// TODO: Implement Display by hand
+#[derive(Debug, thiserror::Error)]
 pub enum RenderError {
+    #[error("Invalid characters in path template {path}")]
     InvalidPathCharacters {
-        source: PathBuf,
+        path: PathBuf,
     },
+    #[error("Unable to render path `{path}`")]
     PathRenderError {
-        source: PathBuf,
-        error: crate::vendor::tera::Error,
-        message: String,
+        path: PathBuf,
+        source: crate::vendor::tera::Error,
     },
+    #[error("Unable to render file `{path}`")]
     FileRenderError {
-        source: PathBuf,
-        error: crate::vendor::tera::Error,
-        message: String,
+        path: PathBuf,
+        source: crate::vendor::tera::Error,
     },
-
+    #[error("Unable to render file `{path}`: {source}")]
     FileRenderIOError {
-        source: PathBuf,
-        error: std::io::Error,
-        message: String,
+        path: PathBuf,
+        source: std::io::Error,
     },
+    #[error("Unable to render `{string}`.")]
     StringRenderError {
-        source: String,
-        error: crate::vendor::tera::Error,
-        message: String,
+        string: String,
+        source: crate::vendor::tera::Error,
     },
+    #[error("Rendering IO Error: {message}\n{source}")]
     IOError {
-        error: std::io::Error,
+        // TODO: #[from]
+        source: std::io::Error,
         message: String,
     },
 }
@@ -93,6 +104,20 @@ pub enum RenderError {
 impl From<std::io::Error> for RenderError {
     fn from(error: std::io::Error) -> Self {
         let message = error.to_string();
-        RenderError::IOError { error, message }
+        RenderError::IOError { source: error, message }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test() {
+        let error = RenderError::FileRenderError {
+            path: PathBuf::from("/some/path"),
+            source: crate::vendor::tera::Error::filter_not_found("train_case"),
+        };
+        println!("{}", error);
     }
 }

@@ -17,9 +17,11 @@ pub struct AnswerConfig {
     answers: LinkedHashMap<String, AnswerInfo>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum AnswerConfigError {
+    #[error("Error parsing answer config: {0}")]
     ParseError(String),
+    #[error("Missing answer config")]
     MissingError,
 }
 

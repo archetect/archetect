@@ -63,12 +63,9 @@ impl Archetect {
         match self.tera.render_str(template, &context.clone()) {
             Ok(result) => Ok(result),
             Err(err) => {
-                // TODO: Get a better error message.
-                let message = String::new();
                 Err(RenderError::StringRenderError {
-                    source: template.to_owned(),
-                    error: err,
-                    message,
+                    string: template.to_owned(),
+                    source: err,
                 })
             }
         }
@@ -80,21 +77,17 @@ impl Archetect {
             Ok(template) => template,
             Err(error) => {
                 return Err(RenderError::FileRenderIOError {
-                    source: path.to_owned(),
-                    error,
-                    message: "".to_string(),
+                    path: path.to_owned(),
+                    source: error,
                 });
             }
         };
         match self.tera.render_str(&template, &context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
-                // TODO: Get a better error message.
-                let message = String::new();
                 Err(RenderError::FileRenderError {
-                    source: path.into(),
-                    error,
-                    message,
+                    path: path.into(),
+                    source: error,
                 })
             }
         }
@@ -170,12 +163,9 @@ impl Archetect {
         match self.tera.render_str(path, &context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
-                // TODO: Get a better error message.
-                let message = String::new();
                 Err(RenderError::PathRenderError {
-                    source: path.into(),
-                    error,
-                    message,
+                    path: path.into(),
+                    source: error,
                 })
             }
         }

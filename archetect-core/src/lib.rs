@@ -7,8 +7,6 @@ extern crate pest_derive;
 extern crate pretty_assertions;
 #[macro_use]
 extern crate serde_derive;
-#[cfg_attr(test, macro_use)]
-extern crate serde_json;
 
 mod core;
 mod errors;

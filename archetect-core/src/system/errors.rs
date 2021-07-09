@@ -1,16 +1,12 @@
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SystemError {
+    #[error("IO System Error: {source}")]
     IOError {
-        error: std::io::Error,
-        message: Option<String>,
+        #[from]
+        source: std::io::Error,
     },
+    #[error("System Error: {0}")]
     GenericError(String),
-}
-
-impl From<std::io::Error> for SystemError {
-    fn from(error: std::io::Error) -> Self {
-        SystemError::IOError { error, message: None }
-    }
 }
 
 impl From<String> for SystemError {

@@ -33,11 +33,10 @@ impl Renderable for &Path {
                 Ok(result) => return Ok(PathBuf::from(result)),
                 Err(error) => {
                     match error {
-                        RenderError::StringRenderError { source: _, error, message: _ } => {
+                        RenderError::StringRenderError { string: _, source: error} => {
                             return Err(RenderError::PathRenderError {
-                                source: self.into(),
-                                error,
-                                message: String::new(),
+                                path: self.into(),
+                                source: error,
                             });
                         }
                         _ => panic!("Unexpected rendering error")
@@ -46,7 +45,7 @@ impl Renderable for &Path {
             }
         } else {
             return Err(RenderError::InvalidPathCharacters {
-                source: self.to_path_buf(),
+                path: self.to_path_buf(),
             });
         }
     }
