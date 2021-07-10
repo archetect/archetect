@@ -3,6 +3,8 @@ use crate::system::SystemError;
 use crate::util::SourceError;
 use crate::ArchetypeError;
 use std::path::PathBuf;
+use std::fmt::{Display, Formatter};
+use std::error::Error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetectError {
@@ -69,47 +71,91 @@ impl From<std::io::Error> for ArchetectError {
 // TODO: Implement Display by hand
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
-    #[error("Invalid characters in path template {path}")]
+    // #[error("Invalid characters in path template {path}")]
     InvalidPathCharacters {
         path: PathBuf,
     },
-    #[error("Unable to render path `{path}`")]
+    // #[error("Unable to render path `{path}`")]
     PathRenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
-    #[error("Unable to render contents of `{path}`")]
+    // #[error("Unable to render contents of `{path}`")]
     FileRenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
-    #[error("Unable to render contents of `{path}`: {source}")]
+    // #[error("Unable to render contents of `{path}`: {source}")]
     FileRenderIOError {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("Unable to render `{string}`.")]
+    // #[error("Unable to render `{string}`.")]
     StringRenderError {
         string: String,
         source: crate::vendor::tera::Error,
     },
-    #[error("Rendering IO Error: {source}")]
+    // #[error("Rendering IO Error: {source}")]
     IOError {
         #[from]
         source: std::io::Error,
     },
 }
 
+impl Display for RenderError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RenderError::InvalidPathCharacters { path } => {
+                write!(f, "Invalid characters in path template `{:?}`", path)
+            }
+            RenderError::PathRenderError { path, source } => {
+                write!(f, "Unable to render path `{:?}`: {}", path, extract_message(source))
+            }
+            RenderError::FileRenderError { path, source } => {
+                write!(f, "Unable to render contents of `{:?}`: {}", path, extract_message(source))
+            }
+            RenderError::FileRenderIOError { path, source} => {
+                write!(f, "Unable to render contents of `{:?}`: {}", path, source)
+            }
+            RenderError::StringRenderError { string, source } => {
+                write!(f, "Unable to render `{}`: {}", string, extract_message(source))
+            }
+            RenderError::IOError { source } => {
+                write!(f, "Rendering IO Error: {}", source)
+            }
+        }
+    }
+}
+
+fn extract_message(error: &crate::vendor::tera::Error) -> String {
+    match error.source() {
+        None => format!("{}", error),
+        Some(source) => format!("{}", source)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    
+    use crate::vendor::tera::{Context};
+    use std::error::Error;
+
     #[test]
     fn test() {
-        let error = RenderError::FileRenderError {
-            path: PathBuf::from("/some/path"),
-            source: crate::vendor::tera::Error::filter_not_found("train_case"),
-        };
-        println!("{}", error);
+        let mut tera = crate::vendor::tera::Tera::default();
+        let mut context = Context::new();
+        context.insert("name", "Jimmie");
+        let template = "Hello, {{ nam | train_case }}!";
+        let result = tera.render_str(template, &context);
+        match result {
+            Ok(rendered) => println!("{}", rendered),
+            Err(err) => {
+                match err.source() {
+                    None => {}
+                    Some(err) => {
+                        println!("{}", err);
+                    }
+                }
+            }
+        }
     }
 }

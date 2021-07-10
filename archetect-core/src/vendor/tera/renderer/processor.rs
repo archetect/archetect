@@ -75,24 +75,45 @@ fn process_path<'a>(path: &str, call_stack: &CallStack<'a>) -> Result<Val<'a>> {
     if !path.contains('[') {
         match call_stack.lookup(path) {
             Some(v) => Ok(v),
-            None => Err(Error::msg(format!(
-                "Variable `{}` not found in context while rendering '{}'",
-                path,
-                call_stack.active_template().name
-            ))),
+            None => {
+                if call_stack.active_template().name.eq(crate::vendor::tera::tera::ONE_OFF_TEMPLATE_NAME) {
+                    Err(Error::msg(format!(
+                        "Variable `{}` not found",
+                        path,
+                    )))
+                } else {
+                    Err(Error::msg(format!(
+                        "Variable `{}` not found in context while rendering '{}'",
+                        path,
+                        call_stack.active_template().name
+                    )))
+                }
+            }
         }
     } else {
         let full_path = evaluate_sub_variables(path, call_stack)?;
 
         match call_stack.lookup(full_path.as_ref()) {
             Some(v) => Ok(v),
-            None => Err(Error::msg(format!(
-                "Variable `{}` not found in context while rendering '{}': \
+            None =>
+                {
+                    if call_stack.active_template().name.eq(crate::vendor::tera::tera::ONE_OFF_TEMPLATE_NAME) {
+                        Err(Error::msg(format!(
+                            "Variable `{}` not found: \
                  the evaluated version was `{}`. Maybe the index is out of bounds?",
-                path,
-                call_stack.active_template().name,
-                full_path,
-            ))),
+                            path,
+                            full_path,
+                        )))
+                    } else {
+                        Err(Error::msg(format!(
+                            "Variable `{}` not found in context while rendering '{}': \
+                 the evaluated version was `{}`. Maybe the index is out of bounds?",
+                            path,
+                            call_stack.active_template().name,
+                            full_path,
+                        )))
+                    }
+                }
         }
     }
 }
@@ -305,7 +326,7 @@ impl<'a> Processor<'a> {
                     return Err(Error::msg(format!(
                         "Tried to check if {:?} is in a string, but it isn't a string",
                         lhs
-                    )))
+                    )));
                 }
             },
             Value::Object(ref map) => match *lhs {
@@ -314,13 +335,13 @@ impl<'a> Processor<'a> {
                     return Err(Error::msg(format!(
                         "Tried to check if {:?} is in a object, but it isn't a string",
                         lhs
-                    )))
+                    )));
                 }
             },
             _ => {
                 return Err(Error::msg(
                     "The `in` operator only supports strings, arrays and objects.",
-                ))
+                ));
             }
         };
 
@@ -933,7 +954,7 @@ impl<'a> Processor<'a> {
                 to_value(
                     to_string_pretty(&self.call_stack.current_context_cloned().take()).unwrap(),
                 )
-                .unwrap(),
+                    .unwrap(),
             ));
         }
 

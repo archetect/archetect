@@ -17,7 +17,7 @@ use crate::vendor::tera::template::Template;
 use crate::vendor::tera::utils::escape_html;
 
 /// The of the the template used for `Tera::render_str` and `Tera::one_off`.
-const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
+pub(crate) const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
 
 /// The escape function type definition
 pub type EscapeFn = fn(&str) -> String;
