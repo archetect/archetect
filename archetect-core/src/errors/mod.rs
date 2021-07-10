@@ -78,12 +78,12 @@ pub enum RenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
-    #[error("Unable to render file `{path}`")]
+    #[error("Unable to render contents of `{path}`")]
     FileRenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
-    #[error("Unable to render file `{path}`: {source}")]
+    #[error("Unable to render contents of `{path}`: {source}")]
     FileRenderIOError {
         path: PathBuf,
         source: std::io::Error,
@@ -93,19 +93,11 @@ pub enum RenderError {
         string: String,
         source: crate::vendor::tera::Error,
     },
-    #[error("Rendering IO Error: {message}\n{source}")]
+    #[error("Rendering IO Error: {source}")]
     IOError {
-        // TODO: #[from]
+        #[from]
         source: std::io::Error,
-        message: String,
     },
-}
-
-impl From<std::io::Error> for RenderError {
-    fn from(error: std::io::Error) -> Self {
-        let message = error.to_string();
-        RenderError::IOError { source: error, message }
-    }
 }
 
 #[cfg(test)]
