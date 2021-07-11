@@ -118,7 +118,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 answers.insert(identifier.to_owned(), answer_info.clone());
             }
         }
-        archetype.execute_script(&mut archetect, &destination, &answers)?;
+        archetype.render(&mut archetect, &destination, &answers)?;
     }
 
     if let Some(matches) = matches.subcommand_matches("catalog") {
@@ -150,7 +150,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                             }
                         }
                     }
-                    archetype.execute_script(&mut archetect, &destination, &answers)?;
+                    archetype.render(&mut archetect, &destination, &answers)?;
                     return Ok(());
                 }
                 _ => unreachable!(),

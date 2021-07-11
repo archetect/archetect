@@ -14,7 +14,6 @@ use crate::{Archetect, ArchetectError};
 pub struct Archetype {
     source: Source,
     config: ArchetypeConfig,
-    path: PathBuf,
 }
 
 impl Archetype {
@@ -24,14 +23,13 @@ impl Archetype {
         let archetype = Archetype {
             config,
             source: source.clone(),
-            path: source.directory().to_owned(),
         };
 
         Ok(archetype)
     }
 
-    pub fn path(&self) -> &PathBuf {
-        &self.path
+    pub fn directory(&self) -> &Path {
+        &self.source.directory()
     }
 
     pub fn configuration(&self) -> &ArchetypeConfig {
@@ -42,7 +40,7 @@ impl Archetype {
         &self.source
     }
 
-    pub fn execute_script<D: AsRef<Path>>(
+    pub fn render<D: AsRef<Path>>(
         &self,
         archetect: &mut Archetect,
         destination: D,
