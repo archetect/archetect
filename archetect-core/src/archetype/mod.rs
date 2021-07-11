@@ -19,14 +19,12 @@ pub struct Archetype {
 
 impl Archetype {
     pub fn from_source(source: &Source) -> Result<Archetype, ArchetypeError> {
-        let local_path = source.local_path();
-
-        let config = ArchetypeConfig::load(local_path)?;
+        let config = ArchetypeConfig::load(source.local_path())?;
 
         let archetype = Archetype {
             config,
             source: source.clone(),
-            path: local_path.to_owned(),
+            path: source.directory().to_owned(),
         };
 
         Ok(archetype)
@@ -76,6 +74,7 @@ impl Archetype {
     }
 }
 
+// TODO: Rework to capture working directory
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ArchetypeInfo {
     source: String,
@@ -91,36 +90,25 @@ pub struct ArchetectInfo {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetypeError {
-    #[error("Invalid Archetype")]
-    ArchetypeInvalid,
+    #[error("The specified archetype is missing an archetype.yml or archetype.yaml file")]
+    ArchetypeConfigMissing,
+    #[error("The specified archetype config `{path}` does not exist")]
+    ArchetypeConfigNotFound {
+        path: PathBuf,
+    },
     #[error("Invalid Answers Config")]
     InvalidAnswersConfig,
     #[error(transparent)]
-    SourceError(SourceError),
+    SourceError(#[from] SourceError),
     #[error(transparent)]
-    RenderError(RenderError),
+    RenderError(#[from] RenderError),
     #[error("IO Error in Archetype: {0}")]
-    IoError(std::io::Error),
+    IoError(#[from] std::io::Error),
     #[error("Archetype Configuration Error in `{path}`: {source}")]
-    YamlError { path: PathBuf, source: serde_yaml::Error },
-}
-
-impl From<SourceError> for ArchetypeError {
-    fn from(cause: SourceError) -> Self {
-        ArchetypeError::SourceError(cause)
-    }
-}
-
-impl From<RenderError> for ArchetypeError {
-    fn from(error: RenderError) -> Self {
-        ArchetypeError::RenderError(error)
-    }
-}
-
-impl From<std::io::Error> for ArchetypeError {
-    fn from(error: std::io::Error) -> ArchetypeError {
-        ArchetypeError::IoError(error)
-    }
+    YamlError {
+        path: PathBuf,
+        source: serde_yaml::Error
+    },
 }
 
 #[cfg(test)]

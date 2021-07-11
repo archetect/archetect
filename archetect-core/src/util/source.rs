@@ -122,6 +122,15 @@ impl Source {
         }
     }
 
+    pub fn directory(&self) -> &Path {
+        match self {
+            Source::RemoteGit { url: _, path } => path.as_path(),
+            Source::RemoteHttp { url: _, path } => path.as_path(),
+            Source::LocalDirectory { path } => path.as_path(),
+            Source::LocalFile { path } => path.parent().unwrap_or(path),
+        }
+    }
+
     pub fn local_path(&self) -> &Path {
         match self {
             Source::RemoteGit { url: _, path } => path.as_path(),

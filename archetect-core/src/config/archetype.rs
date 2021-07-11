@@ -35,13 +35,15 @@ impl ArchetypeConfig {
                 }
             }
         }
-        if !path.exists() {
-            Err(ArchetypeError::ArchetypeInvalid)
+        if path.is_dir() {
+            Err(ArchetypeError::ArchetypeConfigMissing)
+        } else if !path.exists() {
+            Err(ArchetypeError::ArchetypeConfigNotFound { path })
         } else {
             let config = fs::read_to_string(&path)?;
-            match serde_yaml::from_str::<ArchetypeConfig>(&config) {
-                Ok(config) => return Ok(config),
-                Err(cause) => return Err(ArchetypeError::YamlError { path, source: cause }),
+            return match serde_yaml::from_str::<ArchetypeConfig>(&config) {
+                Ok(config) => Ok(config),
+                Err(source) => Err(ArchetypeError::YamlError { path, source }),
             }
         }
     }
