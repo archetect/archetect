@@ -159,8 +159,8 @@ impl Archetect {
 
     fn render_path<P: AsRef<Path>>(&mut self, path: P, context: &Context) -> Result<String, RenderError> {
         let path = path.as_ref();
-        let path = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
-        match self.tera.render_str(path, &context.clone()) {
+        let filename = path.file_name().unwrap_or(path.as_os_str()).to_str().unwrap();
+        match self.tera.render_str(filename, &context.clone()) {
             Ok(result) => Ok(result),
             Err(error) => {
                 Err(RenderError::PathRenderError {

@@ -34,6 +34,7 @@ impl Renderable for &Path {
                 Err(error) => {
                     match error {
                         RenderError::StringRenderError { string: _, source: error} => {
+
                             return Err(RenderError::PathRenderError {
                                 path: self.into(),
                                 source: error,
