@@ -28,10 +28,6 @@ impl Archetype {
         Ok(archetype)
     }
 
-    pub fn directory(&self) -> &Path {
-        &self.source.directory()
-    }
-
     pub fn configuration(&self) -> &ArchetypeConfig {
         &self.config
     }
@@ -52,10 +48,9 @@ impl Archetype {
         let mut rules_context = RulesContext::new();
         let mut context = Context::new();
 
-        use clap::crate_version;
         let archetect_info = ArchetectInfo {
             offline: archetect.offline(),
-            version: crate_version!().to_owned(),
+            version: clap::crate_version!().to_owned(),
         };
         context.insert("archetect", &archetect_info);
 

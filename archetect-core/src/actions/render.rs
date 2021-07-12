@@ -77,7 +77,7 @@ impl Action for RenderAction {
     ) -> Result<(), ArchetectError> {
         match self {
             RenderAction::Directory(options) => {
-                let source = archetype.directory().join(&options.source);
+                let source = archetype.source().directory().join(&options.source);
                 let destination = if let Some(dest) = &options.destination {
                     if let Ok(result) = shellexpand::full(dest) {
                         use log::debug;

@@ -15,6 +15,7 @@ impl Catalog {
     }
 
     pub fn load(source: Source) -> Result<Catalog, CatalogError> {
+        // TODO: Support both yml and yaml extensions
         let catalog_path = match source {
             Source::LocalFile { path } => path,
             Source::RemoteHttp { url: _, path } => path,

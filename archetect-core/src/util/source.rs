@@ -85,11 +85,11 @@ impl Source {
             }
 
             if let Ok(local_path) = url.to_file_path() {
-                if local_path.exists() {
+                return if local_path.exists() {
                     verify_requirements(archetect, source, &local_path)?;
-                    return Ok(Source::LocalDirectory { path: local_path });
+                    Ok(Source::LocalDirectory { path: local_path })
                 } else {
-                    return Err(SourceError::SourceNotFound(local_path.display().to_string()));
+                    Err(SourceError::SourceNotFound(local_path.display().to_string()))
                 }
             }
         }
