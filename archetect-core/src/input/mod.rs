@@ -1,23 +1,10 @@
 use crate::config::{Catalog, CatalogEntry, CatalogError};
 
-use crate::util::{Source, SourceError};
+use crate::util::{Source};
 use crate::Archetect;
 use crate::vendor::read_input::shortcut::input;
 use crate::vendor::read_input::InputBuild;
 use std::collections::{HashMap, HashSet};
-
-#[derive(Debug)]
-pub enum CatalogSelectError {
-    EmptyCatalog,
-    SourceError(SourceError),
-    UnsupportedCatalogSource(String),
-}
-
-impl From<SourceError> for CatalogSelectError {
-    fn from(cause: SourceError) -> Self {
-        CatalogSelectError::SourceError(cause)
-    }
-}
 
 pub fn you_are_sure(message: &str) -> bool {
     input::<bool>()

@@ -8,7 +8,7 @@ use crate::actions::{Action, ActionId};
 use crate::config::VariableInfo;
 use crate::rules::RulesContext;
 use crate::{Archetect, ArchetectError, Archetype};
-use crate::vendor::tera::Context;
+use crate::vendor::tera::{Context, Value};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IfAction {
@@ -28,10 +28,6 @@ pub enum Condition {
     Conditions(Vec<Condition>),
     #[serde(rename = "equals")]
     Equals(String, String),
-    #[serde(rename = "matches")]
-    Matches(String, String),
-    #[serde(rename = "is-blank")]
-    IsBlank(String),
     #[serde(rename = "is-empty")]
     IsEmpty(String),
     #[serde(rename = "path-exists")]
@@ -46,6 +42,8 @@ pub enum Condition {
     Not(Box<Condition>),
     #[serde(rename = "any-of")]
     AnyOf(Vec<Condition>),
+    #[serde(rename = "is-true")]
+    IsTrue(String),
 }
 
 impl IfAction {
@@ -67,21 +65,17 @@ impl Condition {
         context: &Context,
     ) -> Result<bool, ArchetectError> {
         match self {
-            Condition::IsBlank(input) => {
-                if let Some(value) = context.get(input) {
-                    if let Some(string) = value.as_str() {
-                        return Ok(string.trim().is_empty());
-                    }
-                }
-                Ok(false)
-            }
             Condition::IsEmpty(input) => {
                 if let Some(value) = context.get(input) {
-                    if let Some(string) = value.as_str() {
-                        return Ok(string.trim().is_empty());
+                    return match value {
+                        Value::Null => Ok(true),
+                        Value::String(string) => Ok(string.trim().is_empty()),
+                        Value::Array(array) => Ok(array.is_empty()),
+                        Value::Object(object) => Ok(object.is_empty()),
+                        Value::Bool(_) | Value::Number(_) => Ok(false),
                     }
                 }
-                Ok(false)
+                Ok(true)
             }
             Condition::PathExists(path) => {
                 let path = archetect.render_string(path, context)?;
@@ -106,11 +100,6 @@ impl Condition {
                 Ok(!value)
             }
             Condition::Equals(left, right) => {
-                let left = archetect.render_string(left, context)?;
-                let right = archetect.render_string(right, context)?;
-                return Ok(left.eq(&right));
-            }
-            Condition::Matches(left, right) => {
                 let left = archetect.render_string(left, context)?;
                 let right = archetect.render_string(right, context)?;
                 return Ok(left.eq(&right));
@@ -141,6 +130,14 @@ impl Condition {
                     }
                 }
                 Ok(true)
+            }
+            Condition::IsTrue(expression) => {
+                let result = archetect.render_string(expression, context)?;
+                return if result.trim().eq("true") {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
             }
         }
     }
