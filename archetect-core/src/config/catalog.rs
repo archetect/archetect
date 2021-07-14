@@ -1,4 +1,4 @@
-use crate::util::{Source, SourceError};
+use crate::source::{Source, SourceError};
 use std::fs;
 use std::path::{Path, PathBuf};
 

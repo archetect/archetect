@@ -12,7 +12,7 @@ use archetect_core::config::{
     AnswerConfig, AnswerInfo, Catalog, CATALOG_FILE_NAME, CatalogEntry,
 };
 use archetect_core::input::select_from_catalog;
-use archetect_core::util::{Source};
+use archetect_core::source::{Source};
 
 mod cli;
 pub mod vendor;

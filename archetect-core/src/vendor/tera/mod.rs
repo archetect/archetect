@@ -13,6 +13,7 @@ mod macros;
 pub(crate) mod builtins;
 mod context;
 mod errors;
+pub(crate) mod extensions;
 mod filter_utils;
 mod parser;
 mod renderer;

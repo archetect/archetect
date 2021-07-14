@@ -13,7 +13,7 @@ use crate::config::RuleAction;
 use crate::rules::RulesContext;
 use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
-use crate::util::Source;
+use crate::source::Source;
 use crate::vendor::tera::{Context, Tera};
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
@@ -211,7 +211,7 @@ impl ArchetectBuilder {
         let paths = Rc::new(paths);
 
         Ok(Archetect {
-            tera: crate::tera::create_tera(),
+            tera: crate::vendor::tera::extensions::create_tera(),
             paths,
             offline: self.offline,
             switches: self.switches,

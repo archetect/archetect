@@ -8,7 +8,7 @@ use crate::config::{AnswerInfo, ArchetypeConfig};
 use crate::errors::RenderError;
 use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
-use crate::util::{Source, SourceError};
+use crate::source::{Source, SourceError};
 use crate::{Archetect, ArchetectError};
 
 pub struct Archetype {
