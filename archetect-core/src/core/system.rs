@@ -11,7 +11,7 @@ use semver::Version;
 
 use crate::config::RuleAction;
 use crate::rules::RulesContext;
-use crate::system::layout::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
+use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::system::SystemError;
 use crate::source::Source;
 use crate::vendor::tera::{Context, Tera};
@@ -227,7 +227,7 @@ impl ArchetectBuilder {
         let builder = match layout {
             LayoutType::Native => self.with_layout(NativeSystemLayout::new()?),
             LayoutType::DotHome => self.with_layout(dot_home_layout()?),
-            LayoutType::Temp => self.with_layout(crate::system::layout::temp_layout()?),
+            LayoutType::Temp => self.with_layout(crate::system::temp_layout()?),
         };
         Ok(builder)
     }
@@ -240,7 +240,7 @@ impl ArchetectBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::system::layout::{NativeSystemLayout, RootedSystemLayout};
+    use crate::system::{NativeSystemLayout, RootedSystemLayout};
 
     use super::*;
 

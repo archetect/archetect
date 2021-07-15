@@ -1,5 +1,4 @@
 use crate::config::CATALOG_FILE_NAME;
-use crate::system::SystemError;
 use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
 use std::path::{Path, PathBuf};
@@ -113,4 +112,21 @@ pub fn dot_home_layout() -> Result<RootedSystemLayout, SystemError> {
 pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
     let temp_dir = tempdir()?;
     Ok(RootedSystemLayout::new(temp_dir.path())?)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SystemError {
+    #[error("IO System Error: {source}")]
+    IOError {
+        #[from]
+        source: std::io::Error,
+    },
+    #[error("System Error: {0}")]
+    GenericError(String),
+}
+
+impl From<String> for SystemError {
+    fn from(error: String) -> Self {
+        SystemError::GenericError(error)
+    }
 }
