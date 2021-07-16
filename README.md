@@ -15,8 +15,8 @@ projects, or entire architectures.  Key features include:
 * A distributed menu/catalog system
 
 Modules:
-* [archetect_cli](archetect-cli/README.md)
-* [archetect_core](archetect-core/README.md)
+* [archetect-cli](archetect-cli/README.md)
+* [archetect-core](archetect-core/README.md)
 
 ## Quick Start
 
