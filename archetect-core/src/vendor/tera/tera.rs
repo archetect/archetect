@@ -182,8 +182,7 @@ impl Tera {
         let path = path.as_ref();
         let tpl_name = name.unwrap_or_else(|| path.to_str().unwrap());
 
-        let mut f = File::open(path)
-            .map_err(|e| Error::chain(format!("Couldn't open template '{:?}'", path), e))?;
+        let mut f = File::open(path).map_err(|e| Error::chain(format!("Couldn't open template '{:?}'", path), e))?;
 
         let mut input = String::new();
         f.read_to_string(&mut input)
@@ -328,12 +327,7 @@ impl Tera {
     /// context.insert("age", 18);
     /// tera.render_to("hello.html", context, &mut buffer);
     /// ```
-    pub fn render_to(
-        &self,
-        template_name: &str,
-        context: &Context,
-        write: impl Write,
-    ) -> Result<()> {
+    pub fn render_to(&self, template_name: &str, context: &Context, write: impl Write) -> Result<()> {
         let template = self.get_template(template_name)?;
         let renderer = Renderer::new(template, self, context);
         renderer.render_to(write)
@@ -400,8 +394,8 @@ impl Tera {
     /// tera.add_raw_template("new.html", "Blabla");
     /// ```
     pub fn add_raw_template(&mut self, name: &str, content: &str) -> Result<()> {
-        let tpl = Template::new(name, None, content)
-            .map_err(|e| Error::chain(format!("Failed to parse '{}'", name), e))?;
+        let tpl =
+            Template::new(name, None, content).map_err(|e| Error::chain(format!("Failed to parse '{}'", name), e))?;
         self.templates.insert(name.to_string(), tpl);
         self.build_inheritance_chains()?;
         self.check_macro_files()?;
@@ -617,7 +611,6 @@ impl Tera {
 
     fn register_tera_functions(&mut self) {
         self.register_function("range", functions::range);
-        #[cfg(feature = "builtins")]
         self.register_function("now", functions::now);
         self.register_function("throw", functions::throw);
         #[cfg(feature = "builtins")]
@@ -794,7 +787,10 @@ mod tests {
             tera.get_template("a").unwrap().parents,
             vec!["b".to_string(), "c".to_string(), "d".to_string()]
         );
-        assert_eq!(tera.get_template("b").unwrap().parents, vec!["c".to_string(), "d".to_string()]);
+        assert_eq!(
+            tera.get_template("b").unwrap().parents,
+            vec!["c".to_string(), "d".to_string()]
+        );
         assert_eq!(tera.get_template("c").unwrap().parents, vec!["d".to_string()]);
         assert_eq!(tera.get_template("d").unwrap().parents.len(), 0);
     }
@@ -803,7 +799,9 @@ mod tests {
     fn test_missing_parent_template() {
         let mut tera = Tera::default();
         assert_eq!(
-            tera.add_raw_template("a", "{% extends \"b\" %}").unwrap_err().to_string(),
+            tera.add_raw_template("a", "{% extends \"b\" %}")
+                .unwrap_err()
+                .to_string(),
             "Template \'a\' is inheriting from \'b\', which doesn\'t exist or isn\'t loaded."
         );
     }
@@ -836,12 +834,20 @@ mod tests {
             ),
         ]).unwrap();
 
-        let hey_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("hey").unwrap();
+        let hey_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("hey")
+            .unwrap();
         assert_eq!(hey_definitions.len(), 3);
 
-        let ending_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("ending").unwrap();
+        let ending_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("ending")
+            .unwrap();
         assert_eq!(ending_definitions.len(), 2);
     }
 
@@ -860,12 +866,20 @@ mod tests {
             ),
         ]).unwrap();
 
-        let hey_definitions =
-            tera.get_template("child").unwrap().blocks_definitions.get("hey").unwrap();
+        let hey_definitions = tera
+            .get_template("child")
+            .unwrap()
+            .blocks_definitions
+            .get("hey")
+            .unwrap();
         assert_eq!(hey_definitions.len(), 3);
 
-        let ending_definitions =
-            tera.get_template("parent").unwrap().blocks_definitions.get("ending").unwrap();
+        let ending_definitions = tera
+            .get_template("parent")
+            .unwrap()
+            .blocks_definitions
+            .get("ending")
+            .unwrap();
         assert_eq!(ending_definitions.len(), 1);
     }
 
@@ -933,8 +947,7 @@ mod tests {
         let m = json!({
             "greeting": "Good morning"
         });
-        let result =
-            Tera::one_off("{{ greeting }} world", &Context::from_value(m).unwrap(), true).unwrap();
+        let result = Tera::one_off("{{ greeting }} world", &Context::from_value(m).unwrap(), true).unwrap();
 
         assert_eq!(result, "Good morning world");
     }
@@ -946,8 +959,9 @@ mod tests {
             Ok(args.get("greeting").map(JsonValue::to_owned).unwrap())
         });
 
-        let result =
-            tera.render_str("{{ echo(greeting='Hello') }} world", &Context::default()).unwrap();
+        let result = tera
+            .render_str("{{ echo(greeting='Hello') }} world", &Context::default())
+            .unwrap();
 
         assert_eq!(result, "Hello world");
     }

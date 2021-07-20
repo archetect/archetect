@@ -1,6 +1,6 @@
 [package]
 name = "archetect-core"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"
@@ -32,6 +32,7 @@ serde_yaml = "0.8"
 shellexpand = "1"
 tempfile = "3"
 unicode-segmentation = "1.2.0"
+uuid = { version = "0.8", features = ["serde", "v4"] }
 
 v_htmlescape = "0.4"
 
