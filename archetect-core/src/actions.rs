@@ -215,6 +215,7 @@ mod tests {
     use crate::actions::render::{ArchetypeOptions, DirectoryOptions};
 
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn test_serialize() {
@@ -227,6 +228,16 @@ mod tests {
         ];
 
         let yaml = serde_yaml::to_string(&actions).unwrap();
-        println!("{}", yaml);
+
+        let expected = indoc! {r#"
+            ---
+            - warn: Warning!!
+            - render:
+                directory:
+                  source: "."
+            - render:
+                archetype:
+                  source: "git@github.com:archetect/archetype-rust-cli.git""#};
+        assert_eq!(yaml, expected);
     }
 }
