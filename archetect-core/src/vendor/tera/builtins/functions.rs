@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "builtins")]
 use chrono::prelude::*;
 #[cfg(feature = "builtins")]
 use rand::Rng;
@@ -83,7 +82,6 @@ pub fn range(args: &HashMap<String, Value>) -> Result<Value> {
     Ok(to_value(res).unwrap())
 }
 
-#[cfg(feature = "builtins")]
 pub fn now(args: &HashMap<String, Value>) -> Result<Value> {
     let utc = match args.get("utc") {
         Some(val) => match from_value::<bool>(val.clone()) {
