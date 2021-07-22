@@ -238,6 +238,13 @@ mod tests {
             - render:
                 archetype:
                   source: "git@github.com:archetect/archetype-rust-cli.git""#};
-        assert_eq!(yaml, expected);
+        assert_eq!(strip_trailing_newline(&yaml), strip_trailing_newline(expected));
+    }
+
+    fn strip_trailing_newline(input: &str) -> &str {
+        input
+            .strip_suffix("\r\n")
+            .or(input.strip_suffix("\n"))
+            .unwrap_or(input)
     }
 }
