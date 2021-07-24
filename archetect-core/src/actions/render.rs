@@ -24,17 +24,6 @@ pub struct DirectoryOptions {
     source: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ArchetypeOptions {
-    #[serde(skip_serializing_if = "Option::is_none", rename = "answers-include")]
-    answers_include: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    answers: Option<LinkedHashMap<String, AnswerInfo>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    destination: Option<String>,
-    source: String,
-}
-
 impl DirectoryOptions {
     pub fn new<S: Into<String>>(source: S) -> DirectoryOptions {
         DirectoryOptions {
@@ -49,6 +38,17 @@ impl DirectoryOptions {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ArchetypeOptions {
+    #[serde(skip_serializing_if = "Option::is_none", rename = "inherit-answers", alias = "answers-include")]
+    answers_include: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    answers: Option<LinkedHashMap<String, AnswerInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    destination: Option<String>,
+    source: String,
+}
+
 impl ArchetypeOptions {
     pub fn new<S: Into<String>>(source: S) -> ArchetypeOptions {
         ArchetypeOptions {
@@ -61,6 +61,16 @@ impl ArchetypeOptions {
 
     pub fn with_destination<D: Into<String>>(mut self, destination: D) -> ArchetypeOptions {
         self.destination = Some(destination.into());
+        self
+    }
+
+    pub fn with_inherited_answer(mut self, key: String) -> ArchetypeOptions {
+        self.answers_include.get_or_insert_with(|| Vec::new()).push(key);
+        self
+    }
+
+    pub fn with_answer(mut self, key: String, value: AnswerInfo) -> ArchetypeOptions {
+        self.answers.get_or_insert_with(|| LinkedHashMap::new()).insert(key, value);
         self
     }
 }

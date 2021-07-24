@@ -223,11 +223,14 @@ mod tests {
             ActionId::LogWarn("Warning!!".to_owned()),
             ActionId::Render(RenderAction::Directory(DirectoryOptions::new("."))),
             ActionId::Render(RenderAction::Archetype(ArchetypeOptions::new(
-                "git@github.com:archetect/archetype-rust-cli.git",
-            ))),
+                "git@github.com:archetect/archetype-rust-cli.git",)
+                .with_inherited_answer("fname".into())
+                .with_answer("lname".into(), AnswerInfo::with_value("Brown").build())
+            )),
         ];
 
         let yaml = serde_yaml::to_string(&actions).unwrap();
+        println!("{}", yaml);
 
         let expected = indoc! {r#"
             ---
@@ -237,6 +240,11 @@ mod tests {
                   source: "."
             - render:
                 archetype:
+                  inherit-answers:
+                    - fname
+                  answers:
+                    lname:
+                      value: Brown
                   source: "git@github.com:archetect/archetype-rust-cli.git""#};
         assert_eq!(strip_newline(&yaml), strip_newline(expected));
     }
