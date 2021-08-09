@@ -153,6 +153,13 @@ mod tests {
                 .with_type(VariableType::Enum(vec!["DynamoDb".to_owned(), "JPA".to_owned()]))
                 .build(),
         );
+        variables.insert(
+            "environments".to_owned(),
+            VariableInfo::with_prompt("Environments?")
+                .with_type(VariableType::Array)
+                .build(),
+        );
+
 
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")

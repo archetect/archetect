@@ -221,6 +221,7 @@ mod tests {
     fn test_serialize() {
         let actions = vec![
             ActionId::LogWarn("Warning!!".to_owned()),
+
             ActionId::Render(RenderAction::Directory(DirectoryOptions::new("."))),
             ActionId::Render(RenderAction::Archetype(ArchetypeOptions::new(
                 "git@github.com:archetect/archetype-rust-cli.git",)
