@@ -19,7 +19,7 @@ impl Catalog {
         let catalog_path = match source {
             Source::LocalFile { path } => path,
             Source::RemoteHttp { url: _, path } => path,
-            Source::RemoteGit { url: _, path } => path.join(CATALOG_FILE_NAME),
+            Source::RemoteGit { url: _, path, gitref: _ } => path.join(CATALOG_FILE_NAME),
             Source::LocalDirectory { path } => path.join(CATALOG_FILE_NAME),
         };
 
