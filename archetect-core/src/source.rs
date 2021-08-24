@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 
-use log::{debug, info, trace};
+use log::{debug, info};
 use regex::Regex;
 use url::Url;
 
@@ -12,7 +12,7 @@ use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
-    RemoteGit { url: String, path: PathBuf },
+    RemoteGit { url: String, path: PathBuf, gitref: Option<String> },
     RemoteHttp { url: String, path: PathBuf },
     LocalDirectory { path: PathBuf },
     LocalFile { path: PathBuf },
@@ -22,6 +22,8 @@ pub enum Source {
 pub enum SourceError {
     #[error("Unsupported source: `{0}`")]
     SourceUnsupported(String),
+    #[error("Failed to find a default 'develop', 'main', or 'master' branch.")]
+    NoDefaultBranch,
     #[error("Source not found: `{0}`")]
     SourceNotFound(String),
     #[error("Invalid Source Path: `{0}`")]
@@ -45,7 +47,7 @@ impl From<std::io::Error> for SourceError {
 }
 
 lazy_static! {
-    static ref SHORT_GIT_PATTERN: Regex = Regex::new(r"\S+@(\S+):(.*)").unwrap();
+    static ref SSH_GIT_PATTERN: Regex = Regex::new(r"\S+@(\S+):(.*)").unwrap();
     static ref CACHED_PATHS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
 }
 
@@ -54,33 +56,41 @@ impl Source {
         let source = path;
         let git_cache = archetect.layout().git_cache_dir();
 
-        if let Some(captures) = SHORT_GIT_PATTERN.captures(&path) {
+        let urlparts: Vec<&str> = path.split('#').collect();
+        if let Some(captures) = SSH_GIT_PATTERN.captures(&urlparts[0]) {
+
             let cache_path = git_cache
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
-            if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
+
+            let gitref = if urlparts.len() > 1 { Some(urlparts[1].to_owned()) } else { None };
+            if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, archetect
+                .offline()) {
                 return Err(error);
             }
             verify_requirements(archetect, source, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
+                gitref,
             });
         };
 
         if let Ok(url) = Url::parse(&path) {
-            if path.ends_with(".git") && url.has_host() {
+            if path.contains(".git") && url.has_host() {
                 let cache_path =
                     git_cache
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
-                if let Err(error) = cache_git_repo(&path, &cache_path, archetect.offline()) {
+                let gitref = url.fragment().map_or(None, |r| Some(r.to_owned()));
+                if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, archetect.offline()) {
                     return Err(error);
                 }
                 verify_requirements(archetect, source, &cache_path)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
+                    gitref,
                 });
             }
 
@@ -90,7 +100,7 @@ impl Source {
                     Ok(Source::LocalDirectory { path: local_path })
                 } else {
                     Err(SourceError::SourceNotFound(local_path.display().to_string()))
-                }
+                };
             }
         }
 
@@ -124,7 +134,7 @@ impl Source {
 
     pub fn directory(&self) -> &Path {
         match self {
-            Source::RemoteGit { url: _, path } => path.as_path(),
+            Source::RemoteGit { url: _, path, gitref: _ } => path.as_path(),
             Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.parent().unwrap_or(path),
@@ -133,7 +143,7 @@ impl Source {
 
     pub fn local_path(&self) -> &Path {
         match self {
-            Source::RemoteGit { url: _, path } => path.as_path(),
+            Source::RemoteGit { url: _, path, gitref: _ } => path.as_path(),
             Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.as_path(),
@@ -142,7 +152,7 @@ impl Source {
 
     pub fn source(&self) -> &str {
         match self {
-            Source::RemoteGit { url, path: _ } => url,
+            Source::RemoteGit { url, path: _, gitref: _ } => url,
             Source::RemoteHttp { url, path: _ } => url,
             Source::LocalDirectory { path } => path.to_str().unwrap(),
             Source::LocalFile { path } => path.to_str().unwrap(),
@@ -181,30 +191,59 @@ fn verify_requirements(archetect: &Archetect, source: &str, path: &Path) -> Resu
     Ok(())
 }
 
-fn cache_git_repo(url: &str, cache_destination: &Path, offline: bool) -> Result<(), SourceError> {
+fn cache_git_repo(url: &str, gitref: &Option<String>, cache_destination: &Path, offline: bool) -> Result<(),
+    SourceError> {
     if !cache_destination.exists() {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
-            trace!("Cloning to {}", cache_destination.to_str().unwrap());
+            debug!("Cloning to {}", cache_destination.to_str().unwrap());
             handle_git(Command::new("git").args(&["clone", &url, cache_destination.to_str().unwrap()]))?;
-            Ok(())
         } else {
-            Err(SourceError::OfflineAndNotCached(url.to_owned()))
+            return Err(SourceError::OfflineAndNotCached(url.to_owned()));
         }
     } else {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-            debug!("Resetting {}", url);
-            handle_git(
-                Command::new("git")
-                    .current_dir(&cache_destination)
-                    .args(&["reset", "--hard"]),
-            )?;
-
-            info!("Pulling {}", url);
-            handle_git(Command::new("git").current_dir(&cache_destination).args(&["pull"]))?;
+            info!("Fetching {}", url);
+            handle_git(Command::new("git").current_dir(&cache_destination).args(&["fetch"]))?;
         }
-        Ok(())
     }
+
+    let gitref = if let Some(gitref) = gitref {
+        gitref.to_owned()
+    } else {
+        find_default_branch(&cache_destination.to_str().unwrap())?
+    };
+
+    let gitref_spec = if is_branch(&cache_destination.to_str().unwrap(), &gitref) {
+        format!("origin/{}", &gitref)
+    } else {
+        gitref
+    };
+
+    debug!("Checking out {}", gitref_spec);
+    handle_git(Command::new("git").current_dir(&cache_destination).args(&["checkout", &gitref_spec]))?;
+
+    Ok(())
+}
+
+fn is_branch(path: &str, gitref: &str) -> bool {
+    match handle_git(Command::new("git").current_dir(path)
+        .arg("show-ref")
+        .arg("-q")
+        .arg("--verify")
+        .arg(format!("refs/remotes/origin/{}", gitref))) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+fn find_default_branch(path: &str) -> Result<String, SourceError> {
+    for candidate in ["develop", "main", "master"] {
+        if is_branch(path, candidate) {
+            return Ok(candidate.to_owned());
+        }
+    }
+    Err(SourceError::NoDefaultBranch)
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
@@ -254,6 +293,12 @@ mod tests {
             None,
         );
         println!("{:?}", source);
+    }
+
+    #[test]
+    fn test_ssh_git_pattern() {
+        let captures = SSH_GIT_PATTERN.captures("git@github.com:archetect/archetect-tutorial.git#02_structure");
+        println!("{:?}", captures);
     }
     //    use super::*;
     //    use matches::assert_matches;
@@ -325,7 +370,7 @@ mod tests {
     //
     //    #[test]
     //    fn test_short_git_pattern() {
-    //        let captures = SHORT_GIT_PATTERN
+    //        let captures = SSH_GIT_PATTERN
     //            .captures("git@github.com:jimmiebfulton/archetect.git")
     //            .unwrap();
     //        assert_eq!(&captures[1], "github.com");
