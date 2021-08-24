@@ -295,11 +295,6 @@ mod tests {
         println!("{:?}", source);
     }
 
-    #[test]
-    fn test_ssh_git_pattern() {
-        let captures = SSH_GIT_PATTERN.captures("git@github.com:archetect/archetect-tutorial.git#02_structure");
-        println!("{:?}", captures);
-    }
     //    use super::*;
     //    use matches::assert_matches;
 
