@@ -5,7 +5,7 @@ homepage = "https://archetect.github.io"
 repository = "https://github.com/archetect/archetect"
 keywords = ["code-generation", "content-generation", "jinja2", "cli"]
 readme = "../README.md"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-archetect-core = { path = "../archetect-core", version = "0.6.1" }
+archetect-core = { path = "../archetect-core", version = "0.7.0" }
 ansi_term = "0.12"
 atty = "0.2"
 clap = "2"
