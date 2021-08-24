@@ -16,7 +16,7 @@ pub struct IfAction {
     condition: Condition,
     #[serde(rename = "then", alias = "actions")]
     then_actions: Vec<ActionId>,
-    #[serde(rename = "else")]
+    #[serde(rename = "else", skip_serializing_if = "Option::is_none")]
     else_actions: Option<Vec<ActionId>>,
 }
 
