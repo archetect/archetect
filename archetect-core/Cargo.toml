@@ -48,6 +48,7 @@ url = "2"
 humansize = "1"
 # used in date format filter
 chrono = "0.4"
+chrono-tz = "0.5"
 # used in truncate filter
 unic-segment = "0.9"
 thiserror = "1.0.26"

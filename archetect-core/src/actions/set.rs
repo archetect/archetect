@@ -443,6 +443,7 @@ mod tests {
         let yaml = serde_yaml::to_string(&object).unwrap();
         println!("{}", yaml);
     }
+    
 
     fn values_map<K: Into<String>, V>(values: Vec<(K, V)>) -> LinkedHashMap<String, Box<V>> {
         let mut results = LinkedHashMap::new();

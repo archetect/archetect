@@ -271,4 +271,17 @@ mod tests {
         std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");
         std::fs::create_dir_all(archetect.layout().git_cache_dir()).expect("Error creating directory");
     }
+
+    mod templating {
+        use crate::Archetect;
+        use crate::vendor::tera::Context;
+
+        #[test]
+        fn test_truncate_filter() {
+            let mut archetect = Archetect::build().unwrap();
+            let template = "{{ 'Jimmie' | truncate(length=1, end='') }}";
+            let result = archetect.render_string(template, &Context::new()).unwrap();
+            assert_eq!(&result, "J");
+        }
+    }
 }

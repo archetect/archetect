@@ -544,7 +544,6 @@ impl Tera {
         self.register_filter("trim_end", string::trim_end);
         self.register_filter("trim_start_matches", string::trim_start_matches);
         self.register_filter("trim_end_matches", string::trim_end_matches);
-        #[cfg(feature = "builtins")]
         self.register_filter("truncate", string::truncate);
         self.register_filter("wordcount", string::wordcount);
         self.register_filter("replace", string::replace);
@@ -585,7 +584,6 @@ impl Tera {
 
         self.register_filter("length", common::length);
         self.register_filter("reverse", common::reverse);
-        #[cfg(feature = "builtins")]
         self.register_filter("date", common::date);
         self.register_filter("json_encode", common::json_encode);
         self.register_filter("as_str", common::as_str);
