@@ -284,7 +284,7 @@ fn prompt_for_enum(prompt: &mut String, options: &Vec<String>, default: &Option<
         eprintln!("{:>2}) {}", id + 1, option);
     }
 
-    let mut message = String::from("Select and entry: ");
+    let mut message = String::from("Select an entry: ");
     if let Some(default) = default {
         if options.contains(default) {
             message.push_str(format!("[{}] ", default).as_str());
