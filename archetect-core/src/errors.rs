@@ -22,7 +22,8 @@ pub enum ArchetectError {
     CatalogError(#[from] CatalogError),
     #[error(transparent)]
     IoError(#[from] std::io::Error),
-    #[error("Headless mode requires answers to be supplied for all variables, but `{0}` was not.")]
+    #[error("Headless mode requires answers to be supplied for all variables, but no answer was supplied for the `{0}` \
+    variable.")]
     HeadlessMissingAnswer(String),
 }
 

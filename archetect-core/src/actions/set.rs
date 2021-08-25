@@ -39,12 +39,12 @@ pub fn populate_context(
         trace!("Attempting to satisfy {} ({:?})", identifier, variable_info);
 
 
-        // No answers or explict value provide.  Check to see if we're in headless mode before prompting for a value.
+        // No answer or explict value provided.  Check to see if we're in headless mode before prompting for a value.
         if archetect.headless() {
             return Err(ArchetectError::HeadlessMissingAnswer(identifier.to_owned()));
         }
-        // If we've made it this far, there was not an acceptable answer or explicit value.  We need to prompt for a
-        // valid value.
+        // If we've made it this far, there was not an acceptable answer or explicit value provided.  We need to prompt
+        // for a valid value.
         let mut prompt = if let Some(prompt) = variable_info.prompt() {
             format!("{} ", archetect.render_string(prompt.trim(), context)?)
         } else {
