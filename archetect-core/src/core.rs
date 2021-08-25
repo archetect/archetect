@@ -21,6 +21,7 @@ pub struct Archetect {
     tera: Tera,
     paths: Rc<Box<dyn SystemLayout>>,
     offline: bool,
+    headless: bool,
     switches: HashSet<String>,
 }
 
@@ -31,6 +32,10 @@ impl Archetect {
 
     pub fn offline(&self) -> bool {
         self.offline
+    }
+
+    pub fn headless(&self) -> bool {
+        self.headless
     }
 
     pub fn builder() -> ArchetectBuilder {
@@ -193,6 +198,7 @@ impl Archetect {
 pub struct ArchetectBuilder {
     layout: Option<Box<dyn SystemLayout>>,
     offline: bool,
+    headless: bool,
     switches: HashSet<String>,
 }
 
@@ -201,6 +207,7 @@ impl ArchetectBuilder {
         ArchetectBuilder {
             layout: None,
             offline: false,
+            headless: false,
             switches: HashSet::new(),
         }
     }
@@ -214,6 +221,7 @@ impl ArchetectBuilder {
             tera: crate::vendor::tera::extensions::create_tera(),
             paths,
             offline: self.offline,
+            headless: self.headless,
             switches: self.switches,
         })
     }
@@ -234,6 +242,11 @@ impl ArchetectBuilder {
 
     pub fn with_offline(mut self, offline: bool) -> ArchetectBuilder {
         self.offline = offline;
+        self
+    }
+
+    pub fn with_headless(mut self, headless: bool) -> ArchetectBuilder {
+        self.headless = headless;
         self
     }
 }
