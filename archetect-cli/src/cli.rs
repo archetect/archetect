@@ -28,7 +28,7 @@ pub fn get_matches() -> App<'static, 'static> {
         .arg(
             Arg::with_name("headless")
                 .global(true)
-                .help("Expect all variable values to be provided by answers arguments or files, never waiting for user \
+                .help("Expect all variable values to be provided by answer arguments or files, never waiting for user \
                 input.")
                 .long("headless"),
         )
