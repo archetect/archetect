@@ -26,6 +26,13 @@ pub fn get_matches() -> App<'static, 'static> {
                 .long("offline"),
         )
         .arg(
+            Arg::with_name("headless")
+                .global(true)
+                .help("Expect all questions to be answered by answers arguments of files, never waiting for user \
+                input.")
+                .long("headless"),
+        )
+        .arg(
             Arg::with_name("answer")
                 .short("a")
                 .long("answer")

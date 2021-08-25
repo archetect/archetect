@@ -31,6 +31,7 @@ fn main() {
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     let mut archetect = Archetect::builder()
         .with_offline(matches.is_present("offline"))
+        .with_headless(matches.is_present("headless"))
         .build()?;
 
     let mut answers = LinkedHashMap::new();
