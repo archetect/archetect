@@ -24,7 +24,10 @@ fn main() {
 
     match execute(matches) {
         Ok(()) => (),
-        Err(error) => error!("{}", error),
+        Err(error) => {
+            error!("{}", error);
+            std::process::exit(-1);
+        },
     }
 }
 
