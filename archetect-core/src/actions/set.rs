@@ -22,16 +22,18 @@ pub fn populate_context(
             if let Some(value) = answer.value() {
                 // If there is an answer for this variable, it has an explicit value, and it is an acceptable answer,
                 // use that.
-                if insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
-                    continue;
+                match insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
+                    None => continue,
+                    Some(warning) => warn!("{}", warning),
                 }
             }
         } else {
             if let Some(value) = variable_info.value() {
                 // If no answer was provided, there is an explicit value on the variable definition, and it is an
                 // acceptable value, use that.
-                if insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
-                    continue;
+                match insert_answered_variable(archetect, identifier, value, &variable_info, context)? {
+                    None => continue,
+                    Some(warning) => warn!("{}", warning),
                 }
             }
         }
@@ -54,10 +56,11 @@ pub fn populate_context(
         // No answer or explict value provided.  Check to see if we're in headless mode before prompting for a value.
         if archetect.headless() {
             if let Some(default) = default {
-                if insert_answered_variable(archetect, identifier, &default, &variable_info, context)? {
-                    continue;
-                } else {
-                    return Err(ArchetectError::HeadlessInvalidDefault { identifier: identifier.to_owned(), default })
+                match insert_answered_variable(archetect, identifier, &default, &variable_info, context)? {
+                    None => continue,
+                    Some(message) => {
+                        return Err(ArchetectError::HeadlessInvalidDefault { identifier: identifier.to_owned(), default, message })
+                    },
                 }
             }
             return Err(ArchetectError::HeadlessMissingAnswer(identifier.to_owned()));
@@ -87,7 +90,7 @@ pub fn populate_context(
 }
 
 fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: &str, variable_info: &VariableInfo,
-                            context: &mut Context) -> Result<bool, ArchetectError> {
+                            context: &mut Context) -> Result<Option<String>, ArchetectError> {
 
     trace!("Setting variable answer {:?}={:?}", identifier, value);
     
@@ -97,7 +100,7 @@ fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: 
             // prompt the user for a valid answer
             if options.contains(&value.to_owned()) {
                 context.insert(identifier, &archetect.render_string(value, context)?);
-                return Ok(true);
+                return Ok(None);
             }
         }
         VariableType::Bool => {
@@ -110,7 +113,7 @@ fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: 
                     _ => false,
                 };
                 context.insert(identifier, &value);
-                return Ok(true);
+                return Ok(None);
             }
         }
         VariableType::Int => {
@@ -118,27 +121,26 @@ fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: 
             // user for a proper integer
             if let Ok(value) = &archetect.render_string(value, context)?.parse::<i64>() {
                 context.insert(identifier, &value);
-                return Ok(true);
+                return Ok(None);
             } else {
                 trace!("'{}' failed to parse as an int", value);
             }
         }
         VariableType::String => {
             context.insert(identifier, &archetect.render_string(value, context)?);
-            return Ok(true);
+            return Ok(None);
         }
         VariableType::Array => {
             let values = convert_to_list(archetect, context, value)?;
             if !values.is_empty() || !variable_info.required() {
                 trace!("Inserting {}={:?}", identifier, values);
                 context.insert(identifier, &Value::Array(values));
-                return Ok(true);
+                return Ok(None);
             }
         }
     }
 
-    warn!("'{:?}' is not a valid answer for {:?} with type {:?}", value, identifier, variable_info.variable_type());
-    return Ok(false);
+    return Ok(Some(format!("{:?} is not a valid value for {:?} with type {:?}.", value, identifier, variable_info.variable_type())));
 }
 
 fn convert_to_list(archetect: &mut Archetect, context: &Context, value: &str) -> Result<Vec<Value>, ArchetectError> {
