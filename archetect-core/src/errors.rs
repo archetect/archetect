@@ -25,6 +25,8 @@ pub enum ArchetectError {
     #[error("Headless mode requires answers to be supplied for all variables, but no answer was supplied for the `{0}` \
     variable.")]
     HeadlessMissingAnswer(String),
+    #[error("Headless mode attempted to use the default value for the `{identifier}` variable, however, {message}")]
+    HeadlessInvalidDefault { identifier: String, default: String, message: String },
 }
 
 #[derive(Debug, thiserror::Error)]
