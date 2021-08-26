@@ -36,21 +36,6 @@ pub fn populate_context(
             }
         }
 
-        trace!("Attempting to satisfy {} ({:?})", identifier, variable_info);
-
-
-        // No answer or explict value provided.  Check to see if we're in headless mode before prompting for a value.
-        if archetect.headless() {
-            return Err(ArchetectError::HeadlessMissingAnswer(identifier.to_owned()));
-        }
-        // If we've made it this far, there was not an acceptable answer or explicit value provided.  We need to prompt
-        // for a valid value.
-        let mut prompt = if let Some(prompt) = variable_info.prompt() {
-            format!("{} ", archetect.render_string(prompt.trim(), context)?)
-        } else {
-            format!("{}: ", identifier)
-        };
-
         // Determine if a default can be provided.
         let default = if let Some(answer) = answers.get(identifier) {
             if let Some(default) = answer.default() {
@@ -64,6 +49,25 @@ pub fn populate_context(
             Some(archetect.render_string(default, context)?)
         } else {
             None
+        };
+
+        // No answer or explict value provided.  Check to see if we're in headless mode before prompting for a value.
+        if archetect.headless() {
+            if let Some(default) = default {
+                if insert_answered_variable(archetect, identifier, &default, &variable_info, context)? {
+                    continue;
+                } else {
+                    return Err(ArchetectError::HeadlessInvalidDefault { identifier: identifier.to_owned(), default })
+                }
+            }
+            return Err(ArchetectError::HeadlessMissingAnswer(identifier.to_owned()));
+        }
+        // If we've made it this far, there was not an acceptable answer or explicit value provided.  We need to prompt
+        // for a valid value.
+        let mut prompt = if let Some(prompt) = variable_info.prompt() {
+            format!("{} ", archetect.render_string(prompt.trim(), context)?)
+        } else {
+            format!("{}: ", identifier)
         };
 
         let value = match variable_info.variable_type() {
