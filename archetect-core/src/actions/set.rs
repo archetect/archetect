@@ -140,7 +140,7 @@ fn insert_answered_variable(archetect: &mut Archetect, identifier: &str, value: 
         }
     }
 
-    return Ok(Some(format!("{:?} is not a valid value for {:?} with type {:?}.", value, identifier, variable_info.variable_type())));
+    return Ok(Some(format!("{:?} is not a valid answer for {:?} with type {:?}.", value, identifier, variable_info.variable_type())));
 }
 
 fn convert_to_list(archetect: &mut Archetect, context: &Context, value: &str) -> Result<Vec<Value>, ArchetectError> {
