@@ -8,6 +8,7 @@ use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
 use crate::{Archetect, ArchetectError, Archetype};
 use std::fs;
+use crate::source::{Source, SourceError};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RenderAction {
@@ -15,6 +16,8 @@ pub enum RenderAction {
     Directory(DirectoryOptions),
     #[serde(rename = "archetype")]
     Archetype(ArchetypeOptions),
+    #[serde(rename = "git")]
+    Raw(RawOptions),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -75,6 +78,13 @@ impl ArchetypeOptions {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RawOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    destination: Option<String>,
+    source: String,
+}
+
 impl Action for RenderAction {
     fn execute<D: AsRef<Path>>(
         &self,
@@ -132,6 +142,21 @@ impl Action for RenderAction {
                 };
 
                 archetype.render(archetect, &destination, &scoped_answers)?;
+            }
+            RenderAction::Raw(options) => {
+                let destination = if let Some(dest) = &options.destination {
+                    destination.as_ref().join(archetect.render_string(dest, context)?)
+                } else {
+                    destination.as_ref().to_owned()
+                };
+                fs::create_dir_all(destination.as_path())?;
+
+                match Source::detect(&archetect, &options.source, None)? {
+                    Source::RemoteGit | Source::LocalDirectory { path } => {
+
+                    }
+                    _ =>
+                }
             }
         }
 
