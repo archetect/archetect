@@ -2,6 +2,7 @@ use crate::actions::ActionId;
 use crate::ArchetypeError;
 use std::fs;
 use std::path::PathBuf;
+use linked_hash_map::LinkedHashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
@@ -15,6 +16,8 @@ pub struct ArchetypeConfig {
     frameworks: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archetypes: Option<LinkedHashMap<String, ArchetypeReference>>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "actions")]
     script: Option<Vec<ActionId>>,
 }
@@ -132,9 +135,17 @@ impl Default for ArchetypeConfig {
             languages: None,
             frameworks: None,
             tags: None,
+            archetypes: None,
             script: None,
         }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ArchetypeReference {
+    remote: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    local: Option<String>,
 }
 
 #[cfg(test)]

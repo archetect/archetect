@@ -24,6 +24,7 @@ log = { version = "0.4", features = ["std"] }
 memchr = { version = "2", default-features = false }
 pest = "2"
 pest_derive = "2"
+rlua = "0.19.4"
 semver = { version = "0.9", features = ["serde"] }
 serde = "1.0.116"
 serde_derive = "1.0.116"

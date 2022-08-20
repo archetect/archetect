@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use linked_hash_map::LinkedHashMap;
 
@@ -10,6 +11,7 @@ use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
 use crate::source::{Source, SourceError};
 use crate::{Archetect, ArchetectError};
+use crate::script_context::ScriptContext;
 
 pub struct Archetype {
     source: Source,
@@ -63,7 +65,11 @@ impl Archetype {
 
         let root_action = ActionId::from(self.config.actions());
 
-        root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)
+        root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)?;
+
+        let archetect = Archetect::build()?;
+        let script_context = ScriptContext::new(Arc::new(Mutex::new(archetect)));
+        Ok(script_context.execute_archetype(&self)?)
     }
 }
 
