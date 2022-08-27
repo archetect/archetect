@@ -11,8 +11,10 @@ use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
 use crate::source::{Source, SourceError};
 use crate::{Archetect, ArchetectError};
-use crate::script_context::ScriptContext;
+use crate::scripting::lua::LuaScriptContext;
+use crate::scripting::rhai::RhaiScriptContext;
 
+#[derive(Clone)]
 pub struct Archetype {
     source: Source,
     config: ArchetypeConfig,
@@ -67,9 +69,21 @@ impl Archetype {
 
         root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)?;
 
-        let archetect = Archetect::build()?;
-        let script_context = ScriptContext::new(Arc::new(Mutex::new(archetect)));
-        Ok(script_context.execute_archetype(&self)?)
+        if let Some(script) = self.configuration().script() {
+            if script.ends_with(".lua") {
+                let archetect = Archetect::build()?;
+                let script_context = LuaScriptContext::new(Arc::new(Mutex::new(archetect)), Arc::new(Mutex::new(self
+                    .clone())));
+                script_context.execute_archetype(&self)?
+            } else if script.ends_with(".rhai") {
+                let script_context = RhaiScriptContext::new();
+                script_context.execute(&self)?
+            } else {
+                return Err(ArchetectError::ArchetypeError(ArchetypeError::UnsupportedScriptType(script.to_string())));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -103,6 +117,8 @@ pub enum ArchetypeError {
     RenderError(#[from] RenderError),
     #[error("IO Error in Archetype: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("Unsupported script type: {0}")]
+    UnsupportedScriptType(String),
     #[error("Archetype Configuration Error in `{path}`: {source}")]
     YamlError {
         path: PathBuf,

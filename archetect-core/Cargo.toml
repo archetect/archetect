@@ -11,6 +11,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+anyhow = "1.0"
 atty = "0.2"
 clap = "2"
 directories = "2.0.2"

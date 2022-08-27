@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use linked_hash_map::LinkedHashMap;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArchetypeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -18,8 +18,10 @@ pub struct ArchetypeConfig {
     tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     archetypes: Option<LinkedHashMap<String, ArchetypeReference>>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "actions")]
-    script: Option<Vec<ActionId>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    actions: Option<Vec<ActionId>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    script: Option<String>,
 }
 
 impl ArchetypeConfig {
@@ -118,12 +120,16 @@ impl ArchetypeConfig {
     }
 
     pub fn add_action(&mut self, action: ActionId) {
-        let actions = self.script.get_or_insert_with(|| Vec::new());
+        let actions = self.actions.get_or_insert_with(|| Vec::new());
         actions.push(action);
     }
 
     pub fn actions(&self) -> &[ActionId] {
-        self.script.as_ref().map(|r| r.as_slice()).unwrap_or_default()
+        self.actions.as_ref().map(|r| r.as_slice()).unwrap_or_default()
+    }
+
+    pub fn script(&self) -> Option<&String> {
+        self.script.as_ref()
     }
 }
 
@@ -136,12 +142,13 @@ impl Default for ArchetypeConfig {
             frameworks: None,
             tags: None,
             archetypes: None,
+            actions: None,
             script: None,
         }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ArchetypeReference {
     remote: String,
     #[serde(skip_serializing_if = "Option::is_none")]

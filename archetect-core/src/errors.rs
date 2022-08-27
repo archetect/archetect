@@ -5,6 +5,7 @@ use crate::ArchetypeError;
 use std::path::PathBuf;
 use std::fmt::{Display, Formatter};
 use std::error::Error;
+use rhai::EvalAltResult;
 use rlua::prelude::LuaError;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,7 +17,9 @@ pub enum ArchetectError {
     #[error(transparent)]
     RenderError(#[from] RenderError),
     #[error(transparent)]
-    ScriptingError(#[from] LuaError),
+    LuaError(#[from] LuaError),
+    #[error(transparent)]
+    RhaiError(#[from] Box<EvalAltResult>),
     #[error(transparent)]
     SystemError(#[from] SystemError),
     #[error(transparent)]

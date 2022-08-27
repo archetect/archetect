@@ -93,13 +93,13 @@ impl ActionId {
             }
 
             // Logging
-            ActionId::LogTrace(message) => trace!("{}", message.render(archetect, context)?),
-            ActionId::LogDebug(message) => debug!("{}", message.render(archetect, context)?),
-            ActionId::LogInfo(message) => info!("{}", message.render(archetect, context)?),
-            ActionId::LogWarn(message) => warn!("{}", message.render(archetect, context)?),
-            ActionId::LogError(message) => error!("{}", message.render(archetect, context)?),
-            ActionId::Print(message) => println!("{}", message.render(archetect, context)?),
-            ActionId::Display(message) => eprintln!("{}", message.render(archetect, context)?),
+            ActionId::LogTrace(message) => trace!("{}", message.render_legacy(archetect, context)?),
+            ActionId::LogDebug(message) => debug!("{}", message.render_legacy(archetect, context)?),
+            ActionId::LogInfo(message) => info!("{}", message.render_legacy(archetect, context)?),
+            ActionId::LogWarn(message) => warn!("{}", message.render_legacy(archetect, context)?),
+            ActionId::LogError(message) => error!("{}", message.render_legacy(archetect, context)?),
+            ActionId::Print(message) => println!("{}", message.render_legacy(archetect, context)?),
+            ActionId::Display(message) => eprintln!("{}", message.render_legacy(archetect, context)?),
 
             ActionId::Scope(actions) => {
                 let mut rules_context = rules_context.clone();
@@ -208,6 +208,10 @@ pub trait Action {
         answers: &LinkedHashMap<String, AnswerInfo>,
         context: &mut Context,
     ) -> Result<(), ArchetectError>;
+}
+
+pub trait Actionable {
+    fn execute(&self) -> Result<(), ArchetectError>;
 }
 
 #[cfg(test)]
