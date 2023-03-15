@@ -1,0 +1,82 @@
+---
+source: minijinja/tests/test_lexer.rs
+description: "{{ true }}\n{{ false }}\n{{ null }}\n{{ 1.0 }}\n{{ 2 }}\n{{ [1, 2, 3] }}\n{{ {\"foo\": \"bar\"} }}"
+input_file: minijinja/tests/lexer-inputs/literals.txt
+---
+VariableStart
+  "{{"
+Ident("true")
+  "true"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+Ident("false")
+  "false"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+Ident("null")
+  "null"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+Float(1.0)
+  "1.0"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+Int(2)
+  "2"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+BracketOpen
+  "["
+Int(1)
+  "1"
+Comma
+  ","
+Int(2)
+  "2"
+Comma
+  ","
+Int(3)
+  "3"
+BracketClose
+  "]"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+VariableStart
+  "{{"
+BraceOpen
+  "{"
+Str("foo")
+  "\"foo\""
+Colon
+  ":"
+Str("bar")
+  "\"bar\""
+BraceClose
+  "}"
+VariableEnd
+  "}}"
+TemplateData("\n")
+  "\n"
+

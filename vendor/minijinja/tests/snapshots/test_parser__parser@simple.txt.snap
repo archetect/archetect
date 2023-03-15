@@ -1,0 +1,22 @@
+---
+source: minijinja/tests/test_parser.rs
+description: "Hello {{ world }}!"
+input_file: minijinja/tests/parser-inputs/simple.txt
+---
+Ok(
+    Template {
+        children: [
+            EmitRaw {
+                raw: "Hello ",
+            } @ 1:0-1:6,
+            EmitExpr {
+                expr: Var {
+                    id: "world",
+                } @ 1:9-1:14,
+            } @ 1:6-1:14,
+            EmitRaw {
+                raw: "!",
+            } @ 1:17-1:18,
+        ],
+    } @ 0:0-1:18,
+)

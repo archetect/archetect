@@ -1,0 +1,36 @@
+---
+source: minijinja/tests/test_templates.rs
+description: "even: {{ two is even }}\nodd: {{ two is odd }}\nundefined: {{ two is undefined }}\ndefined: {{ two is defined }}\nundefined2: {{ ohwell is undefined }}\ndefined2: {{ ohwell is defined }}\nnone: {{ none is none }}\nnot-none: {{ 42 is not none }}\nnumber-int: {{ two is number }}\nnumber-float: {{ two_dot_two is number }}\nnot-seq: {{ two is sequence }}\nseq: {{ seq is sequence }}\nnot-map: {{ two is mapping }}\nmap: {{ map is mapping }}\nstring: {{ string is string }}\nnot-string: {{ mapping is string }}\nstarts-with-a: {{ string is startingwith('a') }}\nends-with-ha: {{ string is endingwith('ha') }}\nnot-safe: {{ \"foo\" is safe }}\nsafe: {{ \"foo\"|escape is safe }}"
+info:
+  map:
+    foo: bar
+  seq:
+    - 1
+    - 2
+    - 3
+  string: aha
+  two: 2
+  two_dot_two: 2.2
+input_file: minijinja/tests/inputs/tests.txt
+---
+even: true
+odd: false
+undefined: false
+defined: true
+undefined2: true
+defined2: false
+none: true
+not-none: true
+number-int: true
+number-float: true
+not-seq: false
+seq: true
+not-map: false
+map: true
+string: true
+not-string: false
+starts-with-a: true
+ends-with-ha: true
+not-safe: false
+safe: true
+

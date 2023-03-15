@@ -1,0 +1,134 @@
+---
+source: minijinja/tests/test_parser.rs
+description: "{{ super() }}\n{{ loop.cycle(1, 2) }}\n{{ self.foo() }}\n{{ foo(1, 2, a=3, b=4) }}\n{{ trailing(1, 2,) }}\n{{ trailing_kwarg(1, 2, a=3,) }}"
+input_file: minijinja/tests/parser-inputs/call.txt
+---
+Ok(
+    Template {
+        children: [
+            EmitExpr {
+                expr: Call {
+                    expr: Var {
+                        id: "super",
+                    } @ 1:3-1:8,
+                    args: [],
+                } @ 1:3-1:10,
+            } @ 1:0-1:10,
+            EmitRaw {
+                raw: "\n",
+            } @ 1:13-2:0,
+            EmitExpr {
+                expr: Call {
+                    expr: GetAttr {
+                        expr: Var {
+                            id: "loop",
+                        } @ 2:3-2:7,
+                        name: "cycle",
+                    } @ 2:3-2:13,
+                    args: [
+                        Const {
+                            value: 1,
+                        } @ 2:14-2:15,
+                        Const {
+                            value: 2,
+                        } @ 2:17-2:18,
+                    ],
+                } @ 2:7-2:19,
+            } @ 2:0-2:19,
+            EmitRaw {
+                raw: "\n",
+            } @ 2:22-3:0,
+            EmitExpr {
+                expr: Call {
+                    expr: GetAttr {
+                        expr: Var {
+                            id: "self",
+                        } @ 3:3-3:7,
+                        name: "foo",
+                    } @ 3:3-3:11,
+                    args: [],
+                } @ 3:7-3:13,
+            } @ 3:0-3:13,
+            EmitRaw {
+                raw: "\n",
+            } @ 3:16-4:0,
+            EmitExpr {
+                expr: Call {
+                    expr: Var {
+                        id: "foo",
+                    } @ 4:3-4:6,
+                    args: [
+                        Const {
+                            value: 1,
+                        } @ 4:7-4:8,
+                        Const {
+                            value: 2,
+                        } @ 4:10-4:11,
+                        Kwargs {
+                            pairs: [
+                                (
+                                    "a",
+                                    Const {
+                                        value: 3,
+                                    } @ 4:15-4:16,
+                                ),
+                                (
+                                    "b",
+                                    Const {
+                                        value: 4,
+                                    } @ 4:20-4:21,
+                                ),
+                            ],
+                        } @ 4:13-4:22,
+                    ],
+                } @ 4:3-4:22,
+            } @ 4:0-4:22,
+            EmitRaw {
+                raw: "\n",
+            } @ 4:25-5:0,
+            EmitExpr {
+                expr: Call {
+                    expr: Var {
+                        id: "trailing",
+                    } @ 5:3-5:11,
+                    args: [
+                        Const {
+                            value: 1,
+                        } @ 5:12-5:13,
+                        Const {
+                            value: 2,
+                        } @ 5:15-5:16,
+                    ],
+                } @ 5:3-5:18,
+            } @ 5:0-5:18,
+            EmitRaw {
+                raw: "\n",
+            } @ 5:21-6:0,
+            EmitExpr {
+                expr: Call {
+                    expr: Var {
+                        id: "trailing_kwarg",
+                    } @ 6:3-6:17,
+                    args: [
+                        Const {
+                            value: 1,
+                        } @ 6:18-6:19,
+                        Const {
+                            value: 2,
+                        } @ 6:21-6:22,
+                        Kwargs {
+                            pairs: [
+                                (
+                                    "a",
+                                    Const {
+                                        value: 3,
+                                    } @ 6:26-6:27,
+                                ),
+                            ],
+                        } @ 6:24-6:29,
+                    ],
+                } @ 6:3-6:29,
+            } @ 6:0-6:29,
+        ],
+    } @ 0:0-6:32,
+)

@@ -1,0 +1,41 @@
+---
+source: minijinja/tests/test_parser.rs
+description: "<ul>\n{% for item in seq %}\n    <li>{{ item }}</li>\n{% endfor %}\n</ul>"
+input_file: minijinja/tests/parser-inputs/for_loop.txt
+---
+Ok(
+    Template {
+        children: [
+            EmitRaw {
+                raw: "<ul>\n",
+            } @ 1:0-2:0,
+            ForLoop {
+                target: Var {
+                    id: "item",
+                } @ 2:7-2:11,
+                iter: Var {
+                    id: "seq",
+                } @ 2:15-2:18,
+                filter_expr: None,
+                recursive: false,
+                body: [
+                    EmitRaw {
+                        raw: "\n    <li>",
+                    } @ 2:21-3:8,
+                    EmitExpr {
+                        expr: Var {
+                            id: "item",
+                        } @ 3:11-3:15,
+                    } @ 3:8-3:15,
+                    EmitRaw {
+                        raw: "</li>\n",
+                    } @ 3:18-4:0,
+                ],
+                else_body: [],
+            } @ 2:3-4:9,
+            EmitRaw {
+                raw: "\n</ul>",
+            } @ 4:12-5:5,
+        ],
+    } @ 0:0-5:5,
+)
