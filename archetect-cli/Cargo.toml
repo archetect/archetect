@@ -11,18 +11,24 @@ edition = "2021"
 license = "MIT"
 
 [[bin]]
-name = "archetect"
+name = "archetect2"
 path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 archetect-core = { path = "../archetect-core", version = "0.7.4" }
 ansi_term = "0.12"
+anyhow = "1.0.69"
 atty = "0.2"
+camino = "1.1"
 clap = "2"
 indoc = "0.3"
 lazy_static = "1.0"
 linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
 log = "0.4"
 read_input = "0.8"
-serde = "1.0.90"
+rhai = { version = "1.12", features = ["serde"] }
+serde = "1.0.116"
+serde_derive = "1.0.116"
+serde_json = "1.0.40"
+serde_yaml = "0.8"

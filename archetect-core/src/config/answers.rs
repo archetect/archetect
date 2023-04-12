@@ -21,8 +21,16 @@ pub struct AnswerConfig {
 pub enum AnswerConfigError {
     #[error("Error parsing answer config: {0}")]
     ParseError(String),
-    #[error("Missing answer config")]
+    #[error("Answer file does not exist")]
     MissingError,
+    #[error("Provided answer file is not a supported answer file format")]
+    InvalidFileType,
+    #[error("Provided answer file must be structured as a JSON Object")]
+    InvalidJsonAnswerFileStructure,
+    #[error("Provided answer file must be structured as a YAML Object")]
+    InvalidYamlAnswerFileStructure,
+    #[error("Provided answer file must resolve to a Rhai Object")]
+    InvalidRhaiAnswerFileStructure,
 }
 
 impl From<serde_yaml::Error> for AnswerConfigError {
@@ -123,6 +131,17 @@ fn parse_answer(pair: Pair<Rule>) -> (String, AnswerInfo) {
     )
 }
 
+pub fn parse_answer_pair(input: &str) -> Result<(String, String), AnswerParseError> {
+    let mut pairs = AnswerParser::parse(Rule::answer, input)?;
+    let mut iter = pairs.next().unwrap().into_inner();
+    let identifier_pair = iter.next().unwrap();
+    let value_pair = iter.next().unwrap();
+    Ok((
+        parse_identifier(identifier_pair),
+        parse_value(value_pair),
+    ))
+}
+
 fn parse_identifier(pair: Pair<Rule>) -> String {
     assert_eq!(pair.as_rule(), Rule::identifier);
     pair.as_str().to_owned()
@@ -141,7 +160,30 @@ impl AnswerInfo {
 
 #[cfg(test)]
 mod tests {
+    use rhai::Dynamic;
+    use serde_json::{json, Value};
     use super::*;
+
+    #[test]
+    fn test_parse_rhai_list() {
+        let engine = rhai::Engine::new();
+        let value: Dynamic = engine.eval("[\"one\",\"two\",\"three\"]").unwrap();
+        assert!(value.is_array());
+    }
+
+    #[test]
+    fn test_parse_rhai_map() {
+        let engine = rhai::Engine::new();
+        let value: Dynamic = engine.eval("#{ \"first_name\": \"Jimmie\" }").unwrap();
+        assert!(value.is_map());
+    }
+
+    #[test]
+    fn test_parse_rhai_string() {
+        let engine = rhai::Engine::new();
+        let value: Dynamic = engine.eval("Value").unwrap();
+        assert!(value.is_string());
+    }
 
     #[test]
     fn test_parse_success() {

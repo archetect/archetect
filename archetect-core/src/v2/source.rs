@@ -9,7 +9,7 @@ use url::Url;
 
 use crate::requirements::{Requirements, RequirementsError};
 use crate::Archetect;
-use crate::utils::{to_utf8_path_buf};
+use crate::utils::to_utf8_path_buf;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {

@@ -1,7 +1,9 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
+use camino::{Utf8Path, Utf8PathBuf};
 
 use linked_hash_map::LinkedHashMap;
+use rhai::EvalAltResult;
 
 use crate::actions::ActionId;
 use crate::config::{AnswerInfo, ArchetypeConfig};
@@ -36,7 +38,7 @@ impl Archetype {
         &self.source
     }
 
-    pub fn render<D: AsRef<Path>>(
+    pub fn render<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         destination: D,
@@ -56,8 +58,8 @@ impl Archetype {
 
         let archetype_info = ArchetypeInfo {
             source: self.source().source().to_owned(),
-            destination: destination.to_str().unwrap().to_owned(),
-            local_path: self.source().local_path().to_str().unwrap().to_owned(),
+            destination: destination.to_string(),
+            local_path: self.source().local_path().to_string(),
         };
         context.insert("archetype", &archetype_info);
 
@@ -89,6 +91,16 @@ pub enum ArchetypeError {
     ArchetypeConfigNotFound {
         path: PathBuf,
     },
+    #[error("The specified archetype manifest `{path}` does not exist")]
+    ArchetypeManifestNotFound {
+        path: Utf8PathBuf,
+    },
+    #[error("Archetype by key `{key}` does not exist")]
+    ArchetypeKeyNotFound {
+        key: String,
+    },
+    #[error(transparent)]
+    ArchetypeScriptError(#[from] EvalAltResult),
     #[error("Invalid Answers Config")]
     InvalidAnswersConfig,
     #[error(transparent)]
@@ -102,6 +114,16 @@ pub enum ArchetypeError {
         path: PathBuf,
         source: serde_yaml::Error
     },
+    #[error("Archetype Manifest Syntax error in `{path}`: {source}")]
+    ArchetypeManifestSyntaxError {
+        path: Utf8PathBuf,
+        source: serde_yaml::Error
+    },
+    #[error("Operation was interrupted")]
+    OperationInterrupted,
+    #[error("Value is required")]
+    ValueRequired,
+
 }
 
 #[cfg(test)]

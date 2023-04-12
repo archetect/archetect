@@ -1,4 +1,4 @@
-mod answers;
+pub mod answers;
 mod archetype;
 mod catalog;
 mod rule;

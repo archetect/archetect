@@ -1,7 +1,8 @@
+use crate::vendor::loggerv;
 use archetect_core::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
+use camino::Utf8Path;
 use clap::{crate_authors, crate_description, crate_version};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use crate::vendor::loggerv;
 use log::Level;
 
 pub fn get_matches() -> App<'static, 'static> {
@@ -28,8 +29,10 @@ pub fn get_matches() -> App<'static, 'static> {
         .arg(
             Arg::with_name("headless")
                 .global(true)
-                .help("Expect all variable values to be provided by answer arguments or files, never waiting for user \
-                input.")
+                .help(
+                    "Expect all variable values to be provided by answer arguments or files, never waiting for user \
+                input.",
+                )
                 .long("headless"),
         )
         .arg(
@@ -59,7 +62,7 @@ pub fn get_matches() -> App<'static, 'static> {
                 .multiple(true)
                 .global(true)
                 .empty_values(true)
-                .help("Enable switches that may trigger functionality within Archetypes")
+                .help("Enable switches that may trigger functionality within Archetypes"),
         )
         .arg(
             Arg::with_name("answer-file")
@@ -75,11 +78,18 @@ pub fn get_matches() -> App<'static, 'static> {
                     "Supply an answers file as answers to variable questions. This option may \
                      be specified more than once.",
                 )
-                .validator(|af| match AnswerConfig::load(&af) {
-                    Ok(_) => Ok(()),
-                    Err(AnswerConfigError::ParseError(_)) => Err(format!("{} has an invalid answer file format", &af)),
-                    Err(AnswerConfigError::MissingError) => {
-                        Err(format!("{} does not exist or does not contain an answer file", &af))
+                .validator(|af| {
+                    let file = Utf8Path::new(&af);
+                    match file.extension() {
+                        Some("yml") => Ok(()),
+                        Some("yaml") => Ok(()),
+                        Some("rhai") => Ok(()),
+                        Some("json") => Ok(()),
+                        Some(_extension) => {
+                            println!("{} extension used as an answer file", _extension);
+                            Err(format!("'{}' is not a supported answer file format", af))
+                        }
+                        None => Err(format!("'{}' is not a supported answer file format", af)),
                     }
                 }),
         )
@@ -97,10 +107,8 @@ pub fn get_matches() -> App<'static, 'static> {
                         .long("source")
                         .short("S")
                         .takes_value(true)
-                        .help("Catalog source location")
-                    ,
-                )
-            ,
+                        .help("Catalog source location"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("completions")

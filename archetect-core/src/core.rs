@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use camino::Utf8PathBuf;
 
 use clap::crate_version;
 use log::{debug, trace};
@@ -82,7 +83,7 @@ impl Archetect {
             Ok(template) => template,
             Err(error) => {
                 return Err(RenderError::FileRenderIOError {
-                    path: path.to_owned(),
+                    path: Utf8PathBuf::from_path_buf(path.to_path_buf()).unwrap(),
                     source: error,
                 });
             }
@@ -264,7 +265,7 @@ mod tests {
             .build()
             .unwrap();
 
-        println!("{}", archetect.layout().catalog_cache_dir().display());
+        println!("{}", archetect.layout().catalog_cache_dir());
     }
 
     #[test]
@@ -272,14 +273,14 @@ mod tests {
         let paths = RootedSystemLayout::new("~/.archetect/").unwrap();
         let archetect = Archetect::builder().with_layout(paths).build().unwrap();
 
-        println!("{}", archetect.layout().catalog_cache_dir().display());
+        println!("{}", archetect.layout().catalog_cache_dir());
     }
 
     #[test]
     fn test_implicit() {
         let archetect = Archetect::build().unwrap();
 
-        println!("{}", archetect.layout().catalog_cache_dir().display());
+        println!("{}", archetect.layout().catalog_cache_dir());
 
         std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");
         std::fs::create_dir_all(archetect.layout().git_cache_dir()).expect("Error creating directory");

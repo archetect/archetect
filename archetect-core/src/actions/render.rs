@@ -1,4 +1,3 @@
-use std::path::Path;
 
 use linked_hash_map::LinkedHashMap;
 
@@ -8,6 +7,7 @@ use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
 use crate::{Archetect, ArchetectError, Archetype};
 use std::fs;
+use camino::Utf8Path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RenderAction {
@@ -76,7 +76,7 @@ impl ArchetypeOptions {
 }
 
 impl Action for RenderAction {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         archetype: &Archetype,

@@ -1,6 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::path::Path;
 use std::process::Command;
+use camino::Utf8Path;
 
 use linked_hash_map::LinkedHashMap;
 use log::{debug, warn};
@@ -75,7 +76,7 @@ impl ExecAction {
 }
 
 impl Action for ExecAction {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         _archetype: &Archetype,
@@ -115,7 +116,7 @@ impl Action for ExecAction {
                 }
             }
         } else {
-            command.current_dir(destination);
+            command.current_dir(destination.as_ref());
         }
 
         debug!("[exec] Executing: {:?}", command);

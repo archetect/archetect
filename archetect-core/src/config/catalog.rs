@@ -1,6 +1,7 @@
 use crate::source::{Source, SourceError};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
+use camino::Utf8PathBuf;
 
 pub const CATALOG_FILE_NAME: &str = "catalog.yml";
 
@@ -82,7 +83,7 @@ pub enum CatalogError {
     #[error("Invalid Catalog Source: {0}")]
     SourceError(SourceError),
     #[error("Catalog not found: {0}")]
-    NotFound(PathBuf),
+    NotFound(Utf8PathBuf),
     #[error("Catalog IO Error: {0}")]
     IOError(std::io::Error),
     #[error("Catalog Format Error: {0}")]

@@ -1,4 +1,4 @@
-use std::path::Path;
+use camino::Utf8Path;
 
 use linked_hash_map::LinkedHashMap;
 
@@ -37,7 +37,7 @@ impl ForEachAction {
 }
 
 impl Action for ForEachAction {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         archetype: &Archetype,
@@ -173,7 +173,7 @@ impl ForAction {
 }
 
 impl Action for ForAction {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         archetype: &Archetype,

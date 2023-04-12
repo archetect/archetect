@@ -5,6 +5,8 @@ use crate::ArchetypeError;
 use std::path::PathBuf;
 use std::fmt::{Display, Formatter};
 use std::error::Error;
+use camino::Utf8PathBuf;
+use rhai::EvalAltResult;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetectError {
@@ -15,9 +17,13 @@ pub enum ArchetectError {
     #[error(transparent)]
     RenderError(#[from] RenderError),
     #[error(transparent)]
+    ScriptError(#[from] Box<EvalAltResult>),
+    #[error(transparent)]
     SystemError(#[from] SystemError),
     #[error(transparent)]
     SourceError(#[from] SourceError),
+    #[error(transparent)]
+    SourceError2(#[from] crate::v2::source::SourceError),
     #[error(transparent)]
     CatalogError(#[from] CatalogError),
     #[error(transparent)]
@@ -38,12 +44,16 @@ pub enum RenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
+    PathRenderError2 {
+        path: PathBuf,
+        source: minijinja::Error,
+    },
     FileRenderError {
         path: PathBuf,
         source: crate::vendor::tera::Error,
     },
     FileRenderIOError {
-        path: PathBuf,
+        path: Utf8PathBuf,
         source: std::io::Error,
     },
     StringRenderError {
@@ -65,6 +75,9 @@ impl Display for RenderError {
             RenderError::PathRenderError { path, source } => {
                 write!(f, "Unable to render path `{:?}`: {}", path, extract_tera_message(source))
             }
+            RenderError::PathRenderError2 { path, source } => {
+                write!(f, "Unable to render path `{:?}`: {}", path, source)
+            }
             RenderError::FileRenderError { path, source } => {
                 write!(f, "Unable to render file `{:?}`: {}", path, extract_tera_message(source))
             }
@@ -77,6 +90,7 @@ impl Display for RenderError {
             RenderError::IOError { source } => {
                 write!(f, "Rendering IO Error: {}", source)
             }
+
         }
     }
 }

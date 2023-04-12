@@ -1,8 +1,9 @@
 use crate::config::CATALOG_FILE_NAME;
 use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
-use std::path::{Path, PathBuf};
+use camino::{Utf8Path, Utf8PathBuf};
 use tempfile::tempdir;
+use crate::utils::to_utf8_path;
 
 pub enum LayoutType {
     Native,
@@ -11,27 +12,27 @@ pub enum LayoutType {
 }
 
 pub trait SystemLayout {
-    fn configs_dir(&self) -> PathBuf;
+    fn configs_dir(&self) -> Utf8PathBuf;
 
-    fn cache_dir(&self) -> PathBuf;
+    fn cache_dir(&self) -> Utf8PathBuf;
 
-    fn catalog_cache_dir(&self) -> PathBuf {
+    fn catalog_cache_dir(&self) -> Utf8PathBuf {
         self.cache_dir().join("catalogs")
     }
 
-    fn git_cache_dir(&self) -> PathBuf {
+    fn git_cache_dir(&self) -> Utf8PathBuf {
         self.cache_dir().join("git")
     }
 
-    fn http_cache_dir(&self) -> PathBuf {
+    fn http_cache_dir(&self) -> Utf8PathBuf {
         self.cache_dir().join("http")
     }
 
-    fn answers_config(&self) -> PathBuf {
+    fn answers_config(&self) -> Utf8PathBuf {
         self.configs_dir().join("answers.yml")
     }
 
-    fn catalog(&self) -> PathBuf {
+    fn catalog(&self) -> Utf8PathBuf {
         self.configs_dir().join(CATALOG_FILE_NAME)
     }
 }
@@ -53,22 +54,22 @@ impl NativeSystemLayout {
 }
 
 impl SystemLayout for NativeSystemLayout {
-    fn configs_dir(&self) -> PathBuf {
-        self.project.config_dir().to_owned()
+    fn configs_dir(&self) -> Utf8PathBuf {
+        Utf8PathBuf::from_path_buf(self.project.config_dir().to_owned()).unwrap()
     }
 
-    fn cache_dir(&self) -> PathBuf {
-        self.project.cache_dir().to_owned()
+    fn cache_dir(&self) -> Utf8PathBuf {
+        Utf8PathBuf::from_path_buf(self.project.cache_dir().to_owned()).unwrap()
     }
 }
 
 #[derive(Debug)]
 pub struct RootedSystemLayout {
-    directory: PathBuf,
+    directory: Utf8PathBuf,
 }
 
 impl RootedSystemLayout {
-    pub fn new<D: AsRef<Path>>(directory: D) -> Result<RootedSystemLayout, SystemError> {
+    pub fn new<D: AsRef<Utf8Path>>(directory: D) -> Result<RootedSystemLayout, SystemError> {
         let directory = directory.as_ref();
         let directory = directory.to_owned();
         let layout = RootedSystemLayout { directory };
@@ -84,22 +85,22 @@ impl RootedSystemLayout {
 }
 
 impl SystemLayout for RootedSystemLayout {
-    fn configs_dir(&self) -> PathBuf {
+    fn configs_dir(&self) -> Utf8PathBuf {
         self.directory.clone().join("etc")
     }
 
-    fn cache_dir(&self) -> PathBuf {
+    fn cache_dir(&self) -> Utf8PathBuf {
         self.directory.clone().join("var")
     }
 }
 
 impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "{}: {}", "Configs Directory", self.configs_dir().display())?;
-        writeln!(f, "{}: {}", "User Answers", self.answers_config().display())?;
-        writeln!(f, "{}: {}", "User Catalog", self.catalog().display())?;
-        writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir().display())?;
-        writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir().display())?;
+        writeln!(f, "{}: {}", "Configs Directory", self.configs_dir())?;
+        writeln!(f, "{}: {}", "User Answers", self.answers_config())?;
+        writeln!(f, "{}: {}", "User Catalog", self.catalog())?;
+        writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir())?;
+        writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir())?;
         Ok(())
     }
 }
@@ -111,7 +112,7 @@ pub fn dot_home_layout() -> Result<RootedSystemLayout, SystemError> {
 
 pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
     let temp_dir = tempdir()?;
-    Ok(RootedSystemLayout::new(temp_dir.path())?)
+    Ok(RootedSystemLayout::new(to_utf8_path(temp_dir.path()))?)
 }
 
 #[derive(Debug, thiserror::Error)]

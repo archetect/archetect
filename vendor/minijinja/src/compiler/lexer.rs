@@ -47,7 +47,7 @@ fn lex_identifier(s: &str) -> usize {
             } else if idx == 0 {
                 unicode_ident::is_xid_start(c)
             } else {
-                unicode_ident::is_xid_continue(c)
+                unicode_ident::is_xid_continue(c) || c == '-'
             };
             cont.then(|| c.len_utf8())
         })
@@ -65,7 +65,7 @@ fn lex_identifier(s: &str) -> usize {
             } else if idx == 0 {
                 c.is_ascii_alphabetic()
             } else {
-                c.is_ascii_alphanumeric()
+                c.is_ascii_alphanumeric() || c == 45
             }
         })
         .count()
@@ -500,6 +500,7 @@ fn test_basic_identifiers() {
     assert_ident("_42world");
     assert_ident("_world42");
     assert_ident("world42");
+    assert_ident("example-service");
     assert_not_ident("42world");
 
     #[cfg(feature = "unicode")]

@@ -1,4 +1,4 @@
-use std::path::Path;
+use camino::Utf8Path;
 
 use linked_hash_map::LinkedHashMap;
 use log::{debug, error, info, trace, warn};
@@ -66,7 +66,7 @@ pub enum ActionId {
 }
 
 impl ActionId {
-    pub fn execute<D: AsRef<Path>>(
+    pub fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         archetype: &Archetype,
@@ -199,7 +199,7 @@ impl From<&Vec<ActionId>> for ActionId {
 }
 
 pub trait Action {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         archetect: &mut Archetect,
         archetype: &Archetype,

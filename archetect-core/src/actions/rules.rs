@@ -4,7 +4,7 @@ use crate::rules::RulesContext;
 use crate::vendor::tera::Context;
 use crate::{Archetect, ArchetectError, Archetype};
 use linked_hash_map::LinkedHashMap;
-use std::path::Path;
+use camino::Utf8Path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RuleType {
@@ -20,7 +20,7 @@ pub struct DestinationOptions {
 }
 
 impl Action for RuleType {
-    fn execute<D: AsRef<Path>>(
+    fn execute<D: AsRef<Utf8Path>>(
         &self,
         _archetect: &mut Archetect,
         _archetype: &Archetype,

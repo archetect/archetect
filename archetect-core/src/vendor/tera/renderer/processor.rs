@@ -50,7 +50,7 @@ fn evaluate_sub_variables<'a>(key: &str, call_stack: &CallStack<'a>) -> Result<S
 
                 // Rebuild the original key String replacing variable name with value
                 let nk = new_key.clone();
-                let divider = "[".to_string() + sub_var + "]";
+                let divider = "[".to_string() + sub_var.as_str() + "]";
                 let mut the_parts = nk.splitn(2, divider.as_str());
 
                 new_key = the_parts.next().unwrap().to_string()

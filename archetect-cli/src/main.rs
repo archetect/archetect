@@ -1,10 +1,15 @@
+use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::ops::Deref;
 use std::str::FromStr;
+use anyhow::__private::kind::TraitKind;
+use camino::Utf8PathBuf;
 
 use clap::{ArgMatches, Shell};
 use linked_hash_map::LinkedHashMap;
 use log::{error, info, warn};
+use rhai::{Dynamic, EvalAltResult, Map};
+use rhai::plugin::RhaiResult;
 
 use archetect_core::{Archetect};
 use archetect_core::{self, ArchetectError};
@@ -13,22 +18,75 @@ use archetect_core::config::{
 };
 use archetect_core::input::select_from_catalog;
 use archetect_core::source::{Source};
+use archetect_core::v2::archetype::archetype_context::ArchetypeContext;
 
 mod cli;
 pub mod vendor;
+pub mod answers;
 
 fn main() {
     let matches = cli::get_matches().get_matches();
 
     cli::configure(&matches);
-
-    match execute(matches) {
+    
+    match execute_2(matches) {
         Ok(()) => (),
         Err(error) => {
             error!("{}", error);
             std::process::exit(-1);
         },
     }
+}
+
+fn execute_2(matches: ArgMatches) -> Result<(), ArchetectError> {
+    let mut answers = Map::new();
+
+    if let Some(matches) = matches.values_of("answer-file") {
+        for answer_file in matches {
+            let results = answers::read_answers(answer_file)?;
+            answers.extend(results);
+        }
+    }
+
+    if let Some(matches) = matches.values_of("answer") {
+        let engine = rhai::Engine::new();
+        for answer_match in matches {
+            let (identifier, value) = archetect_core::config::answers::parse_answer_pair(answer_match).unwrap();
+            let result: Result<Dynamic, Box<EvalAltResult>> = engine.eval(&value);
+            match result {
+                Ok(value) => {
+                    answers.insert(identifier.into(), value);
+                }
+                Err(err) => {
+                    match err.deref() {
+                        EvalAltResult::ErrorVariableNotFound(_, _) => {
+                            let result: Result<Dynamic, Box<EvalAltResult>> = engine.eval(format!("\"{}\"", &value).as_str());
+                            match result {
+                                Ok(value) => {
+                                    answers.insert(identifier.into(), value);
+                                }
+                                Err(err) => {
+                                    return Err(err.into());
+                                }
+                            }
+                        }
+                        _ => return Err(err.into())
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("render") {
+        let source = matches.value_of("source").unwrap();
+        let source = archetect_core::v2::source::Source::detect(&Archetect::build()?, source, None)?;
+        let destination = Utf8PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+
+        let mut archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
+        archetype.render_with_destination(destination, answers)?;
+    }
+
+    Ok(())
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
@@ -101,11 +159,11 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Some(matches) = matches.subcommand_matches("system") {
         if let Some(matches) = matches.subcommand_matches("layout") {
             match matches.subcommand() {
-                ("git", Some(_)) => eprintln!("{}", archetect.layout().git_cache_dir().display()),
-                ("http", Some(_)) => eprintln!("{}", archetect.layout().http_cache_dir().display()),
-                ("answers", Some(_)) => eprintln!("{}", archetect.layout().answers_config().display()),
-                ("catalogs", Some(_)) => eprintln!("{}", archetect.layout().catalog_cache_dir().display()),
-                ("config", Some(_)) => eprintln!("{}", archetect.layout().configs_dir().display()),
+                ("git", Some(_)) => eprintln!("{}", archetect.layout().git_cache_dir()),
+                ("http", Some(_)) => eprintln!("{}", archetect.layout().http_cache_dir()),
+                ("answers", Some(_)) => eprintln!("{}", archetect.layout().answers_config()),
+                ("catalogs", Some(_)) => eprintln!("{}", archetect.layout().catalog_cache_dir()),
+                ("config", Some(_)) => eprintln!("{}", archetect.layout().configs_dir()),
                 _ => eprintln!("{}", archetect.layout()),
             }
         }
@@ -113,7 +171,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     if let Some(matches) = matches.subcommand_matches("render") {
         let source = matches.value_of("source").unwrap();
-        let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+        let destination = Utf8PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
         let archetype = archetect.load_archetype(source, None)?;
 
@@ -126,7 +184,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     }
 
     if let Some(matches) = matches.subcommand_matches("catalog") {
-        let default_source = archetect.layout().catalog().to_str().map(|s| s.to_owned()).unwrap();
+        let default_source = archetect.layout().catalog().as_str().to_owned();
         let source = matches.value_of("source").unwrap_or_else(|| &default_source);
         let source = Source::detect(&archetect, source, None)?;
 
@@ -136,14 +194,14 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
 
         if catalog_file.exists() {
-            let catalog_source = Source::detect(&archetect, catalog_file.to_str().unwrap(), None)?;
+            let catalog_source = Source::detect(&archetect, catalog_file.as_str(), None)?;
             let catalog = Catalog::load(source.clone())?;
 
             let catalog_entry = select_from_catalog(&archetect, &catalog, &catalog_source)?;
 
             match catalog_entry {
                 CatalogEntry::Archetype { description: _, source } => {
-                    let destination = PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
+                    let destination = Utf8PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
                     let archetype = archetect.load_archetype(&source, None)?;
 

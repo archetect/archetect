@@ -172,7 +172,7 @@ pub fn truncate(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         return Ok(to_value(&s).unwrap());
     }
 
-    let result = s[..graphemes[length].0].to_string() + &end;
+    let result = s[..graphemes[length].0].to_string() + end.as_str();
     Ok(to_value(&result).unwrap())
 }
 
@@ -207,7 +207,7 @@ pub fn capitalize(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     match chars.next() {
         None => Ok(to_value("").unwrap()),
         Some(f) => {
-            let res = f.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase();
+            let res = f.to_uppercase().collect::<String>() + chars.as_str().to_lowercase().as_str();
             Ok(to_value(&res).unwrap())
         }
     }
