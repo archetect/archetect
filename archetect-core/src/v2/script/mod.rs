@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use uuid::Uuid;
 use minijinja::{Environment, UndefinedBehavior};
 use crate::v2::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
 
@@ -29,5 +30,8 @@ pub (crate) fn create_environment() -> Environment<'static> {
 
     environment.add_filter("ordinalize", |value: Cow<'_, str>| cruet::ordinalize(value.as_ref()));
     environment.add_filter("deordinalize", |value: Cow<'_, str>| cruet::deordinalize(value.as_ref()));
+
+
+    environment.add_function("uuid", || Uuid::new_v4().to_string() );
     environment
 }
