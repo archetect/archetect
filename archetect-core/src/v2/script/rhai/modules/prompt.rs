@@ -1,15 +1,17 @@
 use log::warn;
+use std::collections::BTreeMap;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
 use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
+use semver::Identifier;
 
 use inquire::validator::Validation;
 use inquire::{Confirm, InquireError, MultiSelect, Select, Text};
 
-use crate::v2::archetype::archetype::{Archetype};
+use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::script::rhai::modules::cases::{expand_cases};
+use crate::v2::script::rhai::modules::cases::expand_cases;
 use crate::ArchetypeError;
 
 pub(crate) fn register(engine: &mut Engine, archetype: Archetype, archetype_context: ArchetypeContext) {
@@ -48,44 +50,63 @@ fn prompt_to_map(
         ))
     })?;
 
-    if let Some(answer) = archetype_context.answers().get(key) {
-        let mut results: Map = Map::new();
-        results.insert(key.into(), answer.clone().into());
-        expand_cases(&settings, &mut results, key, answer.to_string().as_str());
-        return Ok(results.into());
-    } else {
-        let mut results = Map::new();
-        match prompt_type {
-            PromptType::Text => {
-                let value = prompt_text(message, &settings)?;
-                results.insert(key.into(), value.clone().into());
-                expand_cases(&settings, &mut results, key, &value);
+    let mut results: Map = Map::new();
+
+    let mut answers_provided = false;
+
+    if let Some(answers) = settings.get("answers") {
+        if let Some(answers) = answers.clone().try_cast::<Map>() {
+            answers_provided = true;
+            if let Some(answer) = answers.get(key) {
+                results.insert(key.into(), answer.clone().into());
+                expand_cases(&settings, &mut results, key, answer.to_string().as_str());
                 return Ok(results.into());
             }
-            PromptType::Confirm => {
-                let value = prompt_confirm(message, &settings)?;
-                results.insert(key.into(), value.into());
-                return Ok(results.into());
+        } else {
+            if !answers.is_unit() {
+                warn!("Answers should be a Map, but were supplied as a {}", answers.type_name());
             }
-            PromptType::Int => {
-                let value = prompt_int(message, &settings)?;
-                results.insert(key.into(), value.into());
-                return Ok(results.into());
-            }
-            PromptType::Select(options) => {
-                let value = prompt_select(message, options, &settings)?;
-                results.insert(key.into(), value.clone().into());
-                expand_cases(&settings, &mut results, key, &value);
-                return Ok(results.into());
-            }
-            PromptType::MultiSelect(options) => {
-                let value = prompt_multiselect(message, options, &settings)?;
-                results.insert(key.into(), value.into());
-                return Ok(results.into());
-            }
-            // PromptType::List => {}
-            _ => panic!("Unimplemented PromptType"),
         }
+    };
+
+    if !answers_provided {
+        if let Some(answer) = archetype_context.answers().get(key) {
+            results.insert(key.into(), answer.clone().into());
+            expand_cases(&settings, &mut results, key, answer.to_string().as_str());
+            return Ok(results.into());
+        };
+    }
+
+    match prompt_type {
+        PromptType::Text => {
+            let value = prompt_text(message, &settings)?;
+            results.insert(key.into(), value.clone().into());
+            expand_cases(&settings, &mut results, key, &value);
+            return Ok(results.into());
+        }
+        PromptType::Confirm => {
+            let value = prompt_confirm(message, &settings)?;
+            results.insert(key.into(), value.into());
+            return Ok(results.into());
+        }
+        PromptType::Int => {
+            let value = prompt_int(message, &settings)?;
+            results.insert(key.into(), value.into());
+            return Ok(results.into());
+        }
+        PromptType::Select(options) => {
+            let value = prompt_select(message, options, &settings)?;
+            results.insert(key.into(), value.clone().into());
+            expand_cases(&settings, &mut results, key, &value);
+            return Ok(results.into());
+        }
+        PromptType::MultiSelect(options) => {
+            let value = prompt_multiselect(message, options, &settings)?;
+            results.insert(key.into(), value.into());
+            return Ok(results.into());
+        }
+        // PromptType::List => {}
+        _ => panic!("Unimplemented PromptType"),
     }
 }
 
@@ -170,18 +191,14 @@ fn prompt_multiselect(
     match result {
         Ok(selections) => Ok(selections),
         Err(err) => match err {
-            InquireError::OperationCanceled => {
-                Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )))
-            }
-            InquireError::OperationInterrupted => {
-                Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )))
-            }
+            InquireError::OperationCanceled => Err(Box::new(EvalAltResult::ErrorSystem(
+                "Cancelled".to_owned(),
+                Box::new(ArchetypeError::ValueRequired),
+            ))),
+            InquireError::OperationInterrupted => Err(Box::new(EvalAltResult::ErrorSystem(
+                "Cancelled".to_owned(),
+                Box::new(ArchetypeError::OperationInterrupted),
+            ))),
             err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
         },
     }
@@ -435,7 +452,7 @@ pub enum PromptType {
 #[allow(non_upper_case_globals)]
 #[export_module]
 pub mod module {
-    use rhai::{Dynamic};
+    use rhai::Dynamic;
 
     pub type PromptType = crate::v2::script::rhai::modules::prompt::PromptType;
 

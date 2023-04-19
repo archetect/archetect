@@ -15,8 +15,8 @@ pub struct ArchetypeManifest {
     frameworks: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
-    composing: LinkedHashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archetypes: Option<LinkedHashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     script: Option<String>,
 }
@@ -97,13 +97,15 @@ impl ArchetypeManifest {
         self.tags.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_composition(mut self, key: &str, source: &str) -> ArchetypeManifest {
-        self.composing.insert(key.into(), source.into());
+    pub fn with_archetype(mut self, key: &str, source: &str) -> ArchetypeManifest {
+        self.archetypes.get_or_insert_with(|| LinkedHashMap::new())
+            .insert(key.into(), source.into());
+        // self.archetypes.insert(key.into(), source.into());
         self
     }
 
-    pub fn compositions(&self) -> &LinkedHashMap<String, String> {
-        &self.composing
+    pub fn archetypes(&self) -> Option<&LinkedHashMap<String, String>> {
+        self.archetypes.as_ref()
     }
 
     pub fn with_framework(mut self, framework: &str) -> ArchetypeManifest {
@@ -138,7 +140,7 @@ impl Default for ArchetypeManifest {
             languages: None,
             frameworks: None,
             tags: None,
-            composing: Default::default(),
+            archetypes: Default::default(),
             script: None,
         }
     }
@@ -157,8 +159,8 @@ mod tests {
             .with_framework("Hessian")
             .with_tag("Service")
             .with_tag("REST")
-            .with_composition("rust-service", "git:/rust-foo")
-            .with_composition("java-service", "git:/java-foo")
+            .with_archetype("rust-service", "git:/rust-foo")
+            .with_archetype("java-service", "git:/java-foo")
             .with_script(Some("archetype.rhai"))
             ;
 
