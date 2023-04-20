@@ -19,6 +19,7 @@ use archetect_core::config::{
 use archetect_core::input::select_from_catalog;
 use archetect_core::source::{Source};
 use archetect_core::v2::archetype::archetype_context::ArchetypeContext;
+use archetect_core::v2::runtime::context::RuntimeContext;
 
 mod cli;
 pub mod vendor;
@@ -83,7 +84,13 @@ fn execute_2(matches: ArgMatches) -> Result<(), ArchetectError> {
         let destination = Utf8PathBuf::from_str(matches.value_of("destination").unwrap()).unwrap();
 
         let mut archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
-        archetype.render_with_destination(destination, answers)?;
+        println!("Creating RuntimeContext");
+        let mut runtime_context = RuntimeContext::default();
+        runtime_context.set_local(matches.is_present("local"));
+        runtime_context.set_headless(matches.is_present("headless"));
+        runtime_context.set_offline(matches.is_present("offline"));
+        println!("RuntimeContext Created");
+        archetype.render_with_destination(destination, runtime_context, answers)?;
     }
 
     Ok(())

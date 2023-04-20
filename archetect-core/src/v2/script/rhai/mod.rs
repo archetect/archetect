@@ -1,10 +1,15 @@
-use rhai::Engine;
-use crate::v2::archetype::archetype::{Archetype};
+use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
+use crate::v2::runtime::context::RuntimeContext;
+use rhai::Engine;
 
-pub (crate) mod modules;
+pub(crate) mod modules;
 
-pub (crate) fn create_engine(archetype: Archetype, archetype_context: ArchetypeContext) -> Engine {
+pub(crate) fn create_engine(
+    archetype: Archetype,
+    archetype_context: ArchetypeContext,
+    runtime_context: RuntimeContext,
+) -> Engine {
     let mut engine = Engine::new();
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
@@ -14,11 +19,21 @@ pub (crate) fn create_engine(archetype: Archetype, archetype_context: ArchetypeC
     modules::exec::register(&mut engine);
     modules::formats::register(&mut engine);
     modules::log::register(&mut engine);
-    modules::prompt::register(&mut engine, archetype.clone(),archetype_context.clone());
+    modules::prompt::register(
+        &mut engine,
+        archetype.clone(),
+        archetype_context.clone(),
+        runtime_context.clone(),
+    );
     modules::set::register(&mut engine);
     modules::render::register(&mut engine, archetype.clone());
     modules::directory::register(&mut engine, archetype.clone(), archetype_context.clone());
-    modules::archetype::register(&mut engine, archetype.clone(), archetype_context.clone());
+    modules::archetype::register(
+        &mut engine,
+        archetype.clone(),
+        archetype_context.clone(),
+        runtime_context.clone(),
+    );
 
     engine
 }

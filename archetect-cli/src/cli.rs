@@ -36,6 +36,12 @@ pub fn get_matches() -> App<'static, 'static> {
                 .long("headless"),
         )
         .arg(
+            Arg::with_name("local")
+                .global(true)
+                .help("Use local development checkouts where available and configured")
+                .long("local")
+        )
+        .arg(
             Arg::with_name("answer")
                 .short("a")
                 .long("answer")

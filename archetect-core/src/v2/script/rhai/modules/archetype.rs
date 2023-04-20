@@ -4,14 +4,17 @@ use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::source::Source;
 use crate::{Archetect, ArchetypeError};
+use crate::v2::runtime::context::RuntimeContext;
 
-pub(crate) fn register(engine: &mut Engine, parent: Archetype, archetype_context: ArchetypeContext) {
+pub(crate) fn register(engine: &mut Engine, parent: Archetype, archetype_context: ArchetypeContext, runtime_context:
+RuntimeContext) {
     let mut module = Module::new();
 
     let p = parent.clone();
     let ctx = archetype_context.clone();
+    let rt = runtime_context.clone();
     module.set_native_fn("Archetype", move |key: &str| {
-        create_archetype(p.clone(), ctx.clone(), key)
+        create_archetype(p.clone(), ctx.clone(), rt.clone(), key)
     });
     engine.register_global_module(module.into());
 
@@ -27,13 +30,14 @@ pub(crate) fn register(engine: &mut Engine, parent: Archetype, archetype_context
 pub struct ArchetypeFacade {
     parent: Archetype,
     child: Archetype,
+    runtime_context: RuntimeContext,
     archetype_context: ArchetypeContext,
 }
 
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().to_path_buf();
-        self.child.render_with_destination(destination, answers)?;
+        self.child.render_with_destination(destination, self.runtime_context.clone(), answers)?;
 
         Ok(())
     }
@@ -41,14 +45,14 @@ impl ArchetypeFacade {
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().to_path_buf();
         self.child
-            .render_with_destination_and_settings(destination, answers, settings)?;
+            .render_with_destination_and_settings(destination, self.runtime_context.clone(), answers, settings)?;
 
         Ok(())
     }
 
     pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().join(destination);
-        self.child.render_with_destination(destination, answers)?;
+        self.child.render_with_destination(destination, self.runtime_context.clone(), answers)?;
 
         Ok(())
     }
@@ -61,7 +65,7 @@ impl ArchetypeFacade {
     ) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().join(destination);
         self.child
-            .render_with_destination_and_settings(destination, answers, settings)?;
+            .render_with_destination_and_settings(destination, self.runtime_context.clone(), answers, settings)?;
 
         Ok(())
     }
@@ -70,6 +74,7 @@ impl ArchetypeFacade {
 fn create_archetype(
     parent: Archetype,
     archetype_context: ArchetypeContext,
+    runtime_context: RuntimeContext,
     key: &str,
 ) -> Result<ArchetypeFacade, Box<EvalAltResult>> {
     if let Some(archetypes) = parent.manifest().archetypes() {
@@ -81,6 +86,7 @@ fn create_archetype(
                 parent,
                 child,
                 archetype_context,
+                runtime_context,
             });
         }
     }

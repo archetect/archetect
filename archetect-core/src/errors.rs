@@ -1,12 +1,12 @@
 use crate::config::{AnswerConfigError, CatalogError};
-use crate::system::SystemError;
 use crate::source::SourceError;
+use crate::system::SystemError;
 use crate::ArchetypeError;
-use std::path::PathBuf;
-use std::fmt::{Display, Formatter};
-use std::error::Error;
 use camino::Utf8PathBuf;
 use rhai::EvalAltResult;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetectError {
@@ -28,11 +28,21 @@ pub enum ArchetectError {
     CatalogError(#[from] CatalogError),
     #[error(transparent)]
     IoError(#[from] std::io::Error),
-    #[error("Headless mode requires answers to be supplied for all variables, but no answer was supplied for the `{0}` \
-    variable.")]
+    #[error(
+        "Headless mode requires answers to be supplied for all variables, but no answer was supplied for the `{0}` \
+    variable."
+    )]
     HeadlessMissingAnswer(String),
     #[error("Headless mode attempted to use the default value for the `{identifier}` variable, however, {message}")]
-    HeadlessInvalidDefault { identifier: String, default: String, message: String },
+    HeadlessInvalidDefault {
+        identifier: String,
+        default: String,
+        message: String,
+    },
+    #[error(
+        "Headless mode does not allow command line interaction, and requires a default value to be set for this prompt style."
+    )]
+    HeadlessNoDefault,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -73,24 +83,38 @@ impl Display for RenderError {
                 write!(f, "Invalid characters in path template `{:?}`", path)
             }
             RenderError::PathRenderError { path, source } => {
-                write!(f, "Unable to render path `{:?}`: {}", path, extract_tera_message(source))
+                write!(
+                    f,
+                    "Unable to render path `{:?}`: {}",
+                    path,
+                    extract_tera_message(source)
+                )
             }
             RenderError::PathRenderError2 { path, source } => {
                 write!(f, "Unable to render path `{:?}`: {}", path, source)
             }
             RenderError::FileRenderError { path, source } => {
-                write!(f, "Unable to render file `{:?}`: {}", path, extract_tera_message(source))
+                write!(
+                    f,
+                    "Unable to render file `{:?}`: {}",
+                    path,
+                    extract_tera_message(source)
+                )
             }
-            RenderError::FileRenderIOError { path, source} => {
+            RenderError::FileRenderIOError { path, source } => {
                 write!(f, "Unable to render file `{:?}`: {}", path, source)
             }
             RenderError::StringRenderError { string, source } => {
-                write!(f, "Unable to render string `{}`: {}", string, extract_tera_message(source))
+                write!(
+                    f,
+                    "Unable to render string `{}`: {}",
+                    string,
+                    extract_tera_message(source)
+                )
             }
             RenderError::IOError { source } => {
                 write!(f, "Rendering IO Error: {}", source)
             }
-
         }
     }
 }
@@ -98,6 +122,6 @@ impl Display for RenderError {
 fn extract_tera_message(error: &crate::vendor::tera::Error) -> String {
     match error.source() {
         None => format!("{}", error),
-        Some(source) => format!("{}", source)
+        Some(source) => format!("{}", source),
     }
 }

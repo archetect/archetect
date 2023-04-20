@@ -1,7 +1,7 @@
-use log::warn;
 use std::collections::BTreeMap;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
+use log::warn;
 use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 use semver::Identifier;
@@ -11,34 +11,47 @@ use inquire::{Confirm, InquireError, MultiSelect, Select, Text};
 
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
+use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::cases::expand_cases;
-use crate::ArchetypeError;
+use crate::{ArchetectError, ArchetypeError};
 
-pub(crate) fn register(engine: &mut Engine, archetype: Archetype, archetype_context: ArchetypeContext) {
+pub(crate) fn register(
+    engine: &mut Engine,
+    archetype: Archetype,
+    archetype_context: ArchetypeContext,
+    runtime_context: RuntimeContext,
+) {
     engine.register_global_module(exported_module!(module).into());
 
     let arch = archetype.clone();
     let ctx = archetype_context.clone();
+    let rt = runtime_context.clone();
     engine.register_fn("prompt", move |message: &str, key: &str, settings: Map| {
-        prompt_to_map(arch.clone(), ctx.clone(), message, key, settings)
+        prompt_to_map(arch.clone(), ctx.clone(), rt.clone(), message, key, settings)
     });
 
     let arch = archetype.clone();
     let ctx = archetype_context.clone();
+    let rt = runtime_context.clone();
     engine.register_fn("prompt", move |message: &str, key: &str| {
-        prompt_to_map(arch.clone(), ctx.clone(), message, key, Map::new())
+        prompt_to_map(arch.clone(), ctx.clone(), rt.clone(), message, key, Map::new())
     });
 
+    let rt = runtime_context.clone();
     engine.register_fn("prompt", move |message: &str, settings: Map| {
-        prompt_to_value(message, settings)
+        prompt_to_value(message, rt.clone(), settings)
     });
 
-    engine.register_fn("prompt", move |message: &str| prompt_to_value(message, Map::new()));
+    let rt = runtime_context.clone();
+    engine.register_fn("prompt", move |message: &str| {
+        prompt_to_value(message, rt.clone(), Map::new())
+    });
 }
 
 fn prompt_to_map(
     _archetype: Archetype,
     archetype_context: ArchetypeContext,
+    runtime_context: RuntimeContext,
     message: &str,
     key: &str,
     settings: Map,
@@ -64,7 +77,10 @@ fn prompt_to_map(
             }
         } else {
             if !answers.is_unit() {
-                warn!("Answers should be a Map, but were supplied as a {}", answers.type_name());
+                warn!(
+                    "Answers should be a Map, but were supplied as a {}",
+                    answers.type_name()
+                );
             }
         }
     };
@@ -79,29 +95,29 @@ fn prompt_to_map(
 
     match prompt_type {
         PromptType::Text => {
-            let value = prompt_text(message, &settings)?;
+            let value = prompt_text(message, &settings, &runtime_context)?;
             results.insert(key.into(), value.clone().into());
             expand_cases(&settings, &mut results, key, &value);
             return Ok(results.into());
         }
         PromptType::Confirm => {
-            let value = prompt_confirm(message, &settings)?;
+            let value = prompt_confirm(message, &runtime_context, &settings)?;
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
         PromptType::Int => {
-            let value = prompt_int(message, &settings)?;
+            let value = prompt_int(message, &runtime_context, &settings)?;
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
         PromptType::Select(options) => {
-            let value = prompt_select(message, options, &settings)?;
+            let value = prompt_select(message, options, &runtime_context, &settings)?;
             results.insert(key.into(), value.clone().into());
             expand_cases(&settings, &mut results, key, &value);
             return Ok(results.into());
         }
         PromptType::MultiSelect(options) => {
-            let value = prompt_multiselect(message, options, &settings)?;
+            let value = prompt_multiselect(message, options, &runtime_context, &settings)?;
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
@@ -110,13 +126,26 @@ fn prompt_to_map(
     }
 }
 
-fn prompt_select(message: &str, options: Vec<Dynamic>, settings: &Map) -> Result<String, Box<EvalAltResult>> {
+fn prompt_select(
+    message: &str,
+    options: Vec<Dynamic>,
+    runtime_context: &RuntimeContext,
+    settings: &Map,
+) -> Result<String, Box<EvalAltResult>> {
     let mut prompt = Select::new(message, options);
 
     let _optional = settings
         .get("optional")
         .map_or(Ok(false), |value| value.as_bool())
         .unwrap_or(false);
+
+    // TODO: Handle Defaults
+    if runtime_context.headless() {
+        return Err(Box::new(EvalAltResult::ErrorSystem(
+            "Headless Mode Error".to_owned(),
+            Box::new(ArchetectError::HeadlessNoDefault),
+        )));
+    }
 
     if let Some(page_size) = settings.get("page_size") {
         if let Some(page_size) = page_size.clone().try_cast::<i64>() {
@@ -160,6 +189,7 @@ fn prompt_select(message: &str, options: Vec<Dynamic>, settings: &Map) -> Result
 fn prompt_multiselect(
     message: &str,
     options: Vec<Dynamic>,
+    runtime_context: &RuntimeContext,
     settings: &Map,
 ) -> Result<Vec<Dynamic>, Box<EvalAltResult>> {
     let mut prompt = MultiSelect::new(message, options);
@@ -168,6 +198,14 @@ fn prompt_multiselect(
         .get("optional")
         .map_or(Ok(false), |value| value.as_bool())
         .unwrap_or(false);
+
+    // TODO: Handle Defaults
+    if runtime_context.headless() {
+        return Err(Box::new(EvalAltResult::ErrorSystem(
+            "Headless Mode Error".to_owned(),
+            Box::new(ArchetectError::HeadlessNoDefault),
+        )));
+    }
 
     if let Some(page_size) = settings.get("page_size") {
         if let Some(page_size) = page_size.clone().try_cast::<i64>() {
@@ -204,7 +242,7 @@ fn prompt_multiselect(
     }
 }
 
-fn prompt_confirm(message: &str, settings: &Map) -> Result<bool, Box<EvalAltResult>> {
+fn prompt_confirm(message: &str, runtime_context: &RuntimeContext, settings: &Map) -> Result<bool, Box<EvalAltResult>> {
     let mut prompt = Confirm::new(message);
 
     let _optional = settings
@@ -214,8 +252,19 @@ fn prompt_confirm(message: &str, settings: &Map) -> Result<bool, Box<EvalAltResu
 
     if let Some(default_value) = settings.get("default_value") {
         if let Some(default_value) = default_value.clone().try_cast::<bool>() {
-            prompt.default = Some(default_value);
+            if runtime_context.headless() {
+                return Ok(default_value);
+            } else {
+                prompt.default = Some(default_value);
+            }
         }
+    }
+
+    if runtime_context.headless() {
+        return Err(Box::new(EvalAltResult::ErrorSystem(
+            "Headless Mode Error".to_owned(),
+            Box::new(ArchetectError::HeadlessNoDefault),
+        )));
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -248,7 +297,7 @@ fn prompt_confirm(message: &str, settings: &Map) -> Result<bool, Box<EvalAltResu
     }
 }
 
-fn prompt_int(message: &str, settings: &Map) -> Result<i64, Box<EvalAltResult>> {
+fn prompt_int(message: &str, runtime_context: &RuntimeContext, settings: &Map) -> Result<i64, Box<EvalAltResult>> {
     let mut text = Text::new(message);
 
     let _optional = settings
@@ -259,11 +308,22 @@ fn prompt_int(message: &str, settings: &Map) -> Result<i64, Box<EvalAltResult>> 
     if let Some(default_value) = settings.get("default_value") {
         let default_value = default_value.to_string();
         match default_value.parse::<i64>() {
-            Ok(_) => {
-                text.default = Some(default_value.to_string());
+            Ok(value) => {
+                if runtime_context.headless() {
+                    return Ok(value);
+                } else {
+                    text.default = Some(default_value.to_string());
+                }
             }
             Err(_) => warn!("Default for prompt should be an integer, but was ({})", default_value),
         }
+    }
+
+    if runtime_context.headless() {
+        return Err(Box::new(EvalAltResult::ErrorSystem(
+            "Headless Mode Error".to_owned(),
+            Box::new(ArchetectError::HeadlessNoDefault),
+        )));
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -347,7 +407,7 @@ fn prompt_int(message: &str, settings: &Map) -> Result<i64, Box<EvalAltResult>> 
     }
 }
 
-fn prompt_text(message: &str, settings: &Map) -> Result<String, Box<EvalAltResult>> {
+fn prompt_text(message: &str, settings: &Map, runtime_context: &RuntimeContext) -> Result<String, Box<EvalAltResult>> {
     // TODO: Validate characters
     let validator = |input: &str| match input.len() > 0 {
         true => Ok(Validation::Valid),
@@ -362,7 +422,18 @@ fn prompt_text(message: &str, settings: &Map) -> Result<String, Box<EvalAltResul
         .unwrap_or(false);
 
     if let Some(default_value) = settings.get("default_value") {
-        text.default = Some(default_value.to_string());
+        if runtime_context.headless() {
+            return Ok(default_value.to_string());
+        } else {
+            text.default = Some(default_value.to_string());
+        }
+    }
+
+    if runtime_context.headless() {
+        return Err(Box::new(EvalAltResult::ErrorSystem(
+            "Headless Mode Error".to_owned(),
+            Box::new(ArchetectError::HeadlessNoDefault),
+        )));
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -395,7 +466,11 @@ fn prompt_text(message: &str, settings: &Map) -> Result<String, Box<EvalAltResul
     }
 }
 
-fn prompt_to_value(message: &str, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
+fn prompt_to_value(
+    message: &str,
+    runtime_context: RuntimeContext,
+    settings: Map,
+) -> Result<Dynamic, Box<EvalAltResult>> {
     let prompt_type = get_prompt_type(&settings).map_err(|err| {
         Box::new(EvalAltResult::ErrorSystem(
             "Invalid PromptType".to_owned(),
@@ -405,23 +480,23 @@ fn prompt_to_value(message: &str, settings: Map) -> Result<Dynamic, Box<EvalAltR
 
     match prompt_type {
         PromptType::Text => {
-            let value = prompt_text(message, &settings)?;
+            let value = prompt_text(message, &settings, &runtime_context)?;
             Ok(value.into())
         }
         PromptType::Confirm => {
-            let value = prompt_confirm(message, &settings)?;
+            let value = prompt_confirm(message, &runtime_context, &settings)?;
             Ok(value.into())
         }
         PromptType::Int => {
-            let value = prompt_int(message, &settings)?;
+            let value = prompt_int(message, &runtime_context, &settings)?;
             Ok(value.into())
         }
         PromptType::Select(options) => {
-            let value = prompt_select(message, options, &settings)?;
+            let value = prompt_select(message, options, &runtime_context, &settings)?;
             Ok(value.into())
         }
         PromptType::MultiSelect(options) => {
-            let value = prompt_multiselect(message, options, &settings)?;
+            let value = prompt_multiselect(message, options, &runtime_context, &settings)?;
             Ok(value.into())
         }
         _ => panic!("Unimplemented PromptType"),
