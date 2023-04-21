@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use uuid::Uuid;
 use minijinja::{Environment, UndefinedBehavior};
+use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
 
 pub mod rhai;
 
-pub (crate) fn create_environment() -> Environment<'static> {
+pub (crate) fn create_environment(runtime_context: RuntimeContext) -> Environment<'static> {
     let mut environment = Environment::new();
     environment.set_undefined_behavior(UndefinedBehavior::Strict);
     environment.add_filter("camel_case", |value: Cow<'_, str>| cruet::to_camel_case(value.as_ref()));
@@ -31,7 +32,11 @@ pub (crate) fn create_environment() -> Environment<'static> {
     environment.add_filter("ordinalize", |value: Cow<'_, str>| cruet::ordinalize(value.as_ref()));
     environment.add_filter("deordinalize", |value: Cow<'_, str>| cruet::deordinalize(value.as_ref()));
 
-
     environment.add_function("uuid", || Uuid::new_v4().to_string() );
+
+    let rc = runtime_context.clone();
+    environment.add_function("switch_enabled", move |switch: Cow<'_, str>| {
+       rc.switch_enabled(switch)
+    });
     environment
 }

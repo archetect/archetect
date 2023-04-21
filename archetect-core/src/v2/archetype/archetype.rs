@@ -26,7 +26,6 @@ pub struct Archetype {
 }
 
 pub(crate) struct Inner {
-    pub environment: Environment<'static>,
     pub directory: ArchetypeDirectory,
 }
 
@@ -34,9 +33,7 @@ impl Archetype {
     pub fn new(source: &Source) -> Result<Archetype, ArchetypeError> {
         let directory = ArchetypeDirectory::new(source.clone())?;
 
-        let environment = create_environment();
-
-        let inner = Rc::new(Inner { environment, directory });
+        let inner = Rc::new(Inner { directory });
 
         let archetype = Archetype { inner };
 
@@ -57,7 +54,8 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
 
-        let engine = create_engine(self.clone(), archetype_context.clone(), runtime_context);
+        let environment = create_environment(runtime_context.clone());
+        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {
@@ -82,7 +80,8 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let engine = create_engine(self.clone(), archetype_context.clone(), runtime_context);
+        let environment = create_environment(runtime_context.clone());
+        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {
@@ -107,8 +106,8 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
 
-        println!("Creating Engine");
-        let engine = create_engine(self.clone(), archetype_context.clone(), runtime_context);
+        let environment = create_environment(runtime_context.clone());
+        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {
@@ -117,7 +116,6 @@ impl Archetype {
                 Box::new(err),
             ))
         })?;
-        println!("Running Engine");
         engine.run_with_scope(&mut scope, script_contents)?;
 
         Ok(())
@@ -135,7 +133,8 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let engine = create_engine(self.clone(), archetype_context.clone(), runtime_context);
+        let environment = create_environment(runtime_context.clone());
+        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {

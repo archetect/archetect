@@ -1,11 +1,10 @@
 use rhai::{Engine, EvalAltResult, Map, NativeCallContext};
+use minijinja::Environment;
 use crate::v2::archetype::archetype::{Archetype};
 
-pub (crate) fn register(engine: &mut Engine, archetype: Archetype) {
-    let a = archetype.clone();
+pub (crate) fn register(engine: &mut Engine, environment: Environment<'static>) {
     engine.register_fn("render", move |call: NativeCallContext, template: &str, context: Map| {
-        let inner = &a.inner;
-        let environment = &inner.environment;
+        let environment = environment.clone();
 
         match environment.render_str(template, context) {
             Ok(rendered) => Ok(rendered),

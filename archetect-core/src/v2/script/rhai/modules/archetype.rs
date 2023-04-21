@@ -12,9 +12,9 @@ RuntimeContext) {
 
     let p = parent.clone();
     let ctx = archetype_context.clone();
-    let rt = runtime_context.clone();
+    let rc = runtime_context.clone();
     module.set_native_fn("Archetype", move |key: &str| {
-        create_archetype(p.clone(), ctx.clone(), rt.clone(), key)
+        create_archetype(p.clone(), ctx.clone(), rc.clone(), key)
     });
     engine.register_global_module(module.into());
 
@@ -28,7 +28,6 @@ RuntimeContext) {
 
 #[derive(Clone)]
 pub struct ArchetypeFacade {
-    parent: Archetype,
     child: Archetype,
     runtime_context: RuntimeContext,
     archetype_context: ArchetypeContext,
@@ -83,7 +82,6 @@ fn create_archetype(
             let child = Archetype::new(&source).unwrap();
 
             return Ok(ArchetypeFacade {
-                parent,
                 child,
                 archetype_context,
                 runtime_context,
