@@ -1,194 +1,203 @@
-use crate::vendor::loggerv;
-use archetect_core::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
-use camino::Utf8Path;
-use clap::{crate_authors, crate_description, crate_version};
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use log::Level;
+use std::io;
+use std::str::FromStr;
 
-pub fn get_matches() -> App<'static, 'static> {
-    App::new("archetect")
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about(crate_description!())
-        .setting(AppSettings::SubcommandRequiredElseHelp)
+use camino::{Utf8Path, Utf8PathBuf};
+use clap::builder::ValueParser;
+use clap::{command, Arg, ArgAction, ArgMatches, Command, value_parser};
+use clap_complete::{generate, Shell};
+use log::Level;
+use archetect_core::ArchetectError;
+
+use archetect_core::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
+use archetect_core::vendor::tera::Error;
+use crate::cli;
+
+use crate::vendor::loggerv;
+
+pub fn command() -> Command {
+    command!()
+        .name("archetect")
+        .help_expected(true)
         .arg(
-            Arg::with_name("verbosity")
-                .short("v")
+            Arg::new("verbosity")
+                .help("Increase verbosity level")
+                .short('v')
                 .long("verbose")
-                .multiple(true)
+                .action(ArgAction::Count)
                 .global(true)
-                .help("Increases the level of verbosity"),
         )
         .arg(
-            Arg::with_name("offline")
-                .global(true)
+            Arg::new("offline")
                 .help("Only use directories and already-cached remote git URLs")
-                .short("o")
-                .long("offline"),
+                .short('o')
+                .long("offline")
+                .action(ArgAction::SetTrue)
+                .global(true)
         )
         .arg(
-            Arg::with_name("headless")
+            Arg::new("headless")
+                .help("Expect all variable values to be provided by answer arguments or files, never waiting for user input.")
+                .long("headless")
+                .action(ArgAction::SetTrue)
                 .global(true)
-                .help(
-                    "Expect all variable values to be provided by answer arguments or files, never waiting for user \
-                input.",
-                )
-                .long("headless"),
         )
         .arg(
-            Arg::with_name("local")
-                .global(true)
+            Arg::new("local")
                 .help("Use local development checkouts where available and configured")
                 .long("local")
+                .action(ArgAction::SetTrue)
+                .global(true)
         )
         .arg(
-            Arg::with_name("answer")
-                .short("a")
-                .long("answer")
-                .takes_value(true)
-                .multiple(true)
-                .global(true)
-                .empty_values(false)
-                .value_name("key=value")
+            Arg::new("answer")
                 .help("Supply a key=value pair as an answer to a variable question.")
                 .long_help(VALID_ANSWER_INPUTS)
-                .validator(|s| match AnswerInfo::parse(&s) {
-                    Ok(_) => Ok(()),
-                    _ => Err(format!(
-                        "'{}' is not in a proper key=value answer format. \n{}",
-                        s, VALID_ANSWER_INPUTS
-                    )),
-                }),
+                .long("answer")
+                .short('a')
+                .action(ArgAction::Append)
+                .value_name("key=value")
+                .global(true)
         )
         .arg(
-            Arg::with_name("switches")
-                .short("s")
+            Arg::new("switches")
+                .help("Enable switches that may trigger functionality within Archetypes")
                 .long("switch")
-                .takes_value(true)
-                .multiple(true)
+                .short('s')
+                .action(ArgAction::Append)
                 .global(true)
-                .empty_values(true)
-                .help("Enable switches that may trigger functionality within Archetypes"),
         )
         .arg(
-            Arg::with_name("answer-file")
-                .short("A")
-                .long("answer-file")
-                .takes_value(true)
-                .multiple(true)
-                .global(true)
-                .empty_values(false)
-                .value_name("path")
+            Arg::new("answer-file")
                 .help("Supply an answers file as answers to variable questions.")
                 .long_help(
                     "Supply an answers file as answers to variable questions. This option may \
                      be specified more than once.",
                 )
-                .validator(|af| {
-                    let file = Utf8Path::new(&af);
-                    match file.extension() {
-                        Some("yml") => Ok(()),
-                        Some("yaml") => Ok(()),
-                        Some("rhai") => Ok(()),
-                        Some("json") => Ok(()),
-                        Some(_extension) => {
-                            println!("{} extension used as an answer file", _extension);
-                            Err(format!("'{}' is not a supported answer file format", af))
-                        }
-                        None => Err(format!("'{}' is not a supported answer file format", af)),
-                    }
-                }),
+                .long("answer-file")
+                .short('A')
+                .action(ArgAction::Append)
+                .global(true)
+                .value_name("path")
+                // .value_parser(ValueParser::new(parse_answer_file))
         )
         .subcommand(
-            SubCommand::with_name("catalog")
+            Command::new("catalog")
                 .about("Select From a Catalog")
                 .arg(
-                    Arg::with_name("destination")
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in")
                         .default_value(".")
-                        .help("The directory to render the Archetype in.")
-                        .takes_value(true),
+                        .action(ArgAction::Set)
                 )
                 .arg(
-                    Arg::with_name("source")
+                    Arg::new("source")
+                        .help("Catalog source location")
                         .long("source")
-                        .short("S")
-                        .takes_value(true)
-                        .help("Catalog source location"),
+                        .short('S')
+                        .action(ArgAction::Set)
                 ),
         )
         .subcommand(
-            SubCommand::with_name("completions")
+            Command::new("completions")
                 .about("Generate shell completions")
-                .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(SubCommand::with_name("fish").about("Generate Fish Shell completions"))
-                .subcommand(SubCommand::with_name("zsh").about("Generate ZSH completions"))
-                .subcommand(SubCommand::with_name("bash").about("Generate Bash Shell completions"))
-                .subcommand(SubCommand::with_name("powershell").about("Generate PowerShell completions")),
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("generator")
+                        .help("Shell Generator")
+                        .value_parser(value_parser!(Shell))
+                )
         )
         .subcommand(
-            SubCommand::with_name("system")
+            Command::new("system")
                 .about("archetect system configuration")
                 .subcommand(
-                    SubCommand::with_name("layout")
+                    Command::new("layout")
                         .about("Get layout of system paths")
                         .subcommand(
-                            SubCommand::with_name("git")
+                            Command::new("git")
                                 .about("The location where git repos are cloned.  Used for offline mode."),
                         )
                         .subcommand(
-                            SubCommand::with_name("http")
+                            Command::new("http")
                                 .about("The location where http resources are cached.  Used for offline mode."),
                         )
                         .subcommand(
-                            SubCommand::with_name("config")
+                            Command::new("config")
                                 .about("The location where archetect config files are stored."),
                         )
                         .subcommand(
-                            SubCommand::with_name("answers").about("The location where answers are specified."),
+                            Command::new("answers").about("The location where answers are specified."),
                         ),
                 ),
         )
         .subcommand(
-            SubCommand::with_name("cache")
+            Command::new("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(SubCommand::with_name("select"))
-                .subcommand(SubCommand::with_name("clear"))
-                .subcommand(SubCommand::with_name("pull")),
+                .subcommand(Command::new("select"))
+                .subcommand(Command::new("clear"))
+                .subcommand(Command::new("pull")),
         )
         .subcommand(
-            SubCommand::with_name("render")
+            Command::new("render")
                 .alias("create")
                 .about("Creates content from an Archetype")
                 .arg(
-                    Arg::with_name("source")
+                    Arg::new("source")
                         .help("The Archetype source directory or git URL")
-                        .takes_value(true)
+                        .action(ArgAction::Set)
                         .required(true),
                 )
                 .arg(
-                    Arg::with_name("destination")
-                        .default_value(".")
+                    Arg::new("destination")
                         .help("The directory the Archetype should be rendered into.")
-                        .takes_value(true),
+                        .default_value(".")
+                        .action(ArgAction::Set)
                 ),
         )
 }
 
 pub fn configure(matches: &ArgMatches) {
     loggerv::Logger::new()
-        .output(&Level::Error, crate::vendor::loggerv::Output::Stderr)
-        .output(&Level::Warn, crate::vendor::loggerv::Output::Stderr)
-        .output(&Level::Info, crate::vendor::loggerv::Output::Stderr)
-        .output(&Level::Debug, crate::vendor::loggerv::Output::Stderr)
-        .output(&Level::Trace, crate::vendor::loggerv::Output::Stderr)
-        .verbosity(matches.occurrences_of("verbosity"))
+        .output(&Level::Error, loggerv::Output::Stderr)
+        .output(&Level::Warn, loggerv::Output::Stderr)
+        .output(&Level::Info, loggerv::Output::Stderr)
+        .output(&Level::Debug, loggerv::Output::Stderr)
+        .output(&Level::Trace, loggerv::Output::Stderr)
+        .verbosity(matches.get_count("verbosity") as u64)
         .level(false)
         .prefix("archetect")
         .no_module_path()
         .module_path(false)
-        .base_level(log::Level::Info)
+        .base_level(Level::Info)
         .init()
         .unwrap();
+}
+
+pub fn completions(matches: &ArgMatches) -> Result<(), ArchetectError> {
+    if let Some(generator) = matches.get_one::<Shell>("generator") {
+        let mut command = cli::command();
+        eprintln!("Generating completions for {generator}");
+        generate(*generator, &mut command, "archetect", &mut io::stdout());
+    } else {
+        return Err(ArchetectError::GeneralError("Invalid completions shell".to_owned()));
+    }
+
+    Ok(())
+}
+
+fn parse_answer_file(path: &str) -> Result<Utf8PathBuf, String> {
+    let file = Utf8PathBuf::from_str(path).unwrap();
+    match file.extension() {
+        Some("yml") => Ok(file),
+        Some("yaml") => Ok(file),
+        Some("rhai") => Ok(file),
+        Some("json") => Ok(file),
+        Some(extension) => {
+            println!("{} extension used as an answer file", extension);
+            Err(format!("'{}' is not a supported answer file format", path))
+        }
+        None => Err(format!("'{}' is not a supported answer file format", path)),
+    }
 }
 
 const VALID_ANSWER_INPUTS: &str = "Supply a key=value pair as an answer to a variable question. \

@@ -250,7 +250,7 @@ fn prompt_confirm(message: &str, runtime_context: &RuntimeContext, settings: &Ma
         .map_or(Ok(false), |value| value.as_bool())
         .unwrap_or(false);
 
-    if let Some(default_value) = settings.get("default_value") {
+    if let Some(default_value) = settings.get("defaults_with") {
         if let Some(default_value) = default_value.clone().try_cast::<bool>() {
             if runtime_context.headless() {
                 return Ok(default_value);
@@ -305,7 +305,7 @@ fn prompt_int(message: &str, runtime_context: &RuntimeContext, settings: &Map) -
         .map_or(Ok(false), |value| value.as_bool())
         .unwrap_or(false);
 
-    if let Some(default_value) = settings.get("default_value") {
+    if let Some(default_value) = settings.get("defaults_with") {
         let default_value = default_value.to_string();
         match default_value.parse::<i64>() {
             Ok(value) => {
@@ -421,7 +421,7 @@ fn prompt_text(message: &str, settings: &Map, runtime_context: &RuntimeContext) 
         .map_or(Ok(false), |value| value.as_bool())
         .unwrap_or(false);
 
-    if let Some(default_value) = settings.get("default_value") {
+    if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
             return Ok(default_value.to_string());
         } else {

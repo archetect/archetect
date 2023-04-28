@@ -1,8 +1,9 @@
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::runtime::context::RuntimeContext;
-use rhai::Engine;
 use minijinja::Environment;
+use rhai::module_resolvers::FileModuleResolver;
+use rhai::Engine;
 
 pub(crate) mod modules;
 
@@ -13,6 +14,9 @@ pub(crate) fn create_engine(
     runtime_context: RuntimeContext,
 ) -> Engine {
     let mut engine = Engine::new();
+    engine.set_module_resolver(
+        FileModuleResolver::new_with_path_and_extension(archetype.directory().root().join("modules"), "rhai")
+    );
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 
@@ -29,7 +33,12 @@ pub(crate) fn create_engine(
     );
     modules::set::register(&mut engine);
     modules::render::register(&mut engine, environment.clone());
-    modules::directory::register(&mut engine, environment.clone(), archetype.clone(), archetype_context.clone());
+    modules::directory::register(
+        &mut engine,
+        environment.clone(),
+        archetype.clone(),
+        archetype_context.clone(),
+    );
     modules::archetype::register(
         &mut engine,
         archetype.clone(),

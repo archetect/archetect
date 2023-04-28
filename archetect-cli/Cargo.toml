@@ -3,7 +3,7 @@ name = "archetect"
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"
 repository = "https://github.com/archetect/archetect"
-keywords = ["code-generation", "content-generation", "jinja2", "cli"]
+keywords = ["code-generation", "content-generation", "rhai", "jinja", "minijinja", "cli"]
 readme = "../README.md"
 version = "0.7.4"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
@@ -21,8 +21,9 @@ ansi_term = "0.12"
 anyhow = "1.0.69"
 atty = "0.2"
 camino = "1.1"
-clap = "2"
-indoc = "0.3"
+clap = { version = "4.2.4", features = ["cargo", "env", "color"] }
+clap_complete = "4.2.0"
+indoc = "2.0.1"
 lazy_static = "1.0"
 linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
 log = "0.4"
@@ -31,4 +32,4 @@ rhai = { version = "1.12", features = ["serde"] }
 serde = "1.0.116"
 serde_derive = "1.0.116"
 serde_json = "1.0.40"
-serde_yaml = "0.8"
+serde_yaml = "0.9.21"

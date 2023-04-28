@@ -40,6 +40,10 @@ impl Archetype {
         Ok(archetype)
     }
 
+    pub fn directory(&self) -> &ArchetypeDirectory {
+        &self.inner.directory
+    }
+
     pub fn manifest(&self) -> &ArchetypeManifest {
         &self.inner.directory.manifest()
     }
@@ -53,7 +57,7 @@ impl Archetype {
 
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
-
+        
         let environment = create_environment(runtime_context.clone());
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
