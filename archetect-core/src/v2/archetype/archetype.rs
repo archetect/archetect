@@ -58,7 +58,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
         
-        let environment = create_environment(runtime_context.clone());
+        let environment = create_environment(runtime_context.clone(), &self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -84,7 +84,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let environment = create_environment(runtime_context.clone());
+        let environment = create_environment(runtime_context.clone(), &self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -110,7 +110,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
 
-        let environment = create_environment(runtime_context.clone());
+        let environment = create_environment(runtime_context.clone(), &self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -137,7 +137,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let environment = create_environment(runtime_context.clone());
+        let environment = create_environment(runtime_context.clone(), &self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
