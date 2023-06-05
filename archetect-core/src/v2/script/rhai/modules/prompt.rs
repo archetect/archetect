@@ -8,6 +8,7 @@ use semver::Identifier;
 
 use inquire::validator::Validation;
 use inquire::{Confirm, InquireError, MultiSelect, Select, Text};
+use inquire::error::InquireResult;
 
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
@@ -121,8 +122,37 @@ fn prompt_to_map(
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
+        PromptType::Editor => {
+            let value = prompt_editor(message)?;
+            results.insert(key.into(), value.into());
+            return Ok(results.into());
+        }
         // PromptType::List => {}
         _ => panic!("Unimplemented PromptType"),
+    }
+}
+
+fn prompt_editor(message: &str) -> Result<String, Box<EvalAltResult>> {
+    let mut prompt = inquire::Editor::new(message);
+
+    let result = prompt.prompt();
+    match result {
+        Ok(text) => Ok(text),
+        Err(err) => match err {
+            InquireError::OperationCanceled => {
+                return Err(Box::new(EvalAltResult::ErrorSystem(
+                    "Cancelled".to_owned(),
+                    Box::new(ArchetypeError::ValueRequired),
+                )));
+            }
+            InquireError::OperationInterrupted => {
+                return Err(Box::new(EvalAltResult::ErrorSystem(
+                    "Cancelled".to_owned(),
+                    Box::new(ArchetypeError::OperationInterrupted),
+                )));
+            }
+            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
+        },
     }
 }
 
@@ -521,6 +551,7 @@ pub enum PromptType {
     List,
     Select(Vec<Dynamic>),
     MultiSelect(Vec<Dynamic>),
+    Editor,
 }
 
 #[allow(non_snake_case)]
@@ -535,6 +566,7 @@ pub mod module {
     pub const Confirm: PromptType = PromptType::Confirm;
     pub const Int: PromptType = PromptType::Int;
     pub const List: PromptType = PromptType::List;
+    pub const Editor: PromptType = PromptType::Editor;
 
     pub fn Select(options: Vec<Dynamic>) -> PromptType {
         PromptType::Select(options)

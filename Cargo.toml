@@ -3,6 +3,7 @@
 members = [
     "archetect-cli",
     "archetect-core",
+    "archetect-models",
     "vendor/minijinja",
     "vendor/inquire",
 ]
