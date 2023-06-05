@@ -8,7 +8,6 @@ use crate::v2::source::Source;
 pub struct ArchetypeDirectory {
     manifest: ArchetypeManifest,
     root: Utf8PathBuf,
-    source: Source,
 }
 
 impl ArchetypeDirectory {
@@ -19,7 +18,6 @@ impl ArchetypeDirectory {
         Ok(ArchetypeDirectory {
             manifest,
             root,
-            source,
         })
     }
 

@@ -4,7 +4,6 @@ use crate::system::SystemError;
 use crate::ArchetypeError;
 use camino::Utf8PathBuf;
 use rhai::EvalAltResult;
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
@@ -52,25 +51,13 @@ pub enum RenderError {
     InvalidPathCharacters {
         path: PathBuf,
     },
-    PathRenderError {
-        path: PathBuf,
-        source: crate::vendor::tera::Error,
-    },
     PathRenderError2 {
         path: PathBuf,
         source: minijinja::Error,
     },
-    FileRenderError {
-        path: PathBuf,
-        source: crate::vendor::tera::Error,
-    },
     FileRenderIOError {
         path: Utf8PathBuf,
         source: std::io::Error,
-    },
-    StringRenderError {
-        string: String,
-        source: crate::vendor::tera::Error,
     },
     IOError {
         #[from]
@@ -84,46 +71,15 @@ impl Display for RenderError {
             RenderError::InvalidPathCharacters { path } => {
                 write!(f, "Invalid characters in path template `{:?}`", path)
             }
-            RenderError::PathRenderError { path, source } => {
-                write!(
-                    f,
-                    "Unable to render path `{:?}`: {}",
-                    path,
-                    extract_tera_message(source)
-                )
-            }
             RenderError::PathRenderError2 { path, source } => {
                 write!(f, "Unable to render path `{:?}`: {}", path, source)
             }
-            RenderError::FileRenderError { path, source } => {
-                write!(
-                    f,
-                    "Unable to render file `{:?}`: {}",
-                    path,
-                    extract_tera_message(source)
-                )
-            }
             RenderError::FileRenderIOError { path, source } => {
                 write!(f, "Unable to render file `{:?}`: {}", path, source)
-            }
-            RenderError::StringRenderError { string, source } => {
-                write!(
-                    f,
-                    "Unable to render string `{}`: {}",
-                    string,
-                    extract_tera_message(source)
-                )
             }
             RenderError::IOError { source } => {
                 write!(f, "Rendering IO Error: {}", source)
             }
         }
-    }
-}
-
-fn extract_tera_message(error: &crate::vendor::tera::Error) -> String {
-    match error.source() {
-        None => format!("{}", error),
-        Some(source) => format!("{}", source),
     }
 }

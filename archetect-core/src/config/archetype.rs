@@ -1,4 +1,3 @@
-use crate::actions::ActionId;
 use crate::ArchetypeError;
 use std::fs;
 use std::path::PathBuf;
@@ -15,8 +14,6 @@ pub struct ArchetypeConfig {
     frameworks: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "actions")]
-    script: Option<Vec<ActionId>>,
 }
 
 impl ArchetypeConfig {
@@ -108,20 +105,6 @@ impl ArchetypeConfig {
     pub fn frameworks(&self) -> &[String] {
         self.frameworks.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
-
-    pub fn with_action(mut self, action: ActionId) -> ArchetypeConfig {
-        self.add_action(action);
-        self
-    }
-
-    pub fn add_action(&mut self, action: ActionId) {
-        let actions = self.script.get_or_insert_with(|| Vec::new());
-        actions.push(action);
-    }
-
-    pub fn actions(&self) -> &[ActionId] {
-        self.script.as_ref().map(|r| r.as_slice()).unwrap_or_default()
-    }
 }
 
 impl Default for ArchetypeConfig {
@@ -132,7 +115,6 @@ impl Default for ArchetypeConfig {
             languages: None,
             frameworks: None,
             tags: None,
-            script: None,
         }
     }
 }
@@ -167,8 +149,7 @@ mod tests {
             .with_framework("Spring")
             .with_framework("Hessian")
             .with_tag("Service")
-            .with_tag("REST")
-            .with_action(ActionId::Set(variables));
+            .with_tag("REST");
 
         let output = serde_yaml::to_string(&config).unwrap();
         println!("{}", output);

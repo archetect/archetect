@@ -15,11 +15,9 @@ pub use crate::errors::{ArchetectError, RenderError};
 mod core;
 mod errors;
 
-pub mod actions;
 pub mod archetype;
 pub mod config;
 pub mod input;
-pub mod rendering;
 pub mod requirements;
 pub mod rules;
 pub mod system;

@@ -1,6 +1,6 @@
 [package]
 name = "archetect-core"
-version = "0.7.4"
+version = "2.0.0-ALPHA"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"
@@ -14,7 +14,6 @@ license = "MIT"
 anyhow = "1.0.69"
 atty = "0.2"
 camino = { version= "1.1", features = ["serde1"] }
-clap = "2"
 content_inspector = "0.2"
 cruet = "0.13.3"
 directories = "2.0.2"
@@ -30,7 +29,7 @@ minijinja = { path = "../vendor/minijinja", features = ["source", "urlencode", "
 inquire = { path = "../vendor/inquire", features = ["editor"] }
 pest = "2"
 pest_derive = "2"
-rhai = { version = "1.12", features = ["serde"] }
+rhai = { version = "1.14", features = ["serde"] }
 semver = { version = "0.9", features = ["serde"] }
 serde = "1.0.116"
 serde_derive = "1.0.116"

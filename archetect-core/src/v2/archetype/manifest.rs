@@ -2,6 +2,7 @@ use crate::ArchetypeError;
 use std::fs;
 use camino::{Utf8Path, Utf8PathBuf};
 use linked_hash_map::LinkedHashMap;
+use semver::VersionReq;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArchetypeManifest {
@@ -17,8 +18,20 @@ pub struct ArchetypeManifest {
     tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     components: Option<LinkedHashMap<String, String>>,
+    requires: ArchetypeRequirements,
     #[serde(skip_serializing_if = "Option::is_none")]
     script: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ArchetypeRequirements {
+    archetect: VersionReq,
+}
+
+impl ArchetypeRequirements {
+    pub fn archetect_version_req(&self) -> &VersionReq {
+        &self.archetect
+    }
 }
 
 impl ArchetypeManifest {
@@ -127,6 +140,10 @@ impl ArchetypeManifest {
         self
     }
 
+    pub fn requires(&self) -> &ArchetypeRequirements {
+        &self.requires
+    }
+
     pub fn script(&self) -> String {
         self.script.clone().unwrap_or("archetype.rhai".to_owned())
     }
@@ -141,6 +158,7 @@ impl Default for ArchetypeManifest {
             frameworks: None,
             tags: None,
             components: Default::default(),
+            requires: ArchetypeRequirements { archetect: VersionReq::parse("2.0.0").unwrap() },
             script: None,
         }
     }

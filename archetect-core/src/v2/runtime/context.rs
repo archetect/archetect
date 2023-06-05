@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use semver::Version;
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
@@ -6,9 +7,20 @@ pub struct RuntimeContext {
     headless: bool,
     local: bool,
     switches: HashSet<String>,
+    version: Version,
 }
 
 impl RuntimeContext {
+    pub fn new(version: Version) -> RuntimeContext {
+        RuntimeContext {
+            offline: false,
+            headless: false,
+            local: false,
+            switches: HashSet::new(),
+            version,
+        }
+    }
+
     pub fn offline(&self) -> bool {
         self.offline
     }
@@ -44,15 +56,8 @@ impl RuntimeContext {
     pub fn set_local(&mut self, local: bool) {
         self.local = local;
     }
-}
 
-impl Default for RuntimeContext {
-    fn default() -> Self {
-        RuntimeContext {
-            offline: false,
-            headless: false,
-            local: false,
-            switches: HashSet::new(),
-        }
+    pub fn archetect_version(&self) -> &Version {
+        &self.version
     }
 }

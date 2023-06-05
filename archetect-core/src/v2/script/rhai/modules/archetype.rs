@@ -2,12 +2,16 @@ use rhai::{Engine, EvalAltResult, Map, Module};
 
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
+use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::source::Source;
 use crate::{Archetect, ArchetypeError};
-use crate::v2::runtime::context::RuntimeContext;
 
-pub(crate) fn register(engine: &mut Engine, parent: Archetype, archetype_context: ArchetypeContext, runtime_context:
-RuntimeContext) {
+pub(crate) fn register(
+    engine: &mut Engine,
+    parent: Archetype,
+    archetype_context: ArchetypeContext,
+    runtime_context: RuntimeContext,
+) {
     let mut module = Module::new();
 
     let p = parent.clone();
@@ -36,22 +40,26 @@ pub struct ArchetypeFacade {
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().to_path_buf();
-        self.child.render_with_destination(destination, self.runtime_context.clone(), answers)?;
-
+        self.child
+            .render_with_destination(destination, self.runtime_context.clone(), answers)?;
         Ok(())
     }
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().to_path_buf();
-        self.child
-            .render_with_destination_and_settings(destination, self.runtime_context.clone(), answers, settings)?;
-
+        self.child.render_with_destination_and_settings(
+            destination,
+            self.runtime_context.clone(),
+            answers,
+            settings,
+        )?;
         Ok(())
     }
 
     pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().join(destination);
-        self.child.render_with_destination(destination, self.runtime_context.clone(), answers)?;
+        self.child
+            .render_with_destination(destination, self.runtime_context.clone(), answers)?;
 
         Ok(())
     }
@@ -63,8 +71,12 @@ impl ArchetypeFacade {
         settings: Map,
     ) -> Result<(), Box<EvalAltResult>> {
         let destination = self.archetype_context.destination().join(destination);
-        self.child
-            .render_with_destination_and_settings(destination, self.runtime_context.clone(), answers, settings)?;
+        self.child.render_with_destination_and_settings(
+            destination,
+            self.runtime_context.clone(),
+            answers,
+            settings,
+        )?;
 
         Ok(())
     }
@@ -90,7 +102,10 @@ fn create_archetype(
     }
 
     return Err(Box::new(EvalAltResult::ErrorSystem(
-        format!("Archetypes must be registered in archetype.yaml, and '{}' archetype has not been listed there", key),
+        format!(
+            "Archetypes must be registered in archetype.yaml, and '{}' archetype has not been listed there",
+            key
+        ),
         Box::new(ArchetypeError::ArchetypeKeyNotFound { key: key.to_owned() }),
     )));
 }

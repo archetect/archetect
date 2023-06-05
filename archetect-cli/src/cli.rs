@@ -1,15 +1,10 @@
 use std::io;
-use std::str::FromStr;
 
-use camino::{Utf8Path, Utf8PathBuf};
-use clap::builder::ValueParser;
 use clap::{command, Arg, ArgAction, ArgMatches, Command, value_parser};
 use clap_complete::{generate, Shell};
 use log::Level;
 use archetect_core::ArchetectError;
 
-use archetect_core::config::{AnswerConfig, AnswerConfigError, AnswerInfo};
-use archetect_core::vendor::tera::Error;
 use crate::cli;
 
 use crate::vendor::loggerv;
@@ -183,21 +178,6 @@ pub fn completions(matches: &ArgMatches) -> Result<(), ArchetectError> {
     }
 
     Ok(())
-}
-
-fn parse_answer_file(path: &str) -> Result<Utf8PathBuf, String> {
-    let file = Utf8PathBuf::from_str(path).unwrap();
-    match file.extension() {
-        Some("yml") => Ok(file),
-        Some("yaml") => Ok(file),
-        Some("rhai") => Ok(file),
-        Some("json") => Ok(file),
-        Some(extension) => {
-            println!("{} extension used as an answer file", extension);
-            Err(format!("'{}' is not a supported answer file format", path))
-        }
-        None => Err(format!("'{}' is not a supported answer file format", path)),
-    }
 }
 
 const VALID_ANSWER_INPUTS: &str = "Supply a key=value pair as an answer to a variable question. \

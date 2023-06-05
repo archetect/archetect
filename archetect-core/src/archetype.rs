@@ -1,17 +1,12 @@
-use std::fs;
 use std::path::{PathBuf};
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::{Utf8PathBuf};
 
-use linked_hash_map::LinkedHashMap;
 use rhai::EvalAltResult;
 
-use crate::actions::ActionId;
-use crate::config::{AnswerInfo, ArchetypeConfig};
+use crate::config::{ArchetypeConfig};
 use crate::errors::RenderError;
-use crate::rules::RulesContext;
-use crate::vendor::tera::Context;
+use crate::requirements::RequirementsError;
 use crate::source::{Source, SourceError};
-use crate::{Archetect, ArchetectError};
 
 pub struct Archetype {
     source: Source,
@@ -36,36 +31,6 @@ impl Archetype {
 
     pub fn source(&self) -> &Source {
         &self.source
-    }
-
-    pub fn render<D: AsRef<Utf8Path>>(
-        &self,
-        archetect: &mut Archetect,
-        destination: D,
-        answers: &LinkedHashMap<String, AnswerInfo>,
-    ) -> Result<(), ArchetectError> {
-        let destination = destination.as_ref();
-        fs::create_dir_all(destination)?;
-
-        let mut rules_context = RulesContext::new();
-        let mut context = Context::new();
-
-        let archetect_info = ArchetectInfo {
-            offline: archetect.offline(),
-            version: clap::crate_version!().to_owned(),
-        };
-        context.insert("archetect", &archetect_info);
-
-        let archetype_info = ArchetypeInfo {
-            source: self.source().source().to_owned(),
-            destination: destination.to_string(),
-            local_path: self.source().local_path().to_string(),
-        };
-        context.insert("archetype", &archetype_info);
-
-        let root_action = ActionId::from(self.config.actions());
-
-        root_action.execute(archetect, self, destination, &mut rules_context, answers, &mut context)
     }
 }
 
@@ -123,6 +88,8 @@ pub enum ArchetypeError {
     OperationInterrupted,
     #[error("Value is required")]
     ValueRequired,
+    #[error("Archetype requirements failure:\n\n{0}")]
+    RequirementsError(#[from] RequirementsError),
 
 }
 

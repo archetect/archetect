@@ -19,6 +19,7 @@ use crate::v2::script::create_environment;
 use crate::v2::script::rhai::create_engine;
 use crate::v2::source::Source;
 use crate::{ArchetypeError, RenderError};
+use crate::requirements::RequirementsError;
 
 #[derive(Clone)]
 pub struct Archetype {
@@ -57,7 +58,7 @@ impl Archetype {
 
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
-        
+
         let environment = create_environment(runtime_context.clone(), &self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
@@ -148,6 +149,17 @@ impl Archetype {
             ))
         })?;
         engine.run_with_scope(&mut scope, script_contents)?;
+        Ok(())
+    }
+
+    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
+        let version = runtime_context.archetect_version();
+        let version_req = self.directory().manifest().requires().archetect_version_req();
+
+        if !version_req.matches(version) {
+            return Err(RequirementsError::ArchetectVersion(runtime_context.archetect_version().clone(), self.manifest()
+                .requires().archetect_version_req().clone()).into());
+        }
 
         Ok(())
     }

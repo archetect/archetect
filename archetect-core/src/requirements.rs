@@ -66,7 +66,8 @@ impl Requirements {
 pub enum RequirementsError {
     #[error("Error Deserializing Requirements File `{path}`: {cause}")]
     DeserializationError { path: PathBuf, cause: serde_yaml::Error },
-    #[error("Incompatible Archetect Version `{0}`. Requirements: {1}")]
+    #[error("Incompatible Archetect Version `{0}`. This archetype or one of it's components requires version {1}. \
+     \n\nPlease install the latest version: cargo install archetect --force")]
     ArchetectVersion(Version, VersionReq),
     #[error("IO Error Reading Requirements File `{0}`.")]
     IoError(std::io::Error),
@@ -75,5 +76,31 @@ pub enum RequirementsError {
 impl From<std::io::Error> for RequirementsError {
     fn from(error: std::io::Error) -> Self {
         RequirementsError::IoError(error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use semver::{Version, VersionReq};
+
+    #[test]
+    fn test_parse_suffix() {
+        let version = Version::parse("2.0.0-ALPHA").unwrap();
+        println!("{:?}", version.pre);
+    }
+
+    #[test]
+    fn test_compatibility_patch()  {
+        assert_matches("2.0.0", "2.0.0-ALPHA"); // Version greater than ALPHA
+        assert_matches("2.0.1", "2.0.0");
+        assert_matches("2.1.1", "2.0.0");
+        assert_matches("2.1.1", "2.0.0");
+        assert_matches("2.1.1", "2.1");
+    }
+
+    fn assert_matches(version: &str, version_req: &str) {
+        let version = Version::parse(version).unwrap();
+        let version_req = VersionReq::parse(version_req).unwrap();
+        assert!(version_req.matches(&version));
     }
 }

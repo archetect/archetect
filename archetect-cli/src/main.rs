@@ -1,19 +1,10 @@
 use camino::Utf8PathBuf;
-use std::error::Error;
-use std::fs;
 use std::ops::Deref;
-use std::str::FromStr;
 
 use clap::ArgMatches;
-use linked_hash_map::LinkedHashMap;
-use log::{error, info, warn};
-use rhai::plugin::RhaiResult;
+use log::{error};
 use rhai::{Dynamic, EvalAltResult, Map};
 
-use archetect_core::config::{AnswerConfig, AnswerInfo, Catalog, CatalogEntry, CATALOG_FILE_NAME};
-use archetect_core::input::select_from_catalog;
-use archetect_core::source::Source;
-use archetect_core::v2::archetype::archetype_context::ArchetypeContext;
 use archetect_core::v2::runtime::context::RuntimeContext;
 use archetect_core::Archetect;
 use archetect_core::{self, ArchetectError};
@@ -27,7 +18,7 @@ fn main() {
 
     cli::configure(&matches);
 
-    match execute_2(matches) {
+    match execute(matches) {
         Ok(()) => (),
         Err(error) => {
             error!("{}", error);
@@ -36,7 +27,7 @@ fn main() {
     }
 }
 
-fn execute_2(matches: ArgMatches) -> Result<(), ArchetectError> {
+fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     let mut answers = Map::new();
 
     if let Some(answer_files) = matches.get_many::<String>("answer-file") {
@@ -85,12 +76,13 @@ fn execute_2(matches: ArgMatches) -> Result<(), ArchetectError> {
 }
 
 pub fn render(matches: &ArgMatches, answers: Map) -> Result<(), ArchetectError> {
+    let archetect = Archetect::builder().build()?;
     let source = matches.get_one::<String>("source").unwrap();
     let source = archetect_core::v2::source::Source::detect(&Archetect::build()?, source, None)?;
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
-    let mut archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
-    let mut runtime_context = RuntimeContext::default();
+    let archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
+    let mut runtime_context = RuntimeContext::new(archetect.version());
     runtime_context.set_local(matches.get_flag("local"));
     runtime_context.set_headless(matches.get_flag("headless"));
     runtime_context.set_offline(matches.get_flag("offline"));
@@ -99,7 +91,7 @@ pub fn render(matches: &ArgMatches, answers: Map) -> Result<(), ArchetectError> 
             runtime_context.enable_switch(switch);
         }
     }
-
+    archetype.check_requirements(&runtime_context)?;
     archetype.render_with_destination(destination, runtime_context, answers)?;
     Ok(())
 }
