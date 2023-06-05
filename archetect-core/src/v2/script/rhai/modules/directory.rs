@@ -1,6 +1,5 @@
 use crate::v2::archetype::archetype::{render_directory, Archetype};
 use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::script::create_environment;
 use camino::Utf8PathBuf;
 use minijinja::Environment;
 use rhai::{Engine, EvalAltResult, Map, Module};

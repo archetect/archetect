@@ -1,6 +1,5 @@
 use rhai::{Engine, EvalAltResult, Map, NativeCallContext};
 use minijinja::Environment;
-use crate::v2::archetype::archetype::{Archetype};
 
 pub (crate) fn register(engine: &mut Engine, environment: Environment<'static>) {
     engine.register_fn("render", move |call: NativeCallContext, template: &str, context: Map| {

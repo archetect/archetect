@@ -1,14 +1,11 @@
-use std::collections::BTreeMap;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
 use log::warn;
 use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
-use semver::Identifier;
 
 use inquire::validator::Validation;
 use inquire::{Confirm, InquireError, MultiSelect, Select, Text};
-use inquire::error::InquireResult;
 
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
@@ -133,7 +130,7 @@ fn prompt_to_map(
 }
 
 fn prompt_editor(message: &str) -> Result<String, Box<EvalAltResult>> {
-    let mut prompt = inquire::Editor::new(message);
+    let prompt = inquire::Editor::new(message);
 
     let result = prompt.prompt();
     match result {

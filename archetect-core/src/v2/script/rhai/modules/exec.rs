@@ -78,7 +78,7 @@ fn create_command(program: &str, settings: Map) -> Command {
 
         if let Some(directory) = settings.get("directory") {
             if let Some(directory) = directory.clone().try_cast::<String>() {
-                command = command.current_dir(directory);
+                command.current_dir(directory);
             }
         }
     }

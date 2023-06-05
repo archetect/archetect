@@ -2,9 +2,6 @@ use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
 use minijinja::{Environment, Source, UndefinedBehavior};
 use std::borrow::Cow;
-use std::fs;
-use camino::Utf8PathBuf;
-use shellexpand::env;
 use uuid::Uuid;
 use crate::v2::archetype::archetype::Archetype;
 

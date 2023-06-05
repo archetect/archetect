@@ -1,6 +1,4 @@
 use rhai::{Dynamic, Engine, EvalAltResult};
-use std::result;
-use rhai::plugin::RhaiResult;
 use serde_json::Value;
 
 pub fn register(engine: &mut Engine) {

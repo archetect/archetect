@@ -1,6 +1,6 @@
 use crate::ArchetypeError;
 use std::fs;
-use camino::{Utf8PathBuf};
+use camino::{Utf8Path, Utf8PathBuf};
 use linked_hash_map::LinkedHashMap;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -16,7 +16,7 @@ pub struct ArchetypeManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    archetypes: Option<LinkedHashMap<String, String>>,
+    components: Option<LinkedHashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     script: Option<String>,
 }
@@ -98,14 +98,14 @@ impl ArchetypeManifest {
     }
 
     pub fn with_archetype(mut self, key: &str, source: &str) -> ArchetypeManifest {
-        self.archetypes.get_or_insert_with(|| LinkedHashMap::new())
+        self.components.get_or_insert_with(|| LinkedHashMap::new())
             .insert(key.into(), source.into());
         // self.archetypes.insert(key.into(), source.into());
         self
     }
 
     pub fn archetypes(&self) -> Option<&LinkedHashMap<String, String>> {
-        self.archetypes.as_ref()
+        self.components.as_ref()
     }
 
     pub fn with_framework(mut self, framework: &str) -> ArchetypeManifest {
@@ -140,8 +140,47 @@ impl Default for ArchetypeManifest {
             languages: None,
             frameworks: None,
             tags: None,
-            archetypes: Default::default(),
+            components: Default::default(),
             script: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ScriptingConfig {
+    main: Option<Utf8PathBuf>,
+    scripts: Option<Vec<Utf8PathBuf>>,
+}
+
+impl ScriptingConfig {
+    pub fn main(&self) -> &Utf8Path {
+        match self.main {
+            None => Utf8Path::new("archetype.rhai"),
+            Some(ref buf) => buf.as_ref(),
+        }
+    }
+}
+
+impl Default for ScriptingConfig {
+    fn default() -> Self {
+        ScriptingConfig {
+            main: None,
+            scripts: None
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TemplatingConfig {
+    layouts: Option<Vec<Utf8PathBuf>>,
+    macros: Option<Vec<Utf8PathBuf>>,
+}
+
+impl Default for TemplatingConfig {
+    fn default() -> Self {
+        TemplatingConfig {
+            layouts: None,
+            macros: None
         }
     }
 }
