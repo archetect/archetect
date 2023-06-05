@@ -38,6 +38,7 @@ pub fn select_from_catalog(
             CatalogEntry::Archetype {
                 description: _,
                 source: _,
+                answers: _,
             } => {
                 return Ok(choice);
             }
@@ -93,6 +94,7 @@ pub fn select_from_entries(
             CatalogEntry::Archetype {
                 description: _,
                 source: _,
+                answers: _,
             } => return Ok(choice),
         }
     }

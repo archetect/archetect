@@ -2,6 +2,7 @@ use crate::source::{Source, SourceError};
 use std::fs;
 use std::path::{Path};
 use camino::Utf8PathBuf;
+use serde_yaml::Value;
 
 pub const CATALOG_FILE_NAME: &str = "catalog.yml";
 
@@ -58,7 +59,7 @@ pub enum CatalogEntry {
     #[serde(rename = "catalog")]
     Catalog { description: String, source: String },
     #[serde(rename = "archetype")]
-    Archetype { description: String, source: String },
+    Archetype { description: String, source: String, answers: Option<Value> },
 }
 
 impl CatalogEntry {
@@ -69,7 +70,7 @@ impl CatalogEntry {
                 entries: _,
             } => description.as_str(),
             CatalogEntry::Catalog { description, source: _ } => description.as_str(),
-            CatalogEntry::Archetype { description, source: _ } => description.as_str(),
+            CatalogEntry::Archetype { description, source: _, answers: _ } => description.as_str(),
         }
     }
 }
@@ -157,6 +158,7 @@ mod tests {
         CatalogEntry::Archetype {
             description: "Rust CLI".to_owned(),
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
+            answers: None,
         }
     }
 
@@ -164,6 +166,7 @@ mod tests {
         CatalogEntry::Archetype {
             description: "Rust CLI Workspace".to_owned(),
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
+            answers: None,
         }
     }
 
@@ -173,6 +176,7 @@ mod tests {
             entries: vec![CatalogEntry::Archetype {
                 description: "Python Service".to_owned(),
                 source: "~/projects/python/python-service".to_owned(),
+                answers: None,
             }],
         }
     }
