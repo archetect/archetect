@@ -6,7 +6,7 @@ Archetect is a powerful code-centric, language agnostic content generator, capab
 projects, or entire architectures.  Key features include:
               
 * A Jinja2-like templating syntax
-* A yaml-based configuration DSL 
+* A Rhai scripting and orchestration syntax 
 * Easy installation
 * Easy archetype authoring and publishing (Git repos or local directories)
 * Smart pluralization and singularization functions (soliloquy->soliloquies, calf->calves)
