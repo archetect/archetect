@@ -13,7 +13,7 @@ pub (crate) fn register(engine: &mut Engine) {
 
 fn set(key: &str, value: Dynamic, settings: Map) -> Result<Map, Box<EvalAltResult>> {
     let mut results: Map = Map::new();
-    results.insert(key.into(), value.to_string().into());
+    results.insert(key.into(), value.clone_cast());
     expand_cases(&settings, &mut results, key, value.to_string().as_str());
     Ok(results)
 }

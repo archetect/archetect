@@ -18,9 +18,12 @@ pub struct ArchetypeManifest {
     tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     components: Option<LinkedHashMap<String, String>>,
-    requires: ArchetypeRequirements,
     #[serde(skip_serializing_if = "Option::is_none")]
-    script: Option<String>,
+    scripting: Option<ScriptingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    templating: Option<TemplatingConfig>,
+
+    requires: ArchetypeRequirements,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -33,6 +36,8 @@ impl ArchetypeRequirements {
         &self.archetect
     }
 }
+
+const DEFAULT_MAIN_SCRIPT: &'static str = "archetype.rhai";
 
 impl ArchetypeManifest {
     pub fn new() -> ArchetypeManifest {
@@ -135,17 +140,20 @@ impl ArchetypeManifest {
         self.frameworks.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_script<T: Into<String>>(mut self, script: Option<T>) -> ArchetypeManifest {
-        self.script = script.map(|v| v.into());
-        self
-    }
-
     pub fn requires(&self) -> &ArchetypeRequirements {
         &self.requires
     }
 
-    pub fn script(&self) -> String {
-        self.script.clone().unwrap_or("archetype.rhai".to_owned())
+    pub fn script(&self) -> &Utf8Path {
+        match &self.scripting {
+            None => Utf8Path::new(DEFAULT_MAIN_SCRIPT),
+            Some(script_config) => {
+                match script_config.main {
+                    None => Utf8Path::new(DEFAULT_MAIN_SCRIPT),
+                    Some(ref buf) => buf.as_ref(),
+                }
+            }
+        }
     }
 }
 
@@ -159,7 +167,8 @@ impl Default for ArchetypeManifest {
             tags: None,
             components: Default::default(),
             requires: ArchetypeRequirements { archetect: VersionReq::parse("2.0.0").unwrap() },
-            script: None,
+            scripting: None,
+            templating: None,
         }
     }
 }
@@ -218,7 +227,6 @@ mod tests {
             .with_tag("REST")
             .with_archetype("rust-service", "git:/rust-foo")
             .with_archetype("java-service", "git:/java-foo")
-            .with_script(Some("archetype.rhai"))
             ;
 
         let output = serde_yaml::to_string(&config).unwrap();

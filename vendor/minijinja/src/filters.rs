@@ -589,6 +589,36 @@ mod builtins {
         }
     }
 
+    /// Concatenates two lists.
+    pub fn concat(list: Value, items: Value) -> Result<Value, Error> {
+        let mut results = Vec::new();
+        if let Some(list) = list.as_seq() {
+            results.extend(list.iter());
+            if let Some(items) = items.as_seq() {
+                results.extend(items.iter());
+            } else {
+                results.push(items);
+            }
+        } else {
+            return Err(Error::new(
+                ErrorKind::InvalidOperation,
+                "cannot concatenate to value",
+            ));
+        }
+        Ok(Value::from(results))
+    }
+
+    /// Concatenates two lists.
+    pub fn extend(list: Vec<Value>, items: Value) -> Result<Value, Error> {
+        let mut results = list.clone();
+        if let Some(items) = items.as_seq() {
+            results.extend(items.iter());
+        } else {
+            results.push(items);
+        }
+        Ok(Value::from(results))
+    }
+
     /// Returns the last item from a list.
     ///
     /// If the list is empty `undefined` is returned.
