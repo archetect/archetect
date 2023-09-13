@@ -1,4 +1,5 @@
 use crate::v2::runtime::context::RuntimeContext;
+use crate::v2::script::rhai::modules::prompt::handle_result;
 use crate::{ArchetectError, ArchetypeError};
 use inquire::{Confirm, InquireError};
 use rhai::{Dynamic, EvalAltResult, Map};
@@ -7,8 +8,8 @@ pub fn prompt(
     message: &str,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    key: Option<&str>,
-    answer: Option<&Dynamic>,
+    _key: Option<&str>,
+    _answer: Option<&Dynamic>,
 ) -> Result<bool, Box<EvalAltResult>> {
     let mut prompt = Confirm::new(message);
 
@@ -56,22 +57,5 @@ pub fn prompt(
 
     let result = prompt.prompt();
 
-    match result {
-        Ok(value) => Ok(value),
-        Err(err) => match err {
-            InquireError::OperationCanceled => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )));
-            }
-            InquireError::OperationInterrupted => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )));
-            }
-            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
-    }
+    handle_result(result)
 }

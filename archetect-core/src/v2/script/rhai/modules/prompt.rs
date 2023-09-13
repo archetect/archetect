@@ -5,6 +5,8 @@ mod multiselect;
 mod select;
 mod text;
 
+use inquire::error::InquireResult;
+use inquire::InquireError;
 use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
@@ -210,6 +212,27 @@ pub enum PromptType {
     Select(Vec<Dynamic>),
     MultiSelect(Vec<Dynamic>),
     Editor,
+}
+
+fn handle_result<T>(result: InquireResult<T>) -> Result<T, Box<EvalAltResult>> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(err) => match err {
+            InquireError::OperationCanceled => {
+                return Err(Box::new(EvalAltResult::ErrorSystem(
+                    "Cancelled".to_owned(),
+                    Box::new(ArchetypeError::ValueRequired),
+                )));
+            }
+            InquireError::OperationInterrupted => {
+                return Err(Box::new(EvalAltResult::ErrorSystem(
+                    "Cancelled".to_owned(),
+                    Box::new(ArchetypeError::OperationInterrupted),
+                )));
+            }
+            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
+        },
+    }
 }
 
 #[allow(non_snake_case)]

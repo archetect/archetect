@@ -1,4 +1,5 @@
 use crate::v2::runtime::context::RuntimeContext;
+use crate::v2::script::rhai::modules::prompt::handle_result;
 use crate::{ArchetectError, ArchetypeError};
 use inquire::validator::Validation;
 use inquire::{InquireError, Text};
@@ -101,24 +102,7 @@ pub fn prompt(
 
     let result = text.prompt();
 
-    match result {
-        Ok(value) => Ok(value),
-        Err(err) => match err {
-            InquireError::OperationCanceled => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )));
-            }
-            InquireError::OperationInterrupted => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )));
-            }
-            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
-    }
+    handle_result(result)
 }
 
 fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
