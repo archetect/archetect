@@ -2,7 +2,7 @@ use camino::Utf8PathBuf;
 use std::ops::Deref;
 
 use clap::ArgMatches;
-use log::{error};
+use log::error;
 use rhai::{Dynamic, EvalAltResult, Map};
 
 use archetect_core::v2::runtime::context::RuntimeContext;
@@ -48,7 +48,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 }
                 Err(err) => match err.deref() {
                     EvalAltResult::ErrorVariableNotFound(_, _) => {
-                        let result: Result<Dynamic, Box<EvalAltResult>> = engine.eval(format!("\"{}\"", &value).as_str());
+                        let result: Result<Dynamic, Box<EvalAltResult>> =
+                            engine.eval(format!("\"{}\"", &value).as_str());
                         match result {
                             Ok(value) => {
                                 answers.insert(identifier.into(), value);
@@ -62,7 +63,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
                 },
             }
         }
-
     }
 
     match matches.subcommand() {

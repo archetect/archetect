@@ -11,6 +11,7 @@ use rhai::{EvalAltResult, Map, Scope};
 use minijinja::Environment;
 
 use crate::config::RuleAction;
+use crate::requirements::RequirementsError;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::archetype::directory::ArchetypeDirectory;
 use crate::v2::archetype::manifest::ArchetypeManifest;
@@ -19,7 +20,6 @@ use crate::v2::script::create_environment;
 use crate::v2::script::rhai::create_engine;
 use crate::v2::source::Source;
 use crate::{ArchetypeError, RenderError};
-use crate::requirements::RequirementsError;
 
 #[derive(Clone)]
 pub struct Archetype {
@@ -157,8 +157,11 @@ impl Archetype {
         let version_req = self.directory().manifest().requires().archetect_version_req();
 
         if !version_req.matches(version) {
-            return Err(RequirementsError::ArchetectVersion(runtime_context.archetect_version().clone(), self.manifest()
-                .requires().archetect_version_req().clone()).into());
+            return Err(RequirementsError::ArchetectVersion(
+                runtime_context.archetect_version().clone(),
+                self.manifest().requires().archetect_version_req().clone(),
+            )
+            .into());
         }
 
         Ok(())

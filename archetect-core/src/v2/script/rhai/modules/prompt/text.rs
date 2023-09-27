@@ -1,11 +1,10 @@
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::prompt::handle_result;
-use crate::{ArchetectError, ArchetypeError};
+use crate::ArchetectError;
 use inquire::validator::Validation;
-use inquire::{InquireError, Text};
+use inquire::Text;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
-use std::ops::{Range, RangeFrom, RangeInclusive, RangeToInclusive};
-use thiserror::__private::DisplayAsDisplay;
+use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
 pub fn prompt(
     call: NativeCallContext,

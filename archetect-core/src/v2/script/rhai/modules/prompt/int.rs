@@ -5,7 +5,6 @@ use inquire::{InquireError, Text};
 use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
-use thiserror::__private::DisplayAsDisplay;
 
 pub fn prompt(
     call: NativeCallContext,
@@ -68,7 +67,7 @@ pub fn prompt(
                     format!(
                         "'{}' expects an answer of type 'int', but was answered with '{}', which is of type '{}'",
                         key,
-                        answer.as_display(),
+                        answer,
                         answer.type_name(),
                     )
                     .to_owned()
