@@ -1,23 +1,40 @@
-use log::warn;
-use rhai::{Dynamic, EvalAltResult, Map};
-use inquire::{InquireError, Select};
-use crate::{ArchetectError, ArchetypeError};
 use crate::v2::runtime::context::RuntimeContext;
+use crate::{ArchetectError, ArchetypeError};
+use inquire::{InquireError, Select};
+use log::warn;
+use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
+// TODO: Implement Defaults
+// TODO: Handle Answers
 pub fn prompt(
+    _call: NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
     settings: &Map,
 ) -> Result<String, Box<EvalAltResult>> {
-    let mut prompt = Select::new(message, options);
+    let options = &options;
+    let default = if let Some(defaults_with) = settings.get("defaults_with") {
+        let default = options
+            .iter()
+            .position(|item| item.to_string().as_str() == defaults_with.to_string().as_str());
+        if default.is_none() {
+            warn!("A 'defaults_with' was set, but did not match any of the options.")
+        }
+        default
+    } else {
+        None
+    };
 
-    let _optional = settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false);
+    let mut prompt = Select::new(message, options.to_vec());
 
-    // TODO: Handle Defaults
+    if let Some(default) = default {
+        if runtime_context.headless() {
+            return Ok(options.get(default).unwrap().to_string());
+        }
+        prompt.starting_cursor = default;
+    }
+
     if runtime_context.headless() {
         return Err(Box::new(EvalAltResult::ErrorSystem(
             "Headless Mode Error".to_owned(),

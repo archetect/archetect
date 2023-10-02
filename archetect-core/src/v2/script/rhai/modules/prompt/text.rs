@@ -57,7 +57,7 @@ pub fn prompt(
     }
 
     let mut text = Text::new(message).with_validator(validator);
-
+    
     let _optional = settings
         .get("optional")
         .map_or(Ok(false), |value| value.as_bool())

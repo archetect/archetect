@@ -94,7 +94,7 @@ fn prompt_to_map(
             return Ok(results.into());
         }
         PromptType::Select(options) => {
-            let value = select::prompt(message, options, &runtime_context, &settings)?;
+            let value = select::prompt(call, message, options, &runtime_context, &settings)?;
             results.insert(key.into(), value.clone().into());
             expand_cases(&settings, &mut results, key, &value);
             return Ok(results.into());
@@ -141,7 +141,7 @@ fn prompt_to_value(
             Ok(value.into())
         }
         PromptType::Select(options) => {
-            let value = select::prompt(message, options, &runtime_context, &settings)?;
+            let value = select::prompt(call, message, options, &runtime_context, &settings)?;
             Ok(value.into())
         }
         PromptType::MultiSelect(options) => {

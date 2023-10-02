@@ -39,7 +39,7 @@ pub enum ArchetectError {
         message: String,
     },
     #[error(
-        "Headless mode does not allow command line interaction, and requires a default value to be set for this prompt style."
+        "Headless mode does not allow command line interaction, and requires a default value or answers to be set for this prompt style."
     )]
     HeadlessNoDefault,
     #[error("Error: {0}")]
