@@ -14,9 +14,10 @@ pub(crate) fn create_engine(
     runtime_context: RuntimeContext,
 ) -> Engine {
     let mut engine = Engine::new();
-    engine.set_module_resolver(
-        FileModuleResolver::new_with_path_and_extension(archetype.directory().root().join("modules"), "rhai")
-    );
+    engine.set_module_resolver(FileModuleResolver::new_with_path_and_extension(
+        archetype.directory().modules_directory(),
+        "rhai",
+    ));
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 

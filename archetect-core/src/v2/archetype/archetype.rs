@@ -53,6 +53,14 @@ impl Archetype {
         self.inner.directory.root()
     }
 
+    pub fn content_directory(&self) -> Utf8PathBuf {
+        self.root().join(self.manifest().templating().content_directory())
+    }
+
+    pub fn template_directory(&self) -> Utf8PathBuf {
+        self.root().join(self.manifest().templating().templates_directory())
+    }
+
     pub fn render(&self, runtime_context: RuntimeContext, answers: Map) -> Result<(), Box<EvalAltResult>> {
         let archetype_context = ArchetypeContext::new(Utf8PathBuf::from("."), &answers);
 

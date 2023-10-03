@@ -49,21 +49,21 @@ impl Directory {
     }
 
     pub fn render(&mut self, context: Map) -> Result<(), Box<EvalAltResult>> {
-        let source = self.archetype.root().join(&self.path);
+        let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination();
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 
     pub fn render_with_settings(&mut self, context: Map, _settings: Map) -> Result<(), Box<EvalAltResult>> {
-        let source = self.archetype.root().join(&self.path);
+        let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination();
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 
     pub fn render_with_destination(&mut self, destination: &str, context: Map) -> Result<(), Box<EvalAltResult>> {
-        let source = self.archetype.root().join(&self.path);
+        let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination().join(destination);
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
@@ -75,7 +75,7 @@ impl Directory {
         context: Map,
         _settings: Map,
     ) -> Result<(), Box<EvalAltResult>> {
-        let source = self.archetype.root().join(&self.path);
+        let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination().join(destination);
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))

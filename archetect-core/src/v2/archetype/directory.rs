@@ -26,9 +26,13 @@ impl ArchetypeDirectory {
         self.root.as_ref()
     }
 
+    pub fn modules_directory(&self) -> Utf8PathBuf {
+        self.root.join(self.manifest().scripting().modules())
+    }
+
     pub fn script_contents(&self) -> Result<String, ArchetypeError> {
         let mut script_path = self.root.clone();
-        script_path.push(self.manifest().script());
+        script_path.push(self.root().join(self.manifest().scripting().main()));
 
         if !script_path.is_file() {
             return Err(ArchetypeError::ArchetypeManifestNotFound { path: script_path });

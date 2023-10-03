@@ -1,9 +1,9 @@
+use crate::v2::archetype::archetype::Archetype;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
 use minijinja::{Environment, Source, UndefinedBehavior};
 use std::borrow::Cow;
 use uuid::Uuid;
-use crate::v2::archetype::archetype::Archetype;
 
 pub mod rhai;
 
@@ -45,7 +45,7 @@ pub(crate) fn create_environment(runtime_context: RuntimeContext, archetype: &Ar
 
     environment.add_function("uuid", || Uuid::new_v4().to_string());
 
-    let templates = archetype.root().join("templates");
+    let templates = archetype.template_directory();
 
     if templates.exists() {
         environment.set_source(Source::from_path(templates));
