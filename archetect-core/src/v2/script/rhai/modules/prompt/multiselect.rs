@@ -1,25 +1,46 @@
 use log::warn;
-use rhai::{Dynamic, EvalAltResult, Map};
+use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use inquire::{InquireError, MultiSelect};
 
-use crate::{ArchetectError, ArchetypeError};
 use crate::v2::runtime::context::RuntimeContext;
+use crate::{ArchetectError, ArchetypeError};
 
 pub fn prompt(
+    call: NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
     settings: &Map,
+    key: Option<&str>,
+    answer: Option<&Dynamic>,
 ) -> Result<Vec<Dynamic>, Box<EvalAltResult>> {
-    let mut prompt = MultiSelect::new(message, options);
+    let mut prompt = MultiSelect::new(message, options.clone());
+    let mut indices = vec![];
 
-    let _optional = settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false);
+    if let Some(defaults_with) = settings.get("defaults_with") {
+        if let Some(defaults) = defaults_with.clone().try_cast::<Vec<Dynamic>>() {
+            for default in defaults.iter() {
+                if let Some(position) = options
+                    .iter()
+                    .position(|option| option.to_string().as_str() == default.to_string().as_str())
+                {
+                    indices.push(position);
+                }
+            }
 
-    // TODO: Handle Defaults
+            if runtime_context.headless() {
+                let mut results = vec![];
+                for index in indices {
+                    results.push(options.get(index).unwrap().clone_cast::<Dynamic>());
+                }
+                return Ok(results);
+            } else {
+                prompt.default = Some(indices.as_slice());
+            }
+        }
+    }
+
     if runtime_context.headless() {
         return Err(Box::new(EvalAltResult::ErrorSystem(
             "Headless Mode Error".to_owned(),

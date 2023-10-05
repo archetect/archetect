@@ -18,7 +18,8 @@ pub fn prompt(
         .get("min")
         .map(|value| value.to_string().parse::<i64>())
         .map(|value| value.ok())
-        .flatten();
+        .flatten()
+        .or(Some(1));
 
     let max = settings
         .get("max")
@@ -57,7 +58,7 @@ pub fn prompt(
     }
 
     let mut text = Text::new(message).with_validator(validator);
-    
+
     let _optional = settings
         .get("optional")
         .map_or(Ok(false), |value| value.as_bool())

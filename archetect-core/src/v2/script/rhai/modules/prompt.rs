@@ -94,13 +94,13 @@ fn prompt_to_map(
             return Ok(results.into());
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings)?;
+            let value = select::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.clone().into());
             expand_cases(&settings, &mut results, key, &value);
             return Ok(results.into());
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(message, options, &runtime_context, &settings)?;
+            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
@@ -141,11 +141,11 @@ fn prompt_to_value(
             Ok(value.into())
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings)?;
+            let value = select::prompt(call, message, options, &runtime_context, &settings, None, None)?;
             Ok(value.into())
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(message, options, &runtime_context, &settings)?;
+            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, None, None, None)?;
             Ok(value.into())
         }
         _ => panic!("Unimplemented PromptType"),

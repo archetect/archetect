@@ -4,16 +4,47 @@ use inquire::{InquireError, Select};
 use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-// TODO: Implement Defaults
-// TODO: Handle Answers
 pub fn prompt(
-    _call: NativeCallContext,
+    call: NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
     settings: &Map,
+    key: Option<&str>,
+    answer: Option<&Dynamic>,
 ) -> Result<String, Box<EvalAltResult>> {
     let options = &options;
+
+    if let Some(answer) = answer {
+        for option in options {
+            if option.to_string().as_str() == answer.to_string().as_str() {
+                return Ok(answer.to_string());
+            }
+        }
+
+        let fn_name = call.fn_name().to_owned();
+        let source = call.source().unwrap_or_default().to_owned();
+        let position = call.position();
+        let error = EvalAltResult::ErrorSystem(
+            "Invalid Answer".to_owned(),
+            Box::new(ArchetectError::GeneralError(if let Some(key) = key {
+                format!(
+                    "'{}' was provided as an answer to '{}', but did not match any of the options.",
+                    answer, key
+                )
+                .to_owned()
+            } else {
+                format!("{}", message).to_owned()
+            })),
+        );
+        return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
+            fn_name,
+            source,
+            Box::new(error),
+            position,
+        )));
+    };
+
     let default = if let Some(defaults_with) = settings.get("defaults_with") {
         let default = options
             .iter()
