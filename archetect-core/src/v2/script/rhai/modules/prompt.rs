@@ -145,7 +145,7 @@ fn prompt_to_value(
             Ok(value.into())
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, None, None, None)?;
+            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, None, None)?;
             Ok(value.into())
         }
         _ => panic!("Unimplemented PromptType"),
@@ -258,4 +258,17 @@ pub mod module {
     pub fn MultiSelect(options: Vec<Dynamic>) -> PromptType {
         PromptType::MultiSelect(options)
     }
+}
+
+pub fn create_error_from_call(call: &NativeCallContext, message: &str, error: ArchetectError) -> Box<EvalAltResult> {
+    let fn_name = call.fn_name().to_owned();
+    let source = call.source().unwrap_or_default().to_owned();
+    let position = call.position();
+    let error = EvalAltResult::ErrorSystem(message.to_owned(), Box::new(error));
+    return Box::new(EvalAltResult::ErrorInFunctionCall(
+        fn_name,
+        source,
+        Box::new(error),
+        position,
+    ));
 }

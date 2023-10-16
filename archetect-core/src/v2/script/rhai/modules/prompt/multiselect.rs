@@ -4,6 +4,7 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use inquire::{InquireError, MultiSelect};
 
 use crate::v2::runtime::context::RuntimeContext;
+use crate::v2::script::rhai::modules::prompt::create_error_from_call;
 use crate::{ArchetectError, ArchetypeError};
 
 pub fn prompt(
@@ -38,6 +39,23 @@ pub fn prompt(
             } else {
                 prompt.default = Some(indices.as_slice());
             }
+        } else {
+            let error = create_error_from_call(
+                &call,
+                "Invalid Default Type",
+                ArchetectError::GeneralError(if let Some(key) = key {
+                    format!(
+                        "'{}' ({}) was provided as a default for '{}', but must be an array of values.",
+                        defaults_with,
+                        defaults_with.type_name(),
+                        key
+                    )
+                    .to_owned()
+                } else {
+                    message.to_string()
+                }),
+            );
+            return Err(error);
         }
     }
 
