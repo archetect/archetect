@@ -1,4 +1,4 @@
-use crate::archetype::ArchetypeError;
+use crate::errors::ArchetypeError;
 use crate::v2::archetype::manifest::ArchetypeManifest;
 use crate::v2::source::Source;
 use camino::{Utf8Path, Utf8PathBuf};

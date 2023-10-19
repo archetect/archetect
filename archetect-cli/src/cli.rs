@@ -1,6 +1,6 @@
 use std::io;
 
-use archetect_core::ArchetectError;
+use archetect_core::errors::ArchetectError;
 use clap::{command, value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use log::Level;

@@ -1,3 +1,4 @@
+use crate::errors::SystemError;
 use crate::utils::to_utf8_path;
 use crate::v2::catalog::CATALOG_FILE_NAME;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -113,21 +114,4 @@ pub fn dot_home_layout() -> Result<RootedSystemLayout, SystemError> {
 pub fn temp_layout() -> Result<RootedSystemLayout, SystemError> {
     let temp_dir = tempdir()?;
     Ok(RootedSystemLayout::new(to_utf8_path(temp_dir.path()))?)
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum SystemError {
-    #[error("IO System Error: {source}")]
-    IOError {
-        #[from]
-        source: std::io::Error,
-    },
-    #[error("System Error: {0}")]
-    GenericError(String),
-}
-
-impl From<String> for SystemError {
-    fn from(error: String) -> Self {
-        SystemError::GenericError(error)
-    }
 }

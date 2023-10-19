@@ -10,11 +10,11 @@ use inquire::InquireError;
 use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
+use crate::errors::{ArchetectError, ArchetypeError};
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::cases::expand_cases;
-use crate::{ArchetectError, ArchetypeError};
 
 pub(crate) fn register(
     engine: &mut Engine,

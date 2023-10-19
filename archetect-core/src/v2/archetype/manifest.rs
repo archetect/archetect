@@ -2,7 +2,7 @@ mod requirements;
 mod scripting;
 mod templating;
 
-use crate::archetype::ArchetypeError;
+use crate::errors::ArchetypeError;
 pub use crate::v2::archetype::manifest::requirements::RuntimeRequirements;
 use crate::v2::archetype::manifest::scripting::ScriptingConfig;
 use crate::v2::archetype::manifest::templating::TemplatingConfig;

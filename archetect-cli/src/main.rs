@@ -7,11 +7,12 @@ use log::{error, info};
 use read_input::prelude::*;
 use rhai::{Dynamic, EvalAltResult, Map};
 
-use archetect_core::v2::catalog::{CatalogEntry, CatalogError, CatalogManifest, CATALOG_FILE_NAME};
+use archetect_core::errors::{ArchetectError, CatalogError};
+use archetect_core::v2::catalog::{CatalogEntry, CatalogManifest, CATALOG_FILE_NAME};
 use archetect_core::v2::runtime::context::RuntimeContext;
 use archetect_core::v2::source::Source;
 use archetect_core::Archetect;
-use archetect_core::{self, ArchetectError};
+use archetect_core::{self};
 
 pub mod answers;
 mod cli;

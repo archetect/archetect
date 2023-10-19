@@ -3,9 +3,9 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use inquire::{InquireError, MultiSelect};
 
+use crate::errors::{ArchetectError, ArchetypeError};
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::rhai::modules::prompt::create_error_from_call;
-use crate::{ArchetectError, ArchetypeError};
 
 pub fn prompt(
     call: NativeCallContext,

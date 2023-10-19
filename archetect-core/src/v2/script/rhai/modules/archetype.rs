@@ -1,10 +1,11 @@
 use rhai::{Engine, EvalAltResult, Map, Module};
 
+use crate::errors::ArchetypeError;
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::source::Source;
-use crate::{Archetect, ArchetypeError};
+use crate::Archetect;
 
 pub(crate) fn register(
     engine: &mut Engine,

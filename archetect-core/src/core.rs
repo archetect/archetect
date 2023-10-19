@@ -1,9 +1,8 @@
+use crate::errors::ArchetectError;
 use std::rc::Rc;
 
-use crate::system::SystemError;
+use crate::errors::SystemError;
 use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
-use crate::ArchetectError;
-
 pub struct Archetect {
     paths: Rc<Box<dyn SystemLayout>>,
 }

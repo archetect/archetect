@@ -7,7 +7,7 @@ use log::{debug, info};
 use regex::Regex;
 use url::Url;
 
-use crate::requirements::RequirementsError;
+use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::Archetect;
@@ -31,34 +31,6 @@ pub enum Source {
     },
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SourceError {
-    #[error("Unsupported source: `{0}`")]
-    SourceUnsupported(String),
-    #[error("Failed to find a default 'develop', 'main', or 'master' branch.")]
-    NoDefaultBranch,
-    #[error("Source not found: `{0}`")]
-    SourceNotFound(String),
-    #[error("Invalid Source Path: `{0}`")]
-    SourceInvalidPath(String),
-    #[error("Invalid Source Encoding: `{0}`")]
-    SourceInvalidEncoding(String),
-    #[error("Remote Source Error: `{0}`")]
-    RemoteSourceError(String),
-    #[error("Remote Source is not cached, and Archetect was run in offline mode: `{0}`")]
-    OfflineAndNotCached(String),
-    #[error("Source IO Error: `{0}`")]
-    IoError(std::io::Error),
-    #[error("Requirements Error in `{path}`: {cause}")]
-    RequirementsError { path: String, cause: RequirementsError },
-}
-
-impl From<std::io::Error> for SourceError {
-    fn from(error: std::io::Error) -> SourceError {
-        SourceError::IoError(error)
-    }
-}
-
 lazy_static! {
     static ref SSH_GIT_PATTERN: Regex = Regex::new(r"\S+@(\S+):(.*)").unwrap();
     static ref CACHED_PATHS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
@@ -74,7 +46,7 @@ impl Source {
         let git_cache = archetect.layout().git_cache_dir();
 
         let urlparts: Vec<&str> = path.split('#').collect();
-        if let Some(captures) = SSH_GIT_PATTERN.captures(&urlparts[0]) {
+        if let Some(captures) = SSH_GIT_PATTERN.captures(urlparts[0]) {
             let cache_path = git_cache
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
@@ -84,9 +56,7 @@ impl Source {
             } else {
                 None
             };
-            if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
-                return Err(error);
-            }
+            cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline())?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -94,16 +64,14 @@ impl Source {
             });
         };
 
-        if let Ok(url) = Url::parse(&path) {
+        if let Ok(url) = Url::parse(path) {
             if path.contains(".git") && url.has_host() {
                 let cache_path =
                     git_cache
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
-                let gitref = url.fragment().map_or(None, |r| Some(r.to_owned()));
-                if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
-                    return Err(error);
-                }
+                let gitref = url.fragment().map(|r| r.to_owned());
+                cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline())?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -121,7 +89,7 @@ impl Source {
             }
         }
 
-        if let Ok(path) = shellexpand::full(&path) {
+        return if let Ok(path) = shellexpand::full(&path) {
             let local_path = Utf8PathBuf::from(path.as_ref());
             if local_path.is_relative() {
                 if let Some(parent) = relative_to {
@@ -135,16 +103,16 @@ impl Source {
             }
             if local_path.exists() {
                 if local_path.is_dir() {
-                    return Ok(Source::LocalDirectory { path: local_path });
+                    Ok(Source::LocalDirectory { path: local_path })
                 } else {
-                    return Ok(Source::LocalFile { path: local_path });
+                    Ok(Source::LocalFile { path: local_path })
                 }
             } else {
-                return Err(SourceError::SourceNotFound(local_path.to_string()));
+                Err(SourceError::SourceNotFound(local_path.to_string()))
             }
         } else {
-            return Err(SourceError::SourceInvalidPath(path.to_string()));
-        }
+            Err(SourceError::SourceInvalidPath(path.to_string()))
+        };
     }
 
     pub fn directory(&self) -> &Utf8Path {
@@ -233,7 +201,7 @@ fn cache_git_repo(
     handle_git(
         Command::new("git")
             .current_dir(&cache_destination)
-            .args(&["checkout", &gitref_spec]),
+            .args(["checkout", &gitref_spec]),
     )?;
 
     Ok(())

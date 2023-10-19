@@ -1,5 +1,4 @@
-use archetect_core::config::AnswerConfigError;
-use archetect_core::ArchetectError;
+use archetect_core::errors::{AnswerConfigError, ArchetectError};
 use camino::Utf8Path;
 use rhai::{Dynamic, Engine, Map};
 use std::fs;
@@ -35,7 +34,10 @@ fn read_yaml_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
     } else {
-        Err(ArchetectError::AnswerConfigError { path: path.to_string(), source: AnswerConfigError::InvalidYamlAnswerFileStructure })
+        Err(ArchetectError::AnswerConfigError {
+            path: path.to_string(),
+            source: AnswerConfigError::InvalidYamlAnswerFileStructure,
+        })
     }
 }
 
@@ -46,7 +48,10 @@ fn read_json_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
     } else {
-        Err(ArchetectError::AnswerConfigError { path: path.to_string(), source: AnswerConfigError::InvalidJsonAnswerFileStructure })
+        Err(ArchetectError::AnswerConfigError {
+            path: path.to_string(),
+            source: AnswerConfigError::InvalidJsonAnswerFileStructure,
+        })
     }
 }
 
@@ -57,6 +62,9 @@ fn read_rhai_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
     } else {
-        Err(ArchetectError::AnswerConfigError { path: path.to_string(), source: AnswerConfigError::InvalidRhaiAnswerFileStructure })
+        Err(ArchetectError::AnswerConfigError {
+            path: path.to_string(),
+            source: AnswerConfigError::InvalidRhaiAnswerFileStructure,
+        })
     }
 }
