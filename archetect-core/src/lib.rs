@@ -14,7 +14,6 @@ mod core;
 
 pub mod config;
 pub mod errors;
-pub mod requirements;
 pub mod system;
 mod utils;
 pub mod v2;
