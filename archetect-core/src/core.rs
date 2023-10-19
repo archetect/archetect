@@ -1,16 +1,11 @@
 use std::collections::HashSet;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
 use std::rc::Rc;
 
+use crate::ArchetectError;
 use semver::Version;
 
-use crate::source::Source;
 use crate::system::SystemError;
 use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
-use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -49,14 +44,6 @@ impl Archetect {
     pub fn switches(&self) -> &HashSet<String> {
         &self.switches
     }
-
-    pub fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {
-        let source = source.as_ref();
-        let destination = destination.as_ref();
-        fs::copy(source, destination)?;
-        Ok(())
-    }
-
     pub fn version(&self) -> Version {
         Version::parse(VERSION).unwrap()
     }

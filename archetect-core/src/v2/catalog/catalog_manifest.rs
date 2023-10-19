@@ -1,7 +1,7 @@
+use crate::archetype::ArchetypeError;
 use crate::v2::archetype::manifest::RuntimeRequirements;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::source::{Source, SourceError};
-use crate::ArchetypeError;
 use camino::Utf8PathBuf;
 use rhai::Map;
 use std::fs;
@@ -164,7 +164,7 @@ mod tests {
 
     fn prototype_catalog() -> CatalogManifest {
         CatalogManifest {
-            requirements: None,
+            requirements: RuntimeRequirements::default(),
             entries: vec![
                 lang_group(),
                 CatalogEntry::Catalog {

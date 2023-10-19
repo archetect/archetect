@@ -2,10 +2,10 @@ mod requirements;
 mod scripting;
 mod templating;
 
+use crate::archetype::ArchetypeError;
 pub use crate::v2::archetype::manifest::requirements::RuntimeRequirements;
 use crate::v2::archetype::manifest::scripting::ScriptingConfig;
 use crate::v2::archetype::manifest::templating::TemplatingConfig;
-use crate::ArchetypeError;
 use camino::Utf8PathBuf;
 use linked_hash_map::LinkedHashMap;
 use std::fs;

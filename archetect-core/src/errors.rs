@@ -1,7 +1,6 @@
+use crate::archetype::ArchetypeError;
 use crate::config::{AnswerConfigError, CatalogError};
-use crate::source::SourceError;
 use crate::system::SystemError;
-use crate::ArchetypeError;
 use camino::Utf8PathBuf;
 use rhai::EvalAltResult;
 use std::fmt::{Display, Formatter};
@@ -19,8 +18,6 @@ pub enum ArchetectError {
     ScriptError(#[from] Box<EvalAltResult>),
     #[error(transparent)]
     SystemError(#[from] SystemError),
-    #[error(transparent)]
-    SourceError(#[from] SourceError),
     #[error(transparent)]
     SourceError2(#[from] crate::v2::source::SourceError),
     #[error(transparent)]

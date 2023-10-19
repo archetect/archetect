@@ -1,6 +1,6 @@
-use std::rc::Rc;
 use camino::{Utf8Path, Utf8PathBuf};
-use rhai::{Map};
+use rhai::Map;
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct ArchetypeContext {
@@ -18,7 +18,7 @@ impl ArchetypeContext {
             inner: Rc::new(Inner {
                 destination: destination.into(),
                 answers: create_owned_map(answers),
-            })
+            }),
         }
     }
 
@@ -39,9 +39,7 @@ fn create_owned_map(input: &Map) -> Map {
 
 #[cfg(test)]
 mod tests {
-    use rhai::{Dynamic, Engine, Map};
-    use rhai::plugin::RhaiResult;
-    use serde_json::Value;
+    use rhai::{Dynamic, Engine};
 
     #[test]
     fn test_from_rhai() {
@@ -101,9 +99,5 @@ mod tests {
         // }
         println!("{}", result.type_name());
         println!("{}", serde_json::to_string(&result).unwrap());
-
     }
-
-
-
 }

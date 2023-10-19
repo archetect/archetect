@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_http_source() {
         let archetect = Archetect::build().unwrap();
-        let runtime_context = RuntimeContext::new(Version::parse("2.0.0").unwrap());
+        let runtime_context = RuntimeContext::new();
         let source = Source::detect(
             &archetect,
             &runtime_context,

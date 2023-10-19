@@ -70,7 +70,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
     }
     let archetect = Archetect::build()?;
-    let runtime_context = create_runtime_context(&archetect, &matches)?;
+    let runtime_context = create_runtime_context(&matches)?;
 
     match matches.subcommand() {
         None => {
@@ -85,8 +85,8 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     Ok(())
 }
 
-fn create_runtime_context(archetect: &Archetect, matches: &ArgMatches) -> Result<RuntimeContext, ArchetectError> {
-    let mut runtime_context = RuntimeContext::new(archetect.version());
+fn create_runtime_context(matches: &ArgMatches) -> Result<RuntimeContext, ArchetectError> {
+    let mut runtime_context = RuntimeContext::new();
     runtime_context.set_local(matches.get_flag("local"));
     runtime_context.set_headless(matches.get_flag("headless"));
     runtime_context.set_offline(matches.get_flag("offline"));

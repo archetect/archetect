@@ -8,7 +8,7 @@ extern crate pretty_assertions;
 #[macro_use]
 extern crate serde_derive;
 
-pub use crate::archetype::{Archetype, ArchetypeError};
+pub use crate::archetype::ArchetypeError;
 pub use crate::core::Archetect;
 pub use crate::errors::{ArchetectError, RenderError};
 
@@ -17,12 +17,9 @@ mod errors;
 
 pub mod archetype;
 pub mod config;
-pub mod input;
 pub mod requirements;
 pub mod rules;
 pub mod system;
-pub mod vendor;
-pub mod source;
 mod utils;
 pub mod v2;
-
+pub mod vendor;

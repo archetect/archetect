@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use semver::Version;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
@@ -11,13 +11,13 @@ pub struct RuntimeContext {
 }
 
 impl RuntimeContext {
-    pub fn new(version: Version) -> RuntimeContext {
+    pub fn new() -> RuntimeContext {
         RuntimeContext {
             offline: false,
             headless: false,
             local: false,
             switches: HashSet::new(),
-            version,
+            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
         }
     }
 

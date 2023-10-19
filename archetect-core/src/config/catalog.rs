@@ -1,5 +1,3 @@
-use crate::source::{Source, SourceError};
-use crate::v2::runtime::context::RuntimeContext;
 use camino::Utf8PathBuf;
 use serde_yaml::Value;
 use std::fs;
@@ -16,29 +14,6 @@ impl Catalog {
     pub fn new() -> Catalog {
         Catalog { entries: vec![] }
     }
-
-    pub fn load(source: Source) -> Result<Catalog, CatalogError> {
-        // TODO: Support both yml and yaml extensions
-        let catalog_path = match source {
-            Source::LocalFile { path } => path,
-            Source::RemoteHttp { url: _, path } => path,
-            Source::RemoteGit {
-                url: _,
-                path,
-                gitref: _,
-            } => path.join(CATALOG_FILE_NAME),
-            Source::LocalDirectory { path } => path.join(CATALOG_FILE_NAME),
-        };
-
-        if !catalog_path.exists() {
-            return Err(CatalogError::NotFound(catalog_path));
-        }
-
-        let catalog = fs::read_to_string(&catalog_path)?;
-        let catalog = serde_yaml::from_str(&catalog)?;
-        Ok(catalog)
-    }
-
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), CatalogError> {
         let yaml = serde_yaml::to_string(&self)?;
         fs::write(path, &yaml)?;
@@ -94,8 +69,6 @@ pub enum CatalogError {
     EmptyCatalog,
     #[error("Selected Catalog Group is Empty")]
     EmptyGroup,
-    #[error("Invalid Catalog Source: {0}")]
-    SourceError(SourceError),
     #[error("Catalog not found: {0}")]
     NotFound(Utf8PathBuf),
     #[error("Catalog IO Error: {0}")]
@@ -113,12 +86,6 @@ impl From<std::io::Error> for CatalogError {
 impl From<serde_yaml::Error> for CatalogError {
     fn from(e: serde_yaml::Error) -> Self {
         CatalogError::YamlError(e)
-    }
-}
-
-impl From<SourceError> for CatalogError {
-    fn from(cause: SourceError) -> Self {
-        CatalogError::SourceError(cause)
     }
 }
 

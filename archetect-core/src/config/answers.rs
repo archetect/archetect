@@ -136,10 +136,7 @@ pub fn parse_answer_pair(input: &str) -> Result<(String, String), AnswerParseErr
     let mut iter = pairs.next().unwrap().into_inner();
     let identifier_pair = iter.next().unwrap();
     let value_pair = iter.next().unwrap();
-    Ok((
-        parse_identifier(identifier_pair),
-        parse_value(value_pair),
-    ))
+    Ok((parse_identifier(identifier_pair), parse_value(value_pair)))
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
@@ -160,9 +157,8 @@ impl AnswerInfo {
 
 #[cfg(test)]
 mod tests {
-    use rhai::Dynamic;
-    use serde_json::{json, Value};
     use super::*;
+    use rhai::Dynamic;
 
     #[test]
     fn test_parse_rhai_list() {

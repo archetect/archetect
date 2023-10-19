@@ -1,4 +1,4 @@
-use crate::ArchetypeError;
+use crate::archetype::ArchetypeError;
 use std::fs;
 use std::path::PathBuf;
 
@@ -41,7 +41,7 @@ impl ArchetypeConfig {
             return match serde_yaml::from_str::<ArchetypeConfig>(&config) {
                 Ok(config) => Ok(config),
                 Err(source) => Err(ArchetypeError::YamlError { path, source }),
-            }
+            };
         }
     }
 
@@ -141,7 +141,6 @@ mod tests {
                 .with_type(VariableType::Array)
                 .build(),
         );
-
 
         let config = ArchetypeConfig::default()
             .with_description("Simple REST Service")
