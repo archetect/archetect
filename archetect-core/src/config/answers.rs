@@ -1,8 +1,3 @@
-use std::fs;
-use std::path::PathBuf;
-
-use linked_hash_map::LinkedHashMap;
-use log::debug;
 use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
@@ -10,12 +5,6 @@ use pest::Parser;
 use crate::config::VariableInfo;
 
 pub type AnswerInfo = VariableInfo;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AnswerConfig {
-    #[serde(skip_serializing_if = "LinkedHashMap::is_empty")]
-    answers: LinkedHashMap<String, AnswerInfo>,
-}
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum AnswerConfigError {
@@ -43,60 +32,6 @@ impl From<std::io::Error> for AnswerConfigError {
     fn from(_: std::io::Error) -> Self {
         // TODO: Distinguish between missing and other errors
         AnswerConfigError::MissingError
-    }
-}
-
-impl AnswerConfig {
-    pub fn load<P: Into<PathBuf>>(path: P) -> Result<AnswerConfig, AnswerConfigError> {
-        let path = path.into();
-        if path.is_dir() {
-            let answer_file_names = vec![
-                "archetect.yml",
-                ".archetect.yml",
-                "archetect.yaml",
-                ".archetect.yaml",
-                ".answers.yaml",
-                "answers.yaml",
-            ];
-            for answer_file_name in answer_file_names {
-                let answers = path.join(answer_file_name);
-                if answers.exists() {
-                    debug!("Reading Archetect config from '{}'", &answers.display());
-                    let config = fs::read_to_string(answers)?;
-                    let config = serde_yaml::from_str::<AnswerConfig>(&config)?;
-                    return Ok(config);
-                }
-            }
-        } else {
-            let config = fs::read_to_string(path)?;
-            let config = serde_yaml::from_str::<AnswerConfig>(&config)?;
-            return Ok(config);
-        }
-
-        // TODO: Return Ok(None) instead of error
-        Err(AnswerConfigError::MissingError)
-    }
-
-    pub fn add_answer(&mut self, identifier: &str, value: &str) {
-        self.answers
-            .insert(identifier.to_owned(), AnswerInfo::with_value(value).build());
-    }
-
-    pub fn with_answer(mut self, identifier: &str, value: &str) -> AnswerConfig {
-        self.add_answer(identifier, value);
-        self
-    }
-
-    pub fn answers(&self) -> &LinkedHashMap<String, AnswerInfo> {
-        &self.answers
-    }
-}
-
-impl Default for AnswerConfig {
-    fn default() -> Self {
-        AnswerConfig {
-            answers: LinkedHashMap::new(),
-        }
     }
 }
 
@@ -176,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_parse_rhai_string() {
-        let engine = rhai::Engine::new();
+        // let engine = rhai::Engine::new();
         // TODO: Fix
         // let value: Dynamic = engine.eval("Value").unwrap();
         // assert!(value.is_string());
@@ -305,14 +240,5 @@ mod tests {
             parse_value(AnswerParser::parse(Rule::string, "'value'").unwrap().next().unwrap()),
             "value"
         );
-    }
-
-    #[test]
-    fn test_serialize_answer_config() {
-        let config = AnswerConfig::default()
-            .with_answer("name", "Order Service")
-            .with_answer("author", "Jane Doe");
-
-        println!("{}", serde_yaml::to_string(&config).unwrap());
     }
 }

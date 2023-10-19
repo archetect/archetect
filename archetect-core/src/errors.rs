@@ -1,5 +1,5 @@
 use crate::archetype::ArchetypeError;
-use crate::config::{AnswerConfigError, CatalogError};
+use crate::config::AnswerConfigError;
 use crate::system::SystemError;
 use camino::Utf8PathBuf;
 use rhai::EvalAltResult;
@@ -20,8 +20,6 @@ pub enum ArchetectError {
     SystemError(#[from] SystemError),
     #[error(transparent)]
     SourceError2(#[from] crate::v2::source::SourceError),
-    #[error(transparent)]
-    CatalogError(#[from] CatalogError),
     #[error(transparent)]
     CatalogError2(#[from] crate::v2::catalog::CatalogError),
     #[error(transparent)]

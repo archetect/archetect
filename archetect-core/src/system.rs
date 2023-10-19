@@ -1,9 +1,9 @@
-use crate::config::CATALOG_FILE_NAME;
+use crate::utils::to_utf8_path;
+use crate::v2::catalog::CATALOG_FILE_NAME;
+use camino::{Utf8Path, Utf8PathBuf};
 use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
-use camino::{Utf8Path, Utf8PathBuf};
 use tempfile::tempdir;
-use crate::utils::to_utf8_path;
 
 pub enum LayoutType {
     Native,

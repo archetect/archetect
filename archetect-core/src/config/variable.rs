@@ -13,7 +13,7 @@ pub struct VariableInfo {
 }
 
 impl VariableInfo {
-    pub fn new() -> VariableInfoBuilder {
+    pub fn builder() -> VariableInfoBuilder {
         VariableInfoBuilder {
             variable_info: VariableInfo {
                 value: None,

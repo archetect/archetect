@@ -1,7 +1,0 @@
-//
-// Created by intellij-pest on 2020-01-20
-// list_grammer
-// Author: jfulton
-//
-
-list_grammer = { "Hello World!" }

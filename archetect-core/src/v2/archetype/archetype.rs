@@ -11,7 +11,6 @@ use rhai::{EvalAltResult, Map, Scope};
 use minijinja::Environment;
 
 use crate::archetype::ArchetypeError;
-use crate::config::RuleAction;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::archetype::directory::ArchetypeDirectory;
 use crate::v2::archetype::manifest::ArchetypeManifest;
@@ -289,5 +288,10 @@ pub fn copy_contents<S: AsRef<Utf8Path>, D: AsRef<Utf8Path>>(source: S, destinat
     Ok(())
 }
 
+pub enum RuleAction {
+    COPY,
+    RENDER,
+    SKIP,
+}
 #[cfg(test)]
 mod tests {}
