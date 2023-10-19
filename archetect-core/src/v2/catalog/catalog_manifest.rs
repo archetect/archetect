@@ -1,7 +1,7 @@
 use crate::errors::{ArchetypeError, CatalogError};
+use crate::source::Source;
 use crate::v2::archetype::manifest::RuntimeRequirements;
 use crate::v2::runtime::context::RuntimeContext;
-use crate::v2::source::Source;
 use rhai::Map;
 use std::fs;
 use std::path::Path;

@@ -7,14 +7,15 @@ use log::{error, info};
 use read_input::prelude::*;
 use rhai::{Dynamic, EvalAltResult, Map};
 
+use crate::answers::parse_answer_pair;
 use archetect_core::errors::{ArchetectError, CatalogError};
+use archetect_core::source::Source;
 use archetect_core::v2::catalog::{CatalogEntry, CatalogManifest, CATALOG_FILE_NAME};
 use archetect_core::v2::runtime::context::RuntimeContext;
-use archetect_core::v2::source::Source;
 use archetect_core::Archetect;
 use archetect_core::{self};
 
-pub mod answers;
+mod answers;
 mod cli;
 pub mod vendor;
 
@@ -46,7 +47,7 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     if let Some(answer_matches) = matches.get_many::<String>("answer") {
         let engine = rhai::Engine::new();
         for answer_match in answer_matches {
-            let (identifier, value) = archetect_core::config::answers::parse_answer_pair(answer_match).unwrap();
+            let (identifier, value) = parse_answer_pair(answer_match).unwrap();
             let result: Result<Dynamic, Box<EvalAltResult>> = engine.eval(&value);
             match result {
                 Ok(value) => {

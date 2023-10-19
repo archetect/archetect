@@ -1,4 +1,4 @@
-use crate::errors::answer_error::AnswerConfigError;
+use crate::errors::answer_error::AnswerFileError;
 use crate::errors::{ArchetypeError, RenderError, SourceError};
 use crate::errors::{CatalogError, SystemError};
 use rhai::EvalAltResult;
@@ -6,7 +6,7 @@ use rhai::EvalAltResult;
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetectError {
     #[error("Error in answer file `{path}`: {source}")]
-    AnswerConfigError { path: String, source: AnswerConfigError },
+    AnswerConfigError { path: String, source: AnswerFileError },
     #[error(transparent)]
     ArchetypeError(#[from] ArchetypeError),
     #[error(transparent)]

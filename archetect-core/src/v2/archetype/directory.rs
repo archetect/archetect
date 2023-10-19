@@ -1,6 +1,6 @@
 use crate::errors::ArchetypeError;
+use crate::source::Source;
 use crate::v2::archetype::manifest::ArchetypeManifest;
-use crate::v2::source::Source;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 

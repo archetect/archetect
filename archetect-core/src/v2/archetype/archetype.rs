@@ -11,13 +11,13 @@ use rhai::{EvalAltResult, Map, Scope};
 use crate::errors::{ArchetypeError, RenderError};
 use minijinja::Environment;
 
+use crate::source::Source;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::archetype::directory::ArchetypeDirectory;
 use crate::v2::archetype::manifest::ArchetypeManifest;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::create_environment;
 use crate::v2::script::rhai::create_engine;
-use crate::v2::source::Source;
 
 #[derive(Clone)]
 pub struct Archetype {

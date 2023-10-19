@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate pest_derive;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
@@ -12,8 +11,8 @@ pub use crate::core::Archetect;
 
 mod core;
 
-pub mod config;
 pub mod errors;
+pub mod source;
 pub mod system;
 mod utils;
 pub mod v2;
