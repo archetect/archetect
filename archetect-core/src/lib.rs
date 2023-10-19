@@ -12,7 +12,6 @@ pub use crate::core::Archetect;
 
 mod core;
 
-pub mod archetype;
 pub mod config;
 pub mod errors;
 pub mod requirements;
