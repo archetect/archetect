@@ -14,7 +14,7 @@ pub fn prompt(
     runtime_context: &RuntimeContext,
     settings: &Map,
     key: Option<&str>,
-    answer: Option<&Dynamic>,
+    _answer: Option<&Dynamic>,
 ) -> Result<Vec<Dynamic>, Box<EvalAltResult>> {
     let mut prompt = MultiSelect::new(message, options.clone());
     let mut indices = vec![];

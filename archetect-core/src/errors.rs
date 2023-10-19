@@ -26,6 +26,8 @@ pub enum ArchetectError {
     #[error(transparent)]
     CatalogError(#[from] CatalogError),
     #[error(transparent)]
+    CatalogError2(#[from] crate::v2::catalog::CatalogError),
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(
         "Headless mode requires answers to be supplied for all variables, but no answer was supplied for the `{0}` \

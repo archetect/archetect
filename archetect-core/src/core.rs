@@ -2,14 +2,14 @@ use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path};
+use std::path::Path;
 use std::rc::Rc;
 
 use semver::Version;
 
-use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
-use crate::system::SystemError;
 use crate::source::Source;
+use crate::system::SystemError;
+use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
 use crate::{ArchetectError, Archetype, ArchetypeError, RenderError};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -48,19 +48,6 @@ impl Archetect {
 
     pub fn switches(&self) -> &HashSet<String> {
         &self.switches
-    }
-
-    pub fn load_archetype(&self, source: &str, relative_to: Option<Source>) -> Result<Archetype, ArchetypeError> {
-        let source = Source::detect(self, source, relative_to)?;
-        let archetype = Archetype::from_source(&source)?;
-        Ok(archetype)
-    }
-
-    pub fn write_contents<P: AsRef<Path>>(&self, destination: P, contents: &str) -> Result<(), RenderError> {
-        let destination = destination.as_ref();
-        let mut output = File::create(&destination)?;
-        output.write(contents.as_bytes())?;
-        Ok(())
     }
 
     pub fn copy_contents<S: AsRef<Path>, D: AsRef<Path>>(&self, source: S, destination: D) -> Result<(), RenderError> {

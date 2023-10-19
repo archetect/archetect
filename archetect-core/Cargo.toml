@@ -28,6 +28,7 @@ minijinja = { path = "../vendor/minijinja", features = ["source", "urlencode", "
 inquire = { path = "../vendor/inquire", features = ["editor"] }
 pest = "2"
 pest_derive = "2"
+read_input = "0.8.6"
 rhai = { version = "1.14", features = ["serde"] }
 semver = { version = "0.9", features = ["serde"] }
 serde = "1.0.116"

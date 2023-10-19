@@ -1,23 +1,30 @@
-use crate::source::{Source, SourceError};
+use crate::v2::archetype::manifest::RuntimeRequirements;
 use crate::v2::runtime::context::RuntimeContext;
+use crate::v2::source::{Source, SourceError};
+use crate::ArchetypeError;
 use camino::Utf8PathBuf;
-use serde_yaml::Value;
+use rhai::Map;
 use std::fs;
 use std::path::Path;
 
 pub const CATALOG_FILE_NAME: &str = "catalog.yml";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Catalog {
+pub struct CatalogManifest {
+    #[serde(default = "RuntimeRequirements::default")]
+    requirements: RuntimeRequirements,
     entries: Vec<CatalogEntry>,
 }
 
-impl Catalog {
-    pub fn new() -> Catalog {
-        Catalog { entries: vec![] }
+impl CatalogManifest {
+    pub fn new() -> CatalogManifest {
+        CatalogManifest {
+            requirements: RuntimeRequirements::default(),
+            entries: vec![],
+        }
     }
 
-    pub fn load(source: Source) -> Result<Catalog, CatalogError> {
+    pub fn load(source: Source) -> Result<CatalogManifest, CatalogError> {
         // TODO: Support both yml and yaml extensions
         let catalog_path = match source {
             Source::LocalFile { path } => path,
@@ -41,7 +48,7 @@ impl Catalog {
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), CatalogError> {
         let yaml = serde_yaml::to_string(&self)?;
-        fs::write(path, &yaml)?;
+        fs::write(path, yaml)?;
         Ok(())
     }
 
@@ -51,6 +58,20 @@ impl Catalog {
 
     pub fn entries_owned(self) -> Vec<CatalogEntry> {
         self.entries
+    }
+
+    pub fn requirements(&self) -> &RuntimeRequirements {
+        &self.requirements
+    }
+
+    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
+        self.requirements.check_requirements(runtime_context)
+    }
+}
+
+impl Default for CatalogManifest {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -67,7 +88,7 @@ pub enum CatalogEntry {
     Archetype {
         description: String,
         source: String,
-        answers: Option<Value>,
+        answers: Option<Map>,
     },
 }
 
@@ -141,8 +162,9 @@ mod tests {
         println!("{}", yaml);
     }
 
-    fn prototype_catalog() -> Catalog {
-        Catalog {
+    fn prototype_catalog() -> CatalogManifest {
+        CatalogManifest {
+            requirements: None,
             entries: vec![
                 lang_group(),
                 CatalogEntry::Catalog {

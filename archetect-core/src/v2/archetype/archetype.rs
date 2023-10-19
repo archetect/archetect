@@ -161,18 +161,7 @@ impl Archetype {
     }
 
     pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
-        let version = runtime_context.archetect_version();
-        let version_req = self.directory().manifest().requires().archetect_version_req();
-
-        if !version_req.matches(version) {
-            return Err(RequirementsError::ArchetectVersion(
-                runtime_context.archetect_version().clone(),
-                self.manifest().requires().archetect_version_req().clone(),
-            )
-            .into());
-        }
-
-        Ok(())
+        self.manifest().requires().check_requirements(&runtime_context)
     }
 }
 

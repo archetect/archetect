@@ -1,9 +1,9 @@
 use std::io;
 
-use clap::{command, Arg, ArgAction, ArgMatches, Command, value_parser};
+use archetect_core::ArchetectError;
+use clap::{command, value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use log::Level;
-use archetect_core::ArchetectError;
 
 use crate::cli;
 
@@ -74,6 +74,12 @@ pub fn command() -> Command {
                 .global(true)
                 .value_name("path")
                 // .value_parser(ValueParser::new(parse_answer_file))
+        )
+        .arg(
+            Arg::new("destination")
+                .help("The directory to render the Archetype in")
+                .default_value(".")
+                .action(ArgAction::Set)
         )
         .subcommand(
             Command::new("catalog")

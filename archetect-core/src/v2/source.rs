@@ -1,22 +1,34 @@
+use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
-use camino::{Utf8Path, Utf8PathBuf};
 
 use log::{debug, info};
 use regex::Regex;
 use url::Url;
 
 use crate::requirements::{Requirements, RequirementsError};
-use crate::Archetect;
 use crate::utils::to_utf8_path_buf;
+use crate::v2::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
-    RemoteGit { url: String, path: Utf8PathBuf, gitref: Option<String> },
-    RemoteHttp { url: String, path: Utf8PathBuf },
-    LocalDirectory { path: Utf8PathBuf },
-    LocalFile { path: Utf8PathBuf },
+    RemoteGit {
+        url: String,
+        path: Utf8PathBuf,
+        gitref: Option<String>,
+    },
+    RemoteHttp {
+        url: String,
+        path: Utf8PathBuf,
+    },
+    LocalDirectory {
+        path: Utf8PathBuf,
+    },
+    LocalFile {
+        path: Utf8PathBuf,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -53,20 +65,27 @@ lazy_static! {
 }
 
 impl Source {
-    pub fn detect(archetect: &Archetect, path: &str, relative_to: Option<Source>) -> Result<Source, SourceError> {
+    pub fn detect(
+        archetect: &Archetect,
+        runtime_context: &RuntimeContext,
+        path: &str,
+        relative_to: Option<Source>,
+    ) -> Result<Source, SourceError> {
         let source = path;
         let git_cache = archetect.layout().git_cache_dir();
 
         let urlparts: Vec<&str> = path.split('#').collect();
         if let Some(captures) = SSH_GIT_PATTERN.captures(&urlparts[0]) {
-
             let cache_path = git_cache
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
 
-            let gitref = if urlparts.len() > 1 { Some(urlparts[1].to_owned()) } else { None };
-            if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, archetect
-                .offline()) {
+            let gitref = if urlparts.len() > 1 {
+                Some(urlparts[1].to_owned())
+            } else {
+                None
+            };
+            if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
                 return Err(error);
             }
             verify_requirements(archetect, source, &cache_path)?;
@@ -84,7 +103,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map_or(None, |r| Some(r.to_owned()));
-                if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, archetect.offline()) {
+                if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
                     return Err(error);
                 }
                 verify_requirements(archetect, source, &cache_path)?;
@@ -95,7 +114,7 @@ impl Source {
                 });
             }
 
-            if let Ok( local_path) = url.to_file_path() {
+            if let Ok(local_path) = url.to_file_path() {
                 let local_path = to_utf8_path_buf(local_path);
                 return if local_path.exists() {
                     verify_requirements(archetect, source, &local_path)?;
@@ -136,7 +155,11 @@ impl Source {
 
     pub fn directory(&self) -> &Utf8Path {
         match self {
-            Source::RemoteGit { url: _, path, gitref: _ } => path.as_path(),
+            Source::RemoteGit {
+                url: _,
+                path,
+                gitref: _,
+            } => path.as_path(),
             Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.parent().unwrap_or(path),
@@ -145,7 +168,11 @@ impl Source {
 
     pub fn local_path(&self) -> &Utf8Path {
         match self {
-            Source::RemoteGit { url: _, path, gitref: _ } => path.as_path(),
+            Source::RemoteGit {
+                url: _,
+                path,
+                gitref: _,
+            } => path.as_path(),
             Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.as_path(),
@@ -154,7 +181,11 @@ impl Source {
 
     pub fn source(&self) -> &str {
         match self {
-            Source::RemoteGit { url, path: _, gitref: _ } => url,
+            Source::RemoteGit {
+                url,
+                path: _,
+                gitref: _,
+            } => url,
             Source::RemoteHttp { url, path: _ } => url,
             Source::LocalDirectory { path } => path.as_str(),
             Source::LocalFile { path } => path.as_str(),
@@ -193,8 +224,12 @@ fn verify_requirements(archetect: &Archetect, source: &str, path: &Utf8Path) -> 
     Ok(())
 }
 
-fn cache_git_repo(url: &str, gitref: &Option<String>, cache_destination: &Utf8Path, offline: bool) -> Result<(),
-    SourceError> {
+fn cache_git_repo(
+    url: &str,
+    gitref: &Option<String>,
+    cache_destination: &Utf8Path,
+    offline: bool,
+) -> Result<(), SourceError> {
     if !cache_destination.exists() {
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
@@ -223,17 +258,24 @@ fn cache_git_repo(url: &str, gitref: &Option<String>, cache_destination: &Utf8Pa
     };
 
     debug!("Checking out {}", gitref_spec);
-    handle_git(Command::new("git").current_dir(&cache_destination).args(&["checkout", &gitref_spec]))?;
+    handle_git(
+        Command::new("git")
+            .current_dir(&cache_destination)
+            .args(&["checkout", &gitref_spec]),
+    )?;
 
     Ok(())
 }
 
 fn is_branch(path: &str, gitref: &str) -> bool {
-    match handle_git(Command::new("git").current_dir(path)
-        .arg("show-ref")
-        .arg("-q")
-        .arg("--verify")
-        .arg(format!("refs/remotes/origin/{}", gitref))) {
+    match handle_git(
+        Command::new("git")
+            .current_dir(path)
+            .arg("show-ref")
+            .arg("-q")
+            .arg("--verify")
+            .arg(format!("refs/remotes/origin/{}", gitref)),
+    ) {
         Ok(_) => true,
         Err(_) => false,
     }
@@ -271,6 +313,7 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semver::Version;
 
     #[test]
     fn test_cache_hash() {
@@ -289,8 +332,10 @@ mod tests {
     #[test]
     fn test_http_source() {
         let archetect = Archetect::build().unwrap();
+        let runtime_context = RuntimeContext::new(Version::parse("2.0.0").unwrap());
         let source = Source::detect(
             &archetect,
+            &runtime_context,
             "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT",
             None,
         );

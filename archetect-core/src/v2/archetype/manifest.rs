@@ -2,7 +2,7 @@ mod requirements;
 mod scripting;
 mod templating;
 
-use crate::v2::archetype::manifest::requirements::ArchetypeRequirements;
+pub use crate::v2::archetype::manifest::requirements::RuntimeRequirements;
 use crate::v2::archetype::manifest::scripting::ScriptingConfig;
 use crate::v2::archetype::manifest::templating::TemplatingConfig;
 use crate::ArchetypeError;
@@ -22,7 +22,7 @@ pub struct ArchetypeManifest {
     frameworks: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
-    requires: ArchetypeRequirements,
+    requires: RuntimeRequirements,
     #[serde(skip_serializing_if = "Option::is_none")]
     components: Option<LinkedHashMap<String, String>>,
     #[serde(default = "ScriptingConfig::default")]
@@ -129,7 +129,7 @@ impl ArchetypeManifest {
         self.frameworks.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn requires(&self) -> &ArchetypeRequirements {
+    pub fn requires(&self) -> &RuntimeRequirements {
         &self.requires
     }
 
