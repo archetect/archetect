@@ -21,4 +21,3 @@ pub mod requirements;
 pub mod system;
 mod utils;
 pub mod v2;
-pub mod vendor;
