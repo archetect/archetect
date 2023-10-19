@@ -7,7 +7,7 @@ use log::{debug, info};
 use regex::Regex;
 use url::Url;
 
-use crate::requirements::{Requirements, RequirementsError};
+use crate::requirements::RequirementsError;
 use crate::utils::to_utf8_path_buf;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::Archetect;
@@ -71,7 +71,6 @@ impl Source {
         path: &str,
         relative_to: Option<Source>,
     ) -> Result<Source, SourceError> {
-        let source = path;
         let git_cache = archetect.layout().git_cache_dir();
 
         let urlparts: Vec<&str> = path.split('#').collect();
@@ -88,7 +87,6 @@ impl Source {
             if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
                 return Err(error);
             }
-            verify_requirements(archetect, source, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -106,7 +104,6 @@ impl Source {
                 if let Err(error) = cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline()) {
                     return Err(error);
                 }
-                verify_requirements(archetect, source, &cache_path)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -117,7 +114,6 @@ impl Source {
             if let Ok(local_path) = url.to_file_path() {
                 let local_path = to_utf8_path_buf(local_path);
                 return if local_path.exists() {
-                    verify_requirements(archetect, source, &local_path)?;
                     Ok(Source::LocalDirectory { path: local_path })
                 } else {
                     Err(SourceError::SourceNotFound(local_path.to_string()))
@@ -131,7 +127,6 @@ impl Source {
                 if let Some(parent) = relative_to {
                     let local_path = parent.local_path().clone().join(local_path);
                     if local_path.exists() && local_path.is_dir() {
-                        verify_requirements(archetect, source, &local_path)?;
                         return Ok(Source::LocalDirectory { path: local_path });
                     } else {
                         return Err(SourceError::SourceNotFound(local_path.to_string()));
@@ -140,7 +135,6 @@ impl Source {
             }
             if local_path.exists() {
                 if local_path.is_dir() {
-                    verify_requirements(archetect, source, &local_path)?;
                     return Ok(Source::LocalDirectory { path: local_path });
                 } else {
                     return Ok(Source::LocalFile { path: local_path });
@@ -200,28 +194,6 @@ fn get_cache_hash<S: AsRef<[u8]>>(input: S) -> u64 {
 
 fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
     format!("{}", get_cache_hash(input))
-}
-
-fn verify_requirements(archetect: &Archetect, source: &str, path: &Utf8Path) -> Result<(), SourceError> {
-    match Requirements::load(&path) {
-        Ok(results) => {
-            if let Some(requirements) = results {
-                if let Err(error) = requirements.verify(archetect) {
-                    return Err(SourceError::RequirementsError {
-                        path: source.to_owned(),
-                        cause: error,
-                    });
-                }
-            }
-        }
-        Err(error) => {
-            return Err(SourceError::RequirementsError {
-                path: path.to_string(),
-                cause: error,
-            });
-        }
-    }
-    Ok(())
 }
 
 fn cache_git_repo(
@@ -313,7 +285,6 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semver::Version;
 
     #[test]
     fn test_cache_hash() {

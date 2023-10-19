@@ -144,7 +144,7 @@ impl ArchetypeManifest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     // #[test]
     // fn test_serialize_to_yaml() {

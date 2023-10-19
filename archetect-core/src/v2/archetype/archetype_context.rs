@@ -39,65 +39,63 @@ fn create_owned_map(input: &Map) -> Map {
 
 #[cfg(test)]
 mod tests {
-    use rhai::{Dynamic, Engine};
+    //     #[test]
+    //     fn test_from_rhai() {
+    //         let map = r#"
+    // #{
+    //     first_name: "Jimmie",
+    //     last_name: "Fulton",
+    // }
+    //         "#;
+    //
+    //         let list = r#"
+    // ["Jimmie", "Shirley", "Bailey"]
+    //          "#;
+    //
+    //         let string = r#"
+    //             "Jimmie"
+    //         "#;
+    //
+    //         let int = r#"
+    //             24
+    //         "#;
+    //
+    //         let engine = Engine::new();
+    //         let result: Dynamic = engine.eval::<Dynamic>(int).unwrap();
+    //         println!("{:?}", result.type_name());
+    //     }
 
-    #[test]
-    fn test_from_rhai() {
-        let map = r#"
-#{
-    first_name: "Jimmie",
-    last_name: "Fulton",
-}
-        "#;
-
-        let list = r#"
-["Jimmie", "Shirley", "Bailey"]
-         "#;
-
-        let string = r#"
-            "Jimmie"
-        "#;
-
-        let int = r#"
-            24
-        "#;
-
-        let engine = Engine::new();
-        let result: Dynamic = engine.eval::<Dynamic>(int).unwrap();
-        println!("{:?}", result.type_name());
-    }
-
-    #[test]
-    fn test_from_json() {
-        let map = r#"
-{
-    "first_name": "Jimmie",
-    "last_name": "Fulton"
-}
-        "#;
-
-        let list = r#"
-["Jimmie", "Shirley", "Bailey"]
-         "#;
-
-        let string = r#"
-            "Jimmie"
-        "#;
-
-        let int = r#"
-            24
-        "#;
-
-        let result: Dynamic = serde_json::from_str(map).unwrap();
-        // match result {
-        //     Value::Null => println!("Null"),
-        //     Value::Bool(value) => println!("Bool: {value:?}"),
-        //     Value::Number(value) =>  println!("Number: {value:?}"),
-        //     Value::String(value) =>  println!("String: {value:?}"),
-        //     Value::Array(value) =>  println!("Array: {value:?}"),
-        //     Value::Object(value) =>  println!("Object: {value:?}"),
-        // }
-        println!("{}", result.type_name());
-        println!("{}", serde_json::to_string(&result).unwrap());
-    }
+    //     #[test]
+    //     fn test_from_json() {
+    //         let map = r#"
+    // {
+    //     "first_name": "Jimmie",
+    //     "last_name": "Fulton"
+    // }
+    //         "#;
+    //
+    //         let list = r#"
+    // ["Jimmie", "Shirley", "Bailey"]
+    //          "#;
+    //
+    //         let string = r#"
+    //             "Jimmie"
+    //         "#;
+    //
+    //         let int = r#"
+    //             24
+    //         "#;
+    //
+    //         let result: Dynamic = serde_json::from_str(map).unwrap();
+    //         // match result {
+    //         //     Value::Null => println!("Null"),
+    //         //     Value::Bool(value) => println!("Bool: {value:?}"),
+    //         //     Value::Number(value) =>  println!("Number: {value:?}"),
+    //         //     Value::String(value) =>  println!("String: {value:?}"),
+    //         //     Value::Array(value) =>  println!("Array: {value:?}"),
+    //         //     Value::Object(value) =>  println!("Object: {value:?}"),
+    //         // }
+    //         println!("{}", result.type_name());
+    //         println!("{}", serde_json::to_string(&result).unwrap());
+    //     }
 }

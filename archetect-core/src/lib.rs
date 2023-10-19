@@ -18,7 +18,6 @@ mod errors;
 pub mod archetype;
 pub mod config;
 pub mod requirements;
-pub mod rules;
 pub mod system;
 mod utils;
 pub mod v2;

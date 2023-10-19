@@ -5,6 +5,7 @@ use rhai::EvalAltResult;
 
 use crate::errors::RenderError;
 use crate::requirements::RequirementsError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetypeError {
     #[error("The specified archetype is missing an archetype.yml or archetype.yaml file")]
