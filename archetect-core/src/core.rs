@@ -1,32 +1,16 @@
-use std::collections::HashSet;
 use std::rc::Rc;
-
-use crate::ArchetectError;
-use semver::Version;
 
 use crate::system::SystemError;
 use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+use crate::ArchetectError;
 
 pub struct Archetect {
     paths: Rc<Box<dyn SystemLayout>>,
-    offline: bool,
-    headless: bool,
-    switches: HashSet<String>,
 }
 
 impl Archetect {
     pub fn layout(&self) -> Rc<Box<dyn SystemLayout>> {
         self.paths.clone()
-    }
-
-    pub fn offline(&self) -> bool {
-        self.offline
-    }
-
-    pub fn headless(&self) -> bool {
-        self.headless
     }
 
     pub fn builder() -> ArchetectBuilder {
@@ -36,34 +20,15 @@ impl Archetect {
     pub fn build() -> Result<Archetect, ArchetectError> {
         ArchetectBuilder::new().build()
     }
-
-    pub fn enable_switch<S: Into<String>>(&mut self, switch: S) {
-        self.switches.insert(switch.into());
-    }
-
-    pub fn switches(&self) -> &HashSet<String> {
-        &self.switches
-    }
-    pub fn version(&self) -> Version {
-        Version::parse(VERSION).unwrap()
-    }
 }
 
 pub struct ArchetectBuilder {
     layout: Option<Box<dyn SystemLayout>>,
-    offline: bool,
-    headless: bool,
-    switches: HashSet<String>,
 }
 
 impl ArchetectBuilder {
     fn new() -> ArchetectBuilder {
-        ArchetectBuilder {
-            layout: None,
-            offline: false,
-            headless: false,
-            switches: HashSet::new(),
-        }
+        ArchetectBuilder { layout: None }
     }
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {
@@ -71,12 +36,7 @@ impl ArchetectBuilder {
         let paths = self.layout.unwrap_or_else(|| Box::new(layout));
         let paths = Rc::new(paths);
 
-        Ok(Archetect {
-            paths,
-            offline: self.offline,
-            headless: self.headless,
-            switches: self.switches,
-        })
+        Ok(Archetect { paths })
     }
 
     pub fn with_layout<P: SystemLayout + 'static>(mut self, layout: P) -> ArchetectBuilder {
@@ -91,16 +51,6 @@ impl ArchetectBuilder {
             LayoutType::Temp => self.with_layout(crate::system::temp_layout()?),
         };
         Ok(builder)
-    }
-
-    pub fn with_offline(mut self, offline: bool) -> ArchetectBuilder {
-        self.offline = offline;
-        self
-    }
-
-    pub fn with_headless(mut self, headless: bool) -> ArchetectBuilder {
-        self.headless = headless;
-        self
     }
 }
 

@@ -2,10 +2,6 @@ use pest::error::Error as PestError;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::config::VariableInfo;
-
-pub type AnswerInfo = VariableInfo;
-
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum AnswerConfigError {
     #[error("Error parsing answer config: {0}")]
@@ -50,22 +46,6 @@ impl From<PestError<Rule>> for AnswerParseError {
     }
 }
 
-fn parse(source: &str) -> Result<(String, AnswerInfo), AnswerParseError> {
-    let mut pairs = AnswerParser::parse(Rule::answer, source)?;
-    Ok(parse_answer(pairs.next().unwrap()))
-}
-
-fn parse_answer(pair: Pair<Rule>) -> (String, AnswerInfo) {
-    assert_eq!(pair.as_rule(), Rule::answer);
-    let mut iter = pair.into_inner();
-    let identifier_pair = iter.next().unwrap();
-    let value_pair = iter.next().unwrap();
-    (
-        parse_identifier(identifier_pair),
-        AnswerInfo::with_value(parse_value(value_pair)).build(),
-    )
-}
-
 pub fn parse_answer_pair(input: &str) -> Result<(String, String), AnswerParseError> {
     let mut pairs = AnswerParser::parse(Rule::answer, input)?;
     let mut iter = pairs.next().unwrap().into_inner();
@@ -82,12 +62,6 @@ fn parse_identifier(pair: Pair<Rule>) -> String {
 fn parse_value(pair: Pair<Rule>) -> String {
     assert_eq!(pair.as_rule(), Rule::string);
     pair.into_inner().next().unwrap().as_str().to_owned()
-}
-
-impl AnswerInfo {
-    pub fn parse(input: &str) -> Result<(String, AnswerInfo), AnswerParseError> {
-        parse(input)
-    }
 }
 
 #[cfg(test)]
@@ -115,105 +89,6 @@ mod tests {
         // TODO: Fix
         // let value: Dynamic = engine.eval("Value").unwrap();
         // assert!(value.is_string());
-    }
-
-    #[test]
-    fn test_parse_success() {
-        assert_eq!(
-            parse("key=value"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key = value"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key = value set"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
-        );
-
-        assert_eq!(
-            parse("key='value'"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key='value set'"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
-        );
-
-        assert_eq!(
-            parse("key = 'value'"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key=\"value\""),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key=\"value set\""),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value set").build()))
-        );
-
-        assert_eq!(
-            parse("key = \"value\""),
-            Ok(("key".to_owned(), AnswerInfo::with_value("value").build()))
-        );
-
-        assert_eq!(
-            parse("key ="),
-            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
-        );
-
-        assert_eq!(
-            parse("key =''"),
-            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
-        );
-
-        assert_eq!(
-            parse(" key =\"\""),
-            Ok(("key".to_owned(), AnswerInfo::with_value("").build()))
-        );
-    }
-
-    #[test]
-    fn test_parse_fail() {
-        match parse("key") {
-            Err(AnswerParseError::PestError(_)) => (),
-            _ => panic!("Error expected"),
-        }
-    }
-
-    #[test]
-    fn test_parse_answer() {
-        assert_eq!(
-            parse_answer(AnswerParser::parse(Rule::answer, "key=value").unwrap().next().unwrap()),
-            ("key".to_owned(), AnswerInfo::with_value("value").build())
-        );
-
-        assert_eq!(
-            parse_answer(
-                AnswerParser::parse(Rule::answer, "key='value'")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
-            ("key".to_owned(), AnswerInfo::with_value("value").build())
-        );
-
-        assert_eq!(
-            parse_answer(
-                AnswerParser::parse(Rule::answer, "key=\"value\"")
-                    .unwrap()
-                    .next()
-                    .unwrap()
-            ),
-            ("key".to_owned(), AnswerInfo::with_value("value").build())
-        );
     }
 
     #[test]

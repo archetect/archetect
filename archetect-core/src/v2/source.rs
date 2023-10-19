@@ -240,17 +240,15 @@ fn cache_git_repo(
 }
 
 fn is_branch(path: &str, gitref: &str) -> bool {
-    match handle_git(
+    handle_git(
         Command::new("git")
             .current_dir(path)
             .arg("show-ref")
             .arg("-q")
             .arg("--verify")
             .arg(format!("refs/remotes/origin/{}", gitref)),
-    ) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    )
+    .is_ok()
 }
 
 fn find_default_branch(path: &str) -> Result<String, SourceError> {

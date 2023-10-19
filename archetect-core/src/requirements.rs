@@ -1,4 +1,3 @@
-use crate::Archetect;
 use semver::{Version, VersionReq};
 use std::fs;
 use std::path::PathBuf;
@@ -49,25 +48,16 @@ impl Requirements {
             }
         }
     }
-
-    pub fn verify(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
-        if !self.archetect_requirement.matches(&archetect.version()) {
-            Err(RequirementsError::ArchetectVersion(
-                archetect.version().clone(),
-                self.archetect_requirement.clone(),
-            ))
-        } else {
-            Ok(())
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum RequirementsError {
     #[error("Error Deserializing Requirements File `{path}`: {cause}")]
     DeserializationError { path: PathBuf, cause: serde_yaml::Error },
-    #[error("Incompatible Archetect Version `{0}`. This archetype or one of it's components requires version {1}. \
-     \n\nPlease install the latest version: cargo install archetect --force")]
+    #[error(
+        "Incompatible Archetect Version `{0}`. This archetype or one of it's components requires version {1}. \
+     \n\nPlease install the latest version: cargo install archetect --force"
+    )]
     ArchetectVersion(Version, VersionReq),
     #[error("IO Error Reading Requirements File `{0}`.")]
     IoError(std::io::Error),
@@ -90,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compatibility_patch()  {
+    fn test_compatibility_patch() {
         assert_matches("2.0.0", "2.0.0-ALPHA"); // Version greater than ALPHA
         assert_matches("2.0.1", "2.0.0");
         assert_matches("2.1.1", "2.0.0");
