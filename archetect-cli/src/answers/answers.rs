@@ -12,10 +12,10 @@ pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<Map, ArchetectError> 
         });
     }
     match path.extension() {
-        Some("yml") => read_yaml_answers(&path),
-        Some("yaml") => read_yaml_answers(&path),
-        Some("json") => read_json_answers(&path),
-        Some("rhai") => read_rhai_answers(&path),
+        Some("yml") => read_yaml_answers(path),
+        Some("yaml") => read_yaml_answers(path),
+        Some("json") => read_json_answers(path),
+        Some("rhai") => read_rhai_answers(path),
         Some(_extension) => Err(ArchetectError::AnswerConfigError {
             path: path.to_string(),
             source: AnswerFileError::InvalidFileType,

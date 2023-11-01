@@ -85,18 +85,17 @@ pub fn command() -> Command {
             Command::new("catalog")
                 .about("Select From a Catalog")
                 .arg(
+                    Arg::new("source")
+                        .help("The Catalog source directory or git URL")
+                        .action(ArgAction::Set)
+                        .required(true),
+                )
+                .arg(
                     Arg::new("destination")
-                        .help("The directory to render the Archetype in")
+                        .help("The directory to render the Archetype in to")
                         .default_value(".")
                         .action(ArgAction::Set)
                 )
-                .arg(
-                    Arg::new("source")
-                        .help("Catalog source location")
-                        .long("source")
-                        .short('S')
-                        .action(ArgAction::Set)
-                ),
         )
         .subcommand(
             Command::new("completions")
@@ -150,10 +149,10 @@ pub fn command() -> Command {
                 )
                 .arg(
                     Arg::new("destination")
-                        .help("The directory the Archetype should be rendered into.")
+                        .help("The directory to render the Archetype in to")
                         .default_value(".")
                         .action(ArgAction::Set)
-                ),
+                )
         )
 }
 

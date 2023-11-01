@@ -174,24 +174,22 @@ fn cache_git_repo(
         if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
             debug!("Cloning to {}", cache_destination.as_str());
-            handle_git(Command::new("git").args(&["clone", &url, cache_destination.as_str()]))?;
+            handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
         } else {
             return Err(SourceError::OfflineAndNotCached(url.to_owned()));
         }
-    } else {
-        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-            info!("Fetching {}", url);
-            handle_git(Command::new("git").current_dir(&cache_destination).args(&["fetch"]))?;
-        }
+    } else if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+        info!("Fetching {}", url);
+        handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
     }
 
     let gitref = if let Some(gitref) = gitref {
         gitref.to_owned()
     } else {
-        find_default_branch(&cache_destination.as_str())?
+        find_default_branch(cache_destination.as_str())?
     };
 
-    let gitref_spec = if is_branch(&cache_destination.as_str(), &gitref) {
+    let gitref_spec = if is_branch(cache_destination.as_str(), &gitref) {
         format!("origin/{}", &gitref)
     } else {
         gitref
@@ -200,7 +198,7 @@ fn cache_git_repo(
     debug!("Checking out {}", gitref_spec);
     handle_git(
         Command::new("git")
-            .current_dir(&cache_destination)
+            .current_dir(cache_destination)
             .args(["checkout", &gitref_spec]),
     )?;
 

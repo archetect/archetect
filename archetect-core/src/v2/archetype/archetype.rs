@@ -8,9 +8,9 @@ use content_inspector::ContentType;
 use log::{debug, trace};
 use rhai::{EvalAltResult, Map, Scope};
 
-use crate::errors::{ArchetypeError, RenderError};
 use minijinja::Environment;
 
+use crate::errors::{ArchetypeError, RenderError};
 use crate::source::Source;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::archetype::directory::ArchetypeDirectory;
@@ -44,7 +44,7 @@ impl Archetype {
     }
 
     pub fn manifest(&self) -> &ArchetypeManifest {
-        &self.inner.directory.manifest()
+        self.inner.directory.manifest()
     }
 
     pub fn root(&self) -> &Utf8Path {
@@ -65,7 +65,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
 
-        let environment = create_environment(runtime_context.clone(), &self);
+        let environment = create_environment(runtime_context.clone(), self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -91,7 +91,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let environment = create_environment(runtime_context.clone(), &self);
+        let environment = create_environment(runtime_context.clone(), self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -117,7 +117,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", answers);
 
-        let environment = create_environment(runtime_context.clone(), &self);
+        let environment = create_environment(runtime_context.clone(), self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -144,7 +144,7 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", context);
 
-        let environment = create_environment(runtime_context.clone(), &self);
+        let environment = create_environment(runtime_context.clone(), self);
         let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
 
         let directory = &self.inner.directory;
@@ -159,7 +159,7 @@ impl Archetype {
     }
 
     pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
-        self.manifest().requires().check_requirements(&runtime_context)
+        self.manifest().requires().check_requirements(runtime_context)
     }
 }
 
@@ -275,8 +275,8 @@ pub fn render_contents<P: AsRef<Utf8Path>>(
 
 pub fn write_contents<P: AsRef<Utf8Path>>(destination: P, contents: &str) -> Result<(), RenderError> {
     let destination = destination.as_ref();
-    let mut output = File::create(&destination)?;
-    output.write(contents.as_bytes())?;
+    let mut output = File::create(destination)?;
+    let _ = output.write(contents.as_bytes())?;
     Ok(())
 }
 

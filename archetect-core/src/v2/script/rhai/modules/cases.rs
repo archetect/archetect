@@ -31,6 +31,7 @@ pub fn register(engine: &mut Engine) {
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 pub enum CaseStyle {
     CamelCase,
     ClassCase,
@@ -75,6 +76,7 @@ pub enum CaseStrategy {
     CasedKeys { key: String, styles: Vec<CaseStyle> },
     CasedKeysWithSuffix { suffix: String, styles: Vec<CaseStyle> },
     CasedKeysWithPrefix { prefix: String, styles: Vec<CaseStyle> },
+    CasedValue { style: CaseStyle },
     FixedIdentity { style: CaseStyle },
     FixedKey { key: String, style: CaseStyle },
     FixedKeyWithSuffix { suffix: String, style: CaseStyle },
@@ -106,8 +108,8 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                     CaseStrategy::CasedIdentity { styles } => {
                         for style in styles {
                             results.insert(
-                                to_case(format!("{}", key).as_str(), style.clone()).into(),
-                                to_case(&value, style).into(),
+                                to_case(key.to_string().as_str(), style.clone()).into(),
+                                to_case(value, style).into(),
                             );
                         }
                     }
@@ -115,7 +117,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                         for style in styles {
                             results.insert(
                                 to_case(format!("{}-{}", key, suffix).as_str(), style.clone()).into(),
-                                to_case(&value, style).into(),
+                                to_case(value, style).into(),
                             );
                         }
                     }
@@ -123,7 +125,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                         for style in styles {
                             results.insert(
                                 to_case(format!("{}-{}", prefix, key).as_str(), style.clone()).into(),
-                                to_case(&value, style).into(),
+                                to_case(value, style).into(),
                             );
                         }
                     }
@@ -131,26 +133,29 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                         for style in styles {
                             results.insert(
                                 to_case(key.as_str(), style.clone()).into(),
-                                to_case(&value, style).into(),
+                                to_case(value, style).into(),
                             );
                         }
                     }
                     CaseStrategy::FixedIdentity { style } => {
-                        results.insert(key.into(), to_case(&value, style).into());
+                        results.insert(key.into(), to_case(value, style).into());
+                    }
+                    CaseStrategy::CasedValue { style } => {
+                        results.insert(key.into(), to_case(value, style).into());
                     }
                     CaseStrategy::FixedKey { key, style } => {
-                        results.insert(key.into(), to_case(&value, style).into());
+                        results.insert(key.into(), to_case(value, style).into());
                     }
                     CaseStrategy::FixedKeyWithSuffix { suffix, style } => {
                         results.insert(
                             format!("{}{}", key, suffix).as_str().into(),
-                            to_case(&value, style).into(),
+                            to_case(value, style).into(),
                         );
                     }
                     CaseStrategy::FixedKeyWithPrefix { prefix, style } => {
                         results.insert(
                             format!("{}{}", prefix, key).as_str().into(),
-                            to_case(&value, style).into(),
+                            to_case(value, style).into(),
                         );
                     }
                 }
@@ -223,6 +228,10 @@ pub mod module {
 
     pub fn FixedIdentity(style: CaseStyle) -> CaseStrategy {
         CaseStrategy::FixedIdentity { style }
+    }
+
+    pub fn CasedValue(style: CaseStyle) -> CaseStrategy {
+        CaseStrategy::CasedValue { style }
     }
 
     pub fn FixedKey(key: String, style: CaseStyle) -> CaseStrategy {

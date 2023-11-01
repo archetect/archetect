@@ -1,19 +1,20 @@
-use camino::Utf8PathBuf;
-use std::col lections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 
+use camino::Utf8PathBuf;
 use clap::ArgMatches;
 use log::{error, info};
 use read_input::prelude::*;
 use rhai::{Dynamic, EvalAltResult, Map};
 
-use crate::answers::parse_answer_pair;
 use archetect_core::errors::{ArchetectError, CatalogError};
 use archetect_core::source::Source;
 use archetect_core::v2::catalog::{CatalogEntry, CatalogManifest, CATALOG_FILE_NAME};
 use archetect_core::v2::runtime::context::RuntimeContext;
 use archetect_core::Archetect;
 use archetect_core::{self};
+
+use crate::answers::parse_answer_pair;
 
 mod answers;
 mod cli;
@@ -107,7 +108,7 @@ fn catalog(
     mut answers: Map,
 ) -> Result<(), ArchetectError> {
     let default_source = archetect.layout().catalog().as_str().to_owned();
-    let source = matches.get_one::<String>("source").unwrap_or_else(|| &default_source);
+    let source = matches.get_one::<String>("source").unwrap_or(&default_source);
     let source = Source::detect(&archetect, &runtime_context, source, None)?;
 
     let mut catalog_file = source.local_path().to_owned();
@@ -130,9 +131,7 @@ fn catalog(
             } => {
                 if let Some(catalog_answers) = catalog_answers {
                     for (k, v) in catalog_answers {
-                        if !answers.contains_key(&k) {
-                            answers.insert(k, v);
-                        }
+                        answers.entry(k).or_insert(v);
                     }
                 }
                 let source = Source::detect(&archetect, &runtime_context, &source, None)?;
@@ -194,7 +193,7 @@ pub fn select_from_catalog(
 
         match choice {
             CatalogEntry::Catalog { description: _, source } => {
-                let source = Source::detect(archetect, &runtime_context, &source, Some(current_source))?;
+                let source = Source::detect(archetect, runtime_context, &source, Some(current_source))?;
                 current_source = source.clone();
                 catalog = CatalogManifest::load(source)?;
             }
@@ -232,7 +231,7 @@ pub fn select_from_entries(
             eprintln!("{:>2}) {}", id + 1, entry.description());
         }
 
-        let test_values = choices.keys().map(|v| *v).collect::<HashSet<_>>();
+        let test_values = choices.keys().copied().collect::<HashSet<_>>();
         let result = input::<usize>()
             .prompting_on_stderr()
             .msg("\nSelect an entry: ")
