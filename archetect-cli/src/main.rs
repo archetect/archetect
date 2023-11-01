@@ -158,9 +158,10 @@ pub fn render(
 ) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let source = Source::detect(&archetect, &runtime_context, source, None)?;
-    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
     let archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
+
+    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
     archetype.check_requirements(&runtime_context)?;
     archetype.render_with_destination(destination, runtime_context, answers)?;

@@ -93,7 +93,7 @@ impl Source {
             let local_path = Utf8PathBuf::from(path.as_ref());
             if local_path.is_relative() {
                 if let Some(parent) = relative_to {
-                    let local_path = parent.local_path().clone().join(local_path);
+                    let local_path = parent.local_path().join(local_path);
                     if local_path.exists() && local_path.is_dir() {
                         return Ok(Source::LocalDirectory { path: local_path });
                     } else {
