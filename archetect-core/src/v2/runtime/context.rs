@@ -1,63 +1,69 @@
-use semver::Version;
 use std::collections::HashSet;
+use std::sync::Arc;
+
+use camino::{Utf8Path, Utf8PathBuf};
+use semver::Version;
+
+use crate::configuration::Configuration;
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
+    inner: Arc<Inner>,
+}
+
+#[derive(Debug)]
+struct Inner {
     offline: bool,
     headless: bool,
     local: bool,
     switches: HashSet<String>,
     version: Version,
+    destination: Utf8PathBuf,
 }
 
+
 impl RuntimeContext {
-    pub fn new() -> RuntimeContext {
+    pub fn new(configuration: &Configuration, mut switches: HashSet<String>, destination: Utf8PathBuf) -> RuntimeContext {
+        for switch in configuration.switches() {
+            switches.insert(switch.to_string());
+        }
         RuntimeContext {
-            offline: false,
-            headless: false,
-            local: false,
-            switches: HashSet::new(),
-            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            inner: Arc::new(Inner {
+                offline: configuration.offline(),
+                headless: configuration.headless(),
+                local: configuration.locals().enabled(),
+                switches,
+                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                destination,
+            })
         }
     }
 
     pub fn offline(&self) -> bool {
-        self.offline
-    }
-
-    pub fn enable_switch<S: Into<String>>(&mut self, switch: S) {
-        self.switches.insert(switch.into());
+        self.inner.offline
     }
 
     pub fn switches(&self) -> &HashSet<String> {
-        &self.switches
+        &self.inner.switches
     }
 
     pub fn switch_enabled<T: AsRef<str>>(&self, switch: T) -> bool {
-        self.switches.contains(switch.as_ref())
-    }
-
-    pub fn set_offline(&mut self, offline: bool) {
-        self.offline = offline;
+        self.inner.switches.contains(switch.as_ref())
     }
 
     pub fn headless(&self) -> bool {
-        self.headless
-    }
-
-    pub fn set_headless(&mut self, headless: bool) {
-        self.headless = headless;
+        self.inner.headless
     }
 
     pub fn local(&self) -> bool {
-        self.local
-    }
-
-    pub fn set_local(&mut self, local: bool) {
-        self.local = local;
+        self.inner.local
     }
 
     pub fn archetect_version(&self) -> &Version {
-        &self.version
+        &self.inner.version
+    }
+
+    pub fn destination(&self) -> &Utf8Path {
+        &self.inner.destination
     }
 }

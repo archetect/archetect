@@ -1,7 +1,7 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use log::{debug, info};
 use regex::Regex;
@@ -248,6 +248,7 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::configuration::Configuration;
     use super::*;
 
     #[test]
@@ -267,7 +268,8 @@ mod tests {
     #[test]
     fn test_http_source() {
         let archetect = Archetect::build().unwrap();
-        let runtime_context = RuntimeContext::new();
+        let configuration = Configuration::default();
+        let runtime_context = RuntimeContext::new(&configuration, HashSet::new(), Utf8PathBuf::new());
         let source = Source::detect(
             &archetect,
             &runtime_context,

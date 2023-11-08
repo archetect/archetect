@@ -1,6 +1,6 @@
-use crate::errors::{ArchetypeError, RequirementsError};
 use semver::VersionReq;
 
+use crate::errors::RequirementsError;
 use crate::v2::runtime::context::RuntimeContext;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -14,15 +14,14 @@ impl RuntimeRequirements {
         &self.archetect_version
     }
 
-    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
+    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), RequirementsError> {
         let version = runtime_context.archetect_version();
 
         if !self.archetect_version.matches(version) {
             return Err(RequirementsError::ArchetectVersion(
                 runtime_context.archetect_version().clone(),
                 self.archetect_version.clone(),
-            )
-            .into());
+            ));
         }
 
         Ok(())

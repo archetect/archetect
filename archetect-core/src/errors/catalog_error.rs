@@ -1,4 +1,4 @@
-use crate::errors::SourceError;
+use crate::errors::{RequirementsError, SourceError};
 use camino::Utf8PathBuf;
 
 #[derive(Debug, thiserror::Error)]
@@ -11,10 +11,14 @@ pub enum CatalogError {
     SourceError(SourceError),
     #[error("Catalog not found: {0}")]
     NotFound(Utf8PathBuf),
+    #[error("catalog.yml or catalog.yaml was not found in {0}")]
+    NotFoundInDirectory(Utf8PathBuf),
     #[error("Catalog IO Error: {0}")]
     IOError(std::io::Error),
     #[error("Catalog Format Error: {0}")]
     YamlError(serde_yaml::Error),
+    #[error("Catalog requirements failure:\n\n{0}")]
+    RequirementsError(#[from] RequirementsError),
 }
 
 impl From<std::io::Error> for CatalogError {

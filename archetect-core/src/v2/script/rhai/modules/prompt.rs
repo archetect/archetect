@@ -5,6 +5,7 @@ mod multiselect;
 mod select;
 mod text;
 
+use std::sync::Arc;
 use inquire::error::InquireResult;
 use inquire::InquireError;
 use rhai::plugin::*;

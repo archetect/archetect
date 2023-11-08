@@ -275,7 +275,7 @@ pub(crate) struct Packed<T: Copy>(pub T);
 
 impl<T: Copy> Clone for Packed<T> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
@@ -572,8 +572,7 @@ impl Value {
     pub fn from_function<F, Rv, Args>(f: F) -> Value
     where
         // the crazy bounds here exist to enable borrowing in closures
-        F: functions::Function<Rv, Args>
-            + for<'a> functions::Function<Rv, <Args as FunctionArgs<'a>>::Output>,
+        F: functions::Function<Rv, Args> + for<'a> functions::Function<Rv, <Args as FunctionArgs<'a>>::Output>,
         Rv: FunctionResult,
         Args: for<'a> FunctionArgs<'a>,
     {
@@ -912,12 +911,7 @@ impl Value {
     }
 
     /// Calls a method on the value.
-    pub(crate) fn call_method(
-        &self,
-        state: &State,
-        name: &str,
-        args: &[Value],
-    ) -> Result<Value, Error> {
+    pub(crate) fn call_method(&self, state: &State, name: &str, args: &[Value]) -> Result<Value, Error> {
         match self.0 {
             ValueRepr::Dynamic(ref dy) => return dy.call_method(state, name, args),
             ValueRepr::Map(ref map, _) => {
@@ -936,9 +930,7 @@ impl Value {
     pub(crate) fn try_into_key(self) -> Result<StaticKey, Error> {
         match self.0 {
             ValueRepr::Bool(val) => Ok(Key::Bool(val)),
-            ValueRepr::U64(v) => TryFrom::try_from(v)
-                .map(Key::I64)
-                .map_err(|_| ErrorKind::NonKey.into()),
+            ValueRepr::U64(v) => TryFrom::try_from(v).map(Key::I64).map_err(|_| ErrorKind::NonKey.into()),
             ValueRepr::U128(v) => TryFrom::try_from(v.0)
                 .map(Key::I64)
                 .map_err(|_| ErrorKind::NonKey.into()),
@@ -956,30 +948,19 @@ impl Value {
     pub(crate) fn try_iter_owned(&self) -> Result<OwnedValueIterator, Error> {
         let (iter_state, len) = match self.0 {
             ValueRepr::None | ValueRepr::Undefined => (ValueIteratorState::Empty, 0),
-            ValueRepr::String(ref s, _) => (
-                ValueIteratorState::Chars(0, Arc::clone(s)),
-                s.chars().count(),
-            ),
+            ValueRepr::String(ref s, _) => (ValueIteratorState::Chars(0, Arc::clone(s)), s.chars().count()),
             ValueRepr::Seq(ref seq) => (ValueIteratorState::Seq(0, Arc::clone(seq)), seq.len()),
             #[cfg(feature = "preserve_order")]
-            ValueRepr::Map(ref items, _) => {
-                (ValueIteratorState::Map(0, Arc::clone(items)), items.len())
-            }
+            ValueRepr::Map(ref items, _) => (ValueIteratorState::Map(0, Arc::clone(items)), items.len()),
             #[cfg(not(feature = "preserve_order"))]
             ValueRepr::Map(ref items, _) => (
-                ValueIteratorState::Map(
-                    items.iter().next().map(|x| x.0.clone()),
-                    Arc::clone(items),
-                ),
+                ValueIteratorState::Map(items.iter().next().map(|x| x.0.clone()), Arc::clone(items)),
                 items.len(),
             ),
             ValueRepr::Dynamic(ref obj) => {
                 match obj.kind() {
                     ObjectKind::Plain => (ValueIteratorState::Empty, 0),
-                    ObjectKind::Seq(s) => (
-                        ValueIteratorState::DynSeq(0, Arc::clone(obj)),
-                        s.item_count(),
-                    ),
+                    ObjectKind::Seq(s) => (ValueIteratorState::DynSeq(0, Arc::clone(obj)), s.item_count()),
                     ObjectKind::Struct(s) => {
                         // the assumption is that structs don't have excessive field counts
                         // and that most iterations go over all fields, so creating a
@@ -1035,11 +1016,7 @@ impl Serialize for Value {
                 rv
             });
             VALUE_HANDLES.with(|handles| handles.borrow_mut().insert(handle, self.clone()));
-            return serializer.serialize_unit_variant(
-                VALUE_HANDLE_MARKER,
-                handle,
-                VALUE_HANDLE_MARKER,
-            );
+            return serializer.serialize_unit_variant(VALUE_HANDLE_MARKER, handle, VALUE_HANDLE_MARKER);
         }
 
         match self.0 {
@@ -1153,12 +1130,10 @@ impl ValueIteratorState {
     fn advance_state(&mut self) -> Option<Value> {
         match self {
             ValueIteratorState::Empty => None,
-            ValueIteratorState::Chars(offset, ref s) => {
-                s.as_str()[*offset..].chars().next().map(|c| {
-                    *offset += c.len_utf8();
-                    Value::from(c)
-                })
-            }
+            ValueIteratorState::Chars(offset, ref s) => s.as_str()[*offset..].chars().next().map(|c| {
+                *offset += c.len_utf8();
+                Value::from(c)
+            }),
             ValueIteratorState::Seq(idx, items) => items
                 .get(*idx)
                 .map(|x| {

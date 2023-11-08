@@ -2,6 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
@@ -13,8 +14,8 @@ use minijinja::Environment;
 use crate::errors::{ArchetypeError, RenderError};
 use crate::source::Source;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::archetype::directory::ArchetypeDirectory;
-use crate::v2::archetype::manifest::ArchetypeManifest;
+use crate::v2::archetype::archetype_directory::ArchetypeDirectory;
+use crate::v2::archetype::archetype_manifest::ArchetypeManifest;
 use crate::v2::runtime::context::RuntimeContext;
 use crate::v2::script::create_environment;
 use crate::v2::script::rhai::create_engine;
@@ -159,7 +160,8 @@ impl Archetype {
     }
 
     pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
-        self.manifest().requires().check_requirements(runtime_context)
+        self.manifest().requires().check_requirements(runtime_context)?;
+        Ok(())
     }
 }
 

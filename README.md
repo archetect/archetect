@@ -2,21 +2,22 @@
 
 ![Rust](https://github.com/archetect/archetect/workflows/Rust/badge.svg)
 
-Archetect is a powerful code-centric, language agnostic content generator, capable of generating single files, complex 
-projects, or entire architectures.  Key features include:
-              
-* A Jinja2-like templating syntax
-* A Rhai scripting and orchestration syntax
-* Easy installation
-* Easy archetype authoring and publishing (Git repos or local directories)
-* Smart pluralization and singularization functions (soliloquy->soliloquies, calf->calves)
-* Smart casing functions (camelCase, PascalCase, snake_case, title-case, CONSTANT_CASE)
-* Archetype compositions
-* A distributed menu/catalog system
+Archetect is a powerful code-centric, language agnostic content generator, capable of generating single files, complex
+projects, or entire architectures. Key features include:
+
+- A Jinja2-like templating syntax
+- A Rhai scripting and orchestration syntax
+- Easy installation
+- Easy archetype authoring and publishing (Git repos or local directories)
+- Smart pluralization and singularization functions (soliloquy->soliloquies, calf->calves)
+- Smart casing functions (camelCase, PascalCase, snake_case, title-case, CONSTANT_CASE)
+- Archetype compositions
+- A distributed menu/catalog system
 
 Modules:
-* [archetect-cli](archetect-cli/README.md)
-* [archetect-core](archetect-core/README.md)
+
+- [archetect-cli](archetect-cli/README.md)
+- [archetect-core](archetect-core/README.md)
 
 ## Quick Start
 
@@ -24,8 +25,8 @@ Modules:
 
 For a more in-depth guide to installing archetect, see the [Installation Guide](https://archetect.github.io/getting_started/installation.html).
 
-Archetect is a CLI application, and can either be installed by downloading a pre-built binary from Archetect's 
-[Releases Page](https://github.com/archetect/archetect/releases/latest), or by installing with 
+Archetect is a CLI application, and can either be installed by downloading a pre-built binary from Archetect's
+[Releases Page](https://github.com/archetect/archetect/releases/latest), or by installing with
 [Rust Lang's](https://rustup.rs/) build tool, cargo:
 
 ```shell
@@ -44,8 +45,8 @@ inspect.
 
 ### Rendering Archetypes
 
-From this point, browse the archetypes and catalogs within the [Archetect Github organization](https://github.com/archetect) 
-for some pre-made archetypes you can use immediately, or for inspiration in making your own.  The README.md files commonly
+From this point, browse the archetypes and catalogs within the [Archetect Github organization](https://github.com/archetect)
+for some pre-made archetypes you can use immediately, or for inspiration in making your own. The README.md files commonly
 have an archetect command line example that can be copy/pasted to your shell to render new projects quickly and easily.
 
 Example:
@@ -59,13 +60,16 @@ archetect catalog --source https://github.com/archetect/catalog-rust.git
 ```
 
 ## Documentation
-* [Installation Guide](https://archetect.github.io/getting_started/installation.html)
-* [Archetect Documentation](https://archetect.github.io/archetect.html)
+
+- [Installation Guide](https://archetect.github.io/getting_started/installation.html)
+- [Archetect Documentation](https://archetect.github.io/archetect.html)
 
 ## Binary Releases
+
 [Releases for OSX, Windows, and Linux](https://github.com/archetect/archetect/releases)
 
-## *Usage*
+## _Usage_
+
 ```
 archetect 0.5.0
 Jimmie Fulton <jimmie.fulton@gmail.com>

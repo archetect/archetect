@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use rhai::{Engine, EvalAltResult, Map, Module};
 
+use crate::Archetect;
 use crate::errors::ArchetypeError;
 use crate::source::Source;
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::runtime::context::RuntimeContext;
-use crate::Archetect;
 
 pub(crate) fn register(
     engine: &mut Engine,
@@ -34,7 +36,7 @@ pub(crate) fn register(
 #[derive(Clone)]
 pub struct ArchetypeFacade {
     child: Archetype,
-    runtime_context: RuntimeContext,
+    runtime_context:RuntimeContext,
     archetype_context: ArchetypeContext,
 }
 
@@ -74,7 +76,7 @@ impl ArchetypeFacade {
         let destination = self.archetype_context.destination().join(destination);
         self.child.render_with_destination_and_settings(
             destination,
-            self.runtime_context.clone(),
+            self.runtime_context.to_owned(),
             answers,
             settings,
         )?;
@@ -97,7 +99,7 @@ fn create_archetype(
             return Ok(ArchetypeFacade {
                 child,
                 archetype_context,
-                runtime_context,
+                runtime_context: runtime_context.clone(),
             });
         }
     }

@@ -26,6 +26,7 @@ pub fn command() -> Command {
                 .help("Only use directories and already-cached remote git URLs")
                 .short('o')
                 .long("offline")
+                .env("ARCHETECT_OFFLINE")
                 .action(ArgAction::SetTrue)
                 .global(true)
         )
@@ -33,6 +34,7 @@ pub fn command() -> Command {
             Arg::new("headless")
                 .help("Expect all variable values to be provided by answer arguments or files, never waiting for user input.")
                 .long("headless")
+                .env("ARCHETECT_HEADLESS")
                 .action(ArgAction::SetTrue)
                 .global(true)
         )
@@ -40,6 +42,17 @@ pub fn command() -> Command {
             Arg::new("local")
                 .help("Use local development checkouts where available and configured")
                 .long("local")
+                .short('l')
+                .env("ARCHETECT_LOCAL")
+                .action(ArgAction::SetTrue)
+                .global(true)
+        )
+        .arg(
+            Arg::new("force-update")
+                .help("Use local development checkouts where available and configured")
+                .long("force-update")
+                .short('U')
+                .env("ARCHETECT_FORCE_UPDATE")
                 .action(ArgAction::SetTrue)
                 .global(true)
         )
@@ -60,6 +73,16 @@ pub fn command() -> Command {
                 .short('s')
                 .action(ArgAction::Append)
                 .global(true)
+        )
+        .arg(
+            Arg::new("config-file")
+                .help("Supply an additional configuration file.")
+                .long_help("Supply an additional configuration file supplements or override \
+                user and/or default configuration.")
+                .long("config-file")
+                .action(ArgAction::Set)
+                .global(true)
+                .value_name("config")
         )
         .arg(
             Arg::new("answer-file")
@@ -131,11 +154,22 @@ pub fn command() -> Command {
                 ),
         )
         .subcommand(
+            Command::new("config")
+                .arg_required_else_help(true)
+                .about("Manage Archetect's configuration")
+                .subcommand(Command::new("merged")
+                    .about("Show Archetect's merged configuration after applying command line arguments, \
+                    environment variables, and configuration files."))
+                .subcommand(Command::new("defaults")
+                    .about("Show Archetect's default configuration, which may be used for re-creating \
+                    a configuration file."))
+        )
+        .subcommand(
             Command::new("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
                 .subcommand(Command::new("select"))
                 .subcommand(Command::new("clear"))
-                .subcommand(Command::new("pull")),
+                .subcommand(Command::new("pull"))
         )
         .subcommand(
             Command::new("render")

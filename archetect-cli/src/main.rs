@@ -1,23 +1,26 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::ops::Deref;
 
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
-use log::{error, info};
+use log::error;
 use read_input::prelude::*;
 use rhai::{Dynamic, EvalAltResult, Map};
 
-use archetect_core::errors::{ArchetectError, CatalogError};
-use archetect_core::source::Source;
-use archetect_core::v2::catalog::{CatalogEntry, CatalogManifest, CATALOG_FILE_NAME};
-use archetect_core::v2::runtime::context::RuntimeContext;
-use archetect_core::Archetect;
 use archetect_core::{self};
+use archetect_core::Archetect;
+use archetect_core::configuration::Configuration;
+use archetect_core::errors::ArchetectError;
+use archetect_core::source::Source;
+use archetect_core::v2::archetype::archetype::Archetype;
+use archetect_core::v2::catalog::Catalog;
+use archetect_core::v2::runtime::context::RuntimeContext;
 
 use crate::answers::parse_answer_pair;
 
 mod answers;
 mod cli;
+pub mod configuration;
 pub mod vendor;
 
 fn main() {
@@ -35,7 +38,16 @@ fn main() {
 }
 
 fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
+    let archetect = Archetect::build()?;
+
+    let configuration = configuration::load_user_config(&archetect, &matches)
+        .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
+
     let mut answers = Map::new();
+
+    for (identifier, value) in configuration.answers() {
+        answers.insert(identifier.clone(), value.clone());
+    }
 
     if let Some(answer_files) = matches.get_many::<String>("answer-file") {
         for answer_file in answer_files {
@@ -73,93 +85,91 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
     }
     let archetect = Archetect::build()?;
-    let runtime_context = create_runtime_context(&matches)?;
 
     match matches.subcommand() {
         None => {
-            catalog(&matches, archetect, runtime_context, answers)?;
+            default(&matches, &archetect, &configuration, answers)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, archetect, runtime_context, answers)?,
-        Some(("catalog", args)) => catalog(args, archetect, runtime_context, answers)?,
+        Some(("render", args)) => render(args, archetect, &configuration, answers)?,
+        Some(("catalog", args)) => catalog(args, archetect, &configuration, answers)?,
+        Some(("config", args)) => config(args, &configuration)?,
         _ => {}
     }
 
     Ok(())
 }
 
-fn create_runtime_context(matches: &ArgMatches) -> Result<RuntimeContext, ArchetectError> {
-    let mut runtime_context = RuntimeContext::new();
-    runtime_context.set_local(matches.get_flag("local"));
-    runtime_context.set_headless(matches.get_flag("headless"));
-    runtime_context.set_offline(matches.get_flag("offline"));
-    if let Some(switches) = matches.get_many::<String>("switches") {
-        for switch in switches {
-            runtime_context.enable_switch(switch);
+fn create_runtime_context(
+    matches: &ArgMatches,
+    configuration: &Configuration,
+) -> Result<RuntimeContext, ArchetectError> {
+    let mut switches = HashSet::new();
+    if let Some(answer_switches) = matches.get_many::<String>("switches") {
+        for switch in answer_switches {
+            switches.insert(switch.to_string());
         }
     }
+    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+    let runtime_context = RuntimeContext::new(configuration, switches, destination);
+
     Ok(runtime_context)
+}
+
+fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), ArchetectError> {
+    match matches.subcommand() {
+        Some(("merged", _args)) => {
+            println!("{}", configuration.to_yaml());
+        }
+        Some(("defaults", _args)) => {
+            println!("{}", Configuration::default().to_yaml());
+        }
+        None => {}
+        _ => {}
+    }
+
+    Ok(())
+}
+
+fn default(
+    matches: &ArgMatches,
+    archetect: &Archetect,
+    configuration: &Configuration,
+    answers: Map,
+) -> Result<(), ArchetectError> {
+    let runtime_context = create_runtime_context(matches, configuration)?;
+    let catalog = configuration.catalog();
+    catalog.render(archetect, runtime_context, answers)?;
+    Ok(())
 }
 
 fn catalog(
     matches: &ArgMatches,
     archetect: Archetect,
-    runtime_context: RuntimeContext,
-    mut answers: Map,
+    configuration: &Configuration,
+    answers: Map,
 ) -> Result<(), ArchetectError> {
-    let default_source = archetect.layout().catalog().as_str().to_owned();
-    let source = matches.get_one::<String>("source").unwrap_or(&default_source);
+    let runtime_context = create_runtime_context(matches, configuration)?;
+    let source = matches.get_one::<String>("source").unwrap();
     let source = Source::detect(&archetect, &runtime_context, source, None)?;
 
-    let mut catalog_file = source.local_path().to_owned();
-    if catalog_file.is_dir() {
-        catalog_file.push(CATALOG_FILE_NAME);
-    }
-
-    if catalog_file.exists() {
-        let catalog_source = Source::detect(&archetect, &runtime_context, catalog_file.as_str(), None)?;
-        let catalog = CatalogManifest::load(source.clone())?;
-        catalog.check_requirements(&runtime_context)?;
-
-        let catalog_entry = select_from_catalog(&archetect, &runtime_context, &catalog, &catalog_source)?;
-
-        match catalog_entry {
-            CatalogEntry::Archetype {
-                description: _,
-                source,
-                answers: catalog_answers,
-            } => {
-                if let Some(catalog_answers) = catalog_answers {
-                    for (k, v) in catalog_answers {
-                        answers.entry(k).or_insert(v);
-                    }
-                }
-                let source = Source::detect(&archetect, &runtime_context, &source, None)?;
-                let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-                let archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
-                archetype.check_requirements(&runtime_context)?;
-                archetype.render_with_destination(destination, runtime_context, answers)?;
-
-                return Ok(());
-            }
-            _ => unreachable!(),
-        }
-    } else {
-        info!("No catalog file exists at {:?}.", catalog_file);
-    }
+    let catalog = Catalog::load(&source)?;
+    catalog.check_requirements(&runtime_context)?;
+    catalog.render(&archetect, runtime_context, answers)?;
     Ok(())
 }
 
 pub fn render(
     matches: &ArgMatches,
     archetect: Archetect,
-    runtime_context: RuntimeContext,
+    configuration: &Configuration,
     answers: Map,
 ) -> Result<(), ArchetectError> {
+    let runtime_context = create_runtime_context(matches, configuration)?;
     let source = matches.get_one::<String>("source").unwrap();
     let source = Source::detect(&archetect, &runtime_context, source, None)?;
 
-    let archetype = archetect_core::v2::archetype::archetype::Archetype::new(&source)?;
+    let archetype = Archetype::new(&source)?;
 
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
@@ -174,91 +184,4 @@ pub fn you_are_sure(message: &str) -> bool {
         .msg(format!("{} [false]: ", message))
         .default(false)
         .get()
-}
-
-pub fn select_from_catalog(
-    archetect: &Archetect,
-    runtime_context: &RuntimeContext,
-    catalog: &CatalogManifest,
-    current_source: &Source,
-) -> Result<CatalogEntry, CatalogError> {
-    let mut catalog = catalog.clone();
-    let mut current_source = current_source.clone();
-
-    loop {
-        if catalog.entries().is_empty() {
-            return Err(CatalogError::EmptyCatalog);
-        }
-
-        let choice = select_from_entries(archetect, catalog.entries_owned())?;
-
-        match choice {
-            CatalogEntry::Catalog { description: _, source } => {
-                let source = Source::detect(archetect, runtime_context, &source, Some(current_source))?;
-                current_source = source.clone();
-                catalog = CatalogManifest::load(source)?;
-            }
-            CatalogEntry::Archetype {
-                description: _,
-                source: _,
-                answers: _,
-            } => {
-                return Ok(choice);
-            }
-            CatalogEntry::Group {
-                description: _,
-                entries: _,
-            } => unreachable!(),
-        }
-    }
-}
-
-pub fn select_from_entries(
-    _archetect: &Archetect,
-    mut entry_items: Vec<CatalogEntry>,
-) -> Result<CatalogEntry, CatalogError> {
-    if entry_items.is_empty() {
-        return Err(CatalogError::EmptyGroup);
-    }
-
-    loop {
-        let mut choices = entry_items
-            .iter()
-            .enumerate()
-            .map(|(id, entry)| (id + 1, entry.clone()))
-            .collect::<HashMap<_, _>>();
-
-        for (id, entry) in entry_items.iter().enumerate() {
-            eprintln!("{:>2}) {}", id + 1, entry.description());
-        }
-
-        let test_values = choices.keys().copied().collect::<HashSet<_>>();
-        let result = input::<usize>()
-            .prompting_on_stderr()
-            .msg("\nSelect an entry: ")
-            .add_test(move |value| test_values.contains(value))
-            .err("Please enter the number of a selection from the list.")
-            .repeat_msg("Select an entry: ")
-            .get();
-
-        let choice = choices.remove(&result).unwrap();
-
-        match choice {
-            CatalogEntry::Group {
-                description: _,
-                entries,
-            } => {
-                entry_items = entries;
-            }
-            CatalogEntry::Catalog {
-                description: _,
-                source: _,
-            } => return Ok(choice),
-            CatalogEntry::Archetype {
-                description: _,
-                source: _,
-                answers: _,
-            } => return Ok(choice),
-        }
-    }
 }

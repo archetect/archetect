@@ -1,6 +1,7 @@
+use std::rc::Rc;
+
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::Map;
-use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct ArchetypeContext {

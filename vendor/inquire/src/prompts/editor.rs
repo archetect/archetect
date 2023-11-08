@@ -181,7 +181,7 @@ impl<'a> Editor<'a> {
     /// The possible error is displayed to the user one line above the prompt.
     pub fn with_validators(mut self, validators: &[Box<dyn StringValidator>]) -> Self {
         for validator in validators {
-            #[allow(clippy::clone_double_ref)]
+            #[allow(suspicious_double_ref_op)]
             self.validators.push(validator.clone());
         }
         self
@@ -225,10 +225,7 @@ impl<'a> Editor<'a> {
         self.prompt_with_backend(&mut backend)
     }
 
-    pub(crate) fn prompt_with_backend<B: EditorBackend>(
-        self,
-        backend: &mut B,
-    ) -> InquireResult<String> {
+    pub(crate) fn prompt_with_backend<B: EditorBackend>(self, backend: &mut B) -> InquireResult<String> {
         EditorPrompt::new(self)?.prompt(backend)
     }
 }
@@ -264,10 +261,7 @@ impl<'a> EditorPrompt<'a> {
         })
     }
 
-    fn create_file(
-        file_extension: &str,
-        predefined_text: Option<&str>,
-    ) -> std::io::Result<NamedTempFile> {
+    fn create_file(file_extension: &str, predefined_text: Option<&str>) -> std::io::Result<NamedTempFile> {
         let mut tmp_file = tempfile::Builder::new()
             .prefix("tmp-")
             .suffix(file_extension)
@@ -302,10 +296,7 @@ impl<'a> EditorPrompt<'a> {
         }
 
         let path = Path::new(self.editor_command);
-        let editor_name = path
-            .file_stem()
-            .and_then(|f| f.to_str())
-            .unwrap_or("editor");
+        let editor_name = path.file_stem().and_then(|f| f.to_str()).unwrap_or("editor");
 
         backend.render_prompt(prompt, editor_name)?;
 

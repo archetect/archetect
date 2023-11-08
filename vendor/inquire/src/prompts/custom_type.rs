@@ -208,7 +208,7 @@ where
     /// The possible error is displayed to the user one line above the prompt.
     pub fn with_validators(mut self, validators: &[Box<dyn CustomTypeValidator<T>>]) -> Self {
         for validator in validators {
-            #[allow(clippy::clone_double_ref)]
+            #[allow(suspicious_double_ref_op)]
             self.validators.push(validator.clone());
         }
         self
@@ -258,10 +258,7 @@ where
         self.prompt_with_backend(&mut backend)
     }
 
-    pub(crate) fn prompt_with_backend<B: CustomTypeBackend>(
-        self,
-        backend: &mut B,
-    ) -> InquireResult<T> {
+    pub(crate) fn prompt_with_backend<B: CustomTypeBackend>(self, backend: &mut B) -> InquireResult<T> {
         CustomTypePrompt::from(self).prompt(backend)
     }
 }
@@ -344,10 +341,7 @@ where
         }
 
         let default_value_formatter = self.default_value_formatter;
-        let default_message = self
-            .default
-            .as_ref()
-            .map(|val| default_value_formatter(val.clone()));
+        let default_message = self.default.as_ref().map(|val| default_value_formatter(val.clone()));
 
         backend.render_prompt(prompt, default_message.as_ref(), &self.input)?;
 

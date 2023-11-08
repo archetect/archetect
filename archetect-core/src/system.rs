@@ -1,6 +1,5 @@
 use crate::errors::SystemError;
 use crate::utils::to_utf8_path;
-use crate::v2::catalog::CATALOG_FILE_NAME;
 use camino::{Utf8Path, Utf8PathBuf};
 use directories::ProjectDirs;
 use std::fmt::{Display, Error, Formatter};
@@ -33,8 +32,12 @@ pub trait SystemLayout {
         self.configs_dir().join("answers.yml")
     }
 
+    fn configuration_path(&self) -> Utf8PathBuf {
+        self.configs_dir().join("archetect.yaml")
+    }
+
     fn catalog(&self) -> Utf8PathBuf {
-        self.configs_dir().join(CATALOG_FILE_NAME)
+        self.configs_dir().join("catalog.yml")
     }
 }
 
@@ -99,7 +102,6 @@ impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "{}: {}", "Configs Directory", self.configs_dir())?;
         writeln!(f, "{}: {}", "User Answers", self.answers_config())?;
-        writeln!(f, "{}: {}", "User Catalog", self.catalog())?;
         writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir())?;
         writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir())?;
         Ok(())

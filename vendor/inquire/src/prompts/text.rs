@@ -225,7 +225,7 @@ impl<'a> Text<'a> {
     /// The possible error is displayed to the user one line above the prompt.
     pub fn with_validators(mut self, validators: &[Box<dyn StringValidator>]) -> Self {
         for validator in validators {
-            #[allow(clippy::clone_double_ref)]
+            #[allow(suspicious_double_ref_op)]
             self.validators.push(validator.clone());
         }
         self
@@ -269,10 +269,7 @@ impl<'a> Text<'a> {
         self.prompt_with_backend(&mut backend)
     }
 
-    pub(crate) fn prompt_with_backend<B: TextBackend>(
-        self,
-        backend: &mut B,
-    ) -> InquireResult<String> {
+    pub(crate) fn prompt_with_backend<B: TextBackend>(self, backend: &mut B) -> InquireResult<String> {
         TextPrompt::from(self).prompt(backend)
     }
 }
@@ -305,9 +302,7 @@ impl<'a> From<Text<'a>> for TextPrompt<'a> {
             default: so.default,
             help_message: so.help_message,
             formatter: so.formatter,
-            autocompleter: so
-                .autocompleter
-                .unwrap_or_else(|| Box::<NoAutoCompletion>::default()),
+            autocompleter: so.autocompleter.unwrap_or_else(|| Box::<NoAutoCompletion>::default()),
             input,
             error: None,
             suggestion_cursor_index: None,
@@ -372,10 +367,7 @@ impl<'a> TextPrompt<'a> {
 
     fn handle_tab_key(&mut self) -> InquireResult<bool> {
         let suggestion = self.get_highlighted_suggestion().map(|s| s.to_owned());
-        match self
-            .autocompleter
-            .get_completion(self.input.content(), suggestion)?
-        {
+        match self.autocompleter.get_completion(self.input.content(), suggestion)? {
             Replacement::Some(value) => {
                 self.input = Input::new_with(value);
                 Ok(true)
@@ -543,11 +535,7 @@ mod test {
 
     text_test!(single_letter, vec![KeyCode::Char('b'), KeyCode::Enter], "b");
 
-    text_test!(
-        letters_and_enter,
-        text_to_events!("normal input\n"),
-        "normal input"
-    );
+    text_test!(letters_and_enter, text_to_events!("normal input\n"), "normal input");
 
     text_test!(
         letters_and_enter_with_emoji,
