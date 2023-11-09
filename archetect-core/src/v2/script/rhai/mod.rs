@@ -4,7 +4,7 @@ use crate::v2::runtime::context::RuntimeContext;
 use minijinja::Environment;
 use rhai::module_resolvers::FileModuleResolver;
 use rhai::Engine;
-use std::sync::Arc;
+
 
 pub(crate) mod modules;
 

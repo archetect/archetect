@@ -45,7 +45,7 @@ impl Configuration {
     }
 
     pub fn catalog(&self) -> Catalog {
-        let  mut manifest = CatalogManifest::new();
+        let mut manifest = CatalogManifest::new();
         for (_key, entries) in self.catalogs() {
             for entry in entries.iter() {
                 manifest.entries_owned().push(entry.to_owned());

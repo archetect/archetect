@@ -1,16 +1,18 @@
-use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use log::{debug, info};
+use camino::{Utf8Path, Utf8PathBuf};
+use chrono::TimeZone;
+use git2::Repository;
+use log::{debug, info, trace};
 use regex::Regex;
 use url::Url;
 
+use crate::Archetect;
 use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
 use crate::v2::runtime::context::RuntimeContext;
-use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -56,7 +58,7 @@ impl Source {
             } else {
                 None
             };
-            cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline())?;
+            cache_git_repo(&runtime_context,urlparts[0], &gitref, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -71,7 +73,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(urlparts[0], &gitref, &cache_path, runtime_context.offline())?;
+                cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path, )?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -164,23 +166,58 @@ fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
     format!("{}", get_cache_hash(input))
 }
 
+fn should_pull(repo: &Repository, runtime_context: &RuntimeContext) -> Result<bool, SourceError> {
+    if runtime_context.offline() {
+        return Ok(false);
+    }
+    if runtime_context.updates().force() {
+        return Ok(true);
+    }
+
+    let config = repo.config()?;
+    if let Ok(timestamp) = config.get_i64("archetect.pulled") {
+        let timestamp = chrono::Utc.timestamp_millis_opt(timestamp);
+        let now = chrono::Utc::now();
+        let delta = now - timestamp.unwrap();
+        Ok(delta > runtime_context.updates().interval())
+    } else {
+        Ok(true)
+    }
+}
+
+fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
+    println!("Writing config");
+    let mut config = repo.config()?;
+    config.set_i64("archetect.pulled",chrono::Utc::now().timestamp_millis())?;
+    Ok(())
+}
+
 fn cache_git_repo(
+    runtime_context: &RuntimeContext,
     url: &str,
     gitref: &Option<String>,
     cache_destination: &Utf8Path,
-    offline: bool,
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
-        if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+        if !runtime_context.offline() && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
             debug!("Cloning to {}", cache_destination.as_str());
             handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
+            println!("{}", cache_destination.as_str());
+            let repo = git2::Repository::open(cache_destination.join(".git"))?;
+            write_timestamp(&repo)?;
         } else {
             return Err(SourceError::OfflineAndNotCached(url.to_owned()));
         }
-    } else if !offline && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
-        info!("Fetching {}", url);
-        handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
+    } else if CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+        let repo = git2::Repository::open(cache_destination.join(".git"))?;
+        if should_pull(&repo, &runtime_context)? {
+            info!("Fetching {}", url);
+            handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
+            write_timestamp(&repo)?;
+        } else {
+            trace!("Using cache for {}", url);
+        }
     }
 
     let gitref = if let Some(gitref) = gitref {
@@ -249,6 +286,7 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 #[cfg(test)]
 mod tests {
     use crate::configuration::Configuration;
+
     use super::*;
 
     #[test]

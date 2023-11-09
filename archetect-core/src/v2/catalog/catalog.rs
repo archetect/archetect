@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
+
 
 use read_input::prelude::*;
 use rhai::Map;

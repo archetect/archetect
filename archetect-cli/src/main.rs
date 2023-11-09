@@ -1,11 +1,10 @@
 use std::collections::HashSet;
-use std::ops::Deref;
 
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
 use log::error;
 use read_input::prelude::*;
-use rhai::{Dynamic, EvalAltResult, Map};
+use rhai::Map;
 
 use archetect_core::{self};
 use archetect_core::Archetect;
@@ -20,7 +19,7 @@ use crate::answers::parse_answer_pair;
 
 mod answers;
 mod cli;
-pub mod configuration;
+mod configuration;
 pub mod vendor;
 
 fn main() {
@@ -45,10 +44,12 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     let mut answers = Map::new();
 
+    // Load answers from merged configuration
     for (identifier, value) in configuration.answers() {
         answers.insert(identifier.clone(), value.clone());
     }
 
+    // Load answers from answer files
     if let Some(answer_files) = matches.get_many::<String>("answer-file") {
         for answer_file in answer_files {
             let results = answers::read_answers(answer_file)?;
@@ -56,31 +57,16 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         }
     }
 
-    // TODO: Load user answers
+    // Load answers from individual answer arguments
     if let Some(answer_matches) = matches.get_many::<String>("answer") {
-        let engine = rhai::Engine::new();
         for answer_match in answer_matches {
             let (identifier, value) = parse_answer_pair(answer_match).unwrap();
-            let result: Result<Dynamic, Box<EvalAltResult>> = engine.eval(&value);
-            match result {
-                Ok(value) => {
-                    answers.insert(identifier.into(), value);
-                }
-                Err(err) => match err.deref() {
-                    EvalAltResult::ErrorVariableNotFound(_, _) => {
-                        let result: Result<Dynamic, Box<EvalAltResult>> =
-                            engine.eval(format!("\"{}\"", &value).as_str());
-                        match result {
-                            Ok(value) => {
-                                answers.insert(identifier.into(), value);
-                            }
-                            Err(err) => {
-                                return Err(err.into());
-                            }
-                        }
-                    }
-                    _ => return Err(err.into()),
-                },
+            if let Ok(value) = value.parse::<i64>() {
+                answers.insert(identifier.into(), value.into());
+            } else if let Ok(value) = value.parse::<bool>() {
+                answers.insert(identifier.into(), value.into());
+            } else {
+                answers.insert(identifier.into(), value.into());
             }
         }
     }

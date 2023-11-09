@@ -16,6 +16,8 @@ pub enum SourceError {
     OfflineAndNotCached(String),
     #[error("Source IO Error: `{0}`")]
     IoError(std::io::Error),
+    #[error("Git Error: `{0}`")]
+    GitError(#[from] git2::Error),
 }
 
 impl From<std::io::Error> for SourceError {

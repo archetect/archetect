@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
-use std::sync::Arc;
+
 
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;

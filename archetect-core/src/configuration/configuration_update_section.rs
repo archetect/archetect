@@ -1,8 +1,10 @@
-#[derive(Debug, Deserialize, Serialize)]
+use chrono::Duration;
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConfigurationUpdateSection {
     #[serde(skip_serializing_if = "Option::is_none")]
     force: Option<bool>,
-    interval: u64,
+    interval: i64,
 }
 
 impl ConfigurationUpdateSection {
@@ -10,8 +12,8 @@ impl ConfigurationUpdateSection {
         self.force.unwrap_or_default()
     }
 
-    pub fn interval(&self) -> u64 {
-        self.interval
+    pub fn interval(&self) -> Duration {
+        Duration::seconds(self.interval)
     }
 }
 

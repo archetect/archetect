@@ -4,7 +4,7 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::Version;
 
-use crate::configuration::Configuration;
+use crate::configuration::{Configuration, ConfigurationLocalsSection, ConfigurationUpdateSection};
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
@@ -19,6 +19,8 @@ struct Inner {
     switches: HashSet<String>,
     version: Version,
     destination: Utf8PathBuf,
+    updates: ConfigurationUpdateSection,
+    locals: ConfigurationLocalsSection,
 }
 
 
@@ -35,6 +37,8 @@ impl RuntimeContext {
                 switches,
                 version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
                 destination,
+                updates: configuration.updates().clone(),
+                locals: configuration.locals().clone(),
             })
         }
     }
@@ -65,5 +69,13 @@ impl RuntimeContext {
 
     pub fn destination(&self) -> &Utf8Path {
         &self.inner.destination
+    }
+
+    pub fn updates(&self) -> &ConfigurationUpdateSection {
+        &self.inner.updates
+    }
+
+    pub fn  locals(&self) -> &ConfigurationLocalsSection {
+        &self.inner.locals
     }
 }
