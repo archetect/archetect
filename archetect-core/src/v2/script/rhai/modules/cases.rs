@@ -72,15 +72,15 @@ impl CaseStyle {
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CaseStrategy {
-    CasedIdentity { styles: Vec<CaseStyle> },
-    CasedKeys { key: String, styles: Vec<CaseStyle> },
-    CasedKeysWithSuffix { suffix: String, styles: Vec<CaseStyle> },
-    CasedKeysWithPrefix { prefix: String, styles: Vec<CaseStyle> },
-    CasedValue { style: CaseStyle },
-    FixedIdentity { style: CaseStyle },
-    FixedKey { key: String, style: CaseStyle },
-    FixedKeyWithSuffix { suffix: String, style: CaseStyle },
-    FixedKeyWithPrefix { prefix: String, style: CaseStyle },
+    CasedIdentityAndValue { styles: Vec<CaseStyle> },
+    CasedKeyAndValue { key: String, styles: Vec<CaseStyle> },
+    FixedIdentityCasedValue { style: CaseStyle },
+    FixedKeyCasedValue { key: String, style: CaseStyle },
+
+    FixedSuffixedKeyCasedValue { suffix: String, style: CaseStyle },
+    FixedPrefixedKeyCasedValue { prefix: String, style: CaseStyle },
+    CasedSuffixedKeyCasedValue { suffix: String, styles: Vec<CaseStyle> },
+    CasedPrefixedKeyCasedValue { prefix: String, styles: Vec<CaseStyle> },
 }
 
 pub fn to_cobol_case(non_snake_case_string: &str) -> String {
@@ -105,7 +105,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                 .collect::<Vec<CaseStrategy>>();
             for strategy in strategies {
                 match strategy {
-                    CaseStrategy::CasedIdentity { styles } => {
+                    CaseStrategy::CasedIdentityAndValue { styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(key.to_string().as_str(), style.clone()).into(),
@@ -113,7 +113,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                             );
                         }
                     }
-                    CaseStrategy::CasedKeysWithSuffix { suffix, styles } => {
+                    CaseStrategy::CasedSuffixedKeyCasedValue { suffix, styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(format!("{}-{}", key, suffix).as_str(), style.clone()).into(),
@@ -121,7 +121,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                             );
                         }
                     }
-                    CaseStrategy::CasedKeysWithPrefix { prefix, styles } => {
+                    CaseStrategy::CasedPrefixedKeyCasedValue { prefix, styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(format!("{}-{}", prefix, key).as_str(), style.clone()).into(),
@@ -129,7 +129,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                             );
                         }
                     }
-                    CaseStrategy::CasedKeys { key, styles } => {
+                    CaseStrategy::CasedKeyAndValue { key, styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(key.as_str(), style.clone()).into(),
@@ -137,22 +137,19 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
                             );
                         }
                     }
-                    CaseStrategy::FixedIdentity { style } => {
+                    CaseStrategy::FixedIdentityCasedValue { style } => {
                         results.insert(key.into(), to_case(value, style).into());
                     }
-                    CaseStrategy::CasedValue { style } => {
+                    CaseStrategy::FixedKeyCasedValue { key, style } => {
                         results.insert(key.into(), to_case(value, style).into());
                     }
-                    CaseStrategy::FixedKey { key, style } => {
-                        results.insert(key.into(), to_case(value, style).into());
-                    }
-                    CaseStrategy::FixedKeyWithSuffix { suffix, style } => {
+                    CaseStrategy::FixedSuffixedKeyCasedValue { suffix, style } => {
                         results.insert(
                             format!("{}{}", key, suffix).as_str().into(),
                             to_case(value, style).into(),
                         );
                     }
-                    CaseStrategy::FixedKeyWithPrefix { prefix, style } => {
+                    CaseStrategy::FixedPrefixedKeyCasedValue { prefix, style } => {
                         results.insert(
                             format!("{}{}", prefix, key).as_str().into(),
                             to_case(value, style).into(),
@@ -168,6 +165,7 @@ pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
 #[allow(non_upper_case_globals)]
 #[export_module]
 pub mod module {
+    use log::warn;
     use rhai::{Dynamic, Map};
 
     pub type CaseStyle = crate::v2::script::rhai::modules::cases::CaseStyle;
@@ -188,62 +186,110 @@ pub mod module {
     pub const TrainCase: CaseStyle = CaseStyle::TrainCase;
     pub const UpperCase: CaseStyle = CaseStyle::UpperCase;
 
-    pub fn CasedIdentity(styles: Vec<Dynamic>) -> CaseStrategy {
+    pub fn CasedIdentityAndValue(styles: Vec<Dynamic>) -> CaseStrategy {
         let styles = styles
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedIdentity { styles }
+        CaseStrategy::CasedIdentityAndValue { styles }
+    }
+
+    pub fn CasedIdentity(styles: Vec<Dynamic>) -> CaseStrategy {
+        warn!("'CasedIdentity' has been deprecated.  Please use 'CasedIdentityAndValue' instead.");
+        CasedIdentityAndValue(styles)
+    }
+
+    pub fn CasedKeyAndValue(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
+        let styles = styles
+            .into_iter()
+            .filter_map(|style| style.try_cast::<CaseStyle>())
+            .collect::<Vec<CaseStyle>>();
+        CaseStrategy::CasedKeyAndValue { key, styles }
     }
 
     pub fn CasedKeys(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
-        let styles = styles
-            .into_iter()
-            .filter_map(|style| style.try_cast::<CaseStyle>())
-            .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedKeys { key, styles }
+        warn!("'CasedKeys' has been deprecated.  Please use 'CasedKeyAndValue' instead.");
+        CasedKeyAndValue(key, styles)
     }
 
-    pub fn CasedKeysWithSuffix(suffix: String, styles: Vec<Dynamic>) -> CaseStrategy {
+    pub fn CasedSuffixedKeyCasedValue(suffix: String, styles: Vec<Dynamic>) -> CaseStrategy {
         let styles = styles
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedKeysWithSuffix {
+        CaseStrategy::CasedSuffixedKeyCasedValue {
             suffix: suffix.to_string(),
             styles,
         }
     }
 
-    pub fn CasedKeysWithPrefix(prefix: String, styles: Vec<Dynamic>) -> CaseStrategy {
+    pub fn CasedKeysWithSuffix(suffix: String, styles: Vec<Dynamic>) -> CaseStrategy {
+        warn!("'CasedKeysWithSuffix' has been deprecated.  Please use 'CasedSuffixedKeyCasedValue' instead.");
+        CasedSuffixedKeyCasedValue(suffix, styles)
+    }
+
+    pub fn CasedPrefixedKeyCasedValue(prefix: String, styles: Vec<Dynamic>) -> CaseStrategy {
         let styles = styles
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedKeysWithPrefix {
+        CaseStrategy::CasedPrefixedKeyCasedValue {
             prefix: prefix.to_string(),
             styles,
         }
     }
 
-    pub fn FixedIdentity(style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::FixedIdentity { style }
+    pub fn CasedKeysWithPrefix(prefix: String, styles: Vec<Dynamic>) -> CaseStrategy {
+        warn!("'CasedKeysWithPrefix' has been deprecated.  Please use 'CasedPrefixedKeyCasedValue' instead.");
+        let styles = styles
+            .into_iter()
+            .filter_map(|style| style.try_cast::<CaseStyle>())
+            .collect::<Vec<CaseStyle>>();
+        CaseStrategy::CasedPrefixedKeyCasedValue {
+            prefix: prefix.to_string(),
+            styles,
+        }
     }
 
+    pub fn FixedIdentityCasedValue(style: CaseStyle) -> CaseStrategy {
+        CaseStrategy::FixedIdentityCasedValue { style }
+    }
+
+    /// Alias to FixedIdentityCasedValue
     pub fn CasedValue(style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::CasedValue { style }
+        FixedIdentityCasedValue(style)
+    }
+
+    pub fn FixedIdentity(style: CaseStyle) -> CaseStrategy {
+        warn!("'FixedIdentity' has been deprecated.  Please use 'FixedIdentityCasedValue' instead.");
+        FixedIdentityCasedValue(style)
+    }
+
+    pub fn FixedKeyCasedValue(key: String, style: CaseStyle) -> CaseStrategy {
+        CaseStrategy::FixedKeyCasedValue { key, style }
     }
 
     pub fn FixedKey(key: String, style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::FixedKey { key, style }
+        warn!("'CasedValue' has been deprecated.  Please use 'FixedKeyCasedValue' instead.");
+        FixedKeyCasedValue(key, style)
+    }
+
+    pub fn FixedSuffixedKeyCasedValue(suffix: String, style: CaseStyle) -> CaseStrategy {
+        CaseStrategy::FixedSuffixedKeyCasedValue { suffix, style }
     }
 
     pub fn FixedKeyWithSuffix(suffix: String, style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::FixedKeyWithSuffix { suffix, style }
+        warn!("'FixedKeyWithSuffix' has been deprecated.  Please use 'FixedSuffixedKeyCasedValue' instead.");
+        FixedSuffixedKeyCasedValue(suffix, style)
+    }
+
+    pub fn FixedPrefixedKeyCasedValue(prefix: String, style: CaseStyle) -> CaseStrategy {
+        CaseStrategy::FixedPrefixedKeyCasedValue { prefix, style }
     }
 
     pub fn FixedKeyWithPrefix(prefix: String, style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::FixedKeyWithPrefix { prefix, style }
+        warn!("'FixedKeyWithSuffix' has been deprecated.  Please use 'FixedSuffixedKeyCasedValue' instead.");
+        FixedPrefixedKeyCasedValue( prefix, style )
     }
 
     pub fn to_case(input: &str, style: CaseStyle) -> String {
