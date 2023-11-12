@@ -19,6 +19,10 @@ pub enum CatalogError {
     YamlError(serde_yaml::Error),
     #[error("Catalog requirements failure:\n\n{0}")]
     RequirementsError(#[from] RequirementsError),
+    #[error("Cancelled")]
+    SelectionCancelled,
+    #[error("Catalog Selection Error: {0}")]
+    General(String),
 }
 
 impl From<std::io::Error> for CatalogError {

@@ -1,16 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-
-use read_input::prelude::*;
+use inquire::{InquireError, Select};
 use rhai::Map;
 
-use crate::Archetect;
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::Source;
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::catalog::{CatalogEntry, CatalogManifest};
 use crate::v2::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 #[derive(Clone)]
 pub struct Catalog {
@@ -99,44 +98,72 @@ impl Catalog {
         }
 
         loop {
-            let mut choices = entry_items
+            let choices = entry_items
                 .iter()
                 .enumerate()
-                .map(|(id, entry)| (id + 1, entry.clone()))
-                .collect::<HashMap<_, _>>();
+                .map(|(id, entry)| create_item(entry_items.len(), id, entry))
+                .collect::<Vec<_>>();
 
-            for (id, entry) in entry_items.iter().enumerate() {
-                eprintln!("{:>2}) {}", id + 1, entry.description());
-            }
+            let prompt = Select::new("Catalog Selection:", choices)
+                .with_page_size(30)
+                ;
 
-            let test_values = choices.keys().copied().collect::<HashSet<_>>();
-            let result = input::<usize>()
-                .prompting_on_stderr()
-                .msg("\nSelect an entry: ")
-                .add_test(move |value| test_values.contains(value))
-                .err("Please enter the number of a selection from the list.")
-                .repeat_msg("Select an entry: ")
-                .get();
-
-            let choice = choices.remove(&result).unwrap();
-
-            match choice {
-                CatalogEntry::Group {
-                    description: _,
-                    entries,
-                } => {
-                    entry_items = entries;
-                }
-                CatalogEntry::Catalog {
-                    description: _,
-                    source: _,
-                } => return Ok(choice),
-                CatalogEntry::Archetype {
-                    description: _,
-                    source: _,
-                    answers: _,
-                } => return Ok(choice),
+            match prompt.prompt() {
+                Ok(item) => match item.entry {
+                    CatalogEntry::Group {
+                        description: _,
+                        entries,
+                    } => {
+                        entry_items = entries;
+                    }
+                    CatalogEntry::Catalog {
+                        description: _,
+                        source: _,
+                    } => return Ok(item.entry()),
+                    CatalogEntry::Archetype {
+                        description: _,
+                        source: _,
+                        answers: _,
+                    } => return Ok(item.entry()),
+                },
+                Err(err) => return match err {
+                    InquireError::OperationCanceled => {
+                        Err(CatalogError::SelectionCancelled)
+                    }
+                    InquireError::OperationInterrupted => {
+                        Err(CatalogError::SelectionCancelled)
+                    }
+                    err => Err(CatalogError::General(err.to_string()))
+                },
             }
         }
+    }
+}
+
+fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
+    match item_count {
+        1..=99 => CatalogItem::new(format!("{:>02}: {}", id + 1, entry.description()), entry.clone()),
+        100..=999 => CatalogItem::new(format!("{:>003}: {}", id + 1, entry.description()), entry.clone()),
+        _ => CatalogItem::new(format!("{:>0004}: {}", id + 1, entry.description()), entry.clone()),
+    }
+}
+
+struct CatalogItem {
+    text: String,
+    entry: CatalogEntry,
+}
+
+impl CatalogItem {
+    fn new(text: String, entry: CatalogEntry) -> CatalogItem {
+        CatalogItem { text, entry }
+    }
+    fn entry(self) -> CatalogEntry {
+        self.entry
+    }
+}
+
+impl Display for CatalogItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
     }
 }

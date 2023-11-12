@@ -77,9 +77,10 @@ pub fn command() -> Command {
         .arg(
             Arg::new("config-file")
                 .help("Supply an additional configuration file.")
-                .long_help("Supply an additional configuration file supplements or override \
+                .long_help("Supply an additional configuration file to supplement or override \
                 user and/or default configuration.")
                 .long("config-file")
+                .short('c')
                 .action(ArgAction::Set)
                 .global(true)
                 .value_name("config")

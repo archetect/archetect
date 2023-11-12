@@ -158,7 +158,7 @@ fn get_answers(
     settings: &Map,
     archetype_context: &ArchetypeContext,
 ) -> Result<Map, Box<EvalAltResult>> {
-    if let Some(answers) = settings.get("answers") {
+    if let Some(answers) = settings.get("answer_source") {
         if let Some(answers) = answers.clone().try_cast::<Map>() {
             return Ok(answers);
         } else {
@@ -170,7 +170,7 @@ fn get_answers(
                     "Invalid Configuration".to_owned(),
                     Box::new(ArchetectError::GeneralError(
                         format!(
-                            "When specifying the 'answers' property, it must be a 'map' (\"#{{ .. }}\") or Unit type (\"()\"), \
+                            "When specifying the 'answer_source' property, it must be a 'map' (\"#{{ .. }}\") or Unit type (\"()\"), \
                             but it was of type '{}'",
                             answers.type_name()
                         )
