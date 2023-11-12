@@ -14,10 +14,106 @@ pub fn prompt(
     runtime_context: &RuntimeContext,
     settings: &Map,
     key: Option<&str>,
-    _answer: Option<&Dynamic>,
+    answer: Option<&Dynamic>,
 ) -> Result<Vec<Dynamic>, Box<EvalAltResult>> {
     let mut prompt = MultiSelect::new(message, options.clone());
     let mut indices = vec![];
+
+    if let Some(answer) = answer {
+        // Handle an answer as a comma-separated string
+        if let Some(answer) = answer.clone().try_cast::<String>() {
+            let mut results = vec![];
+            let answers = answer.split(',').map(|v| v.trim()).collect::<Vec<&str>>();
+            for answer in answers {
+                if let Some(result) = options
+                    .iter()
+                    .find(|option| option.to_string().as_str().to_lowercase() == answer.to_lowercase())
+                {
+                    results.push(result.clone())
+                } else {
+                    let fn_name = call.fn_name().to_owned();
+                    let source = call.source().unwrap_or_default().to_owned();
+                    let position = call.position();
+                    let error = EvalAltResult::ErrorSystem(
+                        "Invalid Answer".to_owned(),
+                        Box::new(ArchetectError::GeneralError(if let Some(key) = key {
+                            format!(
+                                "'{}' was provided as an answer to '{}', but did not match any of the required options.",
+                                answer, key
+                            )
+                                .to_owned()
+                        } else {
+                            format!("{}", message).to_owned()
+                        })),
+                    );
+                    return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
+                        fn_name,
+                        source,
+                        Box::new(error),
+                        position,
+                    )));
+                }
+            }
+
+            return Ok(results);
+        }
+        // Handle an answer as an array of values
+        if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
+            let mut results = vec![];
+            for answer in answers {
+                if let Some(result) = options.iter().find(|option| {
+                    option.to_string().as_str().to_lowercase() == answer.to_string().as_str().to_lowercase()
+                }) {
+                    results.push(result.clone())
+                } else {
+                    let fn_name = call.fn_name().to_owned();
+                    let source = call.source().unwrap_or_default().to_owned();
+                    let position = call.position();
+                    let error = EvalAltResult::ErrorSystem(
+                        "Invalid Answer".to_owned(),
+                        Box::new(ArchetectError::GeneralError(if let Some(key) = key {
+                            format!(
+                                "'{}' was provided as an answer to '{}', but did not match any of the required options.",
+                                answer, key
+                            )
+                                .to_owned()
+                        } else {
+                            format!("{}", message).to_owned()
+                        })),
+                    );
+                    return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
+                        fn_name,
+                        source,
+                        Box::new(error),
+                        position,
+                    )));
+                }
+            }
+            return Ok(results);
+        } else {
+            let fn_name = call.fn_name().to_owned();
+            let source = call.source().unwrap_or_default().to_owned();
+            let position = call.position();
+            let error = EvalAltResult::ErrorSystem(
+                "Invalid Answer Type".to_owned(),
+                Box::new(ArchetectError::GeneralError(if let Some(key) = key {
+                    format!(
+                        "'{}' was provided as an answer to '{}', but must be an array of values or a comma-separated string.",
+                        answer, key
+                    )
+                        .to_owned()
+                } else {
+                    format!("{}", message).to_owned()
+                })),
+            );
+            return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
+                fn_name,
+                source,
+                Box::new(error),
+                position,
+            )));
+        }
+    }
 
     if let Some(defaults_with) = settings.get("defaults_with") {
         if let Some(defaults) = defaults_with.clone().try_cast::<Vec<Dynamic>>() {

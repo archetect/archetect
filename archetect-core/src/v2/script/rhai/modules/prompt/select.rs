@@ -17,8 +17,8 @@ pub fn prompt(
 
     if let Some(answer) = answer {
         for option in options {
-            if option.to_string().as_str() == answer.to_string().as_str() {
-                return Ok(answer.to_string());
+            if option.to_string().as_str().to_lowercase() == answer.to_string().as_str().to_lowercase() {
+                return Ok(option.to_string());
             }
         }
 
@@ -29,7 +29,7 @@ pub fn prompt(
             "Invalid Answer".to_owned(),
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                 format!(
-                    "'{}' was provided as an answer to '{}', but did not match any of the options.",
+                    "'{}' was provided as an answer to '{}', but did not match any of the required options.",
                     answer, key
                 )
                 .to_owned()
