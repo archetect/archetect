@@ -3,17 +3,16 @@ use std::collections::HashSet;
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
 use log::error;
-use read_input::prelude::*;
 use rhai::Map;
 
-use archetect_core::{self};
-use archetect_core::Archetect;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
 use archetect_core::source::Source;
 use archetect_core::v2::archetype::archetype::Archetype;
 use archetect_core::v2::catalog::Catalog;
 use archetect_core::v2::runtime::context::RuntimeContext;
+use archetect_core::Archetect;
+use archetect_core::{self};
 
 use crate::answers::parse_answer_pair;
 
@@ -43,7 +42,6 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
     let mut answers = Map::new();
-
     // Load answers from merged configuration
     for (identifier, value) in configuration.answers() {
         answers.insert(identifier.clone(), value.clone());
@@ -162,12 +160,4 @@ pub fn render(
     archetype.check_requirements(&runtime_context)?;
     archetype.render_with_destination(destination, runtime_context, answers)?;
     Ok(())
-}
-
-pub fn you_are_sure(message: &str) -> bool {
-    input::<bool>()
-        .prompting_on_stderr()
-        .msg(format!("{} [false]: ", message))
-        .default(false)
-        .get()
 }
