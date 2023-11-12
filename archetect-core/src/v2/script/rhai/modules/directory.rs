@@ -1,8 +1,11 @@
-use crate::v2::archetype::archetype::{render_directory, Archetype};
-use crate::v2::archetype::archetype_context::ArchetypeContext;
 use camino::Utf8PathBuf;
-use minijinja::Environment;
 use rhai::{Engine, EvalAltResult, Map, Module};
+
+use minijinja::Environment;
+
+use crate::utils::restrict_path_manipulation;
+use crate::v2::archetype::archetype::{Archetype, render_directory};
+use crate::v2::archetype::archetype_context::ArchetypeContext;
 
 pub(crate) fn register(
     engine: &mut Engine,
@@ -64,7 +67,10 @@ impl Directory {
 
     pub fn render_with_destination(&mut self, destination: &str, context: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
-        let destination = self.archetype_context.destination().join(destination);
+        let destination = self
+            .archetype_context
+            .destination()
+            .join(restrict_path_manipulation(destination)?);
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
@@ -76,8 +82,12 @@ impl Directory {
         _settings: Map,
     ) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
-        let destination = self.archetype_context.destination().join(destination);
+        let destination = self
+            .archetype_context
+            .destination()
+            .join(restrict_path_manipulation(destination)?);
         render_directory(&self.environment, &context, source, destination)
             .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 }
+

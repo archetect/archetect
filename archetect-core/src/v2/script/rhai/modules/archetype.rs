@@ -1,10 +1,10 @@
-
-
+use log::info;
 use rhai::{Engine, EvalAltResult, Map, Module};
 
 use crate::Archetect;
 use crate::errors::ArchetypeError;
 use crate::source::Source;
+use crate::utils::restrict_path_manipulation;
 use crate::v2::archetype::archetype::Archetype;
 use crate::v2::archetype::archetype_context::ArchetypeContext;
 use crate::v2::runtime::context::RuntimeContext;
@@ -42,6 +42,7 @@ pub struct ArchetypeFacade {
 
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<(), Box<EvalAltResult>> {
+        info!("render: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         self.child
             .render_with_destination(destination, self.runtime_context.clone(), answers)?;
@@ -49,6 +50,7 @@ impl ArchetypeFacade {
     }
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
+        info!("render_with_settings: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         self.child.render_with_destination_and_settings(
             destination,
@@ -60,7 +62,10 @@ impl ArchetypeFacade {
     }
 
     pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<(), Box<EvalAltResult>> {
-        let destination = self.archetype_context.destination().join(destination);
+        let destination = self
+            .archetype_context
+            .destination()
+            .join(restrict_path_manipulation(destination)?);
         self.child
             .render_with_destination(destination, self.runtime_context.clone(), answers)?;
 
@@ -73,7 +78,11 @@ impl ArchetypeFacade {
         answers: Map,
         settings: Map,
     ) -> Result<(), Box<EvalAltResult>> {
-        let destination = self.archetype_context.destination().join(destination);
+        info!("render_with_destination_and_settings: {:?}", answers);
+        let destination = self
+            .archetype_context
+            .destination()
+            .join(restrict_path_manipulation(destination)?);
         self.child.render_with_destination_and_settings(
             destination,
             self.runtime_context.to_owned(),
