@@ -1,7 +1,7 @@
 use rhai::{Dynamic, Engine, EvalAltResult, Map};
-use crate::v2::script::rhai::modules::cases::{expand_cases};
+use crate::script::rhai::modules::cases::{expand_cases};
 
-pub (crate) fn register(engine: &mut Engine) {
+pub(crate) fn register(engine: &mut Engine) {
     engine.register_fn("set", | key: &str, value: Dynamic| {
         set(key, value, Map::new())
     });

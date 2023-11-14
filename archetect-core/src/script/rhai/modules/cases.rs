@@ -1,4 +1,4 @@
-use crate::v2::script::rhai::modules::cases::module::to_case;
+use crate::script::rhai::modules::cases::module::to_case;
 use cruet::case::to_case_snake_like;
 use rhai::plugin::*;
 use rhai::Map;
@@ -168,8 +168,8 @@ pub mod module {
     use log::warn;
     use rhai::{Dynamic, Map};
 
-    pub type CaseStyle = crate::v2::script::rhai::modules::cases::CaseStyle;
-    pub type CaseStrategy = crate::v2::script::rhai::modules::cases::CaseStrategy;
+    pub type CaseStyle = crate::script::rhai::modules::cases::CaseStyle;
+    pub type CaseStrategy = crate::script::rhai::modules::cases::CaseStrategy;
 
     pub const CamelCase: CaseStyle = CaseStyle::CamelCase;
     pub const ClassCase: CaseStyle = CaseStyle::ClassCase;

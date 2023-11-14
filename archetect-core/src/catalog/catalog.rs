@@ -6,9 +6,9 @@ use rhai::Map;
 
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::Source;
-use crate::v2::archetype::archetype::Archetype;
-use crate::v2::catalog::{CatalogEntry, CatalogManifest};
-use crate::v2::runtime::context::RuntimeContext;
+use crate::archetype::archetype::Archetype;
+use crate::catalog::{CatalogEntry, CatalogManifest};
+use crate::runtime::context::RuntimeContext;
 use crate::Archetect;
 
 #[derive(Clone)]

@@ -16,4 +16,7 @@ pub mod errors;
 pub mod source;
 pub mod system;
 mod utils;
-pub mod v2;
+pub mod archetype;
+pub mod catalog;
+pub mod runtime;
+pub mod script;

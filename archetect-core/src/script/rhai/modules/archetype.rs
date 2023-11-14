@@ -5,9 +5,9 @@ use crate::Archetect;
 use crate::errors::ArchetypeError;
 use crate::source::Source;
 use crate::utils::restrict_path_manipulation;
-use crate::v2::archetype::archetype::Archetype;
-use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::runtime::context::RuntimeContext;
+use crate::archetype::archetype::Archetype;
+use crate::archetype::archetype_context::ArchetypeContext;
+use crate::runtime::context::RuntimeContext;
 
 pub(crate) fn register(
     engine: &mut Engine,

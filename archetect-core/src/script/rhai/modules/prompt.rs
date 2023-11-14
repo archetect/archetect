@@ -12,10 +12,10 @@ use rhai::plugin::*;
 use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
 use crate::errors::{ArchetectError, ArchetypeError};
-use crate::v2::archetype::archetype::Archetype;
-use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::runtime::context::RuntimeContext;
-use crate::v2::script::rhai::modules::cases::expand_cases;
+use crate::archetype::archetype::Archetype;
+use crate::archetype::archetype_context::ArchetypeContext;
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::cases::expand_cases;
 
 pub(crate) fn register(
     engine: &mut Engine,
@@ -247,7 +247,7 @@ fn handle_result<T>(result: InquireResult<T>) -> Result<T, Box<EvalAltResult>> {
 pub mod module {
     use rhai::Dynamic;
 
-    pub type PromptType = crate::v2::script::rhai::modules::prompt::PromptType;
+    pub type PromptType = crate::script::rhai::modules::prompt::PromptType;
 
     pub const Text: PromptType = PromptType::Text;
     pub const String: PromptType = PromptType::Text;

@@ -4,8 +4,8 @@ use rhai::{Engine, EvalAltResult, Map, Module};
 use minijinja::Environment;
 
 use crate::utils::restrict_path_manipulation;
-use crate::v2::archetype::archetype::{Archetype, render_directory};
-use crate::v2::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::archetype::{Archetype, render_directory};
+use crate::archetype::archetype_context::ArchetypeContext;
 
 pub(crate) fn register(
     engine: &mut Engine,

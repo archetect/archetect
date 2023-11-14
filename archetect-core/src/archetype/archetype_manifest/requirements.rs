@@ -1,7 +1,7 @@
 use semver::VersionReq;
 
 use crate::errors::RequirementsError;
-use crate::v2::runtime::context::RuntimeContext;
+use crate::runtime::context::RuntimeContext;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RuntimeRequirements {

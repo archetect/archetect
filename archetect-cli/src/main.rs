@@ -8,9 +8,9 @@ use rhai::Map;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
 use archetect_core::source::Source;
-use archetect_core::v2::archetype::archetype::Archetype;
-use archetect_core::v2::catalog::Catalog;
-use archetect_core::v2::runtime::context::RuntimeContext;
+use archetect_core::archetype::archetype::Archetype;
+use archetect_core::catalog::Catalog;
+use archetect_core::runtime::context::RuntimeContext;
 use archetect_core::Archetect;
 use archetect_core::{self};
 

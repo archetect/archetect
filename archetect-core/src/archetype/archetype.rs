@@ -13,12 +13,12 @@ use minijinja::Environment;
 
 use crate::errors::{ArchetypeError, RenderError};
 use crate::source::Source;
-use crate::v2::archetype::archetype_context::ArchetypeContext;
-use crate::v2::archetype::archetype_directory::ArchetypeDirectory;
-use crate::v2::archetype::archetype_manifest::ArchetypeManifest;
-use crate::v2::runtime::context::RuntimeContext;
-use crate::v2::script::create_environment;
-use crate::v2::script::rhai::create_engine;
+use crate::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::archetype_directory::ArchetypeDirectory;
+use crate::archetype::archetype_manifest::ArchetypeManifest;
+use crate::runtime::context::RuntimeContext;
+use crate::script::create_environment;
+use crate::script::rhai::create_engine;
 
 #[derive(Clone)]
 pub struct Archetype {

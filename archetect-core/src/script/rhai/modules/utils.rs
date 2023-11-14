@@ -1,9 +1,9 @@
 
 use rhai::Engine;
 use uuid::Uuid;
-use crate::v2::runtime::context::RuntimeContext;
+use crate::runtime::context::RuntimeContext;
 
-pub (crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext) {
+pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext) {
     engine.register_fn("display", | message: &str| {
         eprintln!("{}", message);
     });

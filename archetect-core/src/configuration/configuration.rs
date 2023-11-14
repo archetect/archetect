@@ -4,7 +4,7 @@ use linked_hash_map::LinkedHashMap;
 use rhai::Map;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 
-use crate::v2::catalog::{Catalog, CatalogEntry, CatalogManifest};
+use crate::catalog::{Catalog, CatalogEntry, CatalogManifest};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {

@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
-use crate::v2::runtime::context::RuntimeContext;
+use crate::runtime::context::RuntimeContext;
 use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]

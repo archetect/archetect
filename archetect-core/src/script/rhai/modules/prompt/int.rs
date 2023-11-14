@@ -1,5 +1,5 @@
 use crate::errors::{ArchetectError, ArchetypeError};
-use crate::v2::runtime::context::RuntimeContext;
+use crate::runtime::context::RuntimeContext;
 use inquire::validator::Validation;
 use inquire::{InquireError, Text};
 use log::warn;

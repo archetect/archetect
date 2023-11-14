@@ -18,7 +18,7 @@ pub enum LogLevel {
 pub mod module {
     use log::{debug, error, info, trace, warn};
 
-    pub type LogLevel = crate::v2::script::rhai::modules::log::LogLevel;
+    pub type LogLevel = crate::script::rhai::modules::log::LogLevel;
 
     pub const Info: LogLevel = LogLevel::Info;
     pub const Trace: LogLevel = LogLevel::Trace;

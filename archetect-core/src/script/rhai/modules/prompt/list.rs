@@ -1,6 +1,6 @@
 use crate::errors::ArchetectError;
-use crate::v2::runtime::context::RuntimeContext;
-use crate::v2::script::rhai::modules::prompt::handle_result;
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::prompt::handle_result;
 use inquire::validator::Validation;
 use inquire::List;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
