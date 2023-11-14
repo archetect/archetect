@@ -7,6 +7,7 @@ mod custom_type;
 mod dateselect;
 #[cfg(feature = "editor")]
 mod editor;
+mod list;
 mod multiselect;
 mod password;
 mod select;
@@ -18,6 +19,7 @@ pub use custom_type::CustomType;
 pub use dateselect::DateSelect;
 #[cfg(feature = "editor")]
 pub use editor::Editor;
+pub use list::List;
 pub use multiselect::MultiSelect;
 pub use password::{Password, PasswordDisplayMode};
 pub use select::Select;

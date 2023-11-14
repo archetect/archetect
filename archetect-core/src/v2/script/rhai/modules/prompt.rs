@@ -1,10 +1,10 @@
 mod confirm;
 mod editor;
 mod int;
+mod list;
 mod multiselect;
 mod select;
 mod text;
-
 
 use inquire::error::InquireResult;
 use inquire::InquireError;
@@ -110,8 +110,13 @@ fn prompt_to_map(
             results.insert(key.into(), value.into());
             return Ok(results.into());
         }
-        // PromptType::List => {}
-        _ => panic!("Unimplemented PromptType"),
+        PromptType::List => {
+            let value = list::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            results.insert(key.into(), value.clone().into());
+            // TODO Consider casing strategies
+            // expand_cases(&settings, &mut results, key, &value);
+            return Ok(results.into());
+        }
     }
 }
 

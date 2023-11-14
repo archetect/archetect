@@ -167,7 +167,7 @@ where
     pub const DEFAULT_KEEP_FILTER: bool = true;
 
     /// Default help message.
-    pub const DEFAULT_HELP_MESSAGE: Option<&str> =
+    pub const DEFAULT_HELP_MESSAGE: Option<&'static str> =
         Some("↑↓ to move, space to select one, → to all, ← to none, type to filter");
 
     /// Creates a [MultiSelect] with the provided message and options, along with default configuration values.

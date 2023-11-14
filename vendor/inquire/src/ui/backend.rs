@@ -2,14 +2,7 @@ use std::{collections::BTreeSet, fmt::Display, io::Result};
 
 use unicode_width::UnicodeWidthChar;
 
-use crate::{
-    input::Input,
-    list_option::ListOption,
-    terminal::{Terminal, TerminalSize},
-    ui::{IndexPrefix, Key, RenderConfig, Styled},
-    utils::{int_log10, Page},
-    validator::ErrorMessage,
-};
+use crate::{input::Input, List, list_option::ListOption, terminal::{Terminal, TerminalSize}, ui::{IndexPrefix, Key, RenderConfig, Styled}, utils::{int_log10, Page}, validator::ErrorMessage};
 
 pub trait CommonBackend {
     fn read_key(&mut self) -> Result<Key>;
@@ -25,13 +18,13 @@ pub trait CommonBackend {
 }
 
 pub trait TextBackend: CommonBackend {
-    fn render_prompt(
-        &mut self,
-        prompt: &str,
-        default: Option<&String>,
-        cur_input: &Input,
-    ) -> Result<()>;
+    fn render_prompt(&mut self, prompt: &str, default: Option<&String>, cur_input: &Input) -> Result<()>;
     fn render_suggestions<D: Display>(&mut self, page: Page<ListOption<D>>) -> Result<()>;
+}
+
+pub trait ListBackend: CommonBackend {
+    fn render_prompt(&mut self, prompt: &str, options: &Vec<String>, defaults: Option<&Vec<String>>) -> Result<()>;
+    fn render_options(&mut self, options: &[String], input: &Input) -> Result<()>;
 }
 
 #[cfg(feature = "editor")]
@@ -46,20 +39,11 @@ pub trait SelectBackend: CommonBackend {
 
 pub trait MultiSelectBackend: CommonBackend {
     fn render_multiselect_prompt(&mut self, prompt: &str, cur_input: &Input) -> Result<()>;
-    fn render_options<D: Display>(
-        &mut self,
-        page: Page<ListOption<D>>,
-        checked: &BTreeSet<usize>,
-    ) -> Result<()>;
+    fn render_options<D: Display>(&mut self, page: Page<ListOption<D>>, checked: &BTreeSet<usize>) -> Result<()>;
 }
 
 pub trait CustomTypeBackend: CommonBackend {
-    fn render_prompt(
-        &mut self,
-        prompt: &str,
-        default: Option<&String>,
-        cur_input: &Input,
-    ) -> Result<()>;
+    fn render_prompt(&mut self, prompt: &str, default: Option<&String>, cur_input: &Input) -> Result<()>;
 }
 
 pub trait PasswordBackend: CommonBackend {
@@ -157,8 +141,7 @@ where
                 .row
                 .saturating_sub(self.prompt_current_position.row);
             self.terminal.cursor_down(diff)?;
-            self.terminal
-                .cursor_move_to_column(self.prompt_end_position.col)?;
+            self.terminal.cursor_move_to_column(self.prompt_end_position.col)?;
         }
 
         Ok(())
@@ -224,11 +207,7 @@ where
         self.terminal.write_styled(&x)
     }
 
-    fn print_option_value<D: Display>(
-        &mut self,
-        option: &ListOption<D>,
-        page: &Page<ListOption<D>>,
-    ) -> Result<()> {
+    fn print_option_value<D: Display>(&mut self, option: &ListOption<D>, page: &Page<ListOption<D>>) -> Result<()> {
         let stylesheet = if let Some(selected_option_style) = self.render_config.selected_option {
             match page.cursor {
                 Some(cursor) if cursor.absolute_index == option.index => selected_option_style,
@@ -297,14 +276,13 @@ where
             match input.placeholder() {
                 None => {}
                 Some(p) if p.is_empty() => {}
-                Some(p) => self.terminal.write_styled(
-                    &Styled::new(p).with_style_sheet(self.render_config.placeholder),
-                )?,
+                Some(p) => self
+                    .terminal
+                    .write_styled(&Styled::new(p).with_style_sheet(self.render_config.placeholder))?,
             }
         } else {
-            self.terminal.write_styled(
-                &Styled::new(input.content()).with_style_sheet(self.render_config.text_input),
-            )?;
+            self.terminal
+                .write_styled(&Styled::new(input.content()).with_style_sheet(self.render_config.text_input))?;
         }
 
         // if cursor is at end of input, we need to add
@@ -317,12 +295,36 @@ where
         Ok(())
     }
 
-    fn print_prompt_with_input(
-        &mut self,
-        prompt: &str,
-        default: Option<&String>,
-        input: &Input,
-    ) -> Result<()> {
+    fn print_list_input(&mut self, input: &Input) -> Result<()> {
+        let cursor_offset = input.pre_cursor().chars().count();
+        self.mark_prompt_cursor_position(cursor_offset);
+        self.show_cursor = true;
+
+        if input.is_empty() {
+            match input.placeholder() {
+                None => {}
+                Some(p) if p.is_empty() => {}
+                Some(p) => self
+                    .terminal
+                    .write_styled(&Styled::new(p).with_style_sheet(self.render_config.placeholder))?,
+            }
+        } else {
+            self.terminal
+                .write_styled(&Styled::new(input.content()).with_style_sheet(self.render_config.text_input))?;
+        }
+
+        // if cursor is at end of input, we need to add
+        // a space, otherwise the cursor will render on the
+        // \n character, on the next line.
+        if input.cursor() == input.length() {
+            self.terminal.write(' ')?;
+        }
+
+        Ok(())
+    }
+
+
+    fn print_prompt_with_input(&mut self, prompt: &str, default: Option<&String>, input: &Input) -> Result<()> {
         self.print_prompt(prompt)?;
 
         if let Some(default) = default {
@@ -367,8 +369,7 @@ where
             let row_diff = self.prompt_current_position.row - prompt_cursor_position.row;
 
             self.terminal.cursor_up(row_diff)?;
-            self.terminal
-                .cursor_move_to_column(prompt_cursor_position.col)?;
+            self.terminal.cursor_move_to_column(prompt_cursor_position.col)?;
 
             self.prompt_current_position = prompt_cursor_position;
         }
@@ -409,21 +410,18 @@ where
     }
 
     fn render_error_message(&mut self, error: &ErrorMessage) -> Result<()> {
-        self.terminal
-            .write_styled(&self.render_config.error_message.prefix)?;
+        self.terminal.write_styled(&self.render_config.error_message.prefix)?;
 
-        self.terminal.write_styled(
-            &Styled::new(" ").with_style_sheet(self.render_config.error_message.separator),
-        )?;
+        self.terminal
+            .write_styled(&Styled::new(" ").with_style_sheet(self.render_config.error_message.separator))?;
 
         let message = match error {
             ErrorMessage::Default => self.render_config.error_message.default_message,
             ErrorMessage::Custom(msg) => msg,
         };
 
-        self.terminal.write_styled(
-            &Styled::new(message).with_style_sheet(self.render_config.error_message.message),
-        )?;
+        self.terminal
+            .write_styled(&Styled::new(message).with_style_sheet(self.render_config.error_message.message))?;
 
         self.new_line()?;
 
@@ -450,12 +448,7 @@ impl<T> TextBackend for Backend<T>
 where
     T: Terminal,
 {
-    fn render_prompt(
-        &mut self,
-        prompt: &str,
-        default: Option<&String>,
-        cur_input: &Input,
-    ) -> Result<()> {
+    fn render_prompt(&mut self, prompt: &str, default: Option<&String>, cur_input: &Input) -> Result<()> {
         self.print_prompt_with_input(prompt, default, cur_input)
     }
 
@@ -469,6 +462,34 @@ where
             self.new_line()?;
         }
 
+        Ok(())
+    }
+}
+
+impl<T> ListBackend for Backend<T>
+where
+    T: Terminal,
+{
+    fn render_prompt(&mut self, prompt: &str, options: &Vec<String>, defaults: Option<&Vec<String>>) -> Result<()> {
+        self.print_prompt(prompt)?;
+        if options.len() == 0 {
+            if let Some(defaults) = defaults {
+                let default_string = List::DEFAULT_FORMATTER(defaults);
+                self.print_default_value(&default_string)?;
+            }
+        }
+        self.new_line()
+    }
+
+    fn render_options(&mut self, options: &[String], input: &Input) -> Result<()> {
+        for option in options {
+            self.print_prompt_with_prefix(self.render_config.highlighted_option_prefix, "")?;
+            self.terminal.write(option)?;
+            self.new_line()?;
+        }
+        self.print_prompt_with_prefix(self.render_config.highlighted_option_prefix, "")?;
+        self.print_list_input(input)?;
+        self.new_line()?;
         Ok(())
     }
 }
@@ -529,11 +550,7 @@ where
         self.print_prompt_with_input(prompt, None, cur_input)
     }
 
-    fn render_options<D: Display>(
-        &mut self,
-        page: Page<ListOption<D>>,
-        checked: &BTreeSet<usize>,
-    ) -> Result<()> {
+    fn render_options<D: Display>(&mut self, page: Page<ListOption<D>>, checked: &BTreeSet<usize>) -> Result<()> {
         for (idx, option) in page.content.iter().enumerate() {
             self.print_option_prefix(idx, &page)?;
 
@@ -617,8 +634,7 @@ pub mod date {
         ) -> Result<()> {
             macro_rules! write_prefix {
                 () => {{
-                    self.terminal
-                        .write_styled(&self.render_config.calendar.prefix)?;
+                    self.terminal.write_styled(&self.render_config.calendar.prefix)?;
                     self.terminal.write(" ")
                 }};
             }
@@ -646,8 +662,7 @@ pub mod date {
                 current_weekday = current_weekday.succ();
             }
 
-            let week_days = Styled::new(week_days.join(" "))
-                .with_style_sheet(self.render_config.calendar.week_header);
+            let week_days = Styled::new(week_days.join(" ")).with_style_sheet(self.render_config.calendar.week_header);
 
             write_prefix!()?;
 
@@ -681,8 +696,7 @@ pub mod date {
 
                     if date_it == selected_date {
                         self.mark_prompt_cursor_position(cursor_offset);
-                        if let Some(custom_style_sheet) = self.render_config.calendar.selected_date
-                        {
+                        if let Some(custom_style_sheet) = self.render_config.calendar.selected_date {
                             style_sheet = custom_style_sheet;
                         } else {
                             self.show_cursor = true;
@@ -723,12 +737,7 @@ impl<T> CustomTypeBackend for Backend<T>
 where
     T: Terminal,
 {
-    fn render_prompt(
-        &mut self,
-        prompt: &str,
-        default: Option<&String>,
-        cur_input: &Input,
-    ) -> Result<()> {
+    fn render_prompt(&mut self, prompt: &str, default: Option<&String>, cur_input: &Input) -> Result<()> {
         self.print_prompt_with_input(prompt, default, cur_input)
     }
 }

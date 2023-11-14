@@ -65,6 +65,12 @@ use crate::list_option::ListOption;
 /// ```
 pub type StringFormatter<'a> = &'a dyn Fn(&str) -> String;
 
+/// Type alias for formatters that receive a reference to a Vec of String.
+///
+/// Formatters receive the user input and return a [String] to be displayed
+///to the user as the final answer.
+pub type ListFormatter<'a> = &'a dyn Fn(&Vec<String>) -> String;
+
 /// Type alias for formatters used in [Confirm](crate::Confirm) prompts.
 ///
 /// Formatters receive the user input and return a [String] to be displayed

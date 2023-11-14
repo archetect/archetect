@@ -109,6 +109,27 @@ where
     }
 }
 
+/// Validator that receives a reference to a Vec of String.
+pub trait ListValidator: DynClone {
+    /// Confirm the given input List is valid.
+    fn validate(&self, input: &Vec<String>) -> Result<Validation, CustomUserError>;
+}
+
+impl Clone for  Box<dyn ListValidator> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+impl<F> ListValidator for F
+    where
+        F: Fn(&Vec<String>) -> Result<Validation, CustomUserError> + Clone,
+{
+    fn validate(&self, input: &Vec<String>) -> Result<Validation, CustomUserError> {
+        (self)(input)
+    }
+}
+
 /// Validator used in [`DateSelect`](crate::DateSelect) prompts.
 ///
 /// If the input provided by the user is valid, your validator should return `Ok(Validation::Valid)`.
