@@ -135,7 +135,7 @@ fn catalog(
 ) -> Result<(), ArchetectError> {
     let runtime_context = create_runtime_context(matches, configuration)?;
     let source = matches.get_one::<String>("source").unwrap();
-    let source = Source::detect(&archetect, &runtime_context, source, None)?;
+    let source = Source::detect(&archetect, &runtime_context, source)?;
 
     let catalog = Catalog::load(&source)?;
     catalog.check_requirements(&runtime_context)?;
@@ -151,7 +151,7 @@ pub fn render(
 ) -> Result<(), ArchetectError> {
     let runtime_context = create_runtime_context(matches, configuration)?;
     let source = matches.get_one::<String>("source").unwrap();
-    let source = Source::detect(&archetect, &runtime_context, source, None)?;
+    let source = Source::detect(&archetect, &runtime_context, source)?;
 
     let archetype = Archetype::new(&source)?;
 

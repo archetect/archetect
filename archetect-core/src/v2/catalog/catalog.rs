@@ -60,7 +60,7 @@ impl Catalog {
 
             match choice {
                 CatalogEntry::Catalog { description: _, source } => {
-                    let source = Source::detect(archetect, &runtime_context, &source, None)?;
+                    let source = Source::detect(archetect, &runtime_context, &source)?;
                     catalog = Catalog::load(&source)?;
                 }
                 CatalogEntry::Archetype {
@@ -73,7 +73,7 @@ impl Catalog {
                             answers.entry(k).or_insert(v);
                         }
                     }
-                    let source = Source::detect(&archetect, &runtime_context, &source, None)?;
+                    let source = Source::detect(&archetect, &runtime_context, &source)?;
                     let destination = runtime_context.destination().to_path_buf();
                     let archetype = Archetype::new(&source)?;
                     archetype.check_requirements(&runtime_context)?;
@@ -104,9 +104,7 @@ impl Catalog {
                 .map(|(id, entry)| create_item(entry_items.len(), id, entry))
                 .collect::<Vec<_>>();
 
-            let prompt = Select::new("Catalog Selection:", choices)
-                .with_page_size(30)
-                ;
+            let prompt = Select::new("Catalog Selection:", choices).with_page_size(30);
 
             match prompt.prompt() {
                 Ok(item) => match item.entry {
@@ -126,15 +124,13 @@ impl Catalog {
                         answers: _,
                     } => return Ok(item.entry()),
                 },
-                Err(err) => return match err {
-                    InquireError::OperationCanceled => {
-                        Err(CatalogError::SelectionCancelled)
+                Err(err) => {
+                    return match err {
+                        InquireError::OperationCanceled => Err(CatalogError::SelectionCancelled),
+                        InquireError::OperationInterrupted => Err(CatalogError::SelectionCancelled),
+                        err => Err(CatalogError::General(err.to_string())),
                     }
-                    InquireError::OperationInterrupted => {
-                        Err(CatalogError::SelectionCancelled)
-                    }
-                    err => Err(CatalogError::General(err.to_string()))
-                },
+                }
             }
         }
     }

@@ -102,7 +102,7 @@ fn create_archetype(
 ) -> Result<ArchetypeFacade, Box<EvalAltResult>> {
     if let Some(archetypes) = parent.manifest().components() {
         if let Some(path) = archetypes.get(key) {
-            let source = Source::detect(&Archetect::build().unwrap(), &runtime_context, path, None).unwrap();
+            let source = Source::detect(&Archetect::build().unwrap(), &runtime_context, path).unwrap();
             let child = Archetype::new(&source).unwrap();
 
             return Ok(ArchetypeFacade {

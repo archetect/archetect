@@ -9,10 +9,10 @@ use log::{debug, info, trace};
 use regex::Regex;
 use url::Url;
 
-use crate::Archetect;
 use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
 use crate::v2::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
@@ -39,12 +39,7 @@ lazy_static! {
 }
 
 impl Source {
-    pub fn detect(
-        archetect: &Archetect,
-        runtime_context: &RuntimeContext,
-        path: &str,
-        relative_to: Option<Source>,
-    ) -> Result<Source, SourceError> {
+    pub fn detect(archetect: &Archetect, runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
         let git_cache = archetect.layout().git_cache_dir();
 
         let urlparts: Vec<&str> = path.split('#').collect();
@@ -58,7 +53,7 @@ impl Source {
             } else {
                 None
             };
-            cache_git_repo(&runtime_context,urlparts[0], &gitref, &cache_path)?;
+            cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -73,7 +68,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path, )?;
+                cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -93,16 +88,6 @@ impl Source {
 
         return if let Ok(path) = shellexpand::full(&path) {
             let local_path = Utf8PathBuf::from(path.as_ref());
-            if local_path.is_relative() {
-                if let Some(parent) = relative_to {
-                    let local_path = parent.local_path().join(local_path);
-                    if local_path.exists() && local_path.is_dir() {
-                        return Ok(Source::LocalDirectory { path: local_path });
-                    } else {
-                        return Err(SourceError::SourceNotFound(local_path.to_string()));
-                    }
-                }
-            }
             if local_path.exists() {
                 if local_path.is_dir() {
                     Ok(Source::LocalDirectory { path: local_path })
@@ -188,7 +173,7 @@ fn should_pull(repo: &Repository, runtime_context: &RuntimeContext) -> Result<bo
 fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
     println!("Writing config");
     let mut config = repo.config()?;
-    config.set_i64("archetect.pulled",chrono::Utc::now().timestamp_millis())?;
+    config.set_i64("archetect.pulled", chrono::Utc::now().timestamp_millis())?;
     Ok(())
 }
 
@@ -312,7 +297,6 @@ mod tests {
             &archetect,
             &runtime_context,
             "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT",
-            None,
         );
         println!("{:?}", source);
     }
