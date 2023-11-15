@@ -14,6 +14,7 @@ use crate::utils::to_utf8_path_buf;
 use crate::runtime::context::RuntimeContext;
 use crate::Archetect;
 
+//noinspection SpellCheckingInspection
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 pub enum Source {
     RemoteGit {
@@ -42,18 +43,18 @@ impl Source {
     pub fn detect(archetect: &Archetect, runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
         let git_cache = archetect.layout().git_cache_dir();
 
-        let urlparts: Vec<&str> = path.split('#').collect();
-        if let Some(captures) = SSH_GIT_PATTERN.captures(urlparts[0]) {
+        let url_parts: Vec<&str> = path.split('#').collect();
+        if let Some(captures) = SSH_GIT_PATTERN.captures(url_parts[0]) {
             let cache_path = git_cache
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
 
-            let gitref = if urlparts.len() > 1 {
-                Some(urlparts[1].to_owned())
+            let gitref = if url_parts.len() > 1 {
+                Some(url_parts[1].to_owned())
             } else {
                 None
             };
-            cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path)?;
+            cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -68,7 +69,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(&runtime_context, urlparts[0], &gitref, &cache_path)?;
+                cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -171,7 +172,6 @@ fn should_pull(repo: &Repository, runtime_context: &RuntimeContext) -> Result<bo
 }
 
 fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
-    println!("Writing config");
     let mut config = repo.config()?;
     config.set_i64("archetect.pulled", chrono::Utc::now().timestamp_millis())?;
     Ok(())
@@ -188,7 +188,6 @@ fn cache_git_repo(
             info!("Cloning {}", url);
             debug!("Cloning to {}", cache_destination.as_str());
             handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
-            println!("{}", cache_destination.as_str());
             let repo = git2::Repository::open(cache_destination.join(".git"))?;
             write_timestamp(&repo)?;
         } else {

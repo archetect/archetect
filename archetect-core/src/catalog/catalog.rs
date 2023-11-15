@@ -138,9 +138,16 @@ impl Catalog {
 
 fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
     match item_count {
-        1..=99 => CatalogItem::new(format!("{:>02}: {}", id + 1, entry.description()), entry.clone()),
-        100..=999 => CatalogItem::new(format!("{:>003}: {}", id + 1, entry.description()), entry.clone()),
-        _ => CatalogItem::new(format!("{:>0004}: {}", id + 1, entry.description()), entry.clone()),
+        1..=99 => CatalogItem::new(format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
+        100..=999 => CatalogItem::new(format!("{:>003}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
+        _ => CatalogItem::new(format!("{:>0004}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
+    }
+}
+
+fn item_icon(entry: &CatalogEntry) -> &'static str {
+    match entry {
+        CatalogEntry::Archetype { .. } => "📄",
+        _ => "📂",
     }
 }
 
