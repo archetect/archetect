@@ -96,7 +96,7 @@ pub fn to_directory_case(non_snake_case_string: &str) -> String {
 }
 
 pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
-    if let Some(strategies) = settings.get("cases") {
+    if let Some(strategies) = settings.get("cased_as").or(settings.get("cases")) {
         let maybe_strategies: Option<Vec<Dynamic>> = strategies.clone().try_cast::<Vec<Dynamic>>();
         if let Some(strategies) = maybe_strategies {
             let strategies = strategies
