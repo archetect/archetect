@@ -1,17 +1,21 @@
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::handle_result;
+use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result};
 use inquire::Confirm;
 use rhai::{Dynamic, EvalAltResult, Map};
 
-pub fn prompt(
+pub fn prompt<K: AsRef<str>>(
     message: &str,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    _key: Option<&str>,
+    _key: Option<K>,
     _answer: Option<&Dynamic>,
-) -> Result<bool, Box<EvalAltResult>> {
-    let mut prompt = Confirm::new(message);
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
+
+    let mut prompt = Confirm::new(message)
+        .with_render_config(get_render_config())
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         let default_value = match default_value.to_string().to_lowercase().as_str() {
@@ -20,7 +24,7 @@ pub fn prompt(
             _ => false,
         };
         if runtime_context.headless() {
-            return Ok(default_value);
+            return Ok(default_value.into());
         } else {
             prompt.default = Some(default_value);
         }
@@ -39,6 +43,10 @@ pub fn prompt(
 
     if let Some(help_message) = settings.get("help") {
         prompt.help_message = Some(help_message.to_string());
+    } else {
+        if optional {
+            prompt.help_message = Some("<esc> for None".into());
+        }
     }
 
     prompt.parser = &|ans| {
@@ -55,7 +63,5 @@ pub fn prompt(
         }
     };
 
-    let result = prompt.prompt();
-
-    handle_result(result)
+    handle_result(prompt.prompt(), optional)
 }

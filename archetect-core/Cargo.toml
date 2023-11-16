@@ -1,6 +1,6 @@
 [package]
 name = "archetect-core"
-version = "2.0.0-ALPHA.2"
+version = "2.0.0-ALPHA.3"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"

@@ -1,31 +1,23 @@
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::handle_result;
+use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result, parse_setting};
 use inquire::validator::Validation;
 use inquire::List;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
-pub fn prompt(
+pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
     message: &str,
-    settings: &Map,
     runtime_context: &RuntimeContext,
-    key: Option<&str>,
+    settings: &Map,
+    key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Vec<String>, Box<EvalAltResult>> {
-    let min_items = settings
-        .get("min_items")
-        .map(|value| value.to_string().parse::<usize>())
-        .map(|value| value.ok())
-        .flatten();
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
 
-
-    let max_items = settings
-        .get("max_items")
-        .map(|value| value.to_string().parse::<usize>())
-        .map(|value| value.ok())
-        .flatten();
+    let min_items = parse_setting::<usize>("min_items", settings);
+    let max_items = parse_setting::<usize>("max_items", settings);
 
     let list_validator = move |input: &Vec<String>| match validate_list(min_items, max_items, input) {
         Ok(_) => return Ok(Validation::Valid),
@@ -39,12 +31,12 @@ pub fn prompt(
                 .map(|v| v.trim())
                 .map(|v| v.to_owned())
                 .collect::<Vec<String>>();
-            return Ok(answers);
+            return Ok(answers.into());
         }
 
         if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
             let answers = answers.iter().map(|v| v.to_string()).collect::<Vec<String>>();
-            return Ok(answers);
+            return Ok(answers.into());
         }
 
         let fn_name = call.fn_name().to_owned();
@@ -55,7 +47,7 @@ pub fn prompt(
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                 format!(
                     "'{}' was provided as an answer to '{}', but must be an array of values or a comma-separated string.",
-                    answer, key
+                    answer, key.as_ref()
                 )
                     .to_owned()
             } else {
@@ -70,12 +62,10 @@ pub fn prompt(
         )));
     }
 
-    let mut list = List::new(message).with_list_validator(list_validator);
-
-    let _optional = settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false);
+    let mut prompt = List::new(message)
+        .with_list_validator(list_validator)
+        .with_render_config(get_render_config())
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if let Some(defaults) = default_value.clone().try_cast::<Vec<Dynamic>>() {
@@ -84,9 +74,9 @@ pub fn prompt(
                 .map(|i| i.to_string())
                 .collect::<Vec<String>>();
             if runtime_context.headless() {
-                return Ok(defaults);
+                return Ok(defaults.into());
             } else {
-                list.default = Some(defaults);
+                prompt.default = Some(defaults);
             }
         } else {
 
@@ -100,7 +90,7 @@ pub fn prompt(
         let error = EvalAltResult::ErrorSystem(
             "Headless Mode Error".to_owned(),
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!("{} for '{}'", message, key,).to_owned()
+                format!("{} for '{}'", message, key.as_ref(),).to_owned()
             } else {
                 format!("{}", message).to_owned()
             })),
@@ -114,16 +104,16 @@ pub fn prompt(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        list.placeholder = Some(placeholder.to_string());
+        prompt.placeholder = Some(placeholder.to_string());
     }
 
     if let Some(help_message) = settings.get("help") {
-        list.help_message = Some(help_message.to_string());
+        prompt.help_message = Some(help_message.to_string());
     }
 
-    let result = list.prompt();
+    let result = prompt.prompt();
 
-    handle_result(result)
+    handle_result(result, optional)
 }
 
 fn validate_list(min_items: Option<usize>, max_items: Option<usize>, input: &Vec<String>) -> Result<(), String> {

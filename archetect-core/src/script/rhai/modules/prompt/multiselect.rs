@@ -1,22 +1,27 @@
 use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use inquire::{InquireError, MultiSelect};
+use inquire::{MultiSelect};
 
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::{ArchetectError};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::create_error_from_call;
+use crate::script::rhai::modules::prompt::{create_error_from_call, get_optional_setting, get_render_config, handle_result};
 
-pub fn prompt(
+pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    key: Option<&str>,
+    key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Vec<Dynamic>, Box<EvalAltResult>> {
-    let mut prompt = MultiSelect::new(message, options.clone());
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
+
+    let mut prompt = MultiSelect::new(message, options.clone())
+        .with_render_config(get_render_config())
+        ;
+
     let mut indices = vec![];
 
     if let Some(answer) = answer {
@@ -39,7 +44,7 @@ pub fn prompt(
                         Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                             format!(
                                 "'{}' was provided as an answer to '{}', but did not match any of the required options.",
-                                answer, key
+                                answer, key.as_ref()
                             )
                                 .to_owned()
                         } else {
@@ -55,7 +60,7 @@ pub fn prompt(
                 }
             }
 
-            return Ok(results);
+            return Ok(results.into());
         }
         // Handle an answer as an array of values
         if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
@@ -74,7 +79,7 @@ pub fn prompt(
                         Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                             format!(
                                 "'{}' was provided as an answer to '{}', but did not match any of the required options.",
-                                answer, key
+                                answer, key.as_ref()
                             )
                                 .to_owned()
                         } else {
@@ -89,7 +94,7 @@ pub fn prompt(
                     )));
                 }
             }
-            return Ok(results);
+            return Ok(results.into());
         } else {
             let fn_name = call.fn_name().to_owned();
             let source = call.source().unwrap_or_default().to_owned();
@@ -99,7 +104,7 @@ pub fn prompt(
                 Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                     format!(
                         "'{}' was provided as an answer to '{}', but must be an array of values or a comma-separated string.",
-                        answer, key
+                        answer, key.as_ref()
                     )
                         .to_owned()
                 } else {
@@ -131,7 +136,7 @@ pub fn prompt(
                 for index in indices {
                     results.push(options.get(index).unwrap().clone_cast::<Dynamic>());
                 }
-                return Ok(results);
+                return Ok(results.into());
             } else {
                 prompt.default = Some(indices.as_slice());
             }
@@ -144,7 +149,7 @@ pub fn prompt(
                         "'{}' ({}) was provided as a default for '{}', but must be an array of values.",
                         defaults_with,
                         defaults_with.type_name(),
-                        key
+                        key.as_ref()
                     )
                     .to_owned()
                 } else {
@@ -181,18 +186,5 @@ pub fn prompt(
 
     let result = prompt.prompt();
 
-    match result {
-        Ok(selections) => Ok(selections),
-        Err(err) => match err {
-            InquireError::OperationCanceled => Err(Box::new(EvalAltResult::ErrorSystem(
-                "Cancelled".to_owned(),
-                Box::new(ArchetypeError::ValueRequired),
-            ))),
-            InquireError::OperationInterrupted => Err(Box::new(EvalAltResult::ErrorSystem(
-                "Cancelled".to_owned(),
-                Box::new(ArchetypeError::OperationInterrupted),
-            ))),
-            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
-    }
+    handle_result(result, optional)
 }

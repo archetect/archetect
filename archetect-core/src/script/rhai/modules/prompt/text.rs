@@ -1,31 +1,25 @@
-use crate::errors::ArchetectError;
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::handle_result;
-use inquire::validator::Validation;
-use inquire::Text;
-use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
-pub fn prompt(
+use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
+
+use inquire::Text;
+use inquire::validator::Validation;
+
+use crate::errors::ArchetectError;
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result, parse_setting};
+
+pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
     message: &str,
     settings: &Map,
     runtime_context: &RuntimeContext,
-    key: Option<&str>,
+    key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<String, Box<EvalAltResult>> {
-    let min = settings
-        .get("min")
-        .map(|value| value.to_string().parse::<i64>())
-        .map(|value| value.ok())
-        .flatten()
-        .or(Some(1));
-
-    let max = settings
-        .get("max")
-        .map(|value| value.to_string().parse::<i64>())
-        .map(|value| value.ok())
-        .flatten();
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
+    let min = parse_setting("min", settings).or(Some(1));
+    let max = parse_setting("max", settings);
 
     let validator = move |input: &str| match validate(min, max, input) {
         Ok(_) => return Ok(Validation::Valid),
@@ -34,7 +28,7 @@ pub fn prompt(
 
     if let Some(answer) = answer {
         return match validate(min, max, &answer.to_string()) {
-            Ok(_) => Ok(answer.to_string()),
+            Ok(_) => Ok(answer.clone()),
             Err(message) => {
                 let fn_name = call.fn_name().to_owned();
                 let source = call.source().unwrap_or_default().to_owned();
@@ -42,7 +36,7 @@ pub fn prompt(
                 let error = EvalAltResult::ErrorSystem(
                     "Invalid Answer".to_owned(),
                     Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                        format!("{} for '{}'", message, key,).to_owned()
+                        format!("{} for '{}'", message, key.as_ref(),).to_owned()
                     } else {
                         format!("{}", message).to_owned()
                     })),
@@ -57,29 +51,32 @@ pub fn prompt(
         };
     }
 
-    let mut text = Text::new(message).with_validator(validator);
-
-    let _optional = settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false);
+    let mut prompt = Text::new(message).with_validator(validator)
+        .with_render_config(get_render_config())
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
-            return Ok(default_value.to_string());
+            return Ok(default_value.clone());
         } else {
-            text.default = Some(default_value.to_string());
+            prompt.default = Some(default_value.to_string());
         }
     }
 
     if runtime_context.headless() {
+        // If we're headless, and there was no default, but this is an optional prompt,
+        // return a UNIT
+        if optional {
+            return Ok(Dynamic::UNIT);
+        }
+
         let fn_name = call.fn_name().to_owned();
         let source = call.source().unwrap_or_default().to_owned();
         let position = call.position();
         let error = EvalAltResult::ErrorSystem(
             "Headless Mode Error".to_owned(),
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!("{} for '{}'", message, key,).to_owned()
+                format!("{} for '{}'", message, key.as_ref(),).to_owned()
             } else {
                 format!("{}", message).to_owned()
             })),
@@ -93,16 +90,20 @@ pub fn prompt(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        text.placeholder = Some(placeholder.to_string());
+        prompt.placeholder = Some(placeholder.to_string());
     }
 
     if let Some(help_message) = settings.get("help") {
-        text.help_message = Some(help_message.to_string());
+        prompt.help_message = Some(help_message.to_string());
+    } else {
+        if optional {
+            prompt.help_message = Some("<esc> for None".into());
+        }
     }
 
-    let result = text.prompt();
+    let result = prompt.prompt();
 
-    handle_result(result)
+    handle_result(result, optional)
 }
 
 fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {

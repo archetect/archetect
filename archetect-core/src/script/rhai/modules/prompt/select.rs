@@ -1,24 +1,29 @@
-use crate::errors::{ArchetectError, ArchetypeError};
-use crate::runtime::context::RuntimeContext;
-use inquire::{InquireError, Select};
 use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-pub fn prompt(
+use inquire::Select;
+
+use crate::errors::ArchetectError;
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result};
+
+pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    key: Option<&str>,
+    key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<String, Box<EvalAltResult>> {
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
+
     let options = &options;
 
     if let Some(answer) = answer {
         for option in options {
             if option.to_string().as_str().to_lowercase() == answer.to_string().as_str().to_lowercase() {
-                return Ok(option.to_string());
+                return Ok(option.clone());
             }
         }
 
@@ -30,7 +35,7 @@ pub fn prompt(
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                 format!(
                     "'{}' was provided as an answer to '{}', but did not match any of the required options.",
-                    answer, key
+                    answer, key.as_ref()
                 )
                 .to_owned()
             } else {
@@ -57,11 +62,13 @@ pub fn prompt(
         None
     };
 
-    let mut prompt = Select::new(message, options.to_vec());
+    let mut prompt = Select::new(message, options.to_vec())
+        .with_render_config(get_render_config())
+        ;
 
     if let Some(default) = default {
         if runtime_context.headless() {
-            return Ok(options.get(default).unwrap().to_string());
+            return Ok(options.get(default).unwrap().clone());
         }
         prompt.starting_cursor = default;
     }
@@ -90,24 +97,5 @@ pub fn prompt(
         prompt.help_message = Some(help_message.to_string());
     }
 
-    let result = prompt.prompt();
-
-    match result {
-        Ok(selection) => Ok(selection.to_string()),
-        Err(err) => match err {
-            InquireError::OperationCanceled => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )));
-            }
-            InquireError::OperationInterrupted => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )));
-            }
-            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
-    }
+    handle_result(prompt.prompt(), optional)
 }

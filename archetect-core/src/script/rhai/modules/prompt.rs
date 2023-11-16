@@ -1,3 +1,17 @@
+use std::str::FromStr;
+use rhai::plugin::*;
+use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
+
+use inquire::error::InquireResult;
+use inquire::ui::{Color, RenderConfig, Styled};
+use inquire::InquireError;
+
+use crate::archetype::archetype::Archetype;
+use crate::archetype::archetype_context::ArchetypeContext;
+use crate::errors::{ArchetectError, ArchetypeError};
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
+
 mod confirm;
 mod editor;
 mod int;
@@ -5,17 +19,6 @@ mod list;
 mod multiselect;
 mod select;
 mod text;
-
-use inquire::error::InquireResult;
-use inquire::InquireError;
-use rhai::plugin::*;
-use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
-
-use crate::errors::{ArchetectError, ArchetypeError};
-use crate::archetype::archetype::Archetype;
-use crate::archetype::archetype_context::ArchetypeContext;
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::cases::expand_cases;
 
 pub(crate) fn register(
     engine: &mut Engine,
@@ -43,16 +46,18 @@ pub(crate) fn register(
     });
 
     let rt = runtime_context.clone();
+    let ctx = archetype_context.clone();
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, settings: Map| {
-            prompt_to_value(call, message, rt.clone(), settings)
+            prompt_to_value(call, message, rt.clone(), ctx.clone(), settings)
         },
     );
 
     let rt = runtime_context.clone();
+    let ctx = archetype_context.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str| {
-        prompt_to_value(call, message, rt.clone(), Map::new())
+        prompt_to_value(call, message, rt.clone(), ctx.clone(), Map::new())
     });
 }
 
@@ -77,53 +82,54 @@ fn prompt_to_map(
     let answers = &get_answers(&call, &settings, &archetype_context)?;
     let answer = answers.get(key);
 
-    match prompt_type {
+    return match prompt_type {
         PromptType::Text => {
             let value = text::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
             results.insert(key.into(), value.clone().into());
-            expand_cases(&settings, &mut results, key, &value);
-            return Ok(results.into());
+            expand_key_value_cases(&settings, &mut results, key, value.to_string().as_str());
+            Ok(results.into())
         }
         PromptType::Confirm => {
             let value = confirm::prompt(message, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.into());
-            return Ok(results.into());
+            Ok(results.into())
         }
         PromptType::Int => {
             let value = int::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.into());
-            return Ok(results.into());
+            Ok(results.into())
         }
         PromptType::Select(options) => {
             let value = select::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.clone().into());
-            expand_cases(&settings, &mut results, key, &value);
-            return Ok(results.into());
+            expand_key_value_cases(&settings, &mut results, key, value.to_string().as_str());
+            Ok(results.into())
         }
         PromptType::MultiSelect(options) => {
             let value = multiselect::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.into());
-            return Ok(results.into());
+            Ok(results.into())
         }
         PromptType::Editor => {
             let value = editor::prompt(message)?;
             results.insert(key.into(), value.into());
-            return Ok(results.into());
+            Ok(results.into())
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            let value = list::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
             results.insert(key.into(), value.clone().into());
             // TODO Consider casing strategies
             // expand_cases(&settings, &mut results, key, &value);
-            return Ok(results.into());
+            Ok(results.into())
         }
-    }
+    };
 }
 
 fn prompt_to_value(
     call: NativeCallContext,
     message: &str,
     runtime_context: RuntimeContext,
+    archetype_context: ArchetypeContext,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let prompt_type = get_prompt_type(&settings).map_err(|err| {
@@ -133,28 +139,63 @@ fn prompt_to_value(
         ))
     })?;
 
+    let case = settings.get("cased_as")
+        .map(|case| case.clone().try_cast::<CaseStyle>())
+        .flatten();
+
+    let answers = &get_answers(&call, &settings, &archetype_context)?;
+    let answer_key = settings.get("answer_key").map(|value| value.to_string());
+    let answer = if let Some(key) = &answer_key {
+        answers.get(key.as_str())
+    } else {
+        None
+    };
+
     match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context, None, None)?;
-            Ok(value.into())
+            let value = text::prompt(call, message, &settings, &runtime_context, answer_key, answer)?;
+            Ok(apply_case(&value, case))
         }
         PromptType::Confirm => {
-            let value = confirm::prompt(message, &runtime_context, &settings, None, None)?;
-            Ok(value.into())
+            let value = confirm::prompt(message, &runtime_context, &settings, answer_key, answer)?;
+            Ok(apply_case(&value, case))
         }
         PromptType::Int => {
-            let value = int::prompt(call, message, &runtime_context, &settings, None, None)?;
-            Ok(value.into())
+            let value = int::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            Ok(apply_case(&value, case))
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings, None, None)?;
-            Ok(value.into())
+            let value = select::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
+            Ok(apply_case(&value, case))
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, None, None)?;
-            Ok(value.into())
+            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
+            Ok(apply_case(&value, case))
         }
-        _ => panic!("Unimplemented PromptType"),
+        PromptType::Editor => {
+            let value = editor::prompt(message)?;
+            Ok(apply_case(&value, case))
+        }
+        PromptType::List => {
+            let value = list::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            Ok(apply_case(&value, case))
+        }
+    }
+}
+
+fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
+    if let Some(case) = case {
+        if input.is_array() {
+            return input.clone().into_array().unwrap().iter()
+                .map(|v| case.to_case(v.to_string().as_str()))
+                .collect::<Vec<String>>().into();
+        }
+        if input.is_unit() {
+            return input.clone();
+        }
+        case.to_case(input.to_string().as_str()).into()
+    } else {
+        input.clone()
     }
 }
 
@@ -209,6 +250,28 @@ pub fn get_prompt_type(settings: &Map) -> Result<PromptType, ArchetypeError> {
     Ok(PromptType::Text)
 }
 
+pub fn get_optional_setting(settings: &Map) -> bool {
+    settings
+        .get("optional")
+        .map_or(Ok(false), |value| value.as_bool())
+        .unwrap_or(false)
+}
+
+pub fn get_render_config() -> RenderConfig {
+    RenderConfig::default_colored()
+        .with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
+}
+
+pub fn parse_setting<T>(setting: &str, settings: &Map) -> Option<T>
+    where T: FromStr,
+{
+    settings
+        .get(setting)
+        .map(|value| value.to_string().parse::<T>())
+        .map(|value| value.ok())
+        .flatten()
+}
+
 #[derive(Clone, Debug)]
 pub enum PromptType {
     Text,
@@ -220,17 +283,26 @@ pub enum PromptType {
     Editor,
 }
 
-fn handle_result<T>(result: InquireResult<T>) -> Result<T, Box<EvalAltResult>> {
+fn handle_result<T>(result: InquireResult<T>, optional: bool) -> Result<Dynamic, Box<EvalAltResult>>
+where
+    T: Into<Dynamic>,
+{
     match result {
-        Ok(value) => Ok(value),
+        Ok(value) => Ok(value.into()),
         Err(err) => match err {
             InquireError::OperationCanceled => {
+                if optional {
+                    return Ok(Dynamic::UNIT);
+                }
                 return Err(Box::new(EvalAltResult::ErrorSystem(
                     "Cancelled".to_owned(),
                     Box::new(ArchetypeError::ValueRequired),
                 )));
             }
             InquireError::OperationInterrupted => {
+                if optional {
+                    return Ok(Dynamic::UNIT);
+                }
                 return Err(Box::new(EvalAltResult::ErrorSystem(
                     "Cancelled".to_owned(),
                     Box::new(ArchetypeError::OperationInterrupted),

@@ -1,32 +1,31 @@
-use crate::errors::{ArchetectError, ArchetypeError};
-use crate::runtime::context::RuntimeContext;
-use inquire::validator::Validation;
-use inquire::{InquireError, Text};
-use log::warn;
-use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
-pub fn prompt(
+use log::warn;
+use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
+
+use inquire::Text;
+use inquire::validator::Validation;
+
+use crate::errors::ArchetectError;
+use crate::runtime::context::RuntimeContext;
+use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result, parse_setting};
+
+pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
     message: &str,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    key: Option<&str>,
+    key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<i64, Box<EvalAltResult>> {
-    let mut text = Text::new(message);
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let optional = get_optional_setting(settings);
 
-    let min = settings
-        .get("min")
-        .map(|value| value.to_string().parse::<i64>())
-        .map(|value| value.ok())
-        .flatten();
+    let mut prompt = Text::new(message)
+        .with_render_config(get_render_config())
+        ;
 
-    let max = settings
-        .get("max")
-        .map(|value| value.to_string().parse::<i64>())
-        .map(|value| value.ok())
-        .flatten();
+    let min = parse_setting::<i64>("min", settings);
+    let max = parse_setting::<i64>("max", settings);
 
     let validator = move |input: &str| match validate(min, max, input) {
         Ok(_) => return Ok(Validation::Valid),
@@ -36,7 +35,7 @@ pub fn prompt(
     if let Some(answer) = answer {
         if let Some(answer) = answer.clone().try_cast::<i64>() {
             return match validate(min, max, &answer.to_string()) {
-                Ok(_) => Ok(answer),
+                Ok(_) => Ok(answer.into()),
                 Err(message) => {
                     let fn_name = call.fn_name().to_owned();
                     let source = call.source().unwrap_or_default().to_owned();
@@ -44,7 +43,7 @@ pub fn prompt(
                     let error = EvalAltResult::ErrorSystem(
                         "Invalid Answer".to_owned(),
                         Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                            format!("{} for '{}'", message, key,).to_owned()
+                            format!("{} for '{}'", message, key.as_ref(),).to_owned()
                         } else {
                             format!("{}", message).to_owned()
                         })),
@@ -66,7 +65,7 @@ pub fn prompt(
                 Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                     format!(
                         "'{}' expects an answer of type 'int', but was answered with '{}', which is of type '{}'",
-                        key,
+                        key.as_ref(),
                         answer,
                         answer.type_name(),
                     )
@@ -84,19 +83,14 @@ pub fn prompt(
         }
     }
 
-    let _optional = settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false);
-
     if let Some(default_value) = settings.get("defaults_with") {
         let default_value = default_value.to_string();
         match default_value.parse::<i64>() {
             Ok(value) => {
                 if runtime_context.headless() {
-                    return Ok(value);
+                    return Ok(value.into());
                 } else {
-                    text.default = Some(default_value.to_string());
+                    prompt.default = Some(default_value.to_string());
                 }
             }
             // TODO: return error
@@ -112,61 +106,45 @@ pub fn prompt(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        text.placeholder = Some(placeholder.to_string());
+        prompt.placeholder = Some(placeholder.to_string());
     }
 
     if let Some(help_message) = settings.get("help") {
-        text.help_message = Some(help_message.to_string());
+        prompt.help_message = Some(help_message.to_string());
     }
 
-    text = text.with_validator(validator);
+    prompt = prompt.with_validator(validator);
 
-    let result = text.prompt();
+    let result = prompt.prompt().map(|v|v.parse::<i64>().unwrap());
 
-    match result {
-        Ok(value) => return Ok(value.parse::<i64>().unwrap()),
-        Err(err) => match err {
-            InquireError::OperationCanceled => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )));
-            }
-            InquireError::OperationInterrupted => {
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )));
-            }
-            err => return Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
-    }
+    handle_result(result, optional)
+}
 
-    fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
-        match input.parse::<i64>() {
-            Ok(value) => {
-                match (min, max) {
-                    (Some(start), Some(end)) => {
-                        if !RangeInclusive::new(start, end).contains(&value) {
-                            return Err(format!("Answer must be between {} and {}", start, end));
-                        }
+fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
+    match input.parse::<i64>() {
+        Ok(value) => {
+            match (min, max) {
+                (Some(start), Some(end)) => {
+                    if !RangeInclusive::new(start, end).contains(&value) {
+                        return Err(format!("Answer must be between {} and {}", start, end));
                     }
-                    (Some(start), None) => {
-                        if !(RangeFrom { start }.contains(&value)) {
-                            return Err(format!("Answer must be greater than {}", start));
-                        }
+                }
+                (Some(start), None) => {
+                    if !(RangeFrom { start }.contains(&value)) {
+                        return Err(format!("Answer must be greater than {}", start));
                     }
-                    (None, Some(end)) => {
-                        if !(RangeToInclusive { end }.contains(&value)) {
-                            return Err(format!("Answer must be less than or equal to {}", end));
-                        }
+                }
+                (None, Some(end)) => {
+                    if !(RangeToInclusive { end }.contains(&value)) {
+                        return Err(format!("Answer must be less than or equal to {}", end));
                     }
-                    (None, None) => {}
-                };
+                }
+                (None, None) => {}
+            };
 
-                Ok(())
-            }
-            Err(_) => Err(format!("{} is not an 'int'", input)),
+            Ok(())
         }
+        Err(_) => Err(format!("{} is not an 'int'", input)),
     }
 }
+

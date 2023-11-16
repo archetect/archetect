@@ -95,7 +95,7 @@ pub fn to_directory_case(non_snake_case_string: &str) -> String {
     to_case_snake_like(non_snake_case_string, "/", "lower")
 }
 
-pub fn expand_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
+pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, value: &str) {
     if let Some(strategies) = settings.get("cases") {
         let maybe_strategies: Option<Vec<Dynamic>> = strategies.clone().try_cast::<Vec<Dynamic>>();
         if let Some(strategies) = maybe_strategies {

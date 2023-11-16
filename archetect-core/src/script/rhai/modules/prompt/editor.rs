@@ -1,10 +1,11 @@
-use crate::script::rhai::modules::prompt::handle_result;
-use rhai::EvalAltResult;
+use crate::script::rhai::modules::prompt::{get_render_config, handle_result};
+use rhai::{Dynamic, EvalAltResult};
 
-pub fn prompt(message: &str) -> Result<String, Box<EvalAltResult>> {
-    let prompt = inquire::Editor::new(message);
+pub fn prompt(message: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+    let prompt = inquire::Editor::new(message)
+        .with_render_config(get_render_config())
+        .with_predefined_text("test")
+        ;
 
-    let result = prompt.prompt();
-
-    handle_result(result)
+    handle_result(prompt.prompt(), false)
 }
