@@ -46,12 +46,15 @@ pub fn prompt<K: AsRef<str>>(
             "Invalid Answer Type".to_owned(),
             Box::new(ArchetectError::GeneralError(if let Some(key) = key {
                 format!(
-                    "'{}' was provided as an answer to '{}', but must be an array of values or a comma-separated string.",
-                    answer, key.as_ref()
+                    "'{}' was provided as an answer to Prompt: '{}' (key: '{}'), but must be an array of values or a comma-separated string.",
+                    answer, message, key.as_ref()
                 )
                     .to_owned()
             } else {
-                format!("{}", message).to_owned()
+                format!(
+                    "'{}' was provided as an answer to Prompt: '{}', but must be an array of values or a comma-separated string.",
+                    answer, message
+                ).to_owned()
             })),
         );
         return Err(Box::new(EvalAltResult::ErrorInFunctionCall(

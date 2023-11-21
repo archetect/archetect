@@ -96,27 +96,24 @@ pub fn prompt<K: AsRef<str>>(
             }
             return Ok(results.into());
         } else {
-            let fn_name = call.fn_name().to_owned();
-            let source = call.source().unwrap_or_default().to_owned();
-            let position = call.position();
             let error = EvalAltResult::ErrorSystem(
-                "Invalid Answer Type".to_owned(),
-                Box::new(ArchetectError::GeneralError(if let Some(key) = key {
+                "Invalid Answer".to_owned(),
+                Box::new(ArchetectError::NakedError(if let Some(key) = key {
                     format!(
-                        "'{}' was provided as an answer to '{}', but must be an array of values or a comma-separated string.",
-                        answer, key.as_ref()
+                        "'{}' was provided as an answer to Prompt: '{}' (key: '{}'), but must be an array of values or a comma-separated string.",
+                        answer, message, key.as_ref()
                     )
                         .to_owned()
                 } else {
-                    format!("{}", message).to_owned()
+                    format!(
+                        "'{}' was provided as an answer to Prompt: '{}', but must be an array of values or a comma-separated string.",
+                        answer, message
+                    )
+                        .to_owned()
                 })),
+
             );
-            return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-                fn_name,
-                source,
-                Box::new(error),
-                position,
-            )));
+            return Err(Box::new(error));
         }
     }
 

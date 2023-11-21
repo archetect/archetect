@@ -8,6 +8,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use log::{debug, trace};
 use rhai::{EvalAltResult, Map, Scope};
+use inquire::Confirm;
 
 use minijinja::Environment;
 
@@ -167,9 +168,11 @@ impl Archetype {
 
 pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
     environment: &Environment<'static>,
+    runtime_context: &RuntimeContext,
     context: &Map,
     source: SRC,
     destination: DEST,
+    overwrite_policy: OverwritePolicy,
 ) -> Result<(), RenderError> {
     let source = source.into();
     let destination = destination.into();
@@ -181,7 +184,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
         if path.is_dir() {
             let destination = render_destination(environment, context, &destination, &path)?;
             fs::create_dir_all(destination.as_path())?;
-            render_directory(environment, context, path, destination)?;
+            render_directory(environment, runtime_context, context, path, destination, overwrite_policy)?;
         } else if path.is_file() {
             // TODO: avoid duplication of file read
             let contents = fs::read(&path)?;
@@ -191,8 +194,6 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                 _ => RuleAction::RENDER,
             };
 
-            let overwrite = false;
-
             let destination = render_destination(environment, context, &destination, &path)?;
             match action {
                 RuleAction::RENDER => {
@@ -200,12 +201,31 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                         debug!("Rendering   {:?}", destination);
                         let contents = render_contents(environment, context, &path)?;
                         write_contents(destination, &contents)?;
-                    } else if overwrite {
-                        debug!("Overwriting {:?}", destination);
-                        let contents = render_contents(environment, context, &path)?;
-                        write_contents(destination, &contents)?;
                     } else {
-                        trace!("Preserving  {:?}", destination);
+                        match overwrite_policy {
+                            OverwritePolicy::Overwrite => {
+                                debug!("Overwriting {:?}", destination);
+                                let contents = render_contents(environment, context, &path)?;
+                                write_contents(destination, &contents)?;
+                            }
+                            OverwritePolicy::Preserve => {
+                                trace!("Preserving  {:?}", destination);
+                            }
+                            OverwritePolicy::Prompt => {
+                                if runtime_context.headless() {
+                                    trace!("Preserving  {:?}", destination);
+                                } else {
+                                    if Confirm::new(format!("Overwrite '{}'?", destination).as_str())
+                                        .prompt_skippable()
+                                        .unwrap_or_default()
+                                        .unwrap_or_default() {
+                                        debug!("Overwriting {:?}", destination);
+                                        let contents = render_contents(environment, context, &path)?;
+                                        write_contents(destination, &contents)?;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 RuleAction::COPY => {
@@ -294,5 +314,19 @@ pub enum RuleAction {
     RENDER,
     SKIP,
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum OverwritePolicy {
+    Overwrite,
+    Preserve,
+    Prompt,
+}
+
+impl Default for OverwritePolicy {
+    fn default() -> Self {
+        OverwritePolicy::Preserve
+    }
+}
+
 #[cfg(test)]
 mod tests {}

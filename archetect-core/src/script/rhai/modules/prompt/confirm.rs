@@ -1,38 +1,45 @@
+use rhai::{Dynamic, EvalAltResult, Map};
+
+use inquire::Confirm;
+
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result};
-use inquire::Confirm;
-use rhai::{Dynamic, EvalAltResult, Map};
 
+// TODO: Better help messages
 pub fn prompt<K: AsRef<str>>(
     message: &str,
     runtime_context: &RuntimeContext,
     settings: &Map,
-    _key: Option<K>,
-    _answer: Option<&Dynamic>,
+    key: Option<K>,
+    answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let optional = get_optional_setting(settings);
 
-    let mut prompt = Confirm::new(message)
-        .with_render_config(get_render_config())
-        ;
+    if let Some(answer) = answer {
+        return get_boolean(answer.to_string().as_str(), message, key, ValueSource::Answer).map(|v| v.into());
+    }
+
+    let mut prompt = Confirm::new(message).with_render_config(get_render_config());
 
     if let Some(default_value) = settings.get("defaults_with") {
-        let default_value = match default_value.to_string().to_lowercase().as_str() {
-            "y" | "yes" | "t" | "true" => true,
-            "n" | "no" | "f" | "false" => false,
-            _ => false,
-        };
+        let default = get_boolean(
+            default_value.to_string().as_str(),
+            message,
+            key,
+            ValueSource::DefaultsWith,
+        )?;
+
         if runtime_context.headless() {
-            return Ok(default_value.into());
+            return Ok(default.into());
         } else {
-            prompt.default = Some(default_value);
+            prompt.default = Some(default);
         }
     }
 
     if runtime_context.headless() {
         return Err(Box::new(EvalAltResult::ErrorSystem(
-            "Headless Mode Error".to_owned(),
+            "Headless Mode".to_owned(),
             Box::new(ArchetectError::HeadlessNoDefault),
         )));
     }
@@ -49,19 +56,72 @@ pub fn prompt<K: AsRef<str>>(
         }
     }
 
-    prompt.parser = &|ans| {
+    let validator = |ans: &str| {
         if ans.len() > 5 {
             return Err(());
         }
 
-        let ans = ans.to_lowercase();
-
-        match ans.as_str() {
-            "y" | "yes" | "t" | "true" => Ok(true),
-            "n" | "no" | "f" | "false" => Ok(false),
-            _ => Err(()),
-        }
+        get_boolean::<&str>(ans, message, None, ValueSource::Value).map_err(|_| ())
     };
 
+    prompt.parser = &validator;
+
     handle_result(prompt.prompt(), optional)
+}
+
+fn get_boolean<K: AsRef<str>>(
+    value: &str,
+    prompt: &str,
+    key: Option<K>,
+    source: ValueSource,
+) -> Result<bool, Box<EvalAltResult>> {
+    match value.to_lowercase().as_str() {
+        "y" | "yes" | "t" | "true" => Ok(true),
+        "n" | "no" | "f" | "false" => Ok(false),
+        _ => Err(Box::new(EvalAltResult::ErrorSystem(
+            source.error_header(),
+            Box::new(ArchetectError::NakedError(if let Some(key) = key {
+                format!(
+                    "'{}' was provided as {} to prompt: '{}' with Key: '{}', but must resemble a boolean",
+                    value.to_string(),
+                    source.description(),
+                    prompt,
+                    key.as_ref(),
+                )
+                .to_owned()
+            } else {
+                format!(
+                    "'{}' was provided as {} to prompt: '{}', but must resemble a boolean",
+                    value.to_string(),
+                    source.description(),
+                    prompt,
+                )
+                .to_owned()
+            })),
+        ))),
+    }
+}
+
+enum ValueSource {
+    Answer,
+    DefaultsWith,
+    Value,
+}
+
+impl ValueSource {
+    fn error_header(&self) -> String {
+        match self {
+            ValueSource::Answer => "Answer Error".to_string(),
+            ValueSource::DefaultsWith => "defaults_with Error".to_string(),
+            ValueSource::Value => "Value Error".to_string(),
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            ValueSource::Answer => "an answer".to_string(),
+            ValueSource::DefaultsWith => "a defaults_with".to_string(),
+            ValueSource::Value => "a value".to_string(),
+        }
+    }
 }

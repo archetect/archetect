@@ -17,8 +17,8 @@ pub struct Configuration {
     catalogs: LinkedHashMap<String, Vec<CatalogEntry>>,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    switches: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    switches: Option<Vec<String>>,
 }
 
 impl Configuration {
@@ -55,7 +55,11 @@ impl Configuration {
     }
 
     pub fn switches(&self) -> &[String] {
-        &self.switches
+        if let Some(switches) = &self.switches {
+            switches
+        } else {
+            Default::default()
+        }
     }
 
     pub fn to_yaml(&self) -> String {
@@ -123,15 +127,6 @@ mod tests {
     fn test_defaults() -> anyhow::Result<()> {
         let configuration = Configuration::default();
         println!("{}", serde_yaml::to_string(&configuration)?);
-        Ok(())
-    }
-
-    #[test]
-    fn test_git2_config() -> anyhow::Result<()> {
-        let config = git2::Config::open_default()?;
-
-        let name = config.get_string("user.name")?;
-        println!("{:?}", name);
         Ok(())
     }
 }

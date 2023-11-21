@@ -38,4 +38,7 @@ pub enum ArchetectError {
     HeadlessNoDefault,
     #[error("Error: {0}")]
     GeneralError(String),
+
+    #[error("{0}")]
+    NakedError(String,)
 }

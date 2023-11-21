@@ -10,7 +10,6 @@ pub(crate) fn register(engine: &mut Engine) {
         set(key, value, settings)
     });
 }
-
 fn set(key: &str, value: Dynamic, settings: Map) -> Result<Map, Box<EvalAltResult>> {
     let mut results: Map = Map::new();
     results.insert(key.into(), value.clone_cast());

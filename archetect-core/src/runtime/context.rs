@@ -23,7 +23,6 @@ struct Inner {
     locals: ConfigurationLocalsSection,
 }
 
-
 impl RuntimeContext {
     pub fn new(configuration: &Configuration, mut switches: HashSet<String>, destination: Utf8PathBuf) -> RuntimeContext {
         for switch in configuration.switches() {

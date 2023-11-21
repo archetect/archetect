@@ -1,7 +1,6 @@
 use crate::runtime::context::RuntimeContext;
 use rhai::{Engine, Module};
 
-
 pub(crate) fn register(engine: &mut Engine, runtime: RuntimeContext) {
     let runtime = runtime.clone();
     let mut module = Module::new();

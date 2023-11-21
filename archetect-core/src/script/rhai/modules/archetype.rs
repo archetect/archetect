@@ -40,6 +40,7 @@ pub struct ArchetypeFacade {
     archetype_context: ArchetypeContext,
 }
 
+// TODO: Allow overwrites
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<(), Box<EvalAltResult>> {
         info!("render: {:?}", answers);

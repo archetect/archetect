@@ -10,8 +10,8 @@ use regex::Regex;
 use url::Url;
 
 use crate::errors::SourceError;
-use crate::utils::to_utf8_path_buf;
 use crate::runtime::context::RuntimeContext;
+use crate::utils::to_utf8_path_buf;
 use crate::Archetect;
 
 //noinspection SpellCheckingInspection
@@ -368,12 +368,13 @@ mod tests {
     //        );
     //    }
     //
-    //    #[test]
-    //    fn test_short_git_pattern() {
-    //        let captures = SSH_GIT_PATTERN
-    //            .captures("git@github.com:jimmiebfulton/archetect.git")
-    //            .unwrap();
-    //        assert_eq!(&captures[1], "github.com");
-    //        assert_eq!(&captures[2], "jimmiebfulton/archetect.git");
-    //    }
+
+    #[test]
+    fn test_short_git_pattern() {
+        let captures = SSH_GIT_PATTERN
+            .captures("git@github.com:jimmiebfulton/archetect.git")
+            .unwrap();
+        assert_eq!(&captures[1], "github.com");
+        assert_eq!(&captures[2], "jimmiebfulton/archetect.git");
+    }
 }

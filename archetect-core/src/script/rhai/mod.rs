@@ -39,6 +39,7 @@ pub(crate) fn create_engine(
     modules::directory::register(
         &mut engine,
         environment.clone(),
+        runtime_context.clone(),
         archetype.clone(),
         archetype_context.clone(),
     );
