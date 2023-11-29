@@ -86,7 +86,7 @@ pub fn prompt<K: AsRef<str>>(
 
     runtime_context.request(CommandRequest::PromptForSelect(prompt_info));
 
-    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+    match runtime_context.response() {
         CommandResponse::StringAnswer(answer) => {
             return Ok(answer.into());
         }

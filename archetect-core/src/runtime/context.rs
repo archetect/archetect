@@ -90,4 +90,9 @@ impl RuntimeContext {
     pub fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>> {
         self.inner.io_driver.responses()
     }
+
+    pub fn response(&self) -> CommandResponse {
+        self.responses().lock().expect("Lock Error")
+            .recv().expect("Receive Error")
+    }
 }

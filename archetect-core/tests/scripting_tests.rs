@@ -13,7 +13,7 @@ use archetect_core::source::Source;
 use archetect_core::system::LayoutType;
 
 #[test]
-fn test_log() -> Result<(), ArchetectError> {
+fn test_outputs() -> Result<(), ArchetectError> {
     let archetect = Archetect::builder()
         .with_layout_type(LayoutType::Temp)?
         .build()?;
@@ -29,34 +29,33 @@ fn test_log() -> Result<(), ArchetectError> {
     let archetype = Archetype::new(&source)?;
     std::thread::spawn(move || {
         archetype.render(context, Default::default()).unwrap();
-
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::LogTrace(message) => {
+    assert_matches!(handle.request(), CommandRequest::LogTrace(message) => {
         assert_eq!(message, "Trace Level");
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::LogDebug(message) => {
+    assert_matches!(handle.request(), CommandRequest::LogDebug(message) => {
         assert_eq!(message, "Debug Level");
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::LogInfo(message) => {
+    assert_matches!(handle.request(), CommandRequest::LogInfo(message) => {
         assert_eq!(message, "Info Level");
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::LogWarn(message) => {
+    assert_matches!(handle.request(), CommandRequest::LogWarn(message) => {
         assert_eq!(message, "Warn Level");
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::LogError(message) => {
+    assert_matches!(handle.request(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Error Level");
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::EPrint(message) => {
+    assert_matches!(handle.request(), CommandRequest::EPrint(message) => {
         assert_eq!(message, Some("Display Message".to_string()));
     });
 
-    assert_matches!(handle.requests().recv().unwrap(), CommandRequest::EPrint(message) => {
+    assert_matches!(handle.request(), CommandRequest::EPrint(message) => {
         assert_eq!(message, None);
     });
 

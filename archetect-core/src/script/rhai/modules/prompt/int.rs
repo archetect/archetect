@@ -109,7 +109,7 @@ pub fn prompt<K: AsRef<str>>(
 
     runtime_context.request(CommandRequest::PromptForInt(prompt_info));
 
-    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+    match runtime_context.response() {
         CommandResponse::IntAnswer(answer) => {
             return Ok(answer.into());
         }

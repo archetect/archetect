@@ -8,6 +8,11 @@ pub trait IoDriver: Debug + Send + Sync + 'static {
     fn request(&self, request: CommandRequest);
 
     fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>>;
+
+    fn response(&self) -> CommandResponse {
+        self.responses().lock().expect("Lock Error")
+            .recv().expect("Receive Error")
+    }
 }
 
 impl<T: IoDriver> From<T> for Box<dyn IoDriver> {
@@ -58,5 +63,9 @@ impl ApiIoHandle {
 
     pub fn requests(&self) -> &Receiver<CommandRequest> {
         &self.requests_rx
+    }
+
+    pub fn request(&self) -> CommandRequest {
+        self.requests_rx.recv().expect("Receive Error")
     }
 }

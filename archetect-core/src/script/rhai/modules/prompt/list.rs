@@ -103,7 +103,7 @@ pub fn prompt<K: AsRef<str>>(
 
     runtime_context.request(CommandRequest::PromptForList(prompt_info));
 
-    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+    match runtime_context.response() {
         CommandResponse::MultiStringAnswer(answer) => {
             return Ok(answer.into());
         }
