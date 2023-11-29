@@ -1,7 +1,28 @@
 use rhai::plugin::*;
+use archetect_api::CommandRequest;
+use crate::runtime::context::RuntimeContext;
 
-pub fn register(engine: &mut Engine) {
+pub fn register(engine: &mut Engine, runtime_context: RuntimeContext) {
     engine.register_global_module(exported_module!(module).into());
+    engine.register_fn("log", move| level: LogLevel, message: &str| {
+        match level {
+            LogLevel::Info => {
+                runtime_context.request(CommandRequest::LogInfo(message.to_string()))
+            }
+            LogLevel::Trace => {
+                runtime_context.request(CommandRequest::LogTrace(message.to_string()))
+            }
+            LogLevel::Debug => {
+                runtime_context.request(CommandRequest::LogDebug(message.to_string()))
+            }
+            LogLevel::Warn => {
+                runtime_context.request(CommandRequest::LogWarn(message.to_string()))
+            }
+            LogLevel::Error => {
+                runtime_context.request(CommandRequest::LogError(message.to_string()))
+            }
+        }
+    });
 }
 
 #[derive(Clone, Debug)]
@@ -16,10 +37,7 @@ pub enum LogLevel {
 #[allow(non_upper_case_globals)]
 #[export_module]
 pub mod module {
-    use log::{debug, error, info, trace, warn};
-
     pub type LogLevel = crate::script::rhai::modules::log::LogLevel;
-
     pub const Info: LogLevel = LogLevel::Info;
     pub const Trace: LogLevel = LogLevel::Trace;
     pub const Debug: LogLevel = LogLevel::Debug;
@@ -31,26 +49,4 @@ pub mod module {
     pub const DEBUG: LogLevel = LogLevel::Debug;
     pub const WARN: LogLevel = LogLevel::Warn;
     pub const ERROR: LogLevel = LogLevel::Error;
-
-    pub fn log(level: LogLevel, message: &str) {
-        match level {
-            LogLevel::Info => {
-                info!("{}", message)
-            }
-            LogLevel::Trace => {
-                trace!("{}", message)
-            }
-            LogLevel::Debug => {
-                debug!("{}", message)
-            }
-            LogLevel::Warn => {
-                warn!("{}", message)
-            }
-            LogLevel::Error => {
-                error!("{}", message)
-            }
-        }
-
-    }
-
 }

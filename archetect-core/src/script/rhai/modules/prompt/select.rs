@@ -1,11 +1,10 @@
-use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use inquire::Select;
+use archetect_api::{CommandRequest, CommandResponse, SelectPromptInfo};
 
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result};
+use crate::script::rhai::modules::prompt::get_optional_setting;
 
 pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
@@ -16,7 +15,6 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let optional = get_optional_setting(settings);
 
     let options = &options;
 
@@ -50,29 +48,6 @@ pub fn prompt<K: AsRef<str>>(
         )));
     };
 
-    let default = if let Some(defaults_with) = settings.get("defaults_with") {
-        let default = options
-            .iter()
-            .position(|item| item.to_string().as_str() == defaults_with.to_string().as_str());
-        if default.is_none() {
-            warn!("A 'defaults_with' was set, but did not match any of the options.")
-        }
-        default
-    } else {
-        None
-    };
-
-    let mut prompt = Select::new(message, options.to_vec())
-        .with_render_config(get_render_config())
-        ;
-
-    if let Some(default) = default {
-        if runtime_context.headless() {
-            return Ok(options.get(default).unwrap().clone());
-        }
-        prompt.starting_cursor = default;
-    }
-
     if runtime_context.headless() {
         return Err(Box::new(EvalAltResult::ErrorSystem(
             "Headless Mode Error".to_owned(),
@@ -80,22 +55,51 @@ pub fn prompt<K: AsRef<str>>(
         )));
     }
 
-    if let Some(page_size) = settings.get("page_size") {
-        if let Some(page_size) = page_size.clone().try_cast::<i64>() {
-            prompt.page_size = page_size as usize;
-        } else {
-            warn!(
-                "Invalid data type used for 'page_size': {}; should be an integer",
-                page_size.type_name()
-            );
-        }
-    } else {
-        prompt.page_size = 10;
+
+    let options = options.iter().map(|v|v.to_string())
+        .collect::<Vec<String>>();
+
+    let mut prompt_info = SelectPromptInfo::new(message, options)
+        .with_optional(get_optional_setting(settings))
+        ;
+
+    // if let Some(page_size) = settings.get("page_size") {
+    //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
+    //         prompt.page_size = page_size as usize;
+    //     } else {
+    //         warn!(
+    //             "Invalid data type used for 'page_size': {}; should be an integer",
+    //             page_size.type_name()
+    //         );
+    //     }
+    // } else {
+    //     prompt.page_size = 10;
+    // }
+
+    if let Some(placeholder) = settings.get("placeholder") {
+        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt.help_message = Some(help_message.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     }
 
-    handle_result(prompt.prompt(), optional)
+    runtime_context.request(CommandRequest::PromptForSelect(prompt_info));
+
+    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+        CommandResponse::StringAnswer(answer) => {
+            return Ok(answer.into());
+        }
+        CommandResponse::NoneAnswer => {
+            return Ok(Dynamic::UNIT);
+        }
+        CommandResponse::Error(error) => {
+            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            return Err(Box::new(error));
+        }
+        response => {
+            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            return Err(Box::new(error));
+        }
+    }
 }

@@ -1,8 +1,11 @@
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Receiver;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::Version;
+
+use archetect_api::{CommandRequest, CommandResponse, IoDriver};
 
 use crate::configuration::{Configuration, ConfigurationLocalsSection, ConfigurationUpdateSection};
 
@@ -21,10 +24,11 @@ struct Inner {
     destination: Utf8PathBuf,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
+    io_driver: Box<dyn IoDriver>,
 }
 
 impl RuntimeContext {
-    pub fn new(configuration: &Configuration, mut switches: HashSet<String>, destination: Utf8PathBuf) -> RuntimeContext {
+    pub fn new<T: Into<Box<dyn IoDriver>>>(configuration: &Configuration, mut switches: HashSet<String>, destination: Utf8PathBuf, io_driver: T) -> RuntimeContext {
         for switch in configuration.switches() {
             switches.insert(switch.to_string());
         }
@@ -38,6 +42,7 @@ impl RuntimeContext {
                 destination,
                 updates: configuration.updates().clone(),
                 locals: configuration.locals().clone(),
+                io_driver: io_driver.into(),
             })
         }
     }
@@ -74,7 +79,15 @@ impl RuntimeContext {
         &self.inner.updates
     }
 
-    pub fn  locals(&self) -> &ConfigurationLocalsSection {
+    pub fn locals(&self) -> &ConfigurationLocalsSection {
         &self.inner.locals
+    }
+
+    pub fn request(&self, command: CommandRequest) {
+        self.inner.io_driver.request(command)
+    }
+
+    pub fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>> {
+        self.inner.io_driver.responses()
     }
 }

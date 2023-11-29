@@ -269,6 +269,7 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 
 #[cfg(test)]
 mod tests {
+    use archetect_api::api_driver_and_handle;
     use crate::configuration::Configuration;
 
     use super::*;
@@ -291,7 +292,8 @@ mod tests {
     fn test_http_source() {
         let archetect = Archetect::build().unwrap();
         let configuration = Configuration::default();
-        let runtime_context = RuntimeContext::new(&configuration, HashSet::new(), Utf8PathBuf::new());
+        let (driver, _handle) = api_driver_and_handle();
+        let runtime_context = RuntimeContext::new(&configuration, HashSet::new(), Utf8PathBuf::new(), driver);
         let source = Source::detect(
             &archetect,
             &runtime_context,

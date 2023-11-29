@@ -1,11 +1,10 @@
-use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use inquire::{MultiSelect};
+use archetect_api::{CommandRequest, CommandResponse, MultiSelectPromptInfo};
 
-use crate::errors::{ArchetectError};
+use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{create_error_from_call, get_optional_setting, get_render_config, handle_result};
+use crate::script::rhai::modules::prompt::{create_error_from_call, get_optional_setting};
 
 pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
@@ -16,14 +15,12 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let optional = get_optional_setting(settings);
 
-    let mut prompt = MultiSelect::new(message, options.clone())
-        .with_render_config(get_render_config())
-        ;
+    let options = options.iter()
+        .map(|v|v.to_string())
+        .collect::<Vec<String>>();
 
-    let mut indices = vec![];
-
+    // Handle answers
     if let Some(answer) = answer {
         // Handle an answer as a comma-separated string
         if let Some(answer) = answer.clone().try_cast::<String>() {
@@ -117,25 +114,24 @@ pub fn prompt<K: AsRef<str>>(
         }
     }
 
+    let mut prompt_info = MultiSelectPromptInfo::new(message, options.clone())
+        .with_optional(get_optional_setting(settings))
+        ;
+
+    let mut validated_defaults = vec![];
     if let Some(defaults_with) = settings.get("defaults_with") {
-        if let Some(defaults) = defaults_with.clone().try_cast::<Vec<Dynamic>>() {
+        if let Some(defaults) = defaults_with.clone().try_cast::<Vec<String>>() {
             for default in defaults.iter() {
-                if let Some(position) = options
-                    .iter()
-                    .position(|option| option.to_string().as_str() == default.to_string().as_str())
-                {
-                    indices.push(position);
+                if options.contains(default) {
+                    // TODO: Error on invalid option
+                    validated_defaults.push(default.to_owned());
                 }
             }
-
             if runtime_context.headless() {
-                let mut results = vec![];
-                for index in indices {
-                    results.push(options.get(index).unwrap().clone_cast::<Dynamic>());
-                }
-                return Ok(results.into());
+                return Ok(validated_defaults.into());
             } else {
-                prompt.default = Some(indices.as_slice());
+                prompt_info = prompt_info.with_defaults(Some(validated_defaults));
+
             }
         } else {
             let error = create_error_from_call(
@@ -164,24 +160,43 @@ pub fn prompt<K: AsRef<str>>(
         )));
     }
 
-    if let Some(page_size) = settings.get("page_size") {
-        if let Some(page_size) = page_size.clone().try_cast::<i64>() {
-            prompt.page_size = page_size as usize;
-        } else {
-            warn!(
-                "Invalid data type used for 'page_size': {}; should be an integer",
-                page_size.type_name()
-            );
-        }
-    } else {
-        prompt.page_size = 10;
+    // if let Some(page_size) = settings.get("page_size") {
+    //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
+    //         prompt.page_size = page_size as usize;
+    //     } else {
+    //         warn!(
+    //             "Invalid data type used for 'page_size': {}; should be an integer",
+    //             page_size.type_name()
+    //         );
+    //     }
+    // } else {
+    //     prompt.page_size = 10;
+    // }
+
+    if let Some(placeholder) = settings.get("placeholder") {
+        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt.help_message = Some(help_message.to_string());
+        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
     }
 
-    let result = prompt.prompt();
+    runtime_context.request(CommandRequest::PromptForMultiSelect(prompt_info));
 
-    handle_result(result, optional)
+    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+        CommandResponse::MultiStringAnswer(answer) => {
+            return Ok(answer.into());
+        }
+        CommandResponse::NoneAnswer => {
+            return Ok(Dynamic::UNIT);
+        }
+        CommandResponse::Error(error) => {
+            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            return Err(Box::new(error));
+        }
+        response => {
+            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            return Err(Box::new(error));
+        }
+    }
 }

@@ -2,12 +2,11 @@ use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use inquire::Text;
-use inquire::validator::Validation;
+use archetect_api::{CommandRequest, CommandResponse, TextPromptInfo};
 
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result, parse_setting};
+use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
 
 pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
@@ -20,11 +19,6 @@ pub fn prompt<K: AsRef<str>>(
     let optional = get_optional_setting(settings);
     let min = parse_setting("min", settings).or(Some(1));
     let max = parse_setting("max", settings);
-
-    let validator = move |input: &str| match validate(min, max, input) {
-        Ok(_) => return Ok(Validation::Valid),
-        Err(message) => return Ok(Validation::Invalid(message.into())),
-    };
 
     if let Some(answer) = answer {
         return match validate(min, max, &answer.to_string()) {
@@ -51,15 +45,14 @@ pub fn prompt<K: AsRef<str>>(
         };
     }
 
-    let mut prompt = Text::new(message).with_validator(validator)
-        .with_render_config(get_render_config())
-        ;
+
+    let mut prompt_info = TextPromptInfo::new(message);
 
     if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
             return Ok(default_value.clone());
         } else {
-            prompt.default = Some(default_value.to_string());
+            prompt_info = prompt_info.with_default(Some(default_value.to_string()));
         }
     }
 
@@ -90,20 +83,35 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        prompt.placeholder = Some(placeholder.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt.help_message = Some(help_message.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     } else {
         if optional {
-            prompt.help_message = Some("<esc> for None".into());
+            prompt_info = prompt_info.with_placeholder(Some("<esc> for None"));
         }
     }
 
-    let result = prompt.prompt();
+    runtime_context.request(CommandRequest::PromptForText(prompt_info));
 
-    handle_result(result, optional)
+    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+        CommandResponse::StringAnswer(answer) => {
+            return Ok(answer.into());
+        }
+        CommandResponse::NoneAnswer => {
+            return Ok(Dynamic::UNIT);
+        }
+        CommandResponse::Error(error) => {
+            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            return Err(Box::new(error));
+        }
+        response => {
+            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            return Err(Box::new(error));
+        }
+    }
 }
 
 fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {

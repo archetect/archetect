@@ -1,10 +1,10 @@
+use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
+
+use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo};
+
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result, parse_setting};
-use inquire::validator::Validation;
-use inquire::List;
-use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
-use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
+use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
 
 pub fn prompt<K: AsRef<str>>(
     call: NativeCallContext,
@@ -14,16 +14,6 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let optional = get_optional_setting(settings);
-
-    let min_items = parse_setting::<usize>("min_items", settings);
-    let max_items = parse_setting::<usize>("max_items", settings);
-
-    let list_validator = move |input: &Vec<String>| match validate_list(min_items, max_items, input) {
-        Ok(_) => return Ok(Validation::Valid),
-        Err(message) => return Ok(Validation::Invalid(message.into())),
-    };
-
     if let Some(answer) = answer {
         if let Some(answer) = answer.clone().try_cast::<String>() {
             let answers = answer
@@ -65,24 +55,21 @@ pub fn prompt<K: AsRef<str>>(
         )));
     }
 
-    let mut prompt = List::new(message)
-        .with_list_validator(list_validator)
-        .with_render_config(get_render_config())
+    let mut prompt_info = ListPromptInfo::new(message)
+        .with_optional(get_optional_setting(settings))
+        .with_min_items(parse_setting::<usize>("min_items", settings))
+        .with_max_items(parse_setting::<usize>("max_items", settings))
         ;
 
     if let Some(default_value) = settings.get("defaults_with") {
-        if let Some(defaults) = default_value.clone().try_cast::<Vec<Dynamic>>() {
-            let defaults = defaults
-                .iter()
-                .map(|i| i.to_string())
-                .collect::<Vec<String>>();
+        if let Some(defaults) = default_value.clone().try_cast::<Vec<String>>() {
             if runtime_context.headless() {
                 return Ok(defaults.into());
             } else {
-                prompt.default = Some(defaults);
+                prompt_info = prompt_info.with_defaults(Some(defaults));
             }
         } else {
-
+            // TODO: Throw error about wrong type
         }
     }
 
@@ -107,38 +94,29 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        prompt.placeholder = Some(placeholder.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt.help_message = Some(help_message.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     }
 
-    let result = prompt.prompt();
+    runtime_context.request(CommandRequest::PromptForList(prompt_info));
 
-    handle_result(result, optional)
-}
-
-fn validate_list(min_items: Option<usize>, max_items: Option<usize>, input: &Vec<String>) -> Result<(), String> {
-    let length = input.len();
-    match (min_items, max_items) {
-        (Some(start), Some(end)) => {
-            if !RangeInclusive::new(start, end).contains(&input.len()) {
-                return Err(format!("List must have between {} and {} items", start, end));
-            }
+    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+        CommandResponse::MultiStringAnswer(answer) => {
+            return Ok(answer.into());
         }
-        (Some(start), None) => {
-            if !(RangeFrom { start }.contains(&length)) {
-                return Err(format!("List must have at least {} items", start));
-            }
+        CommandResponse::NoneAnswer => {
+            return Ok(Dynamic::UNIT);
         }
-        (None, Some(end)) => {
-            if !(RangeToInclusive { end }.contains(&length)) {
-                return Err(format!("List must have no more than {} items", end));
-            }
+        CommandResponse::Error(error) => {
+            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            return Err(Box::new(error));
         }
-        (None, None) => return Ok(()),
-    };
-
-    Ok(())
+        response => {
+            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            return Err(Box::new(error));
+        }
+    }
 }

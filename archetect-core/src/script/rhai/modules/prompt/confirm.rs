@@ -1,10 +1,10 @@
 use rhai::{Dynamic, EvalAltResult, Map};
 
-use inquire::Confirm;
+use archetect_api::{BoolPromptInfo, CommandRequest, CommandResponse, ValueSource};
 
 use crate::errors::ArchetectError;
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, get_render_config, handle_result};
+use crate::script::rhai::modules::prompt::get_optional_setting;
 
 // TODO: Better help messages
 pub fn prompt<K: AsRef<str>>(
@@ -14,13 +14,13 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let optional = get_optional_setting(settings);
-
     if let Some(answer) = answer {
         return get_boolean(answer.to_string().as_str(), message, key, ValueSource::Answer).map(|v| v.into());
     }
 
-    let mut prompt = Confirm::new(message).with_render_config(get_render_config());
+    let optional = get_optional_setting(settings);
+
+    let mut prompt_info = BoolPromptInfo::new(message);
 
     if let Some(default_value) = settings.get("defaults_with") {
         let default = get_boolean(
@@ -33,7 +33,7 @@ pub fn prompt<K: AsRef<str>>(
         if runtime_context.headless() {
             return Ok(default.into());
         } else {
-            prompt.default = Some(default);
+            prompt_info = prompt_info.with_default(Some(default));
         }
     }
 
@@ -45,28 +45,35 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
-        prompt.placeholder = Some(placeholder.to_string());
+        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt.help_message = Some(help_message.to_string());
+        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
     } else {
         if optional {
-            prompt.help_message = Some("<esc> for None".into());
+            prompt_info = prompt_info.with_help(Some("<esc> for None".to_string()));
         }
     }
 
-    let validator = |ans: &str| {
-        if ans.len() > 5 {
-            return Err(());
+    runtime_context.request(CommandRequest::PromptForBool(prompt_info));
+
+    match runtime_context.responses().lock().unwrap().recv().expect("Error Receiving Response") {
+        CommandResponse::BoolAnswer(answer) => {
+            return Ok(answer.into());
         }
-
-        get_boolean::<&str>(ans, message, None, ValueSource::Value).map_err(|_| ())
-    };
-
-    prompt.parser = &validator;
-
-    handle_result(prompt.prompt(), optional)
+        CommandResponse::NoneAnswer => {
+            return Ok(Dynamic::UNIT);
+        }
+        CommandResponse::Error(error) => {
+            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            return Err(Box::new(error));
+        }
+        response => {
+            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            return Err(Box::new(error));
+        }
+    }
 }
 
 fn get_boolean<K: AsRef<str>>(
@@ -99,29 +106,5 @@ fn get_boolean<K: AsRef<str>>(
                 .to_owned()
             })),
         ))),
-    }
-}
-
-enum ValueSource {
-    Answer,
-    DefaultsWith,
-    Value,
-}
-
-impl ValueSource {
-    fn error_header(&self) -> String {
-        match self {
-            ValueSource::Answer => "Answer Error".to_string(),
-            ValueSource::DefaultsWith => "defaults_with Error".to_string(),
-            ValueSource::Value => "Value Error".to_string(),
-        }
-    }
-
-    fn description(&self) -> String {
-        match self {
-            ValueSource::Answer => "an answer".to_string(),
-            ValueSource::DefaultsWith => "a defaults_with".to_string(),
-            ValueSource::Value => "a value".to_string(),
-        }
     }
 }

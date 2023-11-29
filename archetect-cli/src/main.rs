@@ -5,14 +5,15 @@ use clap::ArgMatches;
 use log::error;
 use rhai::Map;
 
-use archetect_core::configuration::Configuration;
-use archetect_core::errors::ArchetectError;
-use archetect_core::source::Source;
+use archetect_core::{self};
+use archetect_core::Archetect;
 use archetect_core::archetype::archetype::Archetype;
 use archetect_core::catalog::Catalog;
+use archetect_core::configuration::Configuration;
+use archetect_core::errors::ArchetectError;
 use archetect_core::runtime::context::RuntimeContext;
-use archetect_core::Archetect;
-use archetect_core::{self};
+use archetect_core::source::Source;
+use archetect_terminal_io::TerminalIoDriver;
 
 use crate::answers::parse_answer_pair;
 
@@ -95,7 +96,7 @@ fn create_runtime_context(
         }
     }
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let runtime_context = RuntimeContext::new(configuration, switches, destination);
+    let runtime_context = RuntimeContext::new(configuration, switches, destination, TerminalIoDriver::default());
 
     Ok(runtime_context)
 }

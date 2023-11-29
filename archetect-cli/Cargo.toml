@@ -17,6 +17,9 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.3" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.3" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.3" }
+
 ansi_term = "0.12"
 anyhow = "1.0.69"
 atty = "0.2"

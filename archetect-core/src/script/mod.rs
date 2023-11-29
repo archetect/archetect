@@ -55,7 +55,7 @@ pub(crate) fn create_environment(runtime_context: RuntimeContext, archetype: &Ar
         environment.set_source(Source::from_path(templates));
     }
 
-    let rc = runtime_context.clone();
-    environment.add_function("switch_enabled", move |switch: Cow<'_, str>| rc.switch_enabled(switch));
+    let switches = runtime_context.switches().clone();
+    environment.add_function("switch_enabled", move |switch: Cow<'_, str>| switches.contains(switch.as_ref()));
     environment
 }

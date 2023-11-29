@@ -68,7 +68,7 @@ pub struct List<'a> {
     pub initial_value: Option<String>,
 
     /// Default value, returned when the user input is empty.
-    pub default: Option<Vec<String>>,
+    pub defaults: Option<Vec<String>>,
 
     /// Short hint that describes the expected value of the input.
     pub placeholder: Option<String>,
@@ -144,7 +144,7 @@ impl<'a> List<'a> {
             message: message.into(),
             placeholder: None,
             initial_value: None,
-            default: None,
+            defaults: None,
             help_message: Self::DEFAULT_HELP_MESSAGE.map(|message| message.to_owned()),
             item_validators: Self::DEFAULT_ITEM_VALIDATORS,
             list_validators: Self::DEFAULT_LIST_VALIDATORS,
@@ -173,7 +173,7 @@ impl<'a> List<'a> {
 
     /// Sets the default input.
     pub fn with_default(mut self, default: Vec<String>) -> Self {
-        self.default = Some(default);
+        self.defaults = Some(default);
         self
     }
 
@@ -351,7 +351,7 @@ impl<'a> From<List<'a>> for ListPrompt<'a> {
         Self {
             message: so.message,
             options: vec![],
-            default: so.default,
+            default: so.defaults,
             help_message: so.help_message,
             formatter: so.formatter,
             autocompleter: so.autocompleter.unwrap_or_else(|| Box::<NoAutoCompletion>::default()),

@@ -1,29 +1,28 @@
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::rc::Rc;
-
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use log::{debug, trace};
 use rhai::{EvalAltResult, Map, Scope};
-use inquire::Confirm;
 
+use inquire::Confirm;
 use minijinja::Environment;
 
-use crate::errors::{ArchetypeError, RenderError};
-use crate::source::Source;
 use crate::archetype::archetype_context::ArchetypeContext;
 use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
+use crate::errors::{ArchetypeError, RenderError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::create_environment;
 use crate::script::rhai::create_engine;
+use crate::source::Source;
 
 #[derive(Clone)]
 pub struct Archetype {
-    pub(crate) inner: Rc<Inner>,
+    pub(crate) inner: Arc<Inner>,
 }
 
 pub(crate) struct Inner {
@@ -34,7 +33,7 @@ impl Archetype {
     pub fn new(source: &Source) -> Result<Archetype, ArchetypeError> {
         let directory = ArchetypeDirectory::new(source.clone())?;
 
-        let inner = Rc::new(Inner { directory });
+        let inner = Arc::new(Inner { directory });
 
         let archetype = Archetype { inner };
 
