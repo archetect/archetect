@@ -6,12 +6,13 @@ use uuid::Uuid;
 use minijinja::{Environment, Source, UndefinedBehavior};
 
 use crate::archetype::archetype::Archetype;
+use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
 
 pub mod rhai;
 
-pub(crate) fn create_environment(runtime_context: RuntimeContext, archetype: &Archetype) -> Environment<'static> {
+pub(crate) fn create_environment(archetype: &Archetype, _runtime_context: RuntimeContext, render_context: &RenderContext) -> Environment<'static> {
     let mut environment = Environment::new();
     environment.set_undefined_behavior(UndefinedBehavior::Strict);
     environment.add_filter("camel_case", |value: Cow<'_, str>| cruet::to_camel_case(value.as_ref()));
@@ -55,7 +56,7 @@ pub(crate) fn create_environment(runtime_context: RuntimeContext, archetype: &Ar
         environment.set_source(Source::from_path(templates));
     }
 
-    let switches = runtime_context.switches().clone();
+    let switches = render_context.switches().clone();
     environment.add_function("switch_enabled", move |switch: Cow<'_, str>| switches.contains(switch.as_ref()));
     environment
 }

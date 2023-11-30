@@ -1,25 +1,25 @@
-use std::sync::{Arc, mpsc, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::{mpsc, Arc, Mutex};
 
 use log::{debug, error, info, trace, warn};
 
-use archetect_api::{CommandRequest, CommandResponse, IoDriver};
 use crate::list_prompt_handler::handle_list_prompt;
+use archetect_api::{CommandRequest, CommandResponse, IoDriver};
 
 use crate::bool_prompt_handler::handle_prompt_bool;
 use crate::int_prompt_handler::handle_prompt_int;
+use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 use crate::select_prompt_handler::handle_select_prompt;
 use crate::text_prompt_handler::handle_prompt_text;
-use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TerminalIoDriver {
     responses_tx: SyncSender<CommandResponse>,
     responses_rx: Arc<Mutex<Receiver<CommandResponse>>>,
 }
 
 impl IoDriver for TerminalIoDriver {
-    fn request(&self, request: CommandRequest) {
+    fn send(&self, request: CommandRequest) {
         match request {
             CommandRequest::PromptForText(prompt_info) => {
                 handle_prompt_text(prompt_info, &self.responses_tx);
@@ -57,12 +57,8 @@ impl IoDriver for TerminalIoDriver {
             CommandRequest::Print(message) => {
                 println!("{}", message)
             }
-            CommandRequest::EPrint(message) => {
-                if let Some(message) = message {
-                    eprintln!("{}", message)
-                } else {
-                    eprintln!();
-                }
+            CommandRequest::Display(message) => {
+                eprintln!("{}", message)
             }
         }
     }
@@ -81,5 +77,3 @@ impl Default for TerminalIoDriver {
         }
     }
 }
-
-

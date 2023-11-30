@@ -2,14 +2,14 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use inquire::{InquireError, Select};
-use rhai::Map;
 
-use crate::errors::{ArchetectError, CatalogError};
-use crate::source::Source;
-use crate::archetype::archetype::Archetype;
-use crate::catalog::{CatalogEntry, CatalogManifest};
-use crate::runtime::context::RuntimeContext;
 use crate::Archetect;
+use crate::archetype::archetype::Archetype;
+use crate::archetype::render_context::RenderContext;
+use crate::catalog::{CatalogEntry, CatalogManifest};
+use crate::errors::{ArchetectError, CatalogError};
+use crate::runtime::context::RuntimeContext;
+use crate::source::Source;
 
 #[derive(Clone)]
 pub struct Catalog {
@@ -46,7 +46,7 @@ impl Catalog {
         &self,
         archetect: &Archetect,
         runtime_context: RuntimeContext,
-        mut answers: Map,
+        render_context: RenderContext,
     ) -> Result<(), ArchetectError> {
         let mut catalog = self.clone();
 
@@ -68,16 +68,19 @@ impl Catalog {
                     source,
                     answers: catalog_answers,
                 } => {
+                    let mut answers = render_context.answers_owned();
                     if let Some(catalog_answers) = catalog_answers {
                         for (k, v) in catalog_answers {
                             answers.entry(k).or_insert(v);
                         }
                     }
                     let source = Source::detect(&archetect, &runtime_context, &source)?;
-                    let destination = runtime_context.destination().to_path_buf();
                     let archetype = Archetype::new(&source)?;
+                    let destination = render_context.destination().to_path_buf();
+                    let render_context = RenderContext::new(destination, answers);
+
                     archetype.check_requirements(&runtime_context)?;
-                    archetype.render_with_destination(destination, runtime_context, answers)?;
+                    archetype.render(runtime_context, render_context)?;
                     return Ok(());
                 }
                 CatalogEntry::Group {

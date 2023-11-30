@@ -1,42 +1,61 @@
-use std::rc::Rc;
-
+use std::collections::HashSet;
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::Map;
 
 #[derive(Clone)]
-pub struct ArchetypeContext {
-    inner: Rc<Inner>,
-}
-
-struct Inner {
+pub struct RenderContext {
     destination: Utf8PathBuf,
     answers: Map,
+    switches: HashSet<String>,
+    settings: Map,
 }
 
-impl ArchetypeContext {
-    pub fn new<T: Into<Utf8PathBuf>>(destination: T, answers: &Map) -> ArchetypeContext {
-        ArchetypeContext {
-            inner: Rc::new(Inner {
-                destination: destination.into(),
-                answers: create_owned_map(answers),
-            }),
+impl RenderContext {
+    pub fn new<T: Into<Utf8PathBuf>>(destination: T, answers: Map) -> RenderContext {
+        RenderContext {
+            destination: destination.into(),
+            answers,
+            switches: Default::default(),
+            settings: Default::default(),
         }
     }
 
     pub fn answers(&self) -> &Map {
-        &self.inner.answers
+        &self.answers
+    }
+
+    pub fn answers_owned(&self) -> Map {
+        self.answers.clone()
     }
 
     pub fn destination(&self) -> &Utf8Path {
-        self.inner.destination.as_path()
+        self.destination.as_path()
+    }
+
+    pub fn switches(&self) -> &HashSet<String> {
+        &self.switches
+    }
+
+    pub fn with_switches(mut self, switches: HashSet<String>) -> Self {
+        self.switches = switches;
+        self
+    }
+
+    pub fn settings(&self) -> &Map {
+        &self.settings
+    }
+
+    pub fn with_settings(mut self, settings: Map) -> Self {
+        self.settings = settings;
+        self
     }
 }
 
-fn create_owned_map(input: &Map) -> Map {
-    let mut results = Map::new();
-    results.extend(input.clone());
-    results
-}
+// fn create_owned_map(input: &Map) -> Map {
+//     let mut results = Map::new();
+//     results.extend(input.clone());
+//     results
+// }
 
 #[cfg(test)]
 mod tests {

@@ -46,7 +46,7 @@ pub enum CommandRequest {
     /// Print a String that may be potentially captured as output, such as on STDOUT
     Print(String),
     /// Print a String that show not be captured as output, such as on STDERR
-    EPrint(Option<String>),
+    Display(String),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

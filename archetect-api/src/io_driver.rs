@@ -5,11 +5,11 @@ use std::sync::mpsc::{Receiver, SyncSender};
 use crate::{CommandRequest, CommandResponse};
 
 pub trait IoDriver: Debug + Send + Sync + 'static {
-    fn request(&self, request: CommandRequest);
+    fn send(&self, request: CommandRequest);
 
     fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>>;
 
-    fn response(&self) -> CommandResponse {
+    fn receive(&self) -> CommandResponse {
         self.responses().lock().expect("Lock Error")
             .recv().expect("Receive Error")
     }
@@ -42,7 +42,7 @@ pub struct ApiIoDriver {
 }
 
 impl IoDriver for ApiIoDriver {
-    fn request(&self, request: CommandRequest) {
+    fn send(&self, request: CommandRequest) {
         self.requests_tx.send(request).expect("Send Error");
     }
 

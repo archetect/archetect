@@ -7,7 +7,7 @@ use inquire::ui::{Color, RenderConfig, Styled};
 use inquire::InquireError;
 
 use crate::archetype::archetype::Archetype;
-use crate::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetectError, ArchetypeError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
@@ -23,7 +23,7 @@ mod text;
 pub(crate) fn register(
     engine: &mut Engine,
     archetype: Archetype,
-    archetype_context: ArchetypeContext,
+    archetype_context: RenderContext,
     runtime_context: RuntimeContext,
 ) {
     engine.register_global_module(exported_module!(module).into());
@@ -64,7 +64,7 @@ pub(crate) fn register(
 fn prompt_to_map(
     call: NativeCallContext,
     _archetype: Archetype,
-    archetype_context: ArchetypeContext,
+    archetype_context: RenderContext,
     runtime_context: RuntimeContext,
     message: &str,
     key: &str,
@@ -129,7 +129,7 @@ fn prompt_to_value(
     call: NativeCallContext,
     message: &str,
     runtime_context: RuntimeContext,
-    archetype_context: ArchetypeContext,
+    archetype_context: RenderContext,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let prompt_type = get_prompt_type(&settings).map_err(|err| {
@@ -202,7 +202,7 @@ fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
 fn get_answers(
     call: &NativeCallContext,
     settings: &Map,
-    archetype_context: &ArchetypeContext,
+    archetype_context: &RenderContext,
 ) -> Result<Map, Box<EvalAltResult>> {
     if let Some(answers) = settings.get("answer_source") {
         if let Some(answers) = answers.clone().try_cast::<Map>() {

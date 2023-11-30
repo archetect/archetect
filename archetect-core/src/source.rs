@@ -293,7 +293,7 @@ mod tests {
         let archetect = Archetect::build().unwrap();
         let configuration = Configuration::default();
         let (driver, _handle) = api_driver_and_handle();
-        let runtime_context = RuntimeContext::new(&configuration, HashSet::new(), Utf8PathBuf::new(), driver);
+        let runtime_context = RuntimeContext::new(&configuration,driver);
         let source = Source::detect(
             &archetect,
             &runtime_context,

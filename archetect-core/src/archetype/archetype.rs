@@ -11,7 +11,7 @@ use rhai::{EvalAltResult, Map, Scope};
 use inquire::Confirm;
 use minijinja::Environment;
 
-use crate::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::render_context::RenderContext;
 use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::errors::{ArchetypeError, RenderError};
@@ -60,14 +60,12 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, runtime_context: RuntimeContext, answers: Map) -> Result<(), Box<EvalAltResult>> {
-        let archetype_context = ArchetypeContext::new(Utf8PathBuf::from("."), &answers);
-
+    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), Box<EvalAltResult>> {
         let mut scope = Scope::new();
-        scope.push_constant("ANSWERS", answers);
+        scope.push_constant("ANSWERS", render_context.answers_owned());
 
-        let environment = create_environment(runtime_context.clone(), self);
-        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
+        let environment = create_environment(self, runtime_context.clone(), &render_context);
+        let engine = create_engine(environment, self.clone(), runtime_context, render_context.clone());
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {
@@ -78,84 +76,6 @@ impl Archetype {
         })?;
         engine.run_with_scope(&mut scope, script_contents)?;
 
-        Ok(())
-    }
-
-    pub fn render_with_settings(
-        &self,
-        runtime_context: RuntimeContext,
-        context: Map,
-        _settings: Map,
-    ) -> Result<(), Box<EvalAltResult>> {
-        let archetype_context = ArchetypeContext::new(Utf8PathBuf::from("."), &context);
-
-        let mut scope = Scope::new();
-        scope.push_constant("ANSWERS", context);
-
-        let environment = create_environment(runtime_context.clone(), self);
-        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
-
-        let directory = &self.inner.directory;
-        let script_contents = &directory.script_contents().map_err(|err| {
-            Box::new(EvalAltResult::ErrorSystem(
-                "Error getting script contents".to_owned(),
-                Box::new(err),
-            ))
-        })?;
-        engine.run_with_scope(&mut scope, script_contents)?;
-
-        Ok(())
-    }
-
-    pub fn render_with_destination<P: Into<Utf8PathBuf>>(
-        &self,
-        destination: P,
-        runtime_context: RuntimeContext,
-        answers: Map,
-    ) -> Result<(), Box<EvalAltResult>> {
-        let archetype_context = ArchetypeContext::new(destination.into(), &answers);
-
-        let mut scope = Scope::new();
-        scope.push_constant("ANSWERS", answers);
-
-        let environment = create_environment(runtime_context.clone(), self);
-        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
-
-        let directory = &self.inner.directory;
-        let script_contents = &directory.script_contents().map_err(|err| {
-            Box::new(EvalAltResult::ErrorSystem(
-                "Error getting script contents".to_owned(),
-                Box::new(err),
-            ))
-        })?;
-        engine.run_with_scope(&mut scope, script_contents)?;
-
-        Ok(())
-    }
-
-    pub fn render_with_destination_and_settings<P: Into<Utf8PathBuf>>(
-        &self,
-        destination: P,
-        runtime_context: RuntimeContext,
-        context: Map,
-        _settings: Map,
-    ) -> Result<(), Box<EvalAltResult>> {
-        let archetype_context = ArchetypeContext::new(destination.into(), &context);
-
-        let mut scope = Scope::new();
-        scope.push_constant("ANSWERS", context);
-
-        let environment = create_environment(runtime_context.clone(), self);
-        let engine = create_engine(environment, self.clone(), archetype_context.clone(), runtime_context);
-
-        let directory = &self.inner.directory;
-        let script_contents = &directory.script_contents().map_err(|err| {
-            Box::new(EvalAltResult::ErrorSystem(
-                "Error getting script contents".to_owned(),
-                Box::new(err),
-            ))
-        })?;
-        engine.run_with_scope(&mut scope, script_contents)?;
         Ok(())
     }
 

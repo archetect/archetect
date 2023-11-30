@@ -1,5 +1,5 @@
 use crate::archetype::archetype::Archetype;
-use crate::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
 use minijinja::Environment;
 use rhai::module_resolvers::FileModuleResolver;
@@ -11,8 +11,8 @@ pub(crate) mod modules;
 pub(crate) fn create_engine(
     environment: Environment<'static>,
     archetype: Archetype,
-    archetype_context: ArchetypeContext,
     runtime_context: RuntimeContext,
+    render_context: RenderContext,
 ) -> Engine {
     let mut engine = Engine::new();
     engine.set_module_resolver(FileModuleResolver::new_with_path_and_extension(
@@ -23,7 +23,7 @@ pub(crate) fn create_engine(
     engine.disable_symbol("to_json");
 
     modules::runtime::register(&mut engine, runtime_context.clone());
-    modules::utils::register(&mut engine, runtime_context.clone());
+    modules::utils::register(&mut engine, runtime_context.clone(), &render_context);
     modules::cases::register(&mut engine);
     modules::exec::register(&mut engine);
     modules::formats::register(&mut engine);
@@ -31,7 +31,7 @@ pub(crate) fn create_engine(
     modules::prompt::register(
         &mut engine,
         archetype.clone(),
-        archetype_context.clone(),
+        render_context.clone(),
         runtime_context.clone(),
     );
     modules::set::register(&mut engine);
@@ -41,13 +41,13 @@ pub(crate) fn create_engine(
         environment.clone(),
         runtime_context.clone(),
         archetype.clone(),
-        archetype_context.clone(),
+        render_context.clone(),
     );
     modules::archetype::register(
         &mut engine,
         archetype.clone(),
-        archetype_context.clone(),
         runtime_context.clone(),
+        render_context.clone(),
     );
 
     engine

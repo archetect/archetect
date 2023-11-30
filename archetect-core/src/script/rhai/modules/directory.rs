@@ -6,7 +6,7 @@ use minijinja::Environment;
 
 use crate::utils::restrict_path_manipulation;
 use crate::archetype::archetype::{Archetype, OverwritePolicy, render_directory};
-use crate::archetype::archetype_context::ArchetypeContext;
+use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
 
 pub(crate) fn register(
@@ -14,7 +14,7 @@ pub(crate) fn register(
     environment: Environment<'static>,
     runtime_context: RuntimeContext,
     archetype: Archetype,
-    archetype_context: ArchetypeContext,
+    archetype_context: RenderContext,
 ) {
     engine.register_global_module(exported_module!(module).into());
     let mut module = Module::new();
@@ -38,7 +38,7 @@ pub struct Directory {
     environment: Environment<'static>,
     archetype: Archetype,
     runtime_context: RuntimeContext,
-    archetype_context: ArchetypeContext,
+    archetype_context: RenderContext,
     path: Utf8PathBuf,
 }
 
@@ -47,7 +47,7 @@ impl Directory {
         environment: Environment<'static>,
         archetype: Archetype,
         runtime_context: RuntimeContext,
-        archetype_context: ArchetypeContext,
+        archetype_context: RenderContext,
         path: T,
     ) -> Result<Directory, Box<EvalAltResult>> {
         Ok(Directory {

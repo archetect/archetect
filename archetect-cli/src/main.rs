@@ -2,12 +2,13 @@ use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
-use log::error;
 use rhai::Map;
 
+use archetect_api::{CommandRequest, IoDriver};
 use archetect_core::{self};
 use archetect_core::Archetect;
 use archetect_core::archetype::archetype::Archetype;
+use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::catalog::Catalog;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
@@ -24,19 +25,20 @@ pub mod vendor;
 
 fn main() {
     let matches = cli::command().get_matches();
-
     cli::configure(&matches);
 
-    match execute(matches) {
+    let io_driver = TerminalIoDriver::default();
+
+    match execute(matches, io_driver.clone()) {
         Ok(()) => (),
         Err(error) => {
-            error!("{}", error);
+            io_driver.send(CommandRequest::LogError(format!("{}", error)));
             std::process::exit(-1);
         }
     }
 }
 
-fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
+fn execute<D: IoDriver>(matches: ArgMatches, io_driver: D) -> Result<(), ArchetectError> {
     let archetect = Archetect::build()?;
 
     let configuration = configuration::load_user_config(&archetect, &matches)
@@ -73,11 +75,11 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
 
     match matches.subcommand() {
         None => {
-            default(&matches, &archetect, &configuration, answers)?;
+            default(&matches, &archetect, &configuration, answers, io_driver)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, archetect, &configuration, answers)?,
-        Some(("catalog", args)) => catalog(args, archetect, &configuration, answers)?,
+        Some(("render", args)) => render(args, archetect, &configuration, answers, io_driver)?,
+        Some(("catalog", args)) => catalog(args, archetect, &configuration, answers, io_driver)?,
         Some(("config", args)) => config(args, &configuration)?,
         _ => {}
     }
@@ -85,19 +87,10 @@ fn execute(matches: ArgMatches) -> Result<(), ArchetectError> {
     Ok(())
 }
 
-fn create_runtime_context(
-    matches: &ArgMatches,
-    configuration: &Configuration,
+fn create_runtime_context<D: IoDriver>(
+    configuration: &Configuration, io_driver: D
 ) -> Result<RuntimeContext, ArchetectError> {
-    let mut switches = HashSet::new();
-    if let Some(answer_switches) = matches.get_many::<String>("switches") {
-        for switch in answer_switches {
-            switches.insert(switch.to_string());
-        }
-    }
-    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let runtime_context = RuntimeContext::new(configuration, switches, destination, TerminalIoDriver::default());
-
+    let runtime_context = RuntimeContext::new(configuration, io_driver);
     Ok(runtime_context)
 }
 
@@ -116,41 +109,51 @@ fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), Arc
     Ok(())
 }
 
-fn default(
+fn default<D: IoDriver>(
     matches: &ArgMatches,
     archetect: &Archetect,
     configuration: &Configuration,
     answers: Map,
+    io_driver: D,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(matches, configuration)?;
+    let runtime_context = create_runtime_context(configuration, io_driver)?;
     let catalog = configuration.catalog();
-    catalog.render(archetect, runtime_context, answers)?;
+    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+    let render_context = RenderContext::new(destination, answers);
+    catalog.render(archetect, runtime_context, render_context)?;
     Ok(())
 }
 
-fn catalog(
+fn catalog<D: IoDriver>(
     matches: &ArgMatches,
     archetect: Archetect,
     configuration: &Configuration,
     answers: Map,
+    io_driver: D,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(matches, configuration)?;
+    let runtime_context = create_runtime_context(configuration, io_driver)?;
     let source = matches.get_one::<String>("source").unwrap();
     let source = Source::detect(&archetect, &runtime_context, source)?;
 
+    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+
     let catalog = Catalog::load(&source)?;
     catalog.check_requirements(&runtime_context)?;
-    catalog.render(&archetect, runtime_context, answers)?;
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, configuration))
+        ;
+    catalog.render(&archetect, runtime_context, render_context)?;
     Ok(())
 }
 
-pub fn render(
+pub fn render<D: IoDriver>(
     matches: &ArgMatches,
     archetect: Archetect,
     configuration: &Configuration,
     answers: Map,
+    io_driver: D,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(matches, configuration)?;
+    let runtime_context = create_runtime_context(configuration, io_driver)?;
     let source = matches.get_one::<String>("source").unwrap();
     let source = Source::detect(&archetect, &runtime_context, source)?;
 
@@ -159,6 +162,22 @@ pub fn render(
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
     archetype.check_requirements(&runtime_context)?;
-    archetype.render_with_destination(destination, runtime_context, answers)?;
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, configuration))
+        ;
+    archetype.render(runtime_context, render_context)?;
     Ok(())
+}
+
+fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<String> {
+    let mut switches = HashSet::new();
+    for switch in configuration.switches() {
+        switches.insert(switch.to_string());
+    }
+    if let Some(answer_switches) = matches.get_many::<String>("switches") {
+        for switch in answer_switches {
+            switches.insert(switch.to_string());
+        }
+    }
+    switches
 }
