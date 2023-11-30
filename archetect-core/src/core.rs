@@ -1,8 +1,9 @@
-use crate::errors::ArchetectError;
 use std::rc::Rc;
 
+use crate::errors::ArchetectError;
 use crate::errors::SystemError;
-use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, SystemLayout};
+use crate::system::{dot_home_layout, LayoutType, NativeSystemLayout, RootedSystemLayout, SystemLayout};
+
 pub struct Archetect {
     paths: Rc<Box<dyn SystemLayout>>,
 }
@@ -27,7 +28,9 @@ pub struct ArchetectBuilder {
 
 impl ArchetectBuilder {
     fn new() -> ArchetectBuilder {
-        ArchetectBuilder { layout: None }
+        ArchetectBuilder {
+            layout: None,
+        }
     }
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {
@@ -46,44 +49,9 @@ impl ArchetectBuilder {
     pub fn with_layout_type(self, layout: LayoutType) -> Result<ArchetectBuilder, SystemError> {
         let builder = match layout {
             LayoutType::Native => self.with_layout(NativeSystemLayout::new()?),
-            LayoutType::DotHome => self.with_layout(dot_home_layout()?),
-            LayoutType::Temp => self.with_layout(crate::system::temp_layout()?),
+            LayoutType::DotHome => self.with_layout(RootedSystemLayout::dot_home()?),
+            LayoutType::Temp => self.with_layout(RootedSystemLayout::temp()?),
         };
         Ok(builder)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::system::{NativeSystemLayout, RootedSystemLayout};
-
-    use super::*;
-
-    #[test]
-    fn test_explicit_native_paths() {
-        let archetect = Archetect::builder()
-            .with_layout(NativeSystemLayout::new().unwrap())
-            .build()
-            .unwrap();
-
-        println!("{}", archetect.layout().catalog_cache_dir());
-    }
-
-    #[test]
-    fn test_explicit_directory_paths() {
-        let paths = RootedSystemLayout::new("~/.archetect/").unwrap();
-        let archetect = Archetect::builder().with_layout(paths).build().unwrap();
-
-        println!("{}", archetect.layout().catalog_cache_dir());
-    }
-
-    #[test]
-    fn test_implicit() {
-        let archetect = Archetect::build().unwrap();
-
-        println!("{}", archetect.layout().catalog_cache_dir());
-
-        std::fs::create_dir_all(archetect.layout().configs_dir()).expect("Error creating directory");
-        std::fs::create_dir_all(archetect.layout().git_cache_dir()).expect("Error creating directory");
     }
 }

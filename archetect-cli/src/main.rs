@@ -6,14 +6,11 @@ use rhai::Map;
 
 use archetect_api::{CommandRequest, IoDriver};
 use archetect_core::{self};
-use archetect_core::Archetect;
-use archetect_core::archetype::archetype::Archetype;
 use archetect_core::archetype::render_context::RenderContext;
-use archetect_core::catalog::Catalog;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
 use archetect_core::runtime::context::RuntimeContext;
-use archetect_core::source::Source;
+use archetect_core::system::{RootedSystemLayout, SystemLayout};
 use archetect_terminal_io::TerminalIoDriver;
 
 use crate::answers::parse_answer_pair;
@@ -27,21 +24,20 @@ fn main() {
     let matches = cli::command().get_matches();
     cli::configure(&matches);
 
-    let io_driver = TerminalIoDriver::default();
+    let driver = TerminalIoDriver::default();
+    let layout = RootedSystemLayout::dot_home().unwrap();
 
-    match execute(matches, io_driver.clone()) {
+    match execute(matches, driver.clone(), layout) {
         Ok(()) => (),
         Err(error) => {
-            io_driver.send(CommandRequest::LogError(format!("{}", error)));
+            driver.send(CommandRequest::LogError(format!("{}", error)));
             std::process::exit(-1);
         }
     }
 }
 
-fn execute<D: IoDriver>(matches: ArgMatches, io_driver: D) -> Result<(), ArchetectError> {
-    let archetect = Archetect::build()?;
-
-    let configuration = configuration::load_user_config(&archetect, &matches)
+fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout: L) -> Result<(), ArchetectError> {
+    let configuration = configuration::load_user_config(&layout, &matches)
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
     let mut answers = Map::new();
@@ -71,15 +67,14 @@ fn execute<D: IoDriver>(matches: ArgMatches, io_driver: D) -> Result<(), Archete
             }
         }
     }
-    let archetect = Archetect::build()?;
 
     match matches.subcommand() {
         None => {
-            default(&matches, &archetect, &configuration, answers, io_driver)?;
+            default(&matches, &configuration, answers, driver, layout)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, archetect, &configuration, answers, io_driver)?,
-        Some(("catalog", args)) => catalog(args, archetect, &configuration, answers, io_driver)?,
+        Some(("render", args)) => render(args, &configuration, answers, driver, layout)?,
+        Some(("catalog", args)) => catalog(args, &configuration, answers, driver, layout)?,
         Some(("config", args)) => config(args, &configuration)?,
         _ => {}
     }
@@ -87,10 +82,12 @@ fn execute<D: IoDriver>(matches: ArgMatches, io_driver: D) -> Result<(), Archete
     Ok(())
 }
 
-fn create_runtime_context<D: IoDriver>(
-    configuration: &Configuration, io_driver: D
+fn create_runtime_context<D: IoDriver, L: SystemLayout>(
+    configuration: &Configuration,
+    driver: D,
+    layout: L
 ) -> Result<RuntimeContext, ArchetectError> {
-    let runtime_context = RuntimeContext::new(configuration, io_driver);
+    let runtime_context = RuntimeContext::new(configuration, driver, layout);
     Ok(runtime_context)
 }
 
@@ -109,55 +106,53 @@ fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), Arc
     Ok(())
 }
 
-fn default<D: IoDriver>(
+fn default<D: IoDriver, L: SystemLayout>(
     matches: &ArgMatches,
-    archetect: &Archetect,
     configuration: &Configuration,
     answers: Map,
-    io_driver: D,
+    driver: D,
+    layout: L,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, io_driver)?;
+    let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let catalog = configuration.catalog();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = RenderContext::new(destination, answers);
-    catalog.render(archetect, runtime_context, render_context)?;
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, configuration))
+        ;
+    catalog.render(runtime_context, render_context)?;
     Ok(())
 }
 
-fn catalog<D: IoDriver>(
+fn catalog<D: IoDriver, L: SystemLayout>(
     matches: &ArgMatches,
-    archetect: Archetect,
     configuration: &Configuration,
     answers: Map,
-    io_driver: D,
+    driver: D,
+    layout: L,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, io_driver)?;
+    let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let source = matches.get_one::<String>("source").unwrap();
-    let source = Source::detect(&archetect, &runtime_context, source)?;
-
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
-    let catalog = Catalog::load(&source)?;
+    let catalog = runtime_context.new_catalog(source)?;
     catalog.check_requirements(&runtime_context)?;
     let render_context = RenderContext::new(destination, answers)
         .with_switches(get_switches(matches, configuration))
         ;
-    catalog.render(&archetect, runtime_context, render_context)?;
+    catalog.render(runtime_context, render_context)?;
     Ok(())
 }
 
-pub fn render<D: IoDriver>(
+pub fn render<D: IoDriver, L: SystemLayout>(
     matches: &ArgMatches,
-    archetect: Archetect,
     configuration: &Configuration,
     answers: Map,
-    io_driver: D,
+    driver: D,
+    layout: L,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, io_driver)?;
+    let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let source = matches.get_one::<String>("source").unwrap();
-    let source = Source::detect(&archetect, &runtime_context, source)?;
-
-    let archetype = Archetype::new(&source)?;
+    let archetype = runtime_context.new_archetype(source)?;
 
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 

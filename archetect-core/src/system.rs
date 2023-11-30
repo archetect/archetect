@@ -2,7 +2,7 @@ use crate::errors::SystemError;
 use crate::utils::to_utf8_path;
 use camino::{Utf8Path, Utf8PathBuf};
 use directories::ProjectDirs;
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::{Debug, Display, Error, Formatter};
 use tempfile::tempdir;
 
 pub enum LayoutType {
@@ -11,7 +11,7 @@ pub enum LayoutType {
     Temp,
 }
 
-pub trait SystemLayout {
+pub trait SystemLayout: Debug + Send + Sync + 'static {
     fn configs_dir(&self) -> Utf8PathBuf;
 
     fn cache_dir(&self) -> Utf8PathBuf;
@@ -41,6 +41,12 @@ pub trait SystemLayout {
     }
 }
 
+impl<T: SystemLayout> From<T> for Box<dyn SystemLayout> {
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct NativeSystemLayout {
     project: ProjectDirs,
@@ -67,6 +73,8 @@ impl SystemLayout for NativeSystemLayout {
     }
 }
 
+
+
 #[derive(Debug)]
 pub struct RootedSystemLayout {
     directory: Utf8PathBuf,
@@ -85,6 +93,14 @@ impl RootedSystemLayout {
         }
 
         Ok(layout)
+    }
+
+    pub fn temp() -> Result<RootedSystemLayout, SystemError> {
+        temp_layout()
+    }
+
+    pub fn dot_home() -> Result<RootedSystemLayout, SystemError> {
+        dot_home_layout()
     }
 }
 

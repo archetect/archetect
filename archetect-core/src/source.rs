@@ -12,7 +12,6 @@ use url::Url;
 use crate::errors::SourceError;
 use crate::runtime::context::RuntimeContext;
 use crate::utils::to_utf8_path_buf;
-use crate::Archetect;
 
 //noinspection SpellCheckingInspection
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
@@ -21,10 +20,6 @@ pub enum Source {
         url: String,
         path: Utf8PathBuf,
         gitref: Option<String>,
-    },
-    RemoteHttp {
-        url: String,
-        path: Utf8PathBuf,
     },
     LocalDirectory {
         path: Utf8PathBuf,
@@ -40,8 +35,8 @@ lazy_static! {
 }
 
 impl Source {
-    pub fn detect(archetect: &Archetect, runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
-        let git_cache = archetect.layout().git_cache_dir();
+    pub fn detect(runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
+        let git_cache = runtime_context.layout().git_cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
         if let Some(captures) = SSH_GIT_PATTERN.captures(url_parts[0]) {
@@ -110,7 +105,6 @@ impl Source {
                 path,
                 gitref: _,
             } => path.as_path(),
-            Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.parent().unwrap_or(path),
         }
@@ -123,7 +117,6 @@ impl Source {
                 path,
                 gitref: _,
             } => path.as_path(),
-            Source::RemoteHttp { url: _, path } => path.as_path(),
             Source::LocalDirectory { path } => path.as_path(),
             Source::LocalFile { path } => path.as_path(),
         }
@@ -136,7 +129,6 @@ impl Source {
                 path: _,
                 gitref: _,
             } => url,
-            Source::RemoteHttp { url, path: _ } => url,
             Source::LocalDirectory { path } => path.as_str(),
             Source::LocalFile { path } => path.as_str(),
         }
@@ -269,9 +261,6 @@ fn handle_git(command: &mut Command) -> Result<(), SourceError> {
 
 #[cfg(test)]
 mod tests {
-    use archetect_api::api_driver_and_handle;
-    use crate::configuration::Configuration;
-
     use super::*;
 
     #[test]
@@ -286,20 +275,6 @@ mod tests {
         );
         println!("{}", get_cache_hash("f"));
         println!("{}", get_cache_hash("1"));
-    }
-
-    #[test]
-    fn test_http_source() {
-        let archetect = Archetect::build().unwrap();
-        let configuration = Configuration::default();
-        let (driver, _handle) = api_driver_and_handle();
-        let runtime_context = RuntimeContext::new(&configuration,driver);
-        let source = Source::detect(
-            &archetect,
-            &runtime_context,
-            "https://raw.githubusercontent.com/archetect/archetect/master/LICENSE-MIT-MIT",
-        );
-        println!("{:?}", source);
     }
 
     //    use super::*;

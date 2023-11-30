@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use camino::{Utf8Path, Utf8PathBuf};
-use rhai::Map;
+use rhai::{Dynamic, Map};
 
 #[derive(Clone)]
 pub struct RenderContext {
@@ -36,6 +36,17 @@ impl RenderContext {
         &self.switches
     }
 
+    pub fn switches_as_array(&self) -> rhai::Array {
+        self.switches.iter()
+            .map(|v|v.into())
+            .collect()
+    }
+
+    pub fn with_switch<S: Into<String>>(mut self, switch: S) -> Self {
+        self.switches.insert(switch.into());
+        self
+    }
+
     pub fn with_switches(mut self, switches: HashSet<String>) -> Self {
         self.switches = switches;
         self
@@ -46,6 +57,13 @@ impl RenderContext {
     }
 
     pub fn with_settings(mut self, settings: Map) -> Self {
+        if let Some(switches) = settings.get("switches") {
+            if let Some(switches) = switches.clone().try_cast::<Vec<Dynamic>>() {
+                self.switches = switches.into_iter()
+                    .map(|v| v.to_string())
+                    .collect();
+            }
+        }
         self.settings = settings;
         self
     }

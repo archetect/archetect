@@ -11,9 +11,9 @@ use rhai::{EvalAltResult, Map, Scope};
 use inquire::Confirm;
 use minijinja::Environment;
 
-use crate::archetype::render_context::RenderContext;
 use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
+use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeError, RenderError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::create_environment;
@@ -32,9 +32,7 @@ pub(crate) struct Inner {
 impl Archetype {
     pub fn new(source: &Source) -> Result<Archetype, ArchetypeError> {
         let directory = ArchetypeDirectory::new(source.clone())?;
-
         let inner = Arc::new(Inner { directory });
-
         let archetype = Archetype { inner };
 
         Ok(archetype)
@@ -63,9 +61,10 @@ impl Archetype {
     pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), Box<EvalAltResult>> {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
+        scope.push_constant("SWITCHES", render_context.switches_as_array());
 
         let environment = create_environment(self, runtime_context.clone(), &render_context);
-        let engine = create_engine(environment, self.clone(), runtime_context, render_context.clone());
+        let engine = create_engine(environment, self.clone(), runtime_context, render_context);
 
         let directory = &self.inner.directory;
         let script_contents = &directory.script_contents().map_err(|err| {

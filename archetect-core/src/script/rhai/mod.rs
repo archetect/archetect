@@ -1,10 +1,11 @@
+use rhai::Engine;
+use rhai::module_resolvers::FileModuleResolver;
+
+use minijinja::Environment;
+
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
-use minijinja::Environment;
-use rhai::module_resolvers::FileModuleResolver;
-use rhai::Engine;
-
 
 pub(crate) mod modules;
 

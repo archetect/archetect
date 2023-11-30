@@ -3,8 +3,6 @@ use std::rc::Rc;
 
 use inquire::{InquireError, Select};
 
-use crate::Archetect;
-use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{CatalogEntry, CatalogManifest};
 use crate::errors::{ArchetectError, CatalogError};
@@ -44,7 +42,6 @@ impl Catalog {
 
     pub fn render(
         &self,
-        archetect: &Archetect,
         runtime_context: RuntimeContext,
         render_context: RenderContext,
     ) -> Result<(), ArchetectError> {
@@ -56,12 +53,11 @@ impl Catalog {
                 return Err(CatalogError::EmptyCatalog.into());
             }
 
-            let choice = self.select_from_entries(archetect, entries)?;
+            let choice = self.select_from_entries(entries)?;
 
             match choice {
                 CatalogEntry::Catalog { description: _, source } => {
-                    let source = Source::detect(archetect, &runtime_context, &source)?;
-                    catalog = Catalog::load(&source)?;
+                    catalog = runtime_context.new_catalog(&source)?;
                 }
                 CatalogEntry::Archetype {
                     description: _,
@@ -74,8 +70,7 @@ impl Catalog {
                             answers.entry(k).or_insert(v);
                         }
                     }
-                    let source = Source::detect(&archetect, &runtime_context, &source)?;
-                    let archetype = Archetype::new(&source)?;
+                    let archetype = runtime_context.new_archetype(&source)?;
                     let destination = render_context.destination().to_path_buf();
                     let render_context = RenderContext::new(destination, answers);
 
@@ -93,7 +88,6 @@ impl Catalog {
 
     pub fn select_from_entries(
         &self,
-        _archetect: &Archetect,
         mut entry_items: Vec<CatalogEntry>,
     ) -> Result<CatalogEntry, CatalogError> {
         if entry_items.is_empty() {

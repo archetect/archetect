@@ -1,20 +1,22 @@
-use archetect_core::configuration::Configuration;
-use archetect_core::Archetect;
-use clap::parser::ValueSource;
-use clap::ArgMatches;
-use config::{Config, ConfigError, File, FileFormat, Source, Value};
 use std::collections::HashMap;
+
+use clap::ArgMatches;
+use clap::parser::ValueSource;
+use config::{Config, ConfigError, File, FileFormat, Source, Value};
+
+use archetect_core::configuration::Configuration;
+use archetect_core::system::SystemLayout;
 
 pub const CONFIGURATION_FILE: &str = "archetect";
 
-pub fn load_user_config(archetect: &Archetect, args: &ArgMatches) -> Result<Configuration, ConfigError> {
+pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Result<Configuration, ConfigError> {
     let config = Config::builder()
         .add_source(File::from_str(
             Configuration::default().to_yaml().as_str(),
             FileFormat::Yaml,
         ))
         .add_source(
-            File::with_name(archetect.layout().configs_dir().join(CONFIGURATION_FILE).as_str()).required(false),
+            File::with_name(layout.configs_dir().join(CONFIGURATION_FILE).as_str()).required(false),
         );
 
     // Merge Config File specified from Command Line

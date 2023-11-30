@@ -1,0 +1,5 @@
+---
+description: "Utils Tests Child2"
+
+requires:
+  archetect: "2.0.0-ALPHA.2"

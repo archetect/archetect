@@ -4,8 +4,13 @@ use std::sync::mpsc::Receiver;
 use semver::Version;
 
 use archetect_api::{CommandRequest, CommandResponse, IoDriver};
+use crate::archetype::archetype::Archetype;
+use crate::catalog::Catalog;
 
 use crate::configuration::{Configuration, ConfigurationLocalsSection, ConfigurationUpdateSection};
+use crate::errors::ArchetectError;
+use crate::source::Source;
+use crate::system::SystemLayout;
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
@@ -21,10 +26,11 @@ struct Inner {
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
     io_driver: Box<dyn IoDriver>,
+    layout: Box<dyn SystemLayout>,
 }
 
 impl RuntimeContext {
-    pub fn new<T: Into<Box<dyn IoDriver>>>(configuration: &Configuration, io_driver: T) -> RuntimeContext {
+    pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(configuration: &Configuration, driver: T, layout: L) -> RuntimeContext {
         RuntimeContext {
             inner: Arc::new(Inner {
                 offline: configuration.offline(),
@@ -33,7 +39,8 @@ impl RuntimeContext {
                 version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
                 updates: configuration.updates().clone(),
                 locals: configuration.locals().clone(),
-                io_driver: io_driver.into(),
+                io_driver: driver.into(),
+                layout: layout.into(),
             })
         }
     }
@@ -62,6 +69,10 @@ impl RuntimeContext {
         &self.inner.locals
     }
 
+    pub fn layout(&self) -> &Box<dyn SystemLayout> {
+        &self.inner.layout
+    }
+
     pub fn request(&self, command: CommandRequest) {
         self.inner.io_driver.send(command)
     }
@@ -73,5 +84,17 @@ impl RuntimeContext {
     pub fn response(&self) -> CommandResponse {
         self.responses().lock().expect("Lock Error")
             .recv().expect("Receive Error")
+    }
+
+    pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {
+        let source = Source::detect(&self, path)?;
+        let archetype = Archetype::new(&source)?;
+        Ok(archetype)
+    }
+
+    pub fn new_catalog(&self, path: &str) -> Result<Catalog, ArchetectError> {
+        let source = Source::detect(&self, path)?;
+        let catalog = Catalog::load(&source)?;
+        Ok(catalog)
     }
 }

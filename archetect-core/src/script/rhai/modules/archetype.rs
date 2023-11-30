@@ -1,12 +1,10 @@
 use log::info;
 use rhai::{Engine, EvalAltResult, Map, Module};
 
-use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetypeError;
 use crate::runtime::context::RuntimeContext;
-use crate::source::Source;
 use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
@@ -55,9 +53,8 @@ impl ArchetypeFacade {
         info!("render_with_settings: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers)
-            .with_settings(settings)
+            .with_settings(settings.clone())
             ;
-
 
         self.child.render(
             self.runtime_context.clone(),
@@ -88,7 +85,7 @@ impl ArchetypeFacade {
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers)
-            .with_settings(settings);
+            .with_settings(settings.clone());
         self.child.render(
             self.runtime_context.to_owned(),
             render_context,
@@ -106,8 +103,8 @@ fn create_archetype(
 ) -> Result<ArchetypeFacade, Box<EvalAltResult>> {
     if let Some(archetypes) = parent.manifest().components() {
         if let Some(path) = archetypes.get(key) {
-            let source = Source::detect(&Archetect::build().unwrap(), &runtime_context, path).unwrap();
-            let child = Archetype::new(&source).unwrap();
+            // TODO: Handle unwrap
+            let child = runtime_context.new_archetype(path).unwrap();
 
             return Ok(ArchetypeFacade {
                 child,
