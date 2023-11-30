@@ -17,13 +17,14 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let _optional = get_optional_setting(settings);
+    let optional = get_optional_setting(settings);
     let min = parse_setting::<i64>("min", settings);
     let max = parse_setting::<i64>("max", settings);
 
     let mut prompt_info = IntPromptInfo::new(message)
         .with_min(min)
         .with_max(max)
+        .with_optional(optional)
         ;
 
     if let Some(answer) = answer {
@@ -104,7 +105,7 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
+        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
     }
 
     runtime_context.request(CommandRequest::PromptForInt(prompt_info));

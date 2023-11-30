@@ -65,7 +65,7 @@ impl ApiIoHandle {
         &self.requests_rx
     }
 
-    pub fn request(&self) -> CommandRequest {
+    pub fn receive(&self) -> CommandRequest {
         self.requests_rx.recv().expect("Receive Error")
     }
 }

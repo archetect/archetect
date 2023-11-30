@@ -72,8 +72,8 @@ impl CaseStyle {
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum CaseStrategy {
-    CasedIdentityAndValue { styles: Vec<CaseStyle> },
-    CasedKeyAndValue { key: String, styles: Vec<CaseStyle> },
+    CasedIdentityCasedValue { styles: Vec<CaseStyle> },
+    CasedKeyCasedValue { key: String, styles: Vec<CaseStyle> },
     FixedIdentityCasedValue { style: CaseStyle },
     FixedKeyCasedValue { key: String, style: CaseStyle },
 
@@ -105,7 +105,7 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                 .collect::<Vec<CaseStrategy>>();
             for strategy in strategies {
                 match strategy {
-                    CaseStrategy::CasedIdentityAndValue { styles } => {
+                    CaseStrategy::CasedIdentityCasedValue { styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(key.to_string().as_str(), style.clone()).into(),
@@ -129,7 +129,7 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                             );
                         }
                     }
-                    CaseStrategy::CasedKeyAndValue { key, styles } => {
+                    CaseStrategy::CasedKeyCasedValue { key, styles } => {
                         for style in styles {
                             results.insert(
                                 to_case(key.as_str(), style.clone()).into(),
@@ -186,30 +186,40 @@ pub mod module {
     pub const TrainCase: CaseStyle = CaseStyle::TrainCase;
     pub const UpperCase: CaseStyle = CaseStyle::UpperCase;
 
-    pub fn CasedIdentityAndValue(styles: Vec<Dynamic>) -> CaseStrategy {
+    pub fn CasedIdentityCasedValue(styles: Vec<Dynamic>) -> CaseStrategy {
         let styles = styles
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedIdentityAndValue { styles }
+        CaseStrategy::CasedIdentityCasedValue { styles }
+    }
+
+    /// An alias for 'CasedIdentityCasedValue'
+    pub fn CasedIdentityAndValue(styles: Vec<Dynamic>) -> CaseStrategy {
+        CasedIdentityCasedValue(styles)
     }
 
     pub fn CasedIdentity(styles: Vec<Dynamic>) -> CaseStrategy {
-        warn!("'CasedIdentity' has been deprecated.  Please use 'CasedIdentityAndValue' instead.");
-        CasedIdentityAndValue(styles)
+        warn!("'CasedIdentity' has been deprecated.  Please use 'CasedIdentityCasedValue' instead.");
+        CasedIdentityCasedValue(styles)
     }
 
-    pub fn CasedKeyAndValue(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
+    pub fn CasedKeyCasedValue(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
         let styles = styles
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedKeyAndValue { key, styles }
+        CaseStrategy::CasedKeyCasedValue { key, styles }
+    }
+
+    /// An alias for 'CasedKeyCasedValue'
+    pub fn CasedKeyAndValue(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
+        CasedKeyCasedValue(key, styles)
     }
 
     pub fn CasedKeys(key: String, styles: Vec<Dynamic>) -> CaseStrategy {
         warn!("'CasedKeys' has been deprecated.  Please use 'CasedKeyAndValue' instead.");
-        CasedKeyAndValue(key, styles)
+        CasedKeyCasedValue(key, styles)
     }
 
     pub fn CasedSuffixedKeyCasedValue(suffix: String, styles: Vec<Dynamic>) -> CaseStrategy {

@@ -78,4 +78,9 @@ impl IntPromptInfo {
         self.max = max;
         self
     }
+
+    pub fn with_optional(mut self, optional: bool) -> Self {
+        self.optional = optional;
+        self
+    }
 }

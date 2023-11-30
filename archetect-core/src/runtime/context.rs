@@ -4,13 +4,14 @@ use std::sync::mpsc::Receiver;
 use semver::Version;
 
 use archetect_api::{CommandRequest, CommandResponse, IoDriver};
+use archetect_terminal_io::TerminalIoDriver;
 use crate::archetype::archetype::Archetype;
 use crate::catalog::Catalog;
 
 use crate::configuration::{Configuration, ConfigurationLocalsSection, ConfigurationUpdateSection};
 use crate::errors::ArchetectError;
 use crate::source::Source;
-use crate::system::SystemLayout;
+use crate::system::{RootedSystemLayout, SystemLayout};
 
 #[derive(Clone, Debug)]
 pub struct RuntimeContext {
@@ -29,6 +30,53 @@ struct Inner {
     layout: Box<dyn SystemLayout>,
 }
 
+pub struct RuntimeContextBuilder<'a> {
+    configuration: Option<&'a Configuration>,
+    layout: Option<Box<dyn SystemLayout>>,
+    driver: Option<Box<dyn IoDriver>>,
+}
+
+impl<'a> RuntimeContextBuilder<'a> {
+    pub fn with_layout<L: Into<Box<dyn SystemLayout>>>(mut self, layout: L) -> Self {
+        self.layout = Some(layout.into());
+        self
+    }
+
+    pub fn with_temp_layout(mut self) -> Result<Self, ArchetectError> {
+        self.layout = Some(RootedSystemLayout::temp()?.into());
+        Ok(self)
+    }
+
+    pub fn with_driver<D: Into<Box<dyn IoDriver>>>(mut self, driver: D) -> Self {
+        self.driver = Some(driver.into());
+        self
+    }
+
+    pub fn with_configuration(mut self, configuration: &'a Configuration) -> Self {
+        self.configuration = Some(configuration);
+        self
+    }
+
+    pub fn build(self) -> Result<RuntimeContext, ArchetectError> {
+        let default_config = Configuration::default();
+        let default_layout = RootedSystemLayout::dot_home()?;
+        let configuration = self.configuration.unwrap_or(&default_config);
+        let layout = self.layout.unwrap_or_else(|| default_layout.into());
+        let driver = self.driver.unwrap_or_else(|| TerminalIoDriver::default().into());
+        Ok(RuntimeContext::new(configuration, driver, layout))
+    }
+}
+
+impl Default for RuntimeContextBuilder<'_> {
+    fn default() -> Self {
+        RuntimeContextBuilder{
+            configuration: None,
+            layout: None,
+            driver: None,
+        }
+    }
+}
+
 impl RuntimeContext {
     pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(configuration: &Configuration, driver: T, layout: L) -> RuntimeContext {
         RuntimeContext {
@@ -43,6 +91,10 @@ impl RuntimeContext {
                 layout: layout.into(),
             })
         }
+    }
+
+    pub fn builder<'a>() -> RuntimeContextBuilder<'a> {
+        RuntimeContextBuilder::default()
     }
 
     pub fn offline(&self) -> bool {

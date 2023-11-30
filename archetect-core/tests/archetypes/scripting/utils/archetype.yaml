@@ -3,7 +3,3 @@ description: "Utils Tests"
 
 requires:
   archetect: "2.0.0-ALPHA.2"
-
-components:
-  child1: "tests/archetypes/scripting/utils_child1"
-  child2: "tests/archetypes/scripting/utils_child2"
