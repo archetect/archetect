@@ -270,7 +270,7 @@ pub mod module {
     }
 
     pub fn FixedKey(key: String, style: CaseStyle) -> CaseStrategy {
-        warn!("'CasedValue' has been deprecated.  Please use 'FixedKeyCasedValue' instead.");
+        warn!("'FixedKey' has been deprecated.  Please use 'FixedKeyCasedValue' instead.");
         FixedKeyCasedValue(key, style)
     }
 
