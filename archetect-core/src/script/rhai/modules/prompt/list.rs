@@ -1,13 +1,15 @@
+use std::borrow::Cow;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo};
+use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo, PromptInfo};
 
-use crate::errors::ArchetectError;
+use crate::errors::{ArchetectError, ArchetypeError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
+use crate::utils::{ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
-pub fn prompt<K: AsRef<str>>(
-    call: NativeCallContext,
+pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+    call: &NativeCallContext,
     message: &str,
     runtime_context: &RuntimeContext,
     settings: &Map,
@@ -29,37 +31,28 @@ pub fn prompt<K: AsRef<str>>(
             return Ok(answers.into());
         }
 
-        let fn_name = call.fn_name().to_owned();
-        let source = call.source().unwrap_or_default().to_owned();
-        let position = call.position();
-        let error = EvalAltResult::ErrorSystem(
-            "Invalid Answer Type".to_owned(),
-            Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!(
-                    "'{}' was provided as an answer to Prompt: '{}' (key: '{}'), but must be an array of values or a comma-separated string.",
-                    answer, message, key.as_ref()
-                )
-                    .to_owned()
-            } else {
-                format!(
-                    "'{}' was provided as an answer to Prompt: '{}', but must be an array of values or a comma-separated string.",
-                    answer, message
-                ).to_owned()
-            })),
-        );
-        return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-            fn_name,
-            source,
-            Box::new(error),
-            position,
-        )));
+        let requirement = " must be an array of values or a comma-separated string".to_string();
+        let error = if let Some(key) = key {
+            ArchetypeError::KeyedAnswerValidationError {
+                answer: answer.to_string(),
+                prompt: message.to_string(),
+                key: key.into().to_string(),
+                requires: requirement,
+            }
+        } else {
+            ArchetypeError::AnswerValidationError {
+                answer: answer.to_string(),
+                prompt: message.to_string(),
+                requires: requirement,
+            }
+        };
+        return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
     }
 
     let mut prompt_info = ListPromptInfo::new(message)
         .with_optional(get_optional_setting(settings))
         .with_min_items(parse_setting::<usize>("min_items", settings))
-        .with_max_items(parse_setting::<usize>("max_items", settings))
-        ;
+        .with_max_items(parse_setting::<usize>("max_items", settings));
 
     if let Some(default_value) = settings.get("defaults_with") {
         if let Some(defaults) = default_value.clone().try_cast::<Vec<String>>() {
@@ -74,23 +67,8 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if runtime_context.headless() {
-        let fn_name = call.fn_name().to_owned();
-        let source = call.source().unwrap_or_default().to_owned();
-        let position = call.position();
-        let error = EvalAltResult::ErrorSystem(
-            "Headless Mode Error".to_owned(),
-            Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!("{} for '{}'", message, key.as_ref(),).to_owned()
-            } else {
-                format!("{}", message).to_owned()
-            })),
-        );
-        return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-            fn_name,
-            source,
-            Box::new(error),
-            position,
-        )));
+        let error = ArchetypeError::headless_no_answer(message, key);
+        return Err(ArchetypeRhaiFunctionError("Headless", call, error).into());
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -101,21 +79,30 @@ pub fn prompt<K: AsRef<str>>(
         prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     }
 
-    runtime_context.request(CommandRequest::PromptForList(prompt_info));
+    runtime_context.request(CommandRequest::PromptForList(prompt_info.clone()));
 
     match runtime_context.response() {
-        CommandResponse::MultiStringAnswer(answer) => {
+        CommandResponse::Array(answer) => {
             return Ok(answer.into());
         }
-        CommandResponse::NoneAnswer => {
-            return Ok(Dynamic::UNIT);
+        CommandResponse::None => {
+            if !prompt_info.optional() {
+                let error = ArchetypeError::answer_not_optional(message, key);
+                return Err(ArchetypeRhaiSystemError("Required", error).into());
+            } else {
+                return Ok(Dynamic::UNIT);
+            }
         }
         CommandResponse::Error(error) => {
-            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
+            let error =
+                EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
             return Err(Box::new(error));
         }
         response => {
-            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
+            let error = EvalAltResult::ErrorSystem(
+                "Invalid Answer Type".to_string(),
+                Box::new(ArchetectError::NakedError(format!("{:?}", response))),
+            );
             return Err(Box::new(error));
         }
     }

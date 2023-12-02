@@ -1,13 +1,13 @@
 use camino::Utf8PathBuf;
-use rhai::{Engine, EvalAltResult, Map, Module};
 use rhai::plugin::*;
+use rhai::{Engine, EvalAltResult, Map, Module};
 
 use minijinja::Environment;
 
-use crate::utils::restrict_path_manipulation;
-use crate::archetype::archetype::{Archetype, OverwritePolicy, render_directory};
+use crate::archetype::archetype::{render_directory, Archetype, OverwritePolicy};
 use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
+use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
     engine: &mut Engine,
@@ -62,19 +62,34 @@ impl Directory {
     pub fn render(&mut self, context: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination();
-        render_directory(&self.environment, &self.runtime_context, &context, source, destination, OverwritePolicy::Preserve)
-            .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
+        render_directory(
+            &self.environment,
+            &self.runtime_context,
+            &context,
+            source,
+            destination,
+            OverwritePolicy::Preserve,
+        )
+        .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 
     pub fn render_with_settings(&mut self, context: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
         let destination = self.archetype_context.destination();
-        let overwrite_policy = settings.get("if_exists")
+        let overwrite_policy = settings
+            .get("if_exists")
             .map(|v| v.clone().try_cast::<OverwritePolicy>())
             .flatten()
             .unwrap_or_default();
-        render_directory(&self.environment, &self.runtime_context, &context, source, destination, overwrite_policy)
-            .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
+        render_directory(
+            &self.environment,
+            &self.runtime_context,
+            &context,
+            source,
+            destination,
+            overwrite_policy,
+        )
+        .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 
     pub fn render_with_destination(&mut self, destination: &str, context: Map) -> Result<(), Box<EvalAltResult>> {
@@ -83,8 +98,15 @@ impl Directory {
             .archetype_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
-        render_directory(&self.environment, &self.runtime_context, &context, source, destination, Default::default())
-            .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
+        render_directory(
+            &self.environment,
+            &self.runtime_context,
+            &context,
+            source,
+            destination,
+            Default::default(),
+        )
+        .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 
     pub fn render_with_destination_and_settings(
@@ -98,12 +120,20 @@ impl Directory {
             .archetype_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
-        let overwrite_policy = settings.get("if_exists")
+        let overwrite_policy = settings
+            .get("if_exists")
             .map(|v| v.clone().try_cast::<OverwritePolicy>())
             .flatten()
             .unwrap_or_default();
-        render_directory(&self.environment, &self.runtime_context, &context, source, destination, overwrite_policy)
-            .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
+        render_directory(
+            &self.environment,
+            &self.runtime_context,
+            &context,
+            source,
+            destination,
+            overwrite_policy,
+        )
+        .map_err(|err| Box::new(EvalAltResult::ErrorSystem("Rendering Error".into(), Box::new(err))))
     }
 }
 
@@ -117,4 +147,3 @@ pub mod module {
     pub const Preserve: OverwritePolicy = OverwritePolicy::Preserve;
     pub const Prompt: OverwritePolicy = OverwritePolicy::Prompt;
 }
-

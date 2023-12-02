@@ -1,5 +1,5 @@
-use rhai::Engine;
 use rhai::module_resolvers::FileModuleResolver;
+use rhai::Engine;
 
 use minijinja::Environment;
 

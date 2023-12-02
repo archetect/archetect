@@ -1,12 +1,12 @@
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 
 use semver::Version;
 
-use archetect_api::{CommandRequest, CommandResponse, IoDriver};
-use archetect_terminal_io::TerminalIoDriver;
 use crate::archetype::archetype::Archetype;
 use crate::catalog::Catalog;
+use archetect_api::{CommandRequest, CommandResponse, IoDriver};
+use archetect_terminal_io::TerminalIoDriver;
 
 use crate::configuration::{Configuration, ConfigurationLocalsSection, ConfigurationUpdateSection};
 use crate::errors::ArchetectError;
@@ -69,7 +69,7 @@ impl<'a> RuntimeContextBuilder<'a> {
 
 impl Default for RuntimeContextBuilder<'_> {
     fn default() -> Self {
-        RuntimeContextBuilder{
+        RuntimeContextBuilder {
             configuration: None,
             layout: None,
             driver: None,
@@ -78,7 +78,11 @@ impl Default for RuntimeContextBuilder<'_> {
 }
 
 impl RuntimeContext {
-    pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(configuration: &Configuration, driver: T, layout: L) -> RuntimeContext {
+    pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(
+        configuration: &Configuration,
+        driver: T,
+        layout: L,
+    ) -> RuntimeContext {
         RuntimeContext {
             inner: Arc::new(Inner {
                 offline: configuration.offline(),
@@ -89,7 +93,7 @@ impl RuntimeContext {
                 locals: configuration.locals().clone(),
                 io_driver: driver.into(),
                 layout: layout.into(),
-            })
+            }),
         }
     }
 
@@ -134,8 +138,11 @@ impl RuntimeContext {
     }
 
     pub fn response(&self) -> CommandResponse {
-        self.responses().lock().expect("Lock Error")
-            .recv().expect("Receive Error")
+        self.responses()
+            .lock()
+            .expect("Lock Error")
+            .recv()
+            .expect("Receive Error")
     }
 
     pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {

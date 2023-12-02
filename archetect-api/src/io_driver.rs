@@ -1,6 +1,6 @@
 use std::fmt::Debug;
-use std::sync::{Arc, mpsc, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::{mpsc, Arc, Mutex};
 
 use crate::{CommandRequest, CommandResponse};
 
@@ -10,8 +10,11 @@ pub trait IoDriver: Debug + Send + Sync + 'static {
     fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>>;
 
     fn receive(&self) -> CommandResponse {
-        self.responses().lock().expect("Lock Error")
-            .recv().expect("Receive Error")
+        self.responses()
+            .lock()
+            .expect("Lock Error")
+            .recv()
+            .expect("Receive Error")
     }
 }
 

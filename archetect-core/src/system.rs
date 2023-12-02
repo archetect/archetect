@@ -73,8 +73,6 @@ impl SystemLayout for NativeSystemLayout {
     }
 }
 
-
-
 #[derive(Debug)]
 pub struct RootedSystemLayout {
     directory: Utf8PathBuf,

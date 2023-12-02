@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::commands::prompt_info::PromptInfo;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextPromptInfo {
@@ -64,7 +64,22 @@ impl TextPromptInfo {
     pub fn min(&self) -> Option<i64> {
         self.min
     }
+
+    pub fn with_min(mut self, min: Option<i64>) -> Self {
+        self.min = min;
+        self
+    }
     pub fn max(&self) -> Option<i64> {
         self.max
+    }
+
+    pub fn with_max(mut self, max: Option<i64>) -> Self {
+        self.max = max;
+        self
+    }
+
+    pub fn with_optional(mut self, optional: bool) -> Self {
+        self.optional = optional;
+        self
     }
 }

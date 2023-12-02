@@ -33,7 +33,7 @@ inquire = { path = "../vendor/inquire", features = ["editor"] }
 pest = "2"
 pest_derive = "2"
 read_input = "0.8.6"
-rhai = { version = "1.14", features = ["serde"] }
+rhai = { version = "1.16", features = ["serde", "internals", "metadata", "debugging", "std", "bin-features"] }
 semver = { version = "0.9", features = ["serde"] }
 serde = "1.0.116"
 serde_derive = "1.0.116"

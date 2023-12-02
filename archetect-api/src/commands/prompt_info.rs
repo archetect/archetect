@@ -1,4 +1,3 @@
-
 pub trait PromptInfo {
     fn message(&self) -> &str;
     fn optional(&self) -> bool;

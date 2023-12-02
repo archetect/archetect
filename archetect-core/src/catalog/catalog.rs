@@ -40,11 +40,7 @@ impl Catalog {
         Ok(())
     }
 
-    pub fn render(
-        &self,
-        runtime_context: RuntimeContext,
-        render_context: RenderContext,
-    ) -> Result<(), ArchetectError> {
+    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), ArchetectError> {
         let mut catalog = self.clone();
 
         loop {
@@ -86,10 +82,7 @@ impl Catalog {
         }
     }
 
-    pub fn select_from_entries(
-        &self,
-        mut entry_items: Vec<CatalogEntry>,
-    ) -> Result<CatalogEntry, CatalogError> {
+    pub fn select_from_entries(&self, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
         if entry_items.is_empty() {
             return Err(CatalogError::EmptyGroup);
         }
@@ -135,9 +128,18 @@ impl Catalog {
 
 fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
     match item_count {
-        1..=99 => CatalogItem::new(format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
-        100..=999 => CatalogItem::new(format!("{:>003}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
-        _ => CatalogItem::new(format!("{:>0004}: {} {}", id + 1, item_icon(&entry), entry.description()), entry.clone()),
+        1..=99 => CatalogItem::new(
+            format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()),
+            entry.clone(),
+        ),
+        100..=999 => CatalogItem::new(
+            format!("{:>003}: {} {}", id + 1, item_icon(&entry), entry.description()),
+            entry.clone(),
+        ),
+        _ => CatalogItem::new(
+            format!("{:>0004}: {} {}", id + 1, item_icon(&entry), entry.description()),
+            entry.clone(),
+        ),
     }
 }
 

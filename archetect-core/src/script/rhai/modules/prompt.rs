@@ -1,16 +1,19 @@
+use std::borrow::Cow;
 use std::str::FromStr;
+
+use rhai::{Dynamic, Engine, EvalAltResult, exported_module, Map};
 use rhai::plugin::*;
-use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
 use inquire::error::InquireResult;
-use inquire::ui::{Color, RenderConfig, Styled};
 use inquire::InquireError;
+use inquire::ui::{Color, RenderConfig, Styled};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::ArchetypeError;
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
+use crate::utils::ArchetypeRhaiFunctionError;
 
 mod confirm;
 mod editor;
@@ -34,7 +37,7 @@ pub(crate) fn register(
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, key: &str, settings: Map| {
-            prompt_to_map(call, arch.clone(), ctx.clone(), rt.clone(), message, key, settings)
+            prompt_to_map(&call, arch.clone(), ctx.clone(), rt.clone(), message, key, settings)
         },
     );
 
@@ -42,7 +45,7 @@ pub(crate) fn register(
     let ctx = archetype_context.clone();
     let rt = runtime_context.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str, key: &str| {
-        prompt_to_map(call, arch.clone(), ctx.clone(), rt.clone(), message, key, Map::new())
+        prompt_to_map(&call, arch.clone(), ctx.clone(), rt.clone(), message, key, Map::new())
     });
 
     let rt = runtime_context.clone();
@@ -50,26 +53,27 @@ pub(crate) fn register(
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, settings: Map| {
-            prompt_to_value(call, message, rt.clone(), ctx.clone(), settings)
+            prompt_to_value(&call, message, rt.clone(), ctx.clone(), settings)
         },
     );
 
     let rt = runtime_context.clone();
     let ctx = archetype_context.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str| {
-        prompt_to_value(call, message, rt.clone(), ctx.clone(), Map::new())
+        prompt_to_value(&call, message, rt.clone(), ctx.clone(), Map::new())
     });
 }
 
-fn prompt_to_map(
-    call: NativeCallContext,
+fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
+    call: &NativeCallContext,
     _archetype: Archetype,
     archetype_context: RenderContext,
     runtime_context: RuntimeContext,
     message: &str,
-    key: &str,
+    key: K,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
+    let key = key.into();
     let prompt_type = get_prompt_type(&settings).map_err(|err| {
         Box::new(EvalAltResult::ErrorSystem(
             "Invalid PromptType".to_owned(),
@@ -80,33 +84,33 @@ fn prompt_to_map(
     let mut results: Map = Map::new();
 
     let answers = &get_answers(&call, &settings, &archetype_context)?;
-    let answer = answers.get(key);
+    let answer = answers.get(key.as_ref());
 
     return match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
-            results.insert(key.into(), value.clone().into());
-            expand_key_value_cases(&settings, &mut results, key, value.to_string().as_str());
+            let value = text::prompt(call, message, &settings, &runtime_context, Some(key.clone()), answer)?;
+            results.insert(key.as_ref().into(), value.clone().into());
+            expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
             Ok(results.into())
         }
         PromptType::Confirm => {
-            let value = confirm::prompt(message, &runtime_context, &settings, Some(key), answer)?;
+            let value = confirm::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
         PromptType::Int => {
-            let value = int::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
+            let value = int::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
-            results.insert(key.into(), value.clone().into());
-            expand_key_value_cases(&settings, &mut results, key, value.to_string().as_str());
+            let value = select::prompt(call, message, options, &runtime_context, &settings, Some(key.clone()), answer)?;
+            results.insert(key.clone().into(), value.clone().into());
+            expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
             Ok(results.into())
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, Some(key), answer)?;
+            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
@@ -116,7 +120,7 @@ fn prompt_to_map(
             Ok(results.into())
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
+            let value = list::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.clone().into());
             // TODO Consider casing strategies
             // expand_cases(&settings, &mut results, key, &value);
@@ -126,7 +130,7 @@ fn prompt_to_map(
 }
 
 fn prompt_to_value(
-    call: NativeCallContext,
+    call: &NativeCallContext,
     message: &str,
     runtime_context: RuntimeContext,
     archetype_context: RenderContext,
@@ -139,7 +143,8 @@ fn prompt_to_value(
         ))
     })?;
 
-    let case = settings.get("cased_as")
+    let case = settings
+        .get("cased_as")
         .map(|case| case.clone().try_cast::<CaseStyle>())
         .flatten();
 
@@ -157,7 +162,7 @@ fn prompt_to_value(
             Ok(apply_case(&value, case))
         }
         PromptType::Confirm => {
-            let value = confirm::prompt(message, &runtime_context, &settings, answer_key, answer)?;
+            let value = confirm::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
             Ok(apply_case(&value, case))
         }
         PromptType::Int => {
@@ -186,9 +191,14 @@ fn prompt_to_value(
 fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
     if let Some(case) = case {
         if input.is_array() {
-            return input.clone().into_array().unwrap().iter()
+            return input
+                .clone()
+                .into_array()
+                .unwrap()
+                .iter()
                 .map(|v| case.to_case(v.to_string().as_str()))
-                .collect::<Vec<String>>().into();
+                .collect::<Vec<String>>()
+                .into();
         }
         if input.is_unit() {
             return input.clone();
@@ -209,26 +219,12 @@ fn get_answers(
             return Ok(answers);
         } else {
             if !answers.is_unit() {
-                let fn_name = call.fn_name().to_owned();
-                let source = call.source().unwrap_or_default().to_owned();
-                let position = call.position();
-                let error = EvalAltResult::ErrorSystem(
-                    "Invalid Configuration".to_owned(),
-                    Box::new(ArchetectError::GeneralError(
-                        format!(
-                            "When specifying the 'answer_source' property, it must be a 'map' (\"#{{ .. }}\") or Unit type (\"()\"), \
-                            but it was of type '{}'",
-                            answers.type_name()
-                        )
-                        .to_owned(),
-                    )),
-                );
-                return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-                    fn_name,
-                    source,
-                    Box::new(error),
-                    position,
-                )));
+                let error = ArchetypeError::InvalidSetting {
+                    setting: "answer_source".to_string(),
+                    requires: "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string(),
+                    actual: "of type '{}'".to_string(),
+                };
+                return Err(ArchetypeRhaiFunctionError("Invalid Setting", call, error).into());
             } else {
                 return Ok(Map::new());
             }
@@ -258,12 +254,12 @@ pub fn get_optional_setting(settings: &Map) -> bool {
 }
 
 pub fn get_render_config() -> RenderConfig {
-    RenderConfig::default_colored()
-        .with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
+    RenderConfig::default_colored().with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
 }
 
 pub fn parse_setting<T>(setting: &str, settings: &Map) -> Option<T>
-    where T: FromStr,
+where
+    T: FromStr,
 {
     settings
         .get(setting)
@@ -338,15 +334,3 @@ pub mod module {
     }
 }
 
-pub fn create_error_from_call(call: &NativeCallContext, message: &str, error: ArchetectError) -> Box<EvalAltResult> {
-    let fn_name = call.fn_name().to_owned();
-    let source = call.source().unwrap_or_default().to_owned();
-    let position = call.position();
-    let error = EvalAltResult::ErrorSystem(message.to_owned(), Box::new(error));
-    return Box::new(EvalAltResult::ErrorInFunctionCall(
-        fn_name,
-        source,
-        Box::new(error),
-        position,
-    ));
-}

@@ -1,15 +1,17 @@
-use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
+use std::borrow::Cow;
 
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, TextPromptInfo};
+use archetect_api::{CommandRequest, CommandResponse, PromptInfo, TextPromptInfo};
+use archetect_api::validations::validate_text;
 
-use crate::errors::ArchetectError;
+use crate::errors::{ArchetectError, ArchetypeError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
+use crate::utils::{ArchetectRhaiSystemError, ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
-pub fn prompt<K: AsRef<str>>(
-    call: NativeCallContext,
+pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+    call: &NativeCallContext,
     message: &str,
     settings: &Map,
     runtime_context: &RuntimeContext,
@@ -21,32 +23,20 @@ pub fn prompt<K: AsRef<str>>(
     let max = parse_setting("max", settings);
 
     if let Some(answer) = answer {
-        return match validate(min, max, &answer.to_string()) {
+        return match validate_text(min, max, &answer.to_string()) {
             Ok(_) => Ok(answer.clone()),
-            Err(message) => {
-                let fn_name = call.fn_name().to_owned();
-                let source = call.source().unwrap_or_default().to_owned();
-                let position = call.position();
-                let error = EvalAltResult::ErrorSystem(
-                    "Invalid Answer".to_owned(),
-                    Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                        format!("{} for '{}'", message, key.as_ref(),).to_owned()
-                    } else {
-                        format!("{}", message).to_owned()
-                    })),
-                );
-                Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-                    fn_name,
-                    source,
-                    Box::new(error),
-                    position,
-                )))
+            Err(error_message) => {
+                let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, error_message);
+                Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into())
             }
         };
     }
 
-
-    let mut prompt_info = TextPromptInfo::new(message);
+    let mut prompt_info = TextPromptInfo::new(message)
+        .with_min(min)
+        .with_max(max)
+        .with_optional(optional)
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
@@ -62,24 +52,8 @@ pub fn prompt<K: AsRef<str>>(
         if optional {
             return Ok(Dynamic::UNIT);
         }
-
-        let fn_name = call.fn_name().to_owned();
-        let source = call.source().unwrap_or_default().to_owned();
-        let position = call.position();
-        let error = EvalAltResult::ErrorSystem(
-            "Headless Mode Error".to_owned(),
-            Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!("{} for '{}'", message, key.as_ref(),).to_owned()
-            } else {
-                format!("{}", message).to_owned()
-            })),
-        );
-        return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-            fn_name,
-            source,
-            Box::new(error),
-            position,
-        )));
+        let error = ArchetypeError::headless_no_answer(message, key);
+        return Err(ArchetypeRhaiFunctionError("Headless Mode", call, error).into());
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -87,53 +61,39 @@ pub fn prompt<K: AsRef<str>>(
     }
 
     if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
+        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
     } else {
         if optional {
-            prompt_info = prompt_info.with_placeholder(Some("<esc> for None"));
+            prompt_info = prompt_info.with_help(Some("<esc> for None"));
         }
     }
 
-    runtime_context.request(CommandRequest::PromptForText(prompt_info));
+    runtime_context.request(CommandRequest::PromptForText(prompt_info.clone()));
 
     match runtime_context.response() {
-        CommandResponse::StringAnswer(answer) => {
+        CommandResponse::String(answer) => {
+            // TODO: Validate response from Driver
             return Ok(answer.into());
         }
-        CommandResponse::NoneAnswer => {
-            return Ok(Dynamic::UNIT);
+        CommandResponse::None => {
+            if !prompt_info.optional() {
+                let error = ArchetypeError::answer_not_optional(message, key);
+                return Err(ArchetypeRhaiSystemError("Required", error).into());
+            } else {
+                return Ok(Dynamic::UNIT);
+            }
         }
         CommandResponse::Error(error) => {
-            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
-            return Err(Box::new(error));
+            let error = ArchetectError::NakedError(error);
+            return Err(ArchetectRhaiSystemError("Prompt Error", error).into());
         }
         response => {
-            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
-            return Err(Box::new(error));
+            let error = ArchetectError::NakedError(format!(
+                "'{}' requires a String, but was answered with {:?}",
+                prompt_info.message(),
+                response
+            ));
+            return Err(ArchetectRhaiSystemError("Invalid Type", error).into());
         }
     }
-}
-
-fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
-    let length = input.len() as i64;
-    match (min, max) {
-        (Some(start), Some(end)) => {
-            if !RangeInclusive::new(start, end).contains(&length) {
-                return Err(format!("Answer must be between {} and {}", start, end));
-            }
-        }
-        (Some(start), None) => {
-            if !(RangeFrom { start }.contains(&length)) {
-                return Err(format!("Answer must be greater than {}", start));
-            }
-        }
-        (None, Some(end)) => {
-            if !(RangeToInclusive { end }.contains(&length)) {
-                return Err(format!("Answer must be less than or equal to {}", end));
-            }
-        }
-        (None, None) => return Ok(()),
-    };
-
-    Ok(())
 }

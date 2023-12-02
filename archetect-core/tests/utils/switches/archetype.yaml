@@ -1,0 +1,9 @@
+---
+description: "Switches Tests"
+
+requires:
+  archetect: "2.0.0-ALPHA.4"
+
+components:
+  child1: "tests/utils/switches/switches_child1"
+  child2: "tests/utils/switches/switches_child2"

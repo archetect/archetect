@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use clap::ArgMatches;
 use clap::parser::ValueSource;
+use clap::ArgMatches;
 use config::{Config, ConfigError, File, FileFormat, Source, Value};
 
 use archetect_core::configuration::Configuration;
@@ -15,9 +15,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             Configuration::default().to_yaml().as_str(),
             FileFormat::Yaml,
         ))
-        .add_source(
-            File::with_name(layout.configs_dir().join(CONFIGURATION_FILE).as_str()).required(false),
-        );
+        .add_source(File::with_name(layout.configs_dir().join(CONFIGURATION_FILE).as_str()).required(false));
 
     // Merge Config File specified from Command Line
     let config = if let Some(config_file) = args.get_one::<String>("config-file") {
@@ -45,7 +43,12 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             path: "headless".into(),
         },
     );
-    mappings.insert("local".into(), ArgExtractor::Bool { path: "locals.enabled".into() });
+    mappings.insert(
+        "local".into(),
+        ArgExtractor::Bool {
+            path: "locals.enabled".into(),
+        },
+    );
     let config = config.add_source(ClapSource::new(args.clone(), mappings));
 
     let config = config.build()?;

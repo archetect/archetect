@@ -299,7 +299,7 @@ pub mod module {
 
     pub fn FixedKeyWithPrefix(prefix: String, style: CaseStyle) -> CaseStrategy {
         warn!("'FixedKeyWithSuffix' has been deprecated.  Please use 'FixedSuffixedKeyCasedValue' instead.");
-        FixedPrefixedKeyCasedValue( prefix, style )
+        FixedPrefixedKeyCasedValue(prefix, style)
     }
 
     pub fn to_case(input: &str, style: CaseStyle) -> String {

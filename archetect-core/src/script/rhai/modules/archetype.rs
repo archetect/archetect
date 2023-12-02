@@ -34,7 +34,7 @@ pub(crate) fn register(
 #[derive(Clone)]
 pub struct ArchetypeFacade {
     child: Archetype,
-    runtime_context:RuntimeContext,
+    runtime_context: RuntimeContext,
     archetype_context: RenderContext,
 }
 
@@ -45,21 +45,29 @@ impl ArchetypeFacade {
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers);
         self.child
-            .render(self.runtime_context.clone(), render_context)?;
+            .render(self.runtime_context.clone(), render_context)
+            .map_err(|err| {
+                Box::new(EvalAltResult::ErrorSystem(
+                    "Archetype Render Error".to_string(),
+                    Box::new(err),
+                ))
+            })?;
         Ok(())
     }
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
         info!("render_with_settings: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
-        let render_context = RenderContext::new(destination, answers)
-            .with_settings(settings.clone())
-            ;
+        let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
 
-        self.child.render(
-            self.runtime_context.clone(),
-            render_context,
-        )?;
+        self.child
+            .render(self.runtime_context.clone(), render_context)
+            .map_err(|err| {
+                Box::new(EvalAltResult::ErrorSystem(
+                    "Archetype Render Error".to_string(),
+                    Box::new(err),
+                ))
+            })?;
         Ok(())
     }
 
@@ -69,7 +77,14 @@ impl ArchetypeFacade {
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers);
-        self.child.render(self.runtime_context.clone(), render_context)?;
+        self.child
+            .render(self.runtime_context.clone(), render_context)
+            .map_err(|err| {
+                Box::new(EvalAltResult::ErrorSystem(
+                    "Archetype Render Error".to_string(),
+                    Box::new(err),
+                ))
+            })?;
         Ok(())
     }
 
@@ -84,12 +99,15 @@ impl ArchetypeFacade {
             .archetype_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
-        let render_context = RenderContext::new(destination, answers)
-            .with_settings(settings.clone());
-        self.child.render(
-            self.runtime_context.to_owned(),
-            render_context,
-        )?;
+        let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+        self.child
+            .render(self.runtime_context.to_owned(), render_context)
+            .map_err(|err| {
+                Box::new(EvalAltResult::ErrorSystem(
+                    "Archetype Render Error".to_string(),
+                    Box::new(err),
+                ))
+            })?;
 
         Ok(())
     }

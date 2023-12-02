@@ -40,5 +40,5 @@ pub enum ArchetectError {
     GeneralError(String),
 
     #[error("{0}")]
-    NakedError(String,)
+    NakedError(String),
 }

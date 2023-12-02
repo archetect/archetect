@@ -1,18 +1,16 @@
+use crate::get_render_config;
+use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo};
+use inquire::validator::Validation;
+use inquire::Text;
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::sync::mpsc::SyncSender;
-use inquire::Text;
-use inquire::validator::Validation;
-use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo};
-use crate::get_render_config;
 
 pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<CommandResponse>) {
-    let mut prompt = Text::new(prompt_info.message())
-        .with_render_config(get_render_config())
-        ;
+    let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
     let default = prompt_info.default().map(|v| v.to_string());
     prompt.default = default;
-    prompt.placeholder = prompt_info.placeholder().map(|v|v.to_string());
-    prompt.help_message = prompt_info.help().map(|v|v.to_string());
+    prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
+    prompt.help_message = prompt_info.help().map(|v| v.to_string());
     let prompt_info = prompt_info.clone();
     let validator = move |input: &str| match validate_int(prompt_info.min(), prompt_info.max(), input) {
         Ok(_) => Ok(Validation::Valid),
@@ -23,12 +21,10 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
         Ok(answer) => {
             if let Some(answer) = answer {
                 responses
-                    .send(CommandResponse::IntAnswer(
-                        answer.parse::<i64>().expect("Pre-validated"),
-                    ))
+                    .send(CommandResponse::Integer(answer.parse::<i64>().expect("Pre-validated")))
                     .expect("Channel Send Error");
             } else {
-                responses.send(CommandResponse::NoneAnswer).expect("Channel Send Error");
+                responses.send(CommandResponse::None).expect("Channel Send Error");
             }
         }
         Err(error) => {
@@ -38,7 +34,6 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
         }
     }
 }
-
 
 fn validate_int(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
     match input.parse::<i64>() {

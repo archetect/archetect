@@ -1,12 +1,10 @@
+use crate::script::rhai::modules::cases::expand_key_value_cases;
 use rhai::{Dynamic, Engine, EvalAltResult, Map};
-use crate::script::rhai::modules::cases::{expand_key_value_cases};
 
 pub(crate) fn register(engine: &mut Engine) {
-    engine.register_fn("set", | key: &str, value: Dynamic| {
-        set(key, value, Map::new())
-    });
+    engine.register_fn("set", |key: &str, value: Dynamic| set(key, value, Map::new()));
 
-    engine.register_fn("set", | key: &str, value: Dynamic, settings: Map | {
+    engine.register_fn("set", |key: &str, value: Dynamic, settings: Map| {
         set(key, value, settings)
     });
 }

@@ -1,27 +1,15 @@
-use rhai::plugin::*;
-use archetect_api::CommandRequest;
 use crate::runtime::context::RuntimeContext;
+use archetect_api::CommandRequest;
+use rhai::plugin::*;
 
 pub fn register(engine: &mut Engine, runtime_context: RuntimeContext) {
     engine.register_global_module(exported_module!(module).into());
-    engine.register_fn("log", move| level: LogLevel, message: &str| {
-        match level {
-            LogLevel::Info => {
-                runtime_context.request(CommandRequest::LogInfo(message.to_string()))
-            }
-            LogLevel::Trace => {
-                runtime_context.request(CommandRequest::LogTrace(message.to_string()))
-            }
-            LogLevel::Debug => {
-                runtime_context.request(CommandRequest::LogDebug(message.to_string()))
-            }
-            LogLevel::Warn => {
-                runtime_context.request(CommandRequest::LogWarn(message.to_string()))
-            }
-            LogLevel::Error => {
-                runtime_context.request(CommandRequest::LogError(message.to_string()))
-            }
-        }
+    engine.register_fn("log", move |level: LogLevel, message: &str| match level {
+        LogLevel::Info => runtime_context.request(CommandRequest::LogInfo(message.to_string())),
+        LogLevel::Trace => runtime_context.request(CommandRequest::LogTrace(message.to_string())),
+        LogLevel::Debug => runtime_context.request(CommandRequest::LogDebug(message.to_string())),
+        LogLevel::Warn => runtime_context.request(CommandRequest::LogWarn(message.to_string())),
+        LogLevel::Error => runtime_context.request(CommandRequest::LogError(message.to_string())),
     });
 }
 

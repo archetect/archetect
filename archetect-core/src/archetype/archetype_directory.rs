@@ -1,8 +1,8 @@
+use camino::{Utf8Path, Utf8PathBuf};
+
+use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::errors::ArchetypeError;
 use crate::source::Source;
-use crate::archetype::archetype_manifest::ArchetypeManifest;
-use camino::{Utf8Path, Utf8PathBuf};
-use std::fs;
 
 #[derive(Clone, Debug)]
 pub struct ArchetypeDirectory {
@@ -30,7 +30,7 @@ impl ArchetypeDirectory {
         self.root.join(self.manifest().scripting().modules())
     }
 
-    pub fn script_contents(&self) -> Result<String, ArchetypeError> {
+    pub fn script(&self) -> Result<Utf8PathBuf, ArchetypeError> {
         let mut script_path = self.root.clone();
         script_path.push(self.manifest().scripting().main());
 
@@ -38,6 +38,6 @@ impl ArchetypeDirectory {
             return Err(ArchetypeError::ArchetypeManifestNotFound { path: script_path });
         }
 
-        fs::read_to_string(script_path.as_std_path()).map_err(|err| ArchetypeError::IoError(err))
+        Ok(script_path)
     }
 }

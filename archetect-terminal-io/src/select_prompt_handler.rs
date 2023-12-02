@@ -8,13 +8,12 @@ use inquire::Select;
 use crate::get_render_config;
 
 pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &SyncSender<CommandResponse>) {
+    let mut prompt =
+        Select::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
-    let mut prompt = Select::new(prompt_info.message(), prompt_info.options().to_vec())
-        .with_render_config(get_render_config())
-        ;
-
-     if let Some(defaults_with) = prompt_info.default() {
-        let default = prompt_info.options()
+    if let Some(defaults_with) = prompt_info.default() {
+        let default = prompt_info
+            .options()
             .iter()
             .position(|item| item.to_string().as_str() == defaults_with.to_string().as_str());
         if let Some(default) = default {
@@ -24,17 +23,16 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &SyncSende
         }
     }
 
-    prompt.help_message = prompt_info.help().map(|v|v.to_string());
+    prompt.help_message = prompt_info.help().map(|v| v.to_string());
 
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
                 responses
-                    .send(CommandResponse::StringAnswer(answer))
+                    .send(CommandResponse::String(answer))
                     .expect("Channel Send Error");
             } else {
-                responses.send(CommandResponse::NoneAnswer)
-                    .expect("Channel Send Error");
+                responses.send(CommandResponse::None).expect("Channel Send Error");
             }
         }
         Err(error) => {

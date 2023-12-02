@@ -1,4 +1,4 @@
-use camino::{Utf8PathBuf};
+use camino::Utf8PathBuf;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConfigurationLocalsSection {
@@ -26,5 +26,4 @@ impl Default for ConfigurationLocalsSection {
             paths,
         }
     }
-
 }

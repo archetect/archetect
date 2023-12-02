@@ -1,8 +1,8 @@
+use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 use git2;
 use linked_hash_map::LinkedHashMap;
 use rhai::Map;
-use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 
 use crate::catalog::{Catalog, CatalogEntry, CatalogManifest};
 
@@ -63,8 +63,7 @@ impl Configuration {
     }
 
     pub fn to_yaml(&self) -> String {
-        serde_yaml::to_string(&self)
-            .expect("Unexpected error converting Configuration to yaml")
+        serde_yaml::to_string(&self).expect("Unexpected error converting Configuration to yaml")
     }
 }
 

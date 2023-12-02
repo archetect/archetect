@@ -1,13 +1,12 @@
-
-use rhai::Engine;
-use uuid::Uuid;
-use archetect_api::CommandRequest;
 use crate::archetype::render_context::RenderContext;
 use crate::runtime::context::RuntimeContext;
+use archetect_api::CommandRequest;
+use rhai::Engine;
+use uuid::Uuid;
 
 pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext, render_context: &RenderContext) {
     let rt = runtime_context.clone();
-    engine.register_fn("display", move | message: &str| {
+    engine.register_fn("display", move |message: &str| {
         rt.request(CommandRequest::Display(message.to_string()));
     });
 
@@ -17,7 +16,7 @@ pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext, ren
     });
 
     let rt = runtime_context.clone();
-    engine.on_print(move|message| {
+    engine.on_print(move |message| {
         rt.request(CommandRequest::Print(message.to_string()));
     });
 
@@ -32,14 +31,12 @@ pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext, ren
     });
 
     let rt = runtime_context.clone();
-    engine.on_print(move|message| {
+    engine.on_print(move |message| {
         rt.request(CommandRequest::Print(message.to_string()));
     });
 
     engine.register_fn("uuid", move || Uuid::new_v4().to_string());
 
     let switches = render_context.switches().clone();
-    engine.register_fn("switch_enabled", move |switch: &str| {
-       switches.contains(switch)
-    });
+    engine.register_fn("switch_enabled", move |switch: &str| switches.contains(switch));
 }

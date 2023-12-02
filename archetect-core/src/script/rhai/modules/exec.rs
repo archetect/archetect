@@ -39,9 +39,10 @@ fn capture(program: &str, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> 
 
             match String::from_utf8(output.stdout) {
                 Ok(result) => Ok(result.into()),
-                Err(err) => {
-                    Err(Box::new(EvalAltResult::ErrorSystem("exec UTF8 Error".into(), Box::new(err))))
-                }
+                Err(err) => Err(Box::new(EvalAltResult::ErrorSystem(
+                    "exec UTF8 Error".into(),
+                    Box::new(err),
+                ))),
             }
         }
         Err(err) => Err(Box::new(EvalAltResult::ErrorSystem("exec Error".into(), Box::new(err)))),

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::commands::prompt_info::PromptInfo;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BoolPromptInfo {
@@ -12,7 +12,7 @@ pub struct BoolPromptInfo {
 
 impl PromptInfo for BoolPromptInfo {
     fn message(&self) -> &str {
-        return self.message.as_ref()
+        return self.message.as_ref();
     }
 
     fn optional(&self) -> bool {

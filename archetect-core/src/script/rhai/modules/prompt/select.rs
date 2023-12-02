@@ -1,13 +1,16 @@
+use std::borrow::Cow;
+
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, SelectPromptInfo};
+use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
 
-use crate::errors::ArchetectError;
+use crate::errors::{ArchetectError, ArchetypeError};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::get_optional_setting;
+use crate::utils::{ArchetectRhaiSystemError, ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
-pub fn prompt<K: AsRef<str>>(
-    call: NativeCallContext,
+pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+    call: &NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
     runtime_context: &RuntimeContext,
@@ -15,7 +18,6 @@ pub fn prompt<K: AsRef<str>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-
     let options = &options;
 
     if let Some(answer) = answer {
@@ -24,28 +26,9 @@ pub fn prompt<K: AsRef<str>>(
                 return Ok(option.clone());
             }
         }
-
-        let fn_name = call.fn_name().to_owned();
-        let source = call.source().unwrap_or_default().to_owned();
-        let position = call.position();
-        let error = EvalAltResult::ErrorSystem(
-            "Invalid Answer".to_owned(),
-            Box::new(ArchetectError::GeneralError(if let Some(key) = key {
-                format!(
-                    "'{}' was provided as an answer to '{}', but did not match any of the required options.",
-                    answer, key.as_ref()
-                )
-                .to_owned()
-            } else {
-                format!("{}", message).to_owned()
-            })),
-        );
-        return Err(Box::new(EvalAltResult::ErrorInFunctionCall(
-            fn_name,
-            source,
-            Box::new(error),
-            position,
-        )));
+        let requirement = "must match one of the required options";
+        let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, requirement);
+        return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
     };
 
     if runtime_context.headless() {
@@ -55,13 +38,9 @@ pub fn prompt<K: AsRef<str>>(
         )));
     }
 
+    let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
 
-    let options = options.iter().map(|v|v.to_string())
-        .collect::<Vec<String>>();
-
-    let mut prompt_info = SelectPromptInfo::new(message, options)
-        .with_optional(get_optional_setting(settings))
-        ;
+    let mut prompt_info = SelectPromptInfo::new(message, options).with_optional(get_optional_setting(settings));
 
     // if let Some(page_size) = settings.get("page_size") {
     //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
@@ -84,22 +63,25 @@ pub fn prompt<K: AsRef<str>>(
         prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     }
 
-    runtime_context.request(CommandRequest::PromptForSelect(prompt_info));
+    runtime_context.request(CommandRequest::PromptForSelect(prompt_info.clone()));
 
     match runtime_context.response() {
-        CommandResponse::StringAnswer(answer) => {
+        CommandResponse::String(answer) => {
             return Ok(answer.into());
         }
-        CommandResponse::NoneAnswer => {
-            return Ok(Dynamic::UNIT);
+        CommandResponse::None => {
+            if !prompt_info.optional() {
+                let error = ArchetypeError::answer_not_optional(message, key);
+                return Err(ArchetypeRhaiSystemError("Required", error).into());
+            } else {
+                return Ok(Dynamic::UNIT);
+            }
         }
         CommandResponse::Error(error) => {
-            let error = EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
-            return Err(Box::new(error));
+            return Err(ArchetectRhaiSystemError("Prompt Error", ArchetectError::NakedError(error)).into());
         }
         response => {
-            let error = EvalAltResult::ErrorSystem("Invalid Answer Type".to_string(), Box::new(ArchetectError::NakedError(format!("{:?}", response))));
-            return Err(Box::new(error));
+            return Err(ArchetectRhaiSystemError("Prompt Error", ArchetectError::NakedError(format!("{:?}", response))).into());
         }
     }
 }

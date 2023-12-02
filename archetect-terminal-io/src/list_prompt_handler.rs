@@ -2,8 +2,8 @@ use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, ListPromptInfo, PromptInfo};
-use inquire::List;
 use inquire::validator::Validation;
+use inquire::List;
 
 use crate::get_render_config;
 
@@ -16,22 +16,20 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &SyncSender<Co
     };
     let mut prompt = List::new(prompt_info.message())
         .with_list_validator(list_validator)
-        .with_render_config(get_render_config())
-        ;
+        .with_render_config(get_render_config());
 
     prompt.defaults = prompt_info.defaults();
-    prompt.placeholder = prompt_info.placeholder().map(|v|v.to_string());
-    prompt.help_message = prompt_info.help().map(|v|v.to_string());
+    prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
+    prompt.help_message = prompt_info.help().map(|v| v.to_string());
 
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
                 responses
-                    .send(CommandResponse::MultiStringAnswer(answer))
+                    .send(CommandResponse::Array(answer))
                     .expect("Channel Send Error");
             } else {
-                responses.send(CommandResponse::NoneAnswer)
-                    .expect("Channel Send Error");
+                responses.send(CommandResponse::None).expect("Channel Send Error");
             }
         }
         Err(error) => {

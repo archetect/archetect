@@ -4,8 +4,8 @@ use std::path::Path;
 use camino::Utf8PathBuf;
 use rhai::Map;
 
-use crate::errors::CatalogError;
 use crate::archetype::archetype_manifest::RuntimeRequirements;
+use crate::errors::CatalogError;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 

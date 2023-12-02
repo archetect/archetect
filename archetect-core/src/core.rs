@@ -28,9 +28,7 @@ pub struct ArchetectBuilder {
 
 impl ArchetectBuilder {
     fn new() -> ArchetectBuilder {
-        ArchetectBuilder {
-            layout: None,
-        }
+        ArchetectBuilder { layout: None }
     }
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {

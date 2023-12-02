@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::commands::prompt_info::PromptInfo;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListPromptInfo {

@@ -6,8 +6,9 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use log::{debug, trace};
-use rhai::{EvalAltResult, Map, Scope};
+use rhai::{Map, Scope};
 
+use archetect_api::CommandRequest;
 use inquire::Confirm;
 use minijinja::Environment;
 
@@ -58,22 +59,30 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), Box<EvalAltResult>> {
+    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), ArchetypeError> {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
         scope.push_constant("SWITCHES", render_context.switches_as_array());
 
         let environment = create_environment(self, runtime_context.clone(), &render_context);
-        let engine = create_engine(environment, self.clone(), runtime_context, render_context);
+        let engine = create_engine(environment, self.clone(), runtime_context.clone(), render_context);
 
-        let directory = &self.inner.directory;
-        let script_contents = &directory.script_contents().map_err(|err| {
-            Box::new(EvalAltResult::ErrorSystem(
-                "Error getting script contents".to_owned(),
-                Box::new(err),
-            ))
-        })?;
-        engine.run_with_scope(&mut scope, script_contents)?;
+        match engine.compile_file_with_scope(&mut scope,self.directory().script()?.into_std_path_buf()) {
+
+            Ok(ast) => {
+                match engine.run_ast_with_scope(&mut scope, &ast) {
+                    Ok(_) => {}
+                    Err(error) => {
+                        runtime_context.request(CommandRequest::LogError(format!("{}", error)));
+                        return Err(ArchetypeError::ScriptAbortError);
+                    }
+                }
+            }
+            Err(error) => {
+                runtime_context.request(CommandRequest::LogError(format!("{}", error)));
+                return Err(ArchetypeError::ScriptAbortError);
+            }
+        }
 
         Ok(())
     }
@@ -102,7 +111,14 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
         if path.is_dir() {
             let destination = render_destination(environment, context, &destination, &path)?;
             fs::create_dir_all(destination.as_path())?;
-            render_directory(environment, runtime_context, context, path, destination, overwrite_policy)?;
+            render_directory(
+                environment,
+                runtime_context,
+                context,
+                path,
+                destination,
+                overwrite_policy,
+            )?;
         } else if path.is_file() {
             // TODO: avoid duplication of file read
             let contents = fs::read(&path)?;
@@ -136,7 +152,8 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                                     if Confirm::new(format!("Overwrite '{}'?", destination).as_str())
                                         .prompt_skippable()
                                         .unwrap_or_default()
-                                        .unwrap_or_default() {
+                                        .unwrap_or_default()
+                                    {
                                         debug!("Overwriting {:?}", destination);
                                         let contents = render_contents(environment, context, &path)?;
                                         write_contents(destination, &contents)?;

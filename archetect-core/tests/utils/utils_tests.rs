@@ -14,13 +14,11 @@ fn test_utils() -> Result<(), ArchetectError> {
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = runtime_context.new_archetype("tests/archetypes/scripting/utils")?;
+    let archetype = runtime_context.new_archetype("tests/utils/utils_tests")?;
 
     std::thread::spawn(move || {
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
 
-        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default())
-            .with_switch("build")
-            ;
         archetype.render(runtime_context, render_context).unwrap();
     });
 
@@ -62,11 +60,11 @@ fn test_utils() -> Result<(), ArchetectError> {
     });
 
     assert_matches!(handle.receive(), CommandRequest::Display(message) => {
-        assert_eq!(message, "13:1 | \"Debug Message\"".to_string());
+        assert_eq!(message, "13:1 | \"Debug Message\": tests/utils/utils_tests/archetype.rhai".to_string());
     });
 
     assert_matches!(handle.receive(), CommandRequest::Display(message) => {
-        assert_eq!(message, "14:1 | [\"Debug\", \"Message\"]".to_string());
+        assert_eq!(message, "14:1 | [\"Debug\", \"Message\"]: tests/utils/utils_tests/archetype.rhai".to_string());
     });
 
     assert_matches!(handle.receive(), CommandRequest::Print(uuid) => {
@@ -84,17 +82,15 @@ fn test_switches() -> Result<(), ArchetectError> {
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = runtime_context.new_archetype("tests/archetypes/scripting/switches")?;
+    let archetype = runtime_context.new_archetype("tests/utils/switches")?;
 
     std::thread::spawn(move || {
-        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default())
-            .with_switch("build")
-            ;
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default()).with_switch("build");
         archetype.render(runtime_context, render_context).unwrap();
     });
 
     assert_matches!(handle.receive(), CommandRequest::Display(message) => {
-        assert_eq!(message, "1:1 | [\"build\"]");
+        assert_eq!(message, "1:1 | [\"build\"]: tests/utils/switches/archetype.rhai");
     });
 
     assert_matches!(handle.receive(), CommandRequest::Print(build_switch_enabled) => {

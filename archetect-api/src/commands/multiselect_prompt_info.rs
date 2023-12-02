@@ -1,6 +1,6 @@
-use std::ops::Deref;
-use serde::{Deserialize, Serialize};
 use crate::commands::prompt_info::PromptInfo;
+use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MultiSelectPromptInfo {
