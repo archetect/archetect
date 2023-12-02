@@ -42,6 +42,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
 
     let mut prompt_info = SelectPromptInfo::new(message, options).with_optional(get_optional_setting(settings));
 
+    if let Some(default_value) = settings.get("defaults_with") {
+        if let Some(default) = default_value.clone().try_cast::<String>() {
+            if runtime_context.headless() {
+                return Ok(default.into());
+            } else {
+                prompt_info = prompt_info.with_default(Some(default));
+            }
+        } else {
+            // TODO: Throw error about wrong type
+        }
+    }
+
     // if let Some(page_size) = settings.get("page_size") {
     //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
     //         prompt.page_size = page_size as usize;

@@ -71,11 +71,11 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
 
     let mut validated_defaults = vec![];
     if let Some(defaults_with) = settings.get("defaults_with") {
-        if let Some(defaults) = defaults_with.clone().try_cast::<Vec<String>>() {
+        if let Some(defaults) = defaults_with.clone().try_cast::<Vec<Dynamic>>() {
             for default in defaults.iter() {
-                if options.contains(default) {
+                if options.contains(&default.to_string()) {
                     // TODO: Error on invalid option
-                    validated_defaults.push(default.to_owned());
+                    validated_defaults.push(default.to_string());
                 }
             }
             if runtime_context.headless() {
