@@ -16,7 +16,8 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &SyncSender<Co
     };
     let mut prompt = List::new(prompt_info.message())
         .with_list_validator(list_validator)
-        .with_render_config(get_render_config());
+        .with_render_config(get_render_config())
+        ;
 
     prompt.defaults = prompt_info.defaults();
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());

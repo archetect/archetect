@@ -170,7 +170,6 @@ pub mod module {
 
     pub type CaseStyle = crate::script::rhai::modules::cases::CaseStyle;
     pub type CaseStrategy = crate::script::rhai::modules::cases::CaseStrategy;
-
     pub const CamelCase: CaseStyle = CaseStyle::CamelCase;
     pub const ClassCase: CaseStyle = CaseStyle::ClassCase;
     pub const CobolCase: CaseStyle = CaseStyle::CobolCase;

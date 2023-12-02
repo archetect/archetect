@@ -55,10 +55,13 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         .with_max_items(parse_setting::<usize>("max_items", settings));
 
     if let Some(default_value) = settings.get("defaults_with") {
-        if let Some(defaults) = default_value.clone().try_cast::<Vec<String>>() {
+        if let Some(defaults) = default_value.clone().try_cast::<Vec<Dynamic>>() {
             if runtime_context.headless() {
                 return Ok(defaults.into());
             } else {
+                let defaults = defaults.into_iter()
+                    .map(|v| v.to_string())
+                    .collect();
                 prompt_info = prompt_info.with_defaults(Some(defaults));
             }
         } else {
