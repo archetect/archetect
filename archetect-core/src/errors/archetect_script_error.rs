@@ -71,19 +71,17 @@ pub enum ArchetypeScriptError {
     AnswerNotOptional { prompt: String },
     #[error("'{prompt}' (key: '{key}') is not optional")]
     KeyedAnswerNotOptional { prompt: String, key: String },
-    #[error("For '{prompt}', the '{setting}' setting must be {requirement}, but it was '{actual}'")]
+    #[error("For '{prompt}', the '{setting}' setting must be {requirement}")]
     InvalidSetting {
         prompt: String,
         setting: String,
         requirement: String,
-        actual: String,
     },
-    #[error("For '{prompt}' (key: '{key}'), the '{setting}' setting must be {requirement}, but it was '{actual}'")]
+    #[error("For '{prompt}' (key: '{key}'), the '{setting}' setting must be {requirement}")]
     KeyedInvalidSetting {
         prompt: String,
         setting: String,
         requirement: String,
-        actual: String,
         key: String,
     },
     #[error("{0}")]
@@ -274,18 +272,16 @@ impl ArchetypeScriptError {
         }
     }
 
-    pub fn invalid_setting<'a, P, S, R, A, K>(
+    pub fn invalid_setting<'a, P, S, R, K>(
         prompt: P,
         setting: S,
         requirement: R,
-        actual: A,
         key: Option<K>,
     ) -> ArchetypeScriptError
     where
         P: Into<String>,
         S: Into<String>,
         R: Into<String>,
-        A: Into<String>,
         K: Into<Cow<'a, str>>,
     {
         if let Some(key) = key {
@@ -293,7 +289,6 @@ impl ArchetypeScriptError {
                 prompt: prompt.into(),
                 setting: setting.into(),
                 requirement: requirement.into(),
-                actual: actual.into(),
                 key: key.into().to_string(),
             }
         } else {
@@ -301,7 +296,6 @@ impl ArchetypeScriptError {
                 prompt: prompt.into(),
                 setting: setting.into(),
                 requirement: requirement.into(),
-                actual: actual.into(),
             }
         }
     }

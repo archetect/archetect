@@ -232,7 +232,7 @@ fn get_answers<'a, K: Into<Cow<'a, str>>>(
             if !answers.is_unit() {
                 let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
                 let error =
-                    ArchetypeScriptError::invalid_setting(message, setting, requirement, answers.to_string(), key);
+                    ArchetypeScriptError::invalid_setting(message, setting, requirement, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Map::new());
@@ -271,7 +271,7 @@ pub fn cast_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: 
 where
     P: AsRef<str>,
     K: Into<Cow<'a, str>>,
-    T: 'static
+    T: RequirementDescription + 'static
 {
     match settings.get(setting) {
         None => return Ok(None),
@@ -282,11 +282,32 @@ where
             return Err(ArchetypeScriptError::invalid_setting(
                 prompt.as_ref(),
                 setting,
-                std::any::type_name::<T>(),
-                value.to_string(),
+                T::get_requirement(),
                 key,
             ));
         }
+    }
+}
+
+pub trait RequirementDescription {
+    fn get_requirement() -> Cow<'static, str>;
+}
+
+impl RequirementDescription for String {
+    fn get_requirement() -> Cow<'static, str> {
+        "a String".into()
+    }
+}
+
+impl RequirementDescription for PromptType {
+    fn get_requirement() -> Cow<'static, str> {
+        "one of Text, Bool, Int, List, Select, MultiSelect, or Editor".into()
+    }
+}
+
+impl RequirementDescription for CaseStyle {
+    fn get_requirement() -> Cow<'static, str> {
+        "a CaseStyle".into()
     }
 }
 
