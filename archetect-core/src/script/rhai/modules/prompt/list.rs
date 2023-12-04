@@ -1,14 +1,12 @@
-use std::borrow::Cow;
-
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo, PromptInfo};
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
+use crate::script::rhai::modules::prompt::{cast_setting, parse_setting};
 
-pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     runtime_context: &RuntimeContext,
@@ -36,10 +34,27 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
+    let optional = cast_setting("optional", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .unwrap_or_default();
+    let min_items = parse_setting("min_items", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let max_items = parse_setting("max_items", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let placeholder = cast_setting("placeholder", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let help = cast_setting("help", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
+
     let mut prompt_info = ListPromptInfo::new(message)
-        .with_optional(get_optional_setting(settings))
-        .with_min_items(parse_setting::<usize>("min_items", settings))
-        .with_max_items(parse_setting::<usize>("max_items", settings));
+        .with_optional(optional)
+        .with_min_items(min_items)
+        .with_max_items(max_items)
+        .with_placeholder(placeholder)
+        .with_help(help)
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if let Some(defaults) = default_value.clone().try_cast::<Vec<Dynamic>>() {
@@ -59,14 +74,6 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     if runtime_context.headless() {
         let error = ArchetypeScriptError::headless_no_answer(message, key);
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
-    if let Some(placeholder) = settings.get("placeholder") {
-        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
-    }
-
-    if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
     }
 
     runtime_context.request(CommandRequest::PromptForList(prompt_info.clone()));

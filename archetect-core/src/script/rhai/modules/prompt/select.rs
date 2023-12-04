@@ -1,14 +1,12 @@
-use std::borrow::Cow;
-
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
 
 use crate::errors::{ArchetectError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::get_optional_setting;
+use crate::script::rhai::modules::prompt::cast_setting;
 
-pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
@@ -18,6 +16,15 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let options = &options;
+    let optional = cast_setting("optional", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .unwrap_or_default();
+    let placeholder = cast_setting("placeholder", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let help = cast_setting("help", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
 
     if let Some(answer) = answer {
         for option in options {
@@ -39,7 +46,11 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
 
     let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
 
-    let mut prompt_info = SelectPromptInfo::new(message, options).with_optional(get_optional_setting(settings));
+    let mut prompt_info = SelectPromptInfo::new(message, options)
+        .with_optional(optional)
+        .with_placeholder(placeholder)
+        .with_help(help )
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if let Some(default) = default_value.clone().try_cast::<String>() {
@@ -65,14 +76,6 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     // } else {
     //     prompt.page_size = 10;
     // }
-
-    if let Some(placeholder) = settings.get("placeholder") {
-        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
-    }
-
-    if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_placeholder(Some(help_message.to_string()));
-    }
 
     runtime_context.request(CommandRequest::PromptForSelect(prompt_info.clone()));
 

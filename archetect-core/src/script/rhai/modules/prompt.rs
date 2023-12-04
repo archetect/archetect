@@ -129,7 +129,7 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
             Ok(results.into())
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
+            let value = list::prompt(call, message, &runtime_context, &settings, Some(key.as_ref()), answer)?;
             results.insert(key.into(), value.clone().into());
             // TODO Consider casing strategies
             // expand_cases(&settings, &mut results, key, &value);
@@ -190,7 +190,7 @@ fn prompt_to_value(
             Ok(apply_case(&value, case))
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            let value = list::prompt(call, message, &runtime_context, &settings, answer_key.as_ref(), answer)?;
             Ok(apply_case(&value, case))
         }
     }
@@ -217,7 +217,7 @@ fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
     }
 }
 
-fn get_answers<'a, K: Into<Cow<'a, str>>>(
+fn get_answers<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     settings: &Map,
@@ -245,32 +245,36 @@ fn get_answers<'a, K: Into<Cow<'a, str>>>(
     return Ok(results);
 }
 
-pub fn get_optional_setting(settings: &Map) -> bool {
-    settings
-        .get("optional")
-        .map_or(Ok(false), |value| value.as_bool())
-        .unwrap_or(false)
-}
-
 pub fn get_render_config() -> RenderConfig {
     RenderConfig::default_colored().with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
 }
 
-pub fn parse_setting<T>(setting: &str, settings: &Map) -> Option<T>
-where
-    T: FromStr,
+pub fn parse_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: Option<K>) -> Result<Option<T>, ArchetypeScriptError>
+    where
+        P: AsRef<str>,
+        K: AsRef<str>,
+        T: RequirementDescription + FromStr + 'static
 {
-    settings
-        .get(setting)
-        .map(|value| value.to_string().parse::<T>())
-        .map(|value| value.ok())
-        .flatten()
+    match settings.get(setting) {
+        None => return Ok(None),
+        Some(value) => {
+            if let Ok(value) = value.to_string().parse::<T>() {
+                return Ok(Some(value));
+            }
+            return Err(ArchetypeScriptError::invalid_setting(
+                prompt.as_ref(),
+                setting,
+                T::get_requirement(),
+                key.as_ref(),
+            ));
+        }
+    }
 }
 
 pub fn cast_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: Option<K>) -> Result<Option<T>, ArchetypeScriptError>
 where
     P: AsRef<str>,
-    K: Into<Cow<'a, str>>,
+    K: AsRef<str>,
     T: RequirementDescription + 'static
 {
     match settings.get(setting) {
@@ -283,7 +287,7 @@ where
                 prompt.as_ref(),
                 setting,
                 T::get_requirement(),
-                key,
+                key.as_ref(),
             ));
         }
     }
@@ -308,6 +312,24 @@ impl RequirementDescription for PromptType {
 impl RequirementDescription for CaseStyle {
     fn get_requirement() -> Cow<'static, str> {
         "a CaseStyle".into()
+    }
+}
+
+impl RequirementDescription for usize {
+    fn get_requirement() -> Cow<'static, str> {
+        "a positive Integer".into()
+    }
+}
+
+impl RequirementDescription for i64 {
+    fn get_requirement() -> Cow<'static, str> {
+        "an Integer".into()
+    }
+}
+
+impl RequirementDescription for bool {
+    fn get_requirement() -> Cow<'static, str> {
+        "a boolean".into()
     }
 }
 

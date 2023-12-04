@@ -1,15 +1,13 @@
-use std::borrow::Cow;
-
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::validations::validate_text;
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, TextPromptInfo};
+use archetect_api::validations::validate_text;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
+use crate::script::rhai::modules::prompt::{cast_setting, parse_setting};
 
-pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     settings: &Map,
@@ -17,9 +15,21 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let optional = get_optional_setting(settings);
-    let min = parse_setting("min", settings).or(Some(1));
-    let max = parse_setting("max", settings);
+    let optional = cast_setting("optional", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .unwrap_or_default();
+    let min = parse_setting("min", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or(Some(1))
+        ;
+    let max = parse_setting("max", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let placeholder = cast_setting("placeholder", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let help = cast_setting("help", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
 
     if let Some(answer) = answer {
         return if let Some(answer) = answer.clone().try_cast::<String>() {
@@ -37,9 +47,12 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     }
 
     let mut prompt_info = TextPromptInfo::new(message)
+        .with_optional(optional)
         .with_min(min)
         .with_max(max)
-        .with_optional(optional);
+        .with_placeholder(placeholder)
+        .with_help(help)
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
@@ -57,18 +70,6 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         }
         let error = ArchetypeScriptError::headless_no_answer(message, key);
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
-    if let Some(placeholder) = settings.get("placeholder") {
-        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
-    }
-
-    if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
-    } else {
-        if optional {
-            prompt_info = prompt_info.with_help(Some("<esc> for None"));
-        }
     }
 
     runtime_context.request(CommandRequest::PromptForText(prompt_info.clone()));

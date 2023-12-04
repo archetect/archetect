@@ -56,13 +56,13 @@ impl MultiSelectPromptInfo {
         self
     }
 
-    pub fn with_help<T: Into<String>>(mut self, value: Option<T>) -> Self {
-        self.help = value.map(|v| v.into());
+    pub fn with_help(mut self, value: Option<String>) -> Self {
+        self.help = value;
         self
     }
 
-    pub fn with_placeholder<T: Into<String>>(mut self, value: Option<T>) -> Self {
-        self.placeholder = value.map(|v| v.into());
+    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
+        self.placeholder = value;
         self
     }
 

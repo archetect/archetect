@@ -1,14 +1,12 @@
-use std::borrow::Cow;
-
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, MultiSelectPromptInfo, PromptInfo};
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::get_optional_setting;
+use crate::script::rhai::modules::prompt::cast_setting;
 
-pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
@@ -18,6 +16,15 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     answer: Option<&Dynamic>,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
+    let optional = cast_setting("optional", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .unwrap_or_default();
+    let placeholder = cast_setting("placeholder", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let help = cast_setting("help", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
 
     // Handle answers
     if let Some(answer) = answer {
@@ -50,7 +57,8 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                     results.push(result.clone())
                 } else {
                     let requirement = "must match one of the required options";
-                    let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
+                    let error =
+                        ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
                     return Err(ArchetypeScriptErrorWrapper(call, error).into());
                 }
             }
@@ -67,7 +75,11 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     }
 
     let mut prompt_info =
-        MultiSelectPromptInfo::new(message, options.clone()).with_optional(get_optional_setting(settings));
+        MultiSelectPromptInfo::new(message, options.clone())
+            .with_optional(optional)
+            .with_placeholder(placeholder)
+            .with_help(help)
+        ;
 
     let mut validated_defaults = vec![];
     if let Some(defaults_with) = settings.get("defaults_with") {
@@ -85,7 +97,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             }
         } else {
             let requirement = "must be an array of values";
-            let error = ArchetypeScriptError::default_type_error(defaults_with.to_string() ,message, key, requirement);
+            let error = ArchetypeScriptError::default_type_error(defaults_with.to_string(), message, key, requirement);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
@@ -107,14 +119,6 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     // } else {
     //     prompt.page_size = 10;
     // }
-
-    if let Some(placeholder) = settings.get("placeholder") {
-        prompt_info = prompt_info.with_placeholder(Some(placeholder.to_string()));
-    }
-
-    if let Some(help_message) = settings.get("help") {
-        prompt_info = prompt_info.with_help(Some(help_message.to_string()));
-    }
 
     runtime_context.request(CommandRequest::PromptForMultiSelect(prompt_info.clone()));
 

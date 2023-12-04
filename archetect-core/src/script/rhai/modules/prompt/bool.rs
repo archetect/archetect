@@ -1,15 +1,13 @@
-use std::borrow::Cow;
-
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{BoolPromptInfo, CommandRequest, CommandResponse, PromptInfo};
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::get_optional_setting;
+use crate::script::rhai::modules::prompt::cast_setting;
 
 // TODO: Better help messages
-pub fn prompt<'a, K: Into<Cow<'a, str>>>(
+pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     runtime_context: &RuntimeContext,
@@ -32,9 +30,21 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         };
     }
 
-    let optional = get_optional_setting(settings);
+    let optional = cast_setting("optional", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .unwrap_or_default();
+    let placeholder = cast_setting("placeholder", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    let help = cast_setting("help", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
 
-    let mut prompt_info = BoolPromptInfo::new(message);
+    let mut prompt_info = BoolPromptInfo::new(message)
+        .with_optional(optional)
+        .with_placeholder(placeholder)
+        .with_help(help)
+        ;
 
     if let Some(default_value) = settings.get("defaults_with") {
         match get_boolean(default_value.to_string().as_str()) {

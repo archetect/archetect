@@ -1,6 +1,5 @@
-use std::borrow::Cow;
-
 use rhai::{EvalAltResult, NativeCallContext};
+
 use archetect_api::CommandResponse;
 use ArchetypeScriptError::{
     AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError,
@@ -139,14 +138,14 @@ impl ArchetypeScriptError {
     where
         D: Into<String>,
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
         R: Into<String>,
     {
         if let Some(key) = key {
             KeyedAnswerValidationError {
                 answer: answer.into(),
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
                 requires: requirement.into(),
             }
         } else {
@@ -167,14 +166,14 @@ impl ArchetypeScriptError {
     where
         D: Into<String>,
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
         R: Into<String>,
     {
         if let Some(key) = key {
             KeyedAnswerTypeError {
                 answer: answer.into(),
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
                 requires: requirement.into(),
             }
         } else {
@@ -195,14 +194,14 @@ impl ArchetypeScriptError {
     where
         D: Into<String>,
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
         R: Into<String>,
     {
         if let Some(key) = key {
             KeyedDefaultValidationError {
                 default: default.into(),
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
                 requires: requirement.into(),
             }
         } else {
@@ -223,14 +222,14 @@ impl ArchetypeScriptError {
     where
         D: Into<String>,
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
         R: Into<String>,
     {
         if let Some(key) = key {
             KeyedDefaultTypeError {
                 default: default.into(),
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
                 requires: requirement.into(),
             }
         } else {
@@ -245,12 +244,12 @@ impl ArchetypeScriptError {
     pub fn answer_not_optional<'a, P, K>(prompt: P, key: Option<K>) -> ArchetypeScriptError
     where
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
     {
         if let Some(key) = key {
             KeyedAnswerNotOptional {
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
             }
         } else {
             AnswerNotOptional { prompt: prompt.into() }
@@ -260,12 +259,12 @@ impl ArchetypeScriptError {
     pub fn headless_no_answer<'a, P, K>(prompt: P, key: Option<K>) -> ArchetypeScriptError
     where
         P: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
     {
         if let Some(key) = key {
             KeyedHeadlessNoAnswer {
                 prompt: prompt.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
             }
         } else {
             HeadlessNoAnswer { prompt: prompt.into() }
@@ -282,14 +281,14 @@ impl ArchetypeScriptError {
         P: Into<String>,
         S: Into<String>,
         R: Into<String>,
-        K: Into<Cow<'a, str>>,
+        K: AsRef<str>,
     {
         if let Some(key) = key {
             KeyedInvalidSetting {
                 prompt: prompt.into(),
                 setting: setting.into(),
                 requirement: requirement.into(),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
             }
         } else {
             InvalidSetting {
@@ -308,7 +307,7 @@ impl ArchetypeScriptError {
     ) -> ArchetypeScriptError
         where
             P: Into<String>,
-            K: Into<Cow<'a, str>>,
+            K: AsRef<str>,
             E: Into<String>,
     {
         if let Some(key) = key {
@@ -316,7 +315,7 @@ impl ArchetypeScriptError {
                 prompt: prompt.into(),
                 expected: expected.into(),
                 actual: format!("{:?}", actual),
-                key: key.into().to_string(),
+                key: key.as_ref().to_string(),
             }
         } else {
             UnexpectedPromptResponse {
