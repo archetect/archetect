@@ -4,10 +4,9 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
 
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::{ArchetectError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::get_optional_setting;
-use crate::utils::{ArchetectRhaiSystemError, ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
 pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     call: &NativeCallContext,
@@ -27,8 +26,8 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             }
         }
         let requirement = "must match one of the required options";
-        let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, requirement);
-        return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
+        let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
     };
 
     if runtime_context.headless() {
@@ -83,17 +82,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
-                let error = ArchetypeError::answer_not_optional(message, key);
-                return Err(ArchetypeRhaiSystemError("Required", error).into());
+                let error = ArchetypeScriptError::answer_not_optional(message, key);
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Dynamic::UNIT);
             }
         }
         CommandResponse::Error(error) => {
-            return Err(ArchetectRhaiSystemError("Prompt Error", ArchetectError::NakedError(error)).into());
+            return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            return Err(ArchetectRhaiSystemError("Prompt Error", ArchetectError::NakedError(format!("{:?}", response))).into());
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "String", response);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 }

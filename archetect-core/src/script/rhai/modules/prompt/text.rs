@@ -2,13 +2,12 @@ use std::borrow::Cow;
 
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, PromptInfo, TextPromptInfo};
 use archetect_api::validations::validate_text;
+use archetect_api::{CommandRequest, CommandResponse, PromptInfo, TextPromptInfo};
 
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::{get_optional_setting, parse_setting};
-use crate::utils::{ArchetectRhaiSystemError, ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
 pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     call: &NativeCallContext,
@@ -26,8 +25,9 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         return match validate_text(min, max, &answer.to_string()) {
             Ok(_) => Ok(answer.clone()),
             Err(error_message) => {
-                let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, error_message);
-                Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into())
+                let error =
+                    ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
+                Err(ArchetypeScriptErrorWrapper(call, error).into())
             }
         };
     }
@@ -35,8 +35,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     let mut prompt_info = TextPromptInfo::new(message)
         .with_min(min)
         .with_max(max)
-        .with_optional(optional)
-        ;
+        .with_optional(optional);
 
     if let Some(default_value) = settings.get("defaults_with") {
         if runtime_context.headless() {
@@ -52,8 +51,8 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         if optional {
             return Ok(Dynamic::UNIT);
         }
-        let error = ArchetypeError::headless_no_answer(message, key);
-        return Err(ArchetypeRhaiFunctionError("Headless Mode", call, error).into());
+        let error = ArchetypeScriptError::headless_no_answer(message, key);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -77,23 +76,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
-                let error = ArchetypeError::answer_not_optional(message, key);
-                return Err(ArchetypeRhaiSystemError("Required", error).into());
+                let error = ArchetypeScriptError::answer_not_optional(message, key);
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Dynamic::UNIT);
             }
         }
         CommandResponse::Error(error) => {
-            let error = ArchetectError::NakedError(error);
-            return Err(ArchetectRhaiSystemError("Prompt Error", error).into());
+            return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = ArchetectError::NakedError(format!(
-                "'{}' requires a String, but was answered with {:?}",
-                prompt_info.message(),
-                response
-            ));
-            return Err(ArchetectRhaiSystemError("Invalid Type", error).into());
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "String", response);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 }

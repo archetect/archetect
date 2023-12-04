@@ -1,12 +1,12 @@
 use std::borrow::Cow;
+
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, MultiSelectPromptInfo, PromptInfo};
 
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::get_optional_setting;
-use crate::utils::{ArchetectRhaiFunctionError, ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
 pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     call: &NativeCallContext,
@@ -33,8 +33,8 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                     results.push(result.clone())
                 } else {
                     let requirement = "must match one of the required options";
-                    let error = ArchetypeError::answer_validation_error(answer, message, key, requirement);
-                    return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
+                    let error = ArchetypeScriptError::answer_validation_error(answer, message, key, requirement);
+                    return Err(ArchetypeScriptErrorWrapper(call, error).into());
                 }
             }
 
@@ -50,19 +50,19 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                     results.push(result.clone())
                 } else {
                     let requirement = "must match one of the required options";
-                    let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, requirement);
-                    return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
+                    let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
+                    return Err(ArchetypeScriptErrorWrapper(call, error).into());
                 }
             }
             return Ok(results.into());
         } else {
-            let error = ArchetypeError::answer_validation_error(
+            let error = ArchetypeScriptError::answer_validation_error(
                 answer.to_string(),
                 message,
                 key,
                 "must be an array of values or a comma-separated string",
             );
-            return Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into());
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 
@@ -84,26 +84,15 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                 prompt_info = prompt_info.with_defaults(Some(validated_defaults));
             }
         } else {
-            let error = ArchetectError::GeneralError(if let Some(key) = key {
-                format!(
-                    "'{}' ({}) was provided as a default for '{}', but must be an array of values.",
-                    defaults_with,
-                    defaults_with.type_name(),
-                    key.into(),
-                )
-                .to_owned()
-            } else {
-                message.to_string()
-            });
-            return Err(ArchetectRhaiFunctionError("Invalid Default", call, error).into());
+            let requirement = "must be an array of values";
+            let error = ArchetypeScriptError::default_type_error(defaults_with.to_string() ,message, key, requirement);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 
     if runtime_context.headless() {
-        return Err(Box::new(EvalAltResult::ErrorSystem(
-            "Headless Mode Error".to_owned(),
-            Box::new(ArchetectError::HeadlessNoDefault),
-        )));
+        let error = ArchetypeScriptError::headless_no_answer(message, key);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     // if let Some(page_size) = settings.get("page_size") {
@@ -135,23 +124,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
-                let error = ArchetypeError::answer_not_optional(message, key);
-                return Err(ArchetypeRhaiSystemError("Required", error).into());
+                let error = ArchetypeScriptError::answer_not_optional(message, key);
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Dynamic::UNIT);
             }
         }
         CommandResponse::Error(error) => {
-            let error =
-                EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
-            return Err(Box::new(error));
+            return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = EvalAltResult::ErrorSystem(
-                "Invalid Answer Type".to_string(),
-                Box::new(ArchetectError::NakedError(format!("{:?}", response))),
-            );
-            return Err(Box::new(error));
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "Array of Strings", response);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 }

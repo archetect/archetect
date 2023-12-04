@@ -6,7 +6,7 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use log::{debug, trace};
-use rhai::{Map, Scope};
+use rhai::{Dynamic, Map, Scope};
 
 use archetect_api::CommandRequest;
 use inquire::Confirm;
@@ -59,7 +59,7 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), ArchetypeError> {
+    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<Dynamic, ArchetypeError> {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
         scope.push_constant("SWITCHES", render_context.switches_as_array());
@@ -70,8 +70,10 @@ impl Archetype {
         match engine.compile_file_with_scope(&mut scope,self.directory().script()?.into_std_path_buf()) {
 
             Ok(ast) => {
-                match engine.run_ast_with_scope(&mut scope, &ast) {
-                    Ok(_) => {}
+                match engine.eval_ast_with_scope(&mut scope, &ast) {
+                    Ok(result) => {
+                        Ok(result)
+                    }
                     Err(error) => {
                         runtime_context.request(CommandRequest::LogError(format!("{}", error)));
                         return Err(ArchetypeError::ScriptAbortError);
@@ -83,8 +85,6 @@ impl Archetype {
                 return Err(ArchetypeError::ScriptAbortError);
             }
         }
-
-        Ok(())
     }
 
     pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {

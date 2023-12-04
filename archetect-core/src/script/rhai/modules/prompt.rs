@@ -10,10 +10,9 @@ use inquire::ui::{Color, RenderConfig, Styled};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
-use crate::errors::ArchetypeError;
+use crate::errors::{ArchetypeError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
-use crate::utils::ArchetypeRhaiFunctionError;
 
 mod confirm;
 mod editor;
@@ -83,7 +82,7 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
 
     let mut results: Map = Map::new();
 
-    let answers = &get_answers(&call, &settings, &archetype_context)?;
+    let answers = &get_answers(call, message, &settings, Some(key.clone()), &archetype_context)?;
     let answer = answers.get(key.as_ref());
 
     return match prompt_type {
@@ -148,7 +147,7 @@ fn prompt_to_value(
         .map(|case| case.clone().try_cast::<CaseStyle>())
         .flatten();
 
-    let answers = &get_answers(&call, &settings, &archetype_context)?;
+    let answers = &get_answers::<Cow<'_, str>>(call, message, &settings, None, &archetype_context)?;
     let answer_key = settings.get("answer_key").map(|value| value.to_string());
     let answer = if let Some(key) = &answer_key {
         answers.get(key.as_str())
@@ -209,22 +208,22 @@ fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
     }
 }
 
-fn get_answers(
+fn get_answers<'a, K: Into<Cow<'a, str>>>(
     call: &NativeCallContext,
+    message: &str,
     settings: &Map,
+    key: Option<K>,
     archetype_context: &RenderContext,
 ) -> Result<Map, Box<EvalAltResult>> {
-    if let Some(answers) = settings.get("answer_source") {
+    let setting = "answer_source";
+    if let Some(answers) = settings.get(setting) {
         if let Some(answers) = answers.clone().try_cast::<Map>() {
             return Ok(answers);
         } else {
             if !answers.is_unit() {
-                let error = ArchetypeError::InvalidSetting {
-                    setting: "answer_source".to_string(),
-                    requires: "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string(),
-                    actual: "of type '{}'".to_string(),
-                };
-                return Err(ArchetypeRhaiFunctionError("Invalid Setting", call, error).into());
+                let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
+                let error = ArchetypeScriptError::invalid_setting(message, setting, requirement, answers.to_string(), key);
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Map::new());
             }

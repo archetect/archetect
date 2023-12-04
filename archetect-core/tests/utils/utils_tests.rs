@@ -19,7 +19,7 @@ fn test_utils() -> Result<(), ArchetectError> {
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
 
-        archetype.render(runtime_context, render_context).unwrap();
+        assert!(archetype.render(runtime_context, render_context).is_ok());
     });
 
     // Commands coming from utils/
@@ -86,7 +86,7 @@ fn test_switches() -> Result<(), ArchetectError> {
 
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default()).with_switch("build");
-        archetype.render(runtime_context, render_context).unwrap();
+        assert!(archetype.render(runtime_context, render_context).is_ok());
     });
 
     assert_matches!(handle.receive(), CommandRequest::Display(message) => {

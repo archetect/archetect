@@ -4,10 +4,9 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{BoolPromptInfo, CommandRequest, CommandResponse, PromptInfo};
 
-use crate::errors::{ArchetectError, ArchetypeError};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::get_optional_setting;
-use crate::utils::{ArchetypeRhaiFunctionError, ArchetypeRhaiSystemError};
 
 // TODO: Better help messages
 pub fn prompt<'a, K: Into<Cow<'a, str>>>(
@@ -22,10 +21,15 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         return match get_boolean(answer.to_string().as_str()) {
             Ok(value) => Ok(value.into()),
             Err(_) => {
-                let error = ArchetypeError::answer_validation_error(answer.to_string(), message, key, "must resemble a boolean");
-                Err(ArchetypeRhaiFunctionError("Invalid Answer", call, error).into())
+                let error = ArchetypeScriptError::answer_validation_error(
+                    answer.to_string(),
+                    message,
+                    key,
+                    "must resemble a boolean",
+                );
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             }
-        }
+        };
     }
 
     let optional = get_optional_setting(settings);
@@ -42,15 +46,20 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                 }
             }
             Err(_) => {
-                let error = ArchetypeError::answer_validation_error(default_value.to_string(), message, key, "must resemble a boolean");
-                return Err(ArchetypeRhaiFunctionError("Invalid Default", call, error).into());
+                let error = ArchetypeScriptError::default_validation_error(
+                    default_value.to_string(),
+                    message,
+                    key,
+                    "must resemble a boolean",
+                );
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             }
         }
     }
 
     if runtime_context.headless() {
-        let error = ArchetypeError::headless_no_answer(message, key);
-        return Err(ArchetypeRhaiFunctionError("Headless", call, error).into());
+        let error = ArchetypeScriptError::headless_no_answer(message, key);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     if let Some(placeholder) = settings.get("placeholder") {
@@ -73,23 +82,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
-                let error = ArchetypeError::answer_not_optional(message, key);
-                return Err(ArchetypeRhaiSystemError("Required", error).into());
+                let error = ArchetypeScriptError::answer_not_optional(message, key);
+                return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Dynamic::UNIT);
             }
         }
         CommandResponse::Error(error) => {
-            let error =
-                EvalAltResult::ErrorSystem("Prompt Error".to_string(), Box::new(ArchetectError::NakedError(error)));
-            return Err(Box::new(error));
+            return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = EvalAltResult::ErrorSystem(
-                "Invalid Answer Type".to_string(),
-                Box::new(ArchetectError::NakedError(format!("{:?}", response))),
-            );
-            return Err(Box::new(error));
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "Bool", response);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 }

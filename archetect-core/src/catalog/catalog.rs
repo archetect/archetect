@@ -21,11 +21,8 @@ pub(crate) struct Inner {
 impl Catalog {
     pub fn load(source: &Source) -> Result<Catalog, CatalogError> {
         let manifest = CatalogManifest::load(source.local_path())?;
-
         let inner = Rc::new(Inner { manifest });
-
         let catalog = Catalog { inner };
-
         Ok(catalog)
     }
 
@@ -71,7 +68,7 @@ impl Catalog {
                     let render_context = RenderContext::new(destination, answers);
 
                     archetype.check_requirements(&runtime_context)?;
-                    archetype.render(runtime_context, render_context)?;
+                    let _result = archetype.render(runtime_context, render_context)?;
                     return Ok(());
                 }
                 CatalogEntry::Group {

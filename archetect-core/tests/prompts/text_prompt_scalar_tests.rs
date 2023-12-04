@@ -78,7 +78,7 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::None);
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Prefix:' is not optional");
+        assert_eq!(message, "Required: 'Service Prefix:' is not optional\nin call to function 'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
     });
 
     Ok(())

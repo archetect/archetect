@@ -1,5 +1,5 @@
 use log::info;
-use rhai::{Engine, EvalAltResult, Map, Module};
+use rhai::{Dynamic, Engine, EvalAltResult, Map, Module};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
@@ -40,11 +40,11 @@ pub struct ArchetypeFacade {
 
 // TODO: Allow overwrites
 impl ArchetypeFacade {
-    pub fn render(&mut self, answers: Map) -> Result<(), Box<EvalAltResult>> {
+    pub fn render(&mut self, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
         info!("render: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers);
-        self.child
+        let result = self.child
             .render(self.runtime_context.clone(), render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
@@ -52,15 +52,15 @@ impl ArchetypeFacade {
                     Box::new(err),
                 ))
             })?;
-        Ok(())
+        Ok(result)
     }
 
-    pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
+    pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
         info!("render_with_settings: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
 
-        self.child
+        let result = self.child
             .render(self.runtime_context.clone(), render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
@@ -68,16 +68,16 @@ impl ArchetypeFacade {
                     Box::new(err),
                 ))
             })?;
-        Ok(())
+        Ok(result)
     }
 
-    pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<(), Box<EvalAltResult>> {
+    pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
         let destination = self
             .archetype_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers);
-        self.child
+        let result = self.child
             .render(self.runtime_context.clone(), render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
@@ -85,7 +85,7 @@ impl ArchetypeFacade {
                     Box::new(err),
                 ))
             })?;
-        Ok(())
+        Ok(result)
     }
 
     pub fn render_with_destination_and_settings(
@@ -93,14 +93,14 @@ impl ArchetypeFacade {
         destination: &str,
         answers: Map,
         settings: Map,
-    ) -> Result<(), Box<EvalAltResult>> {
+    ) -> Result<Dynamic, Box<EvalAltResult>> {
         info!("render_with_destination_and_settings: {:?}", answers);
         let destination = self
             .archetype_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
-        self.child
+        let result = self.child
             .render(self.runtime_context.to_owned(), render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
@@ -109,7 +109,7 @@ impl ArchetypeFacade {
                 ))
             })?;
 
-        Ok(())
+        Ok(result)
     }
 }
 

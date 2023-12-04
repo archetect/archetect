@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
-use rhai::Map;
+use rhai::{Dynamic, Map};
 
 use archetect_api::{CommandRequest, IoDriver};
 use archetect_core::archetype::render_context::RenderContext;
@@ -81,9 +81,9 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
             default(&matches, &configuration, answers, driver, layout)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, &configuration, answers, driver, layout)?,
-        Some(("catalog", args)) => catalog(args, &configuration, answers, driver, layout)?,
-        Some(("config", args)) => config(args, &configuration)?,
+        Some(("render", args)) => render(args, &configuration, answers, driver, layout).map(|_| ())?,
+        Some(("catalog", args)) => catalog(args, &configuration, answers, driver, layout).map(|_| ())?,
+        Some(("config", args)) => config(args, &configuration).map(|_| ())?,
         _ => {}
     }
 
@@ -153,7 +153,7 @@ pub fn render<D: IoDriver, L: SystemLayout>(
     answers: Map,
     driver: D,
     layout: L,
-) -> Result<(), ArchetectError> {
+) -> Result<Dynamic, ArchetectError> {
     let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let source = matches.get_one::<String>("source").unwrap();
     let archetype = runtime_context.new_archetype(source)?;
@@ -162,8 +162,7 @@ pub fn render<D: IoDriver, L: SystemLayout>(
 
     archetype.check_requirements(&runtime_context)?;
     let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, configuration));
-    archetype.render(runtime_context, render_context)?;
-    Ok(())
+    Ok(archetype.render(runtime_context, render_context)?)
 }
 
 fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<String> {

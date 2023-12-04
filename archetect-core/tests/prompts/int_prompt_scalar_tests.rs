@@ -77,7 +77,7 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::None);
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Port:' is not optional");
+        assert_eq!(message, "Required: 'Service Port:' is not optional\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
     });
 
     Ok(())
@@ -105,7 +105,7 @@ fn test_scalar_int_prompt_wrong_type() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::String("8080".to_string()));
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Invalid Type: 'Service Port:' requires an Integer, but was answered with String(\"8080\")");
+        assert_eq!(message, "Unexpected Response: 'Service Port:' expects Int, but received String(\"8080\")\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
     });
 
     Ok(())

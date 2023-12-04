@@ -1,5 +1,6 @@
 pub use answer_error::AnswerFileError;
 pub use archetect_error::ArchetectError;
+pub use archetect_script_error::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 pub use archetype_error::ArchetypeError;
 pub use catalog_error::CatalogError;
 pub use render_error::RenderError;
@@ -9,6 +10,7 @@ pub use system_error::SystemError;
 
 mod answer_error;
 mod archetect_error;
+mod archetect_script_error;
 mod archetype_error;
 mod catalog_error;
 mod render_error;
