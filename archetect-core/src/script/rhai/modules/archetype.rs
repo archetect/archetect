@@ -41,7 +41,6 @@ pub struct ArchetypeFacade {
 // TODO: Allow overwrites
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        info!("render: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers);
         let result = self.child
@@ -56,7 +55,6 @@ impl ArchetypeFacade {
     }
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        info!("render_with_settings: {:?}", answers);
         let destination = self.archetype_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
 
