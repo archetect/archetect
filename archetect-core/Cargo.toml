@@ -1,6 +1,6 @@
 [package]
 name = "archetect-core"
-version = "2.0.0-ALPHA.4"
+version = "2.0.0-ALPHA.5"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"
@@ -11,8 +11,8 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.4" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.4" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.5" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.5" }
 
 anyhow = "1.0.69"
 atty = "0.2"
