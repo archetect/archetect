@@ -22,14 +22,18 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
     let max = parse_setting("max", settings);
 
     if let Some(answer) = answer {
-        return match validate_text(min, max, &answer.to_string()) {
-            Ok(_) => Ok(answer.clone()),
-            Err(error_message) => {
-                let error =
-                    ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
-                Err(ArchetypeScriptErrorWrapper(call, error).into())
+        return if let Some(answer) = answer.clone().try_cast::<String>() {
+            match validate_text(min, max, &answer.to_string()) {
+                Ok(_) => Ok(answer.into()),
+                Err(error_message) => {
+                    let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
+                    return Err(ArchetypeScriptErrorWrapper(call, error).into());
+                }
             }
-        };
+        } else {
+            let error = ArchetypeScriptError::answer_type_error(answer.to_string(), message, key, "a String");
+            Err(ArchetypeScriptErrorWrapper(call, error).into())
+        }
     }
 
     let mut prompt_info = TextPromptInfo::new(message)
@@ -71,8 +75,13 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
 
     match runtime_context.response() {
         CommandResponse::String(answer) => {
-            // TODO: Validate response from Driver
-            return Ok(answer.into());
+            match validate_text(min, max, &answer.to_string()) {
+                Ok(_) => Ok(answer.into()),
+                Err(error_message) => {
+                    let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
+                    return Err(ArchetypeScriptErrorWrapper(call, error).into());
+                }
+            }
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
@@ -86,7 +95,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "String", response);
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "a String", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }

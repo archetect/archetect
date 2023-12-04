@@ -8,13 +8,12 @@ use inquire::error::InquireResult;
 use inquire::InquireError;
 use inquire::ui::{Color, RenderConfig, Styled};
 
-use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
 
-mod confirm;
+mod bool;
 mod editor;
 mod int;
 mod list;
@@ -24,27 +23,24 @@ mod text;
 
 pub(crate) fn register(
     engine: &mut Engine,
-    archetype: Archetype,
     archetype_context: RenderContext,
     runtime_context: RuntimeContext,
 ) {
     engine.register_global_module(exported_module!(module).into());
 
-    let arch = archetype.clone();
     let ctx = archetype_context.clone();
     let rt = runtime_context.clone();
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, key: &str, settings: Map| {
-            prompt_to_map(&call, arch.clone(), ctx.clone(), rt.clone(), message, key, settings)
+            prompt_to_map(&call, message, rt.clone(), ctx.clone(), key, settings)
         },
     );
 
-    let arch = archetype.clone();
     let ctx = archetype_context.clone();
     let rt = runtime_context.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str, key: &str| {
-        prompt_to_map(&call, arch.clone(), ctx.clone(), rt.clone(), message, key, Map::new())
+        prompt_to_map(&call, message, rt.clone(), ctx.clone(), key, Map::new())
     });
 
     let rt = runtime_context.clone();
@@ -65,24 +61,22 @@ pub(crate) fn register(
 
 fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
     call: &NativeCallContext,
-    _archetype: Archetype,
-    archetype_context: RenderContext,
-    runtime_context: RuntimeContext,
     message: &str,
+    runtime_context: RuntimeContext,
+    render_context: RenderContext,
     key: K,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let key = key.into();
-    let prompt_type = get_prompt_type(&settings).map_err(|err| {
-        Box::new(EvalAltResult::ErrorSystem(
-            "Invalid PromptType".to_owned(),
-            Box::new(err),
-        ))
-    })?;
+
+    let prompt_type = cast_setting("type", &settings, message, None::<Cow<'_, str>>)
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
+        ?.unwrap_or_default()
+        ;
 
     let mut results: Map = Map::new();
 
-    let answers = &get_answers(call, message, &settings, Some(key.clone()), &archetype_context)?;
+    let answers = &get_answers(call, message, &settings, Some(key.clone()), &render_context)?;
     let answer = answers.get(key.as_ref());
 
     return match prompt_type {
@@ -92,24 +86,40 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
             expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
             Ok(results.into())
         }
-        PromptType::Confirm => {
-            let value = confirm::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
+        PromptType::Bool => {
+            let value = bool::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
         PromptType::Int => {
-            let value = int::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
+            let value = int::prompt_int(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings, Some(key.clone()), answer)?;
+            let value = select::prompt(
+                call,
+                message,
+                options,
+                &runtime_context,
+                &settings,
+                Some(key.clone()),
+                answer,
+            )?;
             results.insert(key.clone().into(), value.clone().into());
             expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
             Ok(results.into())
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, Some(key.clone()), answer)?;
+            let value = multiselect::prompt(
+                call,
+                message,
+                options,
+                &runtime_context,
+                &settings,
+                Some(key.clone()),
+                answer,
+            )?;
             results.insert(key.into(), value.into());
             Ok(results.into())
         }
@@ -132,23 +142,22 @@ fn prompt_to_value(
     call: &NativeCallContext,
     message: &str,
     runtime_context: RuntimeContext,
-    archetype_context: RenderContext,
+    render_context: RenderContext,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let prompt_type = get_prompt_type(&settings).map_err(|err| {
-        Box::new(EvalAltResult::ErrorSystem(
-            "Invalid PromptType".to_owned(),
-            Box::new(err),
-        ))
-    })?;
+    let prompt_type = cast_setting("type", &settings, message, None::<Cow<'_, str>>)
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
+        ?.unwrap_or_default()
+        ;
 
-    let case = settings
-        .get("cased_as")
-        .map(|case| case.clone().try_cast::<CaseStyle>())
-        .flatten();
+    let case = cast_setting("cased_as", &settings, message, None::<Cow<'_, str>>)
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
+    ?;
 
-    let answers = &get_answers::<Cow<'_, str>>(call, message, &settings, None, &archetype_context)?;
-    let answer_key = settings.get("answer_key").map(|value| value.to_string());
+    let answers = &get_answers::<Cow<'_, str>>(call, message, &settings, None::<Cow<'_, str>>, &render_context)?;
+    let answer_key: Option<String> = cast_setting("answer_key", &settings, message, None::<Cow<'_, str>>)
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
+        ?;
     let answer = if let Some(key) = &answer_key {
         answers.get(key.as_str())
     } else {
@@ -160,12 +169,12 @@ fn prompt_to_value(
             let value = text::prompt(call, message, &settings, &runtime_context, answer_key, answer)?;
             Ok(apply_case(&value, case))
         }
-        PromptType::Confirm => {
-            let value = confirm::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+        PromptType::Bool => {
+            let value = bool::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
             Ok(apply_case(&value, case))
         }
         PromptType::Int => {
-            let value = int::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            let value = int::prompt_int(call, message, &runtime_context, &settings, answer_key, answer)?;
             Ok(apply_case(&value, case))
         }
         PromptType::Select(options) => {
@@ -222,7 +231,8 @@ fn get_answers<'a, K: Into<Cow<'a, str>>>(
         } else {
             if !answers.is_unit() {
                 let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
-                let error = ArchetypeScriptError::invalid_setting(message, setting, requirement, answers.to_string(), key);
+                let error =
+                    ArchetypeScriptError::invalid_setting(message, setting, requirement, answers.to_string(), key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Map::new());
@@ -233,16 +243,6 @@ fn get_answers<'a, K: Into<Cow<'a, str>>>(
     let mut results = Map::new();
     results.extend(answers.clone());
     return Ok(results);
-}
-
-pub fn get_prompt_type(settings: &Map) -> Result<PromptType, ArchetypeError> {
-    if let Some(prompt_type) = settings.get("type") {
-        if let Some(prompt_type) = prompt_type.clone().try_cast::<PromptType>() {
-            // TODO: Throw Error if a value was provided but it is NOT a PromptType
-            return Ok(prompt_type);
-        }
-    }
-    Ok(PromptType::Text)
 }
 
 pub fn get_optional_setting(settings: &Map) -> bool {
@@ -267,15 +267,44 @@ where
         .flatten()
 }
 
+pub fn cast_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: Option<K>) -> Result<Option<T>, ArchetypeScriptError>
+where
+    P: AsRef<str>,
+    K: Into<Cow<'a, str>>,
+    T: 'static
+{
+    match settings.get(setting) {
+        None => return Ok(None),
+        Some(value) => {
+            if let Some(value) = value.clone().try_cast::<T>() {
+                return Ok(Some(value));
+            }
+            return Err(ArchetypeScriptError::invalid_setting(
+                prompt.as_ref(),
+                setting,
+                std::any::type_name::<T>(),
+                value.to_string(),
+                key,
+            ));
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum PromptType {
     Text,
-    Confirm,
+    Bool,
     Int,
     List,
     Select(Vec<Dynamic>),
     MultiSelect(Vec<Dynamic>),
     Editor,
+}
+
+impl Default for PromptType {
+    fn default() -> Self {
+        PromptType::Text
+    }
 }
 
 fn handle_result<T>(result: InquireResult<T>, optional: bool) -> Result<Dynamic, Box<EvalAltResult>>
@@ -318,8 +347,8 @@ pub mod module {
 
     pub const Text: PromptType = PromptType::Text;
     pub const String: PromptType = PromptType::Text;
-    pub const Confirm: PromptType = PromptType::Confirm;
-    pub const Bool: PromptType = PromptType::Confirm;
+    pub const Confirm: PromptType = PromptType::Bool;
+    pub const Bool: PromptType = PromptType::Bool;
     pub const Int: PromptType = PromptType::Int;
     pub const List: PromptType = PromptType::List;
     pub const Editor: PromptType = PromptType::Editor;
@@ -332,4 +361,3 @@ pub mod module {
         PromptType::MultiSelect(options)
     }
 }
-

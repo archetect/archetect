@@ -65,10 +65,7 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
     let archetype = runtime_context.new_archetype("tests/prompts/int_prompt_scalar_tests")?;
 
     std::thread::spawn(move || {
-        let mut answers = Map::new();
-        answers.insert("debug_port".into(), 8070.into());
-        let render_context = RenderContext::new(Utf8PathBuf::new(), answers);
-
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
         assert!(archetype.render(runtime_context, render_context).is_err());
     });
 
@@ -77,14 +74,15 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::None);
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Port:' is not optional\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
+        assert_eq!(message, "Required: 'Service Port:' is not optional\nin call to function \
+        'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
     });
 
     Ok(())
 }
 
 #[test]
-fn test_scalar_int_prompt_wrong_type() -> Result<(), ArchetectError> {
+fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
     let (driver, handle) = api_driver_and_handle();
     let runtime_context = RuntimeContext::builder()
         .with_driver(driver)
@@ -93,10 +91,38 @@ fn test_scalar_int_prompt_wrong_type() -> Result<(), ArchetectError> {
     let archetype = runtime_context.new_archetype("tests/prompts/int_prompt_scalar_tests")?;
 
     std::thread::spawn(move || {
-        let mut answers = Map::new();
-        answers.insert("debug_port".into(), 8070.into());
-        let render_context = RenderContext::new(Utf8PathBuf::new(), answers);
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
+        assert!(archetype.render(runtime_context, render_context).is_err());
+    });
 
+    let _ = handle.receive(); // Swallow Prompt
+
+    handle.respond(CommandResponse::Integer(8080));
+
+    let _ = handle.receive(); // Swallow Prompt
+
+    handle.respond(CommandResponse::Integer(5));
+
+    assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
+        assert_eq!(message, "Answer Invalid: '5' was provided as an answer to 'Management Port:', \
+        but Answer must be between 1024 and 65535.\nin call to function 'prompt' @ \
+        'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 11, position 27)");
+    });
+
+    Ok(())
+}
+
+#[test]
+fn test_scalar_int_prompt_unexpected() -> Result<(), ArchetectError> {
+    let (driver, handle) = api_driver_and_handle();
+    let runtime_context = RuntimeContext::builder()
+        .with_driver(driver)
+        .with_temp_layout()?
+        .build()?;
+    let archetype = runtime_context.new_archetype("tests/prompts/int_prompt_scalar_tests")?;
+
+    std::thread::spawn(move || {
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
         assert!(archetype.render(runtime_context, render_context).is_err());
     });
 
@@ -105,7 +131,9 @@ fn test_scalar_int_prompt_wrong_type() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::String("8080".to_string()));
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Unexpected Response: 'Service Port:' expects Int, but received String(\"8080\")\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
+        assert_eq!(message, "Unexpected Response: 'Service Port:' expects Int, but received \
+        String(\"8080\")\nin call to function 'prompt' @ \
+        'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
     });
 
     Ok(())

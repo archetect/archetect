@@ -85,8 +85,6 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
 }
 
 #[test]
-#[ignore]
-/// TODO: validate answers return from Driver
 fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
     let (driver, handle) = api_driver_and_handle();
     let runtime_context = RuntimeContext::builder()
@@ -105,7 +103,36 @@ fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::String("".to_string()));
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Prefix:' is not optional");
+        assert_eq!(message, "Answer Invalid: '' was provided as an answer to 'Service Prefix:', \
+        but Answer must be greater than 1.\nin call to function 'prompt' @ \
+        'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
+    });
+
+    Ok(())
+}
+
+#[test]
+fn test_scalar_text_prompt_unexpected() -> Result<(), ArchetectError> {
+    let (driver, handle) = api_driver_and_handle();
+    let runtime_context = RuntimeContext::builder()
+        .with_driver(driver)
+        .with_temp_layout()?
+        .build()?;
+    let archetype = runtime_context.new_archetype("tests/prompts/text_prompt_scalar_tests")?;
+
+    std::thread::spawn(move || {
+        let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
+        assert!(archetype.render(runtime_context, render_context).is_err());
+    });
+
+    let _ = handle.receive(); // Swallow Prompt
+
+    handle.respond(CommandResponse::Integer(1));
+
+    assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
+        assert_eq!(message, "Unexpected Response: 'Service Prefix:' expects a String, but received \
+        Integer(1)\nin call to function 'prompt' @ \
+        'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
     });
 
     Ok(())

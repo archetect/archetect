@@ -71,14 +71,14 @@ pub enum ArchetypeScriptError {
     AnswerNotOptional { prompt: String },
     #[error("'{prompt}' (key: '{key}') is not optional")]
     KeyedAnswerNotOptional { prompt: String, key: String },
-    #[error("The '{prompt}' '{setting}' setting must be {requirement}, but it was {actual}")]
+    #[error("For '{prompt}', the '{setting}' setting must be {requirement}, but it was '{actual}'")]
     InvalidSetting {
         prompt: String,
         setting: String,
         requirement: String,
         actual: String,
     },
-    #[error("The '{prompt}' (key: '{key}') '{setting}' setting must be {requirement}, but it was {actual}")]
+    #[error("For '{prompt}' (key: '{key}'), the '{setting}' setting must be {requirement}, but it was '{actual}'")]
     KeyedInvalidSetting {
         prompt: String,
         setting: String,

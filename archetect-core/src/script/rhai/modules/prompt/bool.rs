@@ -50,7 +50,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                     default_value.to_string(),
                     message,
                     key,
-                    "must resemble a boolean",
+                    "a Boolean",
                 );
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             }
@@ -92,7 +92,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "Bool", response);
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "a Boolean", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }

@@ -31,7 +31,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             return Ok(answers.into());
         }
 
-        let requirement = " must be an array of values or a comma-separated string".to_string();
+        let requirement = " an Array of Strings or a comma-separated String".to_string();
         let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }

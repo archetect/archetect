@@ -31,7 +31,6 @@ pub(crate) fn create_engine(
     modules::log::register(&mut engine, runtime_context.clone());
     modules::prompt::register(
         &mut engine,
-        archetype.clone(),
         render_context.clone(),
         runtime_context.clone(),
     );

@@ -60,7 +60,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
                 answer.to_string(),
                 message,
                 key,
-                "must be an array of values or a comma-separated string",
+                "an Array of Strings or a comma-separated String",
             );
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }

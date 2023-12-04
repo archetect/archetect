@@ -92,7 +92,7 @@ pub fn prompt<'a, K: Into<Cow<'a, str>>>(
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         response => {
-            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "String", response);
+            let error = ArchetypeScriptError::unexpected_prompt_response(message, key, "a String", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }

@@ -1,9 +1,11 @@
-use crate::get_render_config;
+use std::sync::mpsc::SyncSender;
+
+use archetect_api::validations::validate_int;
 use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo};
 use inquire::validator::Validation;
 use inquire::Text;
-use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
-use std::sync::mpsc::SyncSender;
+
+use crate::get_render_config;
 
 pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<CommandResponse>) {
     let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
@@ -12,7 +14,7 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
     prompt.help_message = prompt_info.help().map(|v| v.to_string());
     let prompt_info = prompt_info.clone();
-    let validator = move |input: &str| match validate_int(prompt_info.min(), prompt_info.max(), input) {
+    let validator = move |input: &str| match validate(prompt_info.min(), prompt_info.max(), input) {
         Ok(_) => Ok(Validation::Valid),
         Err(message) => Ok(Validation::Invalid(message.into())),
     };
@@ -35,30 +37,11 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
     }
 }
 
-fn validate_int(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
+fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
     match input.parse::<i64>() {
         Ok(value) => {
-            match (min, max) {
-                (Some(start), Some(end)) => {
-                    if !RangeInclusive::new(start, end).contains(&value) {
-                        return Err(format!("Answer must be between {} and {}", start, end));
-                    }
-                }
-                (Some(start), None) => {
-                    if !(RangeFrom { start }.contains(&value)) {
-                        return Err(format!("Answer must be greater than {}", start));
-                    }
-                }
-                (None, Some(end)) => {
-                    if !(RangeToInclusive { end }.contains(&value)) {
-                        return Err(format!("Answer must be less than or equal to {}", end));
-                    }
-                }
-                (None, None) => {}
-            };
-
-            Ok(())
-        }
+            validate_int(min, max, value)
+        },
         Err(_) => Err(format!("{} is not an 'int'", input)),
     }
 }
