@@ -57,7 +57,7 @@ powered by a WASM build of MiniJinja.
 ## API
 
 ```rust
-use minijinja::{Environment, context};
+use archetect_minijinja::{Environment, context};
 
 fn main() {
     let mut env = Environment::new();

@@ -62,9 +62,9 @@ pub trait FunctionArgs<'a> {
 /// implementing [`Object::call_method`](crate::value::Object::call_method).
 ///
 /// ```
-/// use minijinja::value::from_args;
-/// # use minijinja::value::Value;
-/// # fn foo() -> Result<(), minijinja::Error> {
+/// use archetect_minijinja::value::from_args;
+/// # use archetect_minijinja::value::Value;
+/// # fn foo() -> Result<(), archetect_minijinja::Error> {
 /// # let args = vec![Value::from("foo"), Value::from(42i64)]; let args = &args[..];
 ///
 /// // args is &[Value]
@@ -535,10 +535,10 @@ impl<'a> ArgType<'a> for &Value {
 /// into the inner vector.
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::State;
-/// use minijinja::value::Rest;
+/// use archetect_minijinja::State;
+/// use archetect_minijinja::value::Rest;
 ///
 /// fn sum(_state: &State, values: Rest<i64>) -> i64 {
 ///     values.iter().sum()

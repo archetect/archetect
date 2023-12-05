@@ -33,7 +33,7 @@
 //! dashes and converts it to lowercase:
 //!
 //! ```
-//! # use minijinja::Environment;
+//! # use archetect_minijinja::Environment;
 //! # let mut env = Environment::new();
 //! fn slugify(value: String) -> String {
 //!     value.to_lowercase().split_whitespace().collect::<Vec<_>>().join("-")
@@ -53,10 +53,10 @@
 //! the current template name to the string:
 //!
 //! ```
-//! # use minijinja::Environment;
+//! # use archetect_minijinja::Environment;
 //! # let mut env = Environment::new();
-//! use minijinja::value::Value;
-//! use minijinja::State;
+//! use archetect_minijinja::value::Value;
+//! use archetect_minijinja::State;
 //!
 //! fn append_template(state: &State, value: &Value) -> String {
 //!     format!("{}-{}", value, state.name())
@@ -109,9 +109,9 @@ pub(crate) struct BoxedFilter(Arc<FilterFunc>);
 /// # Basic Example
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::State;
+/// use archetect_minijinja::State;
 ///
 /// fn slugify(value: String) -> String {
 ///     value.to_lowercase().split_whitespace().collect::<Vec<_>>().join("-")
@@ -127,7 +127,7 @@ pub(crate) struct BoxedFilter(Arc<FilterFunc>);
 /// # Arguments and Optional Arguments
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
 /// fn substr(value: String, start: u32, end: Option<u32>) -> String {
 ///     let end = end.unwrap_or(value.len() as _);
@@ -145,9 +145,9 @@ pub(crate) struct BoxedFilter(Arc<FilterFunc>);
 /// # Variadic
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::value::Rest;
+/// use archetect_minijinja::value::Rest;
 ///
 /// fn pyjoin(joiner: String, values: Rest<String>) -> String {
 ///     values.join(&joiner)

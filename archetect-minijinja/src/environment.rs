@@ -180,7 +180,7 @@ impl<'source> Environment<'source> {
     /// not loaded an error of kind `TemplateNotFound` is returned.
     ///
     /// ```
-    /// # use minijinja::{Environment, context};
+    /// # use archetect_minijinja::{Environment, context};
     /// let mut env = Environment::new();
     /// env.add_template("hello.txt", "Hello {{ name }}!").unwrap();
     /// let tmpl = env.get_template("hello.txt").unwrap();
@@ -207,7 +207,7 @@ impl<'source> Environment<'source> {
     /// a string and returned.  The internal name of the template is `<string>`.
     ///
     /// ```
-    /// # use minijinja::{Environment, context};
+    /// # use archetect_minijinja::{Environment, context};
     /// let env = Environment::new();
     /// let rv = env.render_str("Hello {{ name }}", context! { name => "World" });
     /// println!("{}", rv.unwrap());
@@ -227,7 +227,7 @@ impl<'source> Environment<'source> {
     /// template to be used instead of the default `<string>`.
     ///
     /// ```
-    /// # use minijinja::{Environment, context};
+    /// # use archetect_minijinja::{Environment, context};
     /// let env = Environment::new();
     /// let rv = env.render_named_str(
     ///     "template_name",
@@ -274,7 +274,7 @@ impl<'source> Environment<'source> {
     /// turn on escaping depending on the file extension.
     ///
     /// ```
-    /// # use minijinja::{Environment, AutoEscape};
+    /// # use archetect_minijinja::{Environment, AutoEscape};
     /// # let mut env = Environment::new();
     /// env.set_auto_escape_callback(|name| {
     ///     if matches!(name.rsplit('.').next().unwrap_or(""), "html" | "htm" | "aspx") {
@@ -325,10 +325,10 @@ impl<'source> Environment<'source> {
     /// from the [`State`].
     ///
     /// ```
-    /// # use minijinja::Environment;
+    /// # use archetect_minijinja::Environment;
     /// # let mut env = Environment::new();
-    /// use minijinja::escape_formatter;
-    /// use minijinja::value::Value;
+    /// use archetect_minijinja::escape_formatter;
+    /// use archetect_minijinja::value::Value;
     ///
     /// env.set_formatter(|out, state, value| {
     ///     escape_formatter(

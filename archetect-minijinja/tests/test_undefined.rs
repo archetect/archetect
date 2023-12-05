@@ -1,4 +1,4 @@
-use minijinja::{render, Environment, ErrorKind, State, UndefinedBehavior};
+use archetect_minijinja::{render, Environment, ErrorKind, State, UndefinedBehavior};
 
 use similar_asserts::assert_eq;
 

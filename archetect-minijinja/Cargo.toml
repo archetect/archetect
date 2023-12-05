@@ -1,5 +1,5 @@
 [package]
-name = "minijinja"
+name = "archetect-minijinja"
 version = "0.30.6"
 edition = "2021"
 license = "Apache-2.0"

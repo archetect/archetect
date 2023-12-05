@@ -34,7 +34,7 @@
 //! lowercase:
 //!
 //! ```
-//! # use minijinja::Environment;
+//! # use archetect_minijinja::Environment;
 //! # let mut env = Environment::new();
 //! fn is_lowercase(value: String) -> bool {
 //!     value.chars().all(|x| x.is_lowercase())
@@ -115,9 +115,9 @@ impl TestResult for bool {
 /// # Basic Example
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::State;
+/// use archetect_minijinja::State;
 ///
 /// fn is_lowercase(value: String) -> bool {
 ///     value.chars().all(|x| x.is_lowercase())
@@ -133,9 +133,9 @@ impl TestResult for bool {
 /// # Arguments and Optional Arguments
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::State;
+/// use archetect_minijinja::State;
 ///
 /// fn is_containing(value: String, other: String) -> bool {
 ///     value.contains(&other)

@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "{% from \"foo.html\" import a, b %}\n{% from \"foo.html\" import a %}\n{% from \"foo.html\" import a as b %}\n{% from \"foo.html\" import a as b, b as c %}\n{% from \"foo.html\" import a, b, %}\n{% from \"foo.html\" import a, %}\n{% from \"foo.html\" import a as b, %}\n{% from \"foo.html\" import a as b, b as c, %}\n{% import \"foo.html\" as x %}"
-input_file: minijinja/tests/parser-inputs/imports.txt
+input_file: archetect_minijinja/tests/parser-inputs/imports.txt
 ---
 Ok(
     Template {

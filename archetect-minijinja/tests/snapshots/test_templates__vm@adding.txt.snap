@@ -1,9 +1,9 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "Strings:\n{{ 'to' + name + 'you' }}!\n{{ 'to' + 'you' }}!\n\nAdding:\n{{ 1 + 2 }}\n\nMinus:\n{{ 2 + 1 }}\n\nDivide:\n{{ 100 / 2 }}"
 info:
   name: World
-input_file: minijinja/tests/inputs/adding.txt
+input_file: archetect_minijinja/tests/inputs/adding.txt
 ---
 Strings:
 toWorldyou!

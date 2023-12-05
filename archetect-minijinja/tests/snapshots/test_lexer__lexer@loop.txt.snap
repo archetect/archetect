@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_lexer.rs
+source: archetect_minijinja/tests/test_lexer.rs
 description: "<ul>\n{% for item in sequence %}\n    <li>{{ item }}</li>\n{% endfor %}\n</ul>"
-input_file: minijinja/tests/lexer-inputs/loop.txt
+input_file: archetect_minijinja/tests/lexer-inputs/loop.txt
 ---
 TemplateData("<ul>\n")
   "<ul>\n"

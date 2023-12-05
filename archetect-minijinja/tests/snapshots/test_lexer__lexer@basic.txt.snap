@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_lexer.rs
+source: archetect_minijinja/tests/test_lexer.rs
 description: "Hello {{ name }}!"
-input_file: minijinja/tests/lexer-inputs/basic.txt
+input_file: archetect_minijinja/tests/lexer-inputs/basic.txt
 ---
 TemplateData("Hello ")
   "Hello "

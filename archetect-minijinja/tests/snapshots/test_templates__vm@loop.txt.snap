@@ -1,12 +1,12 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "<ul>\n{% for item in seq %}\n    <li>{{ item }}</li>\n{% endfor %}\n</ul>"
 info:
   seq:
     - 1
     - 2
     - 3
-input_file: minijinja/tests/inputs/loop.txt
+input_file: archetect_minijinja/tests/inputs/loop.txt
 ---
 <ul>
 

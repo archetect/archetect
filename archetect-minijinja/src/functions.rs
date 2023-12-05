@@ -25,9 +25,9 @@
 //! render invocation.
 //!
 //! ```rust
-//! # use minijinja::Environment;
+//! # use archetect_minijinja::Environment;
 //! # let mut env = Environment::new();
-//! use minijinja::{Error, ErrorKind};
+//! use archetect_minijinja::{Error, ErrorKind};
 //!
 //! fn include_file(name: String) -> Result<String, Error> {
 //!     std::fs::read_to_string(&name)
@@ -101,9 +101,9 @@ pub(crate) struct BoxedFunction(Arc<FuncFunc>, #[cfg(feature = "debug")] &'stati
 /// # Basic Example
 ///
 /// ```rust
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::{Error, ErrorKind};
+/// use archetect_minijinja::{Error, ErrorKind};
 ///
 /// fn include_file(name: String) -> Result<String, Error> {
 ///     std::fs::read_to_string(&name)
@@ -123,9 +123,9 @@ pub(crate) struct BoxedFunction(Arc<FuncFunc>, #[cfg(feature = "debug")] &'stati
 /// # Variadic
 ///
 /// ```
-/// # use minijinja::Environment;
+/// # use archetect_minijinja::Environment;
 /// # let mut env = Environment::new();
-/// use minijinja::value::Rest;
+/// use archetect_minijinja::value::Rest;
 ///
 /// fn sum(values: Rest<i64>) -> i64 {
 ///     values.iter().sum()

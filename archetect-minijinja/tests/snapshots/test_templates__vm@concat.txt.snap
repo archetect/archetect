@@ -1,10 +1,10 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{{ a ~ b }}"
 info:
   a: foo
   b: bar
-input_file: minijinja/tests/inputs/concat.txt
+input_file: archetect_minijinja/tests/inputs/concat.txt
 ---
 foobar
 

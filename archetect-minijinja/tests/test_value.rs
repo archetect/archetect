@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use insta::assert_snapshot;
-use minijinja::value::{Object, ObjectKind, SeqObject, StructObject, Value};
+use archetect_minijinja::value::{Object, ObjectKind, SeqObject, StructObject, Value};
 
 #[test]
 fn test_sort() {
@@ -108,7 +108,7 @@ fn test_map_object_iteration_and_indexing() {
         }
     }
 
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{% for key in point %}{{ key }}: {{ point[key] }}\n{% endfor %}",
         point => Value::from_object(Point(1, 2, 3))
     );
@@ -118,7 +118,7 @@ fn test_map_object_iteration_and_indexing() {
     z: 3
     "###);
 
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{{ [point.x, point.z, point.missing_attribute] }}",
         point => Value::from_object(Point(1, 2, 3))
     );
@@ -157,7 +157,7 @@ fn test_seq_object_iteration_and_indexing() {
         }
     }
 
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{% for value in point %}{{ loop.index0 }}: {{ value }}\n{% endfor %}",
         point => Value::from_object(Point(1, 2, 3))
     );
@@ -167,7 +167,7 @@ fn test_seq_object_iteration_and_indexing() {
     2: 3
     "###);
 
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{{ [point[0], point[2], point[42]] }}",
         point => Value::from_object(Point(1, 2, 3))
     );
@@ -176,13 +176,13 @@ fn test_seq_object_iteration_and_indexing() {
 
 #[test]
 fn test_builtin_seq_objects() {
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{{ val }}",
         val => Value::from_seq_object(vec![true, false]),
     );
     assert_snapshot!(rv, @r###"[true, false]"###);
 
-    let rv = minijinja::render!(
+    let rv = archetect_minijinja::render!(
         "{{ val }}",
         val => Value::from_seq_object(&["foo", "bar"][..]),
     );

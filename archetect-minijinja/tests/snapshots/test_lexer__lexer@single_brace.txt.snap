@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_lexer.rs
+source: archetect_minijinja/tests/test_lexer.rs
 description: "{foo} foo {bar}"
-input_file: minijinja/tests/lexer-inputs/single_brace.txt
+input_file: archetect_minijinja/tests/lexer-inputs/single_brace.txt
 ---
 TemplateData("{foo} foo {bar}\n")
   "{foo} foo {bar}\n"

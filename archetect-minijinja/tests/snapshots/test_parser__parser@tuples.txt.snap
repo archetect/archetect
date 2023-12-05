@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "{{ [1, 2, 3] }}\n{{ (1, 2, 3) }}\n{{ (1,) }}\n{{ () }}"
-input_file: minijinja/tests/parser-inputs/tuples.txt
+input_file: archetect_minijinja/tests/parser-inputs/tuples.txt
 ---
 Ok(
     Template {

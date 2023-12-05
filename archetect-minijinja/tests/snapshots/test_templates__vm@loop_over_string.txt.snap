@@ -1,8 +1,8 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% for char in \"abcdefg\" -%}\n  {{ char }}\n{% endfor %}"
 info: {}
-input_file: minijinja/tests/inputs/loop_over_string.txt
+input_file: archetect_minijinja/tests/inputs/loop_over_string.txt
 ---
 a
 b

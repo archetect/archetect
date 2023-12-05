@@ -1,4 +1,4 @@
-use minijinja::Environment;
+use archetect_minijinja::Environment;
 use rhai::{Engine, EvalAltResult, Map, NativeCallContext};
 
 pub(crate) fn register(engine: &mut Engine, environment: Environment<'static>) {

@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_lexer.rs
+source: archetect_minijinja/tests/test_lexer.rs
 description: "before {% raw %} this is a {{ raw }} {% block %} {% endraw %} after\n\nbefore {%- raw %} this is a {{ raw }} {% block %} {% endraw -%} after\n\nbefore {%- raw -%} this is a {{ raw }} {% block %} {%- endraw -%} after"
-input_file: minijinja/tests/lexer-inputs/raw.txt
+input_file: archetect_minijinja/tests/lexer-inputs/raw.txt
 ---
 TemplateData("before ")
   "before "

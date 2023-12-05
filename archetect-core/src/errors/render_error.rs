@@ -9,7 +9,7 @@ pub enum RenderError {
     },
     PathRenderError2 {
         path: PathBuf,
-        source: minijinja::Error,
+        source: archetect_minijinja::Error,
     },
     FileRenderIOError {
         path: Utf8PathBuf,

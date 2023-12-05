@@ -1,8 +1,8 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% macro two_args(a, b) %}\n  {{ a }} and {{ b }}\n{% endmacro %}\n{{ two_args(1, a=2) }}"
 info: {}
-input_file: minijinja/tests/inputs/err_duplicate_macro_arg.txt
+input_file: archetect_minijinja/tests/inputs/err_duplicate_macro_arg.txt
 ---
 !!!ERROR!!!
 

@@ -1,8 +1,8 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% block foo %}{% endblock %}\n{% block foo %}{% endblock %}"
 info: {}
-input_file: minijinja/tests/inputs/err_block_twice.txt
+input_file: archetect_minijinja/tests/inputs/err_block_twice.txt
 ---
 !!!SYNTAX ERROR!!!
 

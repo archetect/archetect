@@ -1,5 +1,5 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{%- for key, value in map|dictsort %}\n* {{ key }}: {{ value }}\n{%- endfor %}"
 info:
   map:
@@ -7,7 +7,7 @@ info:
     baz: 100
     blafasel: aha
     foo: 1
-input_file: minijinja/tests/inputs/loop_dictsort.txt
+input_file: archetect_minijinja/tests/inputs/loop_dictsort.txt
 ---
 
 * bar: 2

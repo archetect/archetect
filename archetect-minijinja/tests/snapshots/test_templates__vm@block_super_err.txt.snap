@@ -1,8 +1,8 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{{ super() }}"
 info: {}
-input_file: minijinja/tests/inputs/block_super_err.txt
+input_file: archetect_minijinja/tests/inputs/block_super_err.txt
 ---
 !!!ERROR!!!
 

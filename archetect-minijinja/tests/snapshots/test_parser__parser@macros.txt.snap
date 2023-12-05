@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "{% macro foo() %}...{% endmacro %}\n{% macro foo(a, b) %}...{% endmacro %}\n{% macro foo(a, b=42) %}...{% endmacro %}\n{% macro foo(a, b,) %}...{% endmacro %}\n{% macro foo(a, b=42,) %}...{% endmacro %}"
-input_file: minijinja/tests/parser-inputs/macros.txt
+input_file: archetect_minijinja/tests/parser-inputs/macros.txt
 ---
 Ok(
     Template {

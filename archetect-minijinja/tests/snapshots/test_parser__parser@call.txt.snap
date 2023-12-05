@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "{{ super() }}\n{{ loop.cycle(1, 2) }}\n{{ self.foo() }}\n{{ foo(1, 2, a=3, b=4) }}\n{{ trailing(1, 2,) }}\n{{ trailing_kwarg(1, 2, a=3,) }}"
-input_file: minijinja/tests/parser-inputs/call.txt
+input_file: archetect_minijinja/tests/parser-inputs/call.txt
 ---
 Ok(
     Template {

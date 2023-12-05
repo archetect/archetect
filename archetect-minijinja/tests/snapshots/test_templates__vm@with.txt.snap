@@ -1,5 +1,5 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% with a=foo, b=bar %}\n  {{ a }}|{{ b }}|{{ other }}\n{% endwith %}\n\n{% with (a, b, (c,)) = tuple %}\n  {{ a }}|{{ b }}|{{ c }}\n{% endwith %}\n\n{% with ((a,), b, c) = tuple2 %}\n  {{ a }}|{{ b }}|{{ c }}\n{% endwith %}"
 info:
   bar: 23
@@ -13,7 +13,7 @@ info:
     - - 1
     - 2
     - 3
-input_file: minijinja/tests/inputs/with.txt
+input_file: archetect_minijinja/tests/inputs/with.txt
 ---
 
   42|23|11

@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_lexer.rs
+source: archetect_minijinja/tests/test_lexer.rs
 description: "foo {{- bar -}} baz {{ blah }} blub\nfoo {#- comment -#} baz {# blah #} blub"
-input_file: minijinja/tests/lexer-inputs/whitespace.txt
+input_file: archetect_minijinja/tests/lexer-inputs/whitespace.txt
 ---
 TemplateData("foo")
   "foo"

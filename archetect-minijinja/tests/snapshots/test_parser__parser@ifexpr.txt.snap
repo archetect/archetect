@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "{{ a if b else c }}\n{{ a if b }}"
-input_file: minijinja/tests/parser-inputs/ifexpr.txt
+input_file: archetect_minijinja/tests/parser-inputs/ifexpr.txt
 ---
 Ok(
     Template {

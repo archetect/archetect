@@ -1,5 +1,5 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{{ hello[:] }}\n{{ hello[1:] }}\n{{ hello[1:-1] }}\n{{ hello[::2] }}\n{{ hello[2:10] }}\n{{ hello[2:10:2] }}\n{{ intrange[:] }}\n{{ intrange[1:] }}\n{{ intrange[1:-1] }}\n{{ intrange[::2] }}\n{{ intrange[2:10] }}\n{{ intrange[2:10:2] }}"
 info:
   hello: Hello World
@@ -14,7 +14,7 @@ info:
     - 7
     - 8
     - 9
-input_file: minijinja/tests/inputs/slicing.txt
+input_file: archetect_minijinja/tests/inputs/slicing.txt
 ---
 Hello World
 ello World

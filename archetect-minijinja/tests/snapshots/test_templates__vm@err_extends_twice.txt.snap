@@ -1,9 +1,9 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% extends template %}\n{% extends template %}"
 info:
   template: simple_layout.txt
-input_file: minijinja/tests/inputs/err_extends_twice.txt
+input_file: archetect_minijinja/tests/inputs/err_extends_twice.txt
 ---
 !!!ERROR!!!
 

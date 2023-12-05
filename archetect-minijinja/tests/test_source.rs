@@ -1,6 +1,6 @@
 #![cfg(feature = "source")]
 
-use minijinja::{Environment, Source};
+use archetect_minijinja::{Environment, Source};
 
 use similar_asserts::assert_eq;
 

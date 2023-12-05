@@ -1,7 +1,7 @@
 ---
-source: minijinja/tests/test_parser.rs
+source: archetect_minijinja/tests/test_parser.rs
 description: "<ul>\n{% for item in seq %}\n    <li>{{ item }}</li>\n{% endfor %}\n</ul>"
-input_file: minijinja/tests/parser-inputs/for_loop.txt
+input_file: archetect_minijinja/tests/parser-inputs/for_loop.txt
 ---
 Ok(
     Template {

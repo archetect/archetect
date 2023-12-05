@@ -1,5 +1,5 @@
 #![cfg(feature = "fuel")]
-use minijinja::{context, Environment, ErrorKind};
+use archetect_minijinja::{context, Environment, ErrorKind};
 
 #[test]
 fn test_basic() {

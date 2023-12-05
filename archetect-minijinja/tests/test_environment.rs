@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use similar_asserts::assert_eq;
 
-use minijinja::value::Value;
-use minijinja::Environment;
+use archetect_minijinja::value::Value;
+use archetect_minijinja::Environment;
 
 #[test]
 fn test_basic() {

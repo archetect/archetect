@@ -1,7 +1,7 @@
 use rhai::module_resolvers::FileModuleResolver;
 use rhai::Engine;
 
-use minijinja::Environment;
+use archetect_minijinja::Environment;
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;

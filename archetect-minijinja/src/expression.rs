@@ -24,7 +24,7 @@ use crate::vm::Vm;
 /// # Example
 ///
 /// ```rust
-/// # use minijinja::{Environment, context};
+/// # use archetect_minijinja::{Environment, context};
 /// let env = Environment::new();
 /// let expr = env.compile_expression("number > 10 and number < 20").unwrap();
 /// let rv = expr.eval(context!(number => 15)).unwrap();

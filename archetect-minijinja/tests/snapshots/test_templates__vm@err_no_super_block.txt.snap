@@ -1,8 +1,8 @@
 ---
-source: minijinja/tests/test_templates.rs
+source: archetect_minijinja/tests/test_templates.rs
 description: "{% block body %}\n  There is no super block.\n  {{ super() }}\n{% endblock %}"
 info: {}
-input_file: minijinja/tests/inputs/err_no_super_block.txt
+input_file: archetect_minijinja/tests/inputs/err_no_super_block.txt
 ---
 !!!ERROR!!!
 

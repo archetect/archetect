@@ -1,5 +1,5 @@
-use minijinja::value::Value;
-use minijinja::{Environment, State};
+use archetect_minijinja::value::Value;
+use archetect_minijinja::{Environment, State};
 
 #[test]
 fn test_state_lookup_global() {

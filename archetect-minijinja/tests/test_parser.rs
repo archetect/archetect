@@ -1,5 +1,5 @@
 #![cfg(feature = "unstable_machinery")]
-use minijinja::machinery::parse;
+use archetect_minijinja::machinery::parse;
 
 #[test]
 fn test_parser() {

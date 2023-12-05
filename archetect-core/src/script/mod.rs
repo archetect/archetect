@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-use minijinja::{Environment, Source, UndefinedBehavior};
+use archetect_minijinja::{Environment, Source, UndefinedBehavior};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
