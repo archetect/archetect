@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use chrono::TimeZone;
@@ -29,9 +29,14 @@ pub enum Source {
     },
 }
 
-lazy_static! {
-    static ref SSH_GIT_PATTERN: Regex = Regex::new(r"\S+@(\S+):(.*)").unwrap();
-    static ref CACHED_PATHS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+fn ssh_git_pattern() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"\S+@(\S+):(.*)").unwrap())
+}
+
+fn cached_paths() -> &'static Mutex<HashSet<String>> {
+    static CACHED_PATHS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    CACHED_PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
 impl Source {
@@ -39,7 +44,7 @@ impl Source {
         let git_cache = runtime_context.layout().git_cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
-        if let Some(captures) = SSH_GIT_PATTERN.captures(url_parts[0]) {
+        if let Some(captures) = ssh_git_pattern().captures(url_parts[0]) {
             let cache_path = git_cache
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
@@ -176,7 +181,7 @@ fn cache_git_repo(
     cache_destination: &Utf8Path,
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
-        if !runtime_context.offline() && CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+        if !runtime_context.offline() && cached_paths().lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
             debug!("Cloning to {}", cache_destination.as_str());
             handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
@@ -185,7 +190,7 @@ fn cache_git_repo(
         } else {
             return Err(SourceError::OfflineAndNotCached(url.to_owned()));
         }
-    } else if CACHED_PATHS.lock().unwrap().insert(url.to_owned()) {
+    } else if cached_paths().lock().unwrap().insert(url.to_owned()) {
         let repo = git2::Repository::open(cache_destination.join(".git"))?;
         if should_pull(&repo, &runtime_context)? {
             info!("Fetching {}", url);
@@ -348,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_short_git_pattern() {
-        let captures = SSH_GIT_PATTERN
+        let captures = ssh_git_pattern()
             .captures("git@github.com:jimmiebfulton/archetect.git")
             .unwrap();
         assert_eq!(&captures[1], "github.com");

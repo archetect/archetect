@@ -51,8 +51,6 @@ v_htmlescape = "0.15.8"
 slug = "0.1"
 # used in striptags filters
 regex = "1.0"
-# used for static regex
-lazy_static = "1.0"
 # used in urlencode filter
 url = "2"
 # used in filesizeformat filter

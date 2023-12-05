@@ -78,7 +78,8 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
     handle.respond(CommandResponse::None);
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Prefix:' is not optional\nin call to function 'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
+        assert_eq!(message, "Required: 'Service Prefix:' is not optional\nin call to function \
+        'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
     });
 
     Ok(())
@@ -104,7 +105,7 @@ fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
 
     assert_matches!(handle.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Answer Invalid: '' was provided as an answer to 'Service Prefix:', \
-        but Answer must be greater than 1.\nin call to function 'prompt' @ \
+        but Answer must have greater than 1 characters.\nin call to function 'prompt' @ \
         'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
     });
 

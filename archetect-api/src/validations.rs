@@ -5,17 +5,17 @@ pub fn validate_text(min: Option<i64>, max: Option<i64>, input: &str) -> Result<
     match (min, max) {
         (Some(start), Some(end)) => {
             if !RangeInclusive::new(start, end).contains(&length) {
-                return Err(format!("Answer must be between {} and {}", start, end));
+                return Err(format!("Answer must have between {} and {} characters", start, end));
             }
         }
         (Some(start), None) => {
             if !(RangeFrom { start }.contains(&length)) {
-                return Err(format!("Answer must be greater than {}", start));
+                return Err(format!("Answer must have greater than {} characters", start));
             }
         }
         (None, Some(end)) => {
             if !(RangeToInclusive { end }.contains(&length)) {
-                return Err(format!("Answer must be less than or equal to {}", end));
+                return Err(format!("Answer must have no more than {} characters", end));
             }
         }
         (None, None) => return Ok(()),
