@@ -7,6 +7,7 @@ use crate::list_prompt_handler::handle_list_prompt;
 use archetect_api::{CommandRequest, CommandResponse, IoDriver};
 
 use crate::bool_prompt_handler::handle_prompt_bool;
+use crate::editor_prompt_info::handle_editor_prompt;
 use crate::int_prompt_handler::handle_prompt_int;
 use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 use crate::select_prompt_handler::handle_select_prompt;
@@ -38,6 +39,9 @@ impl IoDriver for TerminalIoDriver {
             }
             CommandRequest::PromptForMultiSelect(prompt_info) => {
                 handle_multiselect_prompt(prompt_info, &self.responses_tx);
+            }
+            CommandRequest::PromptForEditor(prompt_info) => {
+                handle_editor_prompt(prompt_info, &self.responses_tx);
             }
             CommandRequest::LogInfo(message) => {
                 info!("{}", message)

@@ -108,12 +108,21 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                 Caseable::String(value) => {
                                     results.insert(
                                         style.to_case(key.to_string().as_str()).into(),
-                                        style.to_case(value).into(),
+                                        style.to_case(&value).into(),
                                     );
                                 }
                                 Caseable::List(list) => {
-                                    let value = list.into_iter().map(|v| style.to_case(&v)).collect::<Vec<String>>();
+                                    let value = list.into_iter()
+                                        .map(|v| style.to_case(&v))
+                                        .map(|v| Dynamic::from(v))
+                                        .collect::<Vec<Dynamic>>();
                                     results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                                }
+                                Caseable::Opaque(value) => {
+                                    results.insert(
+                                        style.to_case(key.to_string().as_str()).into(),
+                                        value.clone_cast(),
+                                    );
                                 }
                             }
                         }
@@ -128,8 +137,17 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                     );
                                 }
                                 Caseable::List(list) => {
-                                    let value = list.into_iter().map(|v| style.to_case(&v)).collect::<Vec<String>>();
+                                    let value = list.into_iter()
+                                        .map(|v| style.to_case(&v))
+                                        .map(|v| Dynamic::from(v))
+                                        .collect::<Vec<Dynamic>>();
                                     results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                                }
+                                Caseable::Opaque(value) => {
+                                    results.insert(
+                                        style.to_case(key.to_string().as_str()).into(),
+                                        value.clone_cast(),
+                                    );
                                 }
                             }
                         }
@@ -140,8 +158,17 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                 results.insert(key.into(), to_case(value, style).into());
                             }
                             Caseable::List(list) => {
-                                let value = list.into_iter().map(|v| style.to_case(&v)).collect::<Vec<String>>();
+                                let value = list.into_iter()
+                                    .map(|v| style.to_case(&v))
+                                    .map(|v| Dynamic::from(v))
+                                    .collect::<Vec<Dynamic>>();
                                 results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                            }
+                            Caseable::Opaque(value) => {
+                                results.insert(
+                                    style.to_case(key.to_string().as_str()).into(),
+                                    value.clone_cast(),
+                                );
                             }
                         }
                     }
@@ -151,8 +178,17 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                 results.insert(key.into(), to_case(value, style).into());
                             }
                             Caseable::List(list) => {
-                                let value = list.into_iter().map(|v| style.to_case(&v)).collect::<Vec<String>>();
+                                let value = list.into_iter()
+                                    .map(|v| style.to_case(&v))
+                                    .map(|v| Dynamic::from(v))
+                                    .collect::<Vec<Dynamic>>();
                                 results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                            }
+                            Caseable::Opaque(value) => {
+                                results.insert(
+                                    style.to_case(key.to_string().as_str()).into(),
+                                    value.clone_cast(),
+                                );
                             }
                         }
                     }

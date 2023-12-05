@@ -124,7 +124,7 @@ impl ArchetypeScriptError {
             AnswerNotOptional { .. } | KeyedAnswerNotOptional { .. } => ErrorType::Function,
             InvalidSetting { .. } | KeyedInvalidSetting { .. } => ErrorType::Function,
             DefaultTypeError { .. } | KeyedDefaultTypeError { .. } => ErrorType::Function,
-            PromptError(_) => ErrorType::Function,
+            PromptError(_) => ErrorType::System,
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => { ErrorType::Function}
         }
     }

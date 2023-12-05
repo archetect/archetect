@@ -1,17 +1,13 @@
 use std::borrow::Cow;
 use std::str::FromStr;
 
+use rhai::{Dynamic, Engine, EvalAltResult, exported_module, Map};
 use rhai::plugin::*;
-use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
-
-use inquire::error::InquireResult;
-use inquire::ui::{Color, RenderConfig, Styled};
-use inquire::InquireError;
 
 use crate::archetype::render_context::RenderContext;
-use crate::errors::{ArchetypeError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::cases::{expand_key_value_cases, CaseStyle};
+use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
 
 mod bool;
 mod editor;
@@ -78,7 +74,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
         PromptType::Text => {
             let value = text::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
             match value {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(value) => {
                     results.insert(key.into(), value.clone().into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
@@ -90,9 +90,14 @@ fn prompt_to_map<'a, K: AsRef<str>>(
         PromptType::Bool => {
             let value = bool::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
             match value {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(value) => {
                     results.insert(key.into(), value.into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(value.into()));
                     Ok(results.into())
                 }
             }
@@ -100,9 +105,14 @@ fn prompt_to_map<'a, K: AsRef<str>>(
         PromptType::Int => {
             let value = int::prompt_int(call, message, &runtime_context, &settings, Some(key), answer)?;
             match value {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(value) => {
                     results.insert(key.into(), value.into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(value.into()));
                     Ok(results.into())
                 }
             }
@@ -118,7 +128,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 answer,
             )?;
             match value {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(value) => {
                     results.insert(key.into(), value.clone().into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
@@ -137,24 +151,48 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 answer,
             )?;
             match value {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(value) => {
-                    results.insert(key.into(), value.clone().into());
+                    let dynamic_list = value.clone().into_iter()
+                        .map(|v|Dynamic::from(v))
+                        .collect::<Vec<Dynamic>>();
+                    results.insert(key.into(), dynamic_list.into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::List(value));
                     Ok(results.into())
                 }
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(message)?;
-            results.insert(key.into(), value.into());
-            Ok(results.into())
+            let value = editor::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            match value {
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
+                Some(value) => {
+                    results.insert(key.into(), value.clone().into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
+                    Ok(results.into())
+                }
+            }
         }
         PromptType::List => {
             match list::prompt(call, message, &runtime_context, &settings, Some(key), answer)? {
-                None => Ok(Dynamic::UNIT),
+                None => {
+                    results.insert(key.into(), Dynamic::UNIT);
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                    Ok(results.into())
+                },
                 Some(list) => {
-                    results.insert(key.into(), list.clone().into());
+                    let dynamic_list = list.clone().into_iter()
+                        .map(|v|Dynamic::from(v))
+                        .collect::<Vec<Dynamic>>();
+                    results.insert(key.into(), dynamic_list.into());
                     expand_key_value_cases(&settings, &mut results, key, Caseable::List(list));
                     Ok(results.into())
                 }
@@ -223,11 +261,14 @@ fn prompt_to_value(
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(message)?;
-            Ok(apply_case_2(&value, case))
+            let value = editor::prompt(call, message, &settings, &runtime_context,  answer_key, answer)?;
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(list) => Ok(apply_case(Caseable::String(list), case)),
+            }
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, answer_key.as_ref(), answer)?;
+            let value = list::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::List(list), case)),
@@ -236,39 +277,23 @@ fn prompt_to_value(
     }
 }
 
-fn apply_case_2(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
-    if let Some(case) = case {
-        if input.is_array() {
-            return input
-                .clone()
-                .into_array()
-                .unwrap()
-                .iter()
-                .map(|v| case.to_case(v.to_string().as_str()))
-                .collect::<Vec<String>>()
-                .into();
-        }
-        if input.is_unit() {
-            return input.clone();
-        }
-        case.to_case(input.to_string().as_str()).into()
-    } else {
-        input.clone()
-    }
-}
-
 fn apply_case(input: Caseable, case: Option<CaseStyle>) -> Dynamic {
     match case {
-        None => match input.into() {
+        None => match input {
             Caseable::String(value) => Dynamic::from(value),
             Caseable::List(value) => Dynamic::from(value),
+            Caseable::Opaque(value) => value.clone_cast(),
         },
         Some(case) => match input.into() {
             Caseable::String(value) => Dynamic::from(case.to_case(&value)),
             Caseable::List(list) => {
-                let result = list.into_iter().map(|v| case.to_case(&v)).collect::<Vec<String>>();
+                let result = list.into_iter()
+                    .map(|v| case.to_case(&v))
+                    .map(|v|Dynamic::from(v))
+                    .collect::<Vec<Dynamic>>();
                 Dynamic::from(result)
             }
+            Caseable::Opaque(value) => value.clone_cast(),
         },
     }
 }
@@ -282,15 +307,15 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
 ) -> Result<Map, Box<EvalAltResult>> {
     let setting = "answer_source";
     if let Some(answers) = settings.get(setting) {
-        if let Some(answers) = answers.clone().try_cast::<Map>() {
-            return Ok(answers);
+        return if let Some(answers) = answers.clone().try_cast::<Map>() {
+            Ok(answers)
         } else {
             if !answers.is_unit() {
                 let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
                 let error = ArchetypeScriptError::invalid_setting(message, setting, requirement, key);
-                return Err(ArchetypeScriptErrorWrapper(call, error).into());
+                Err(ArchetypeScriptErrorWrapper(call, error).into())
             } else {
-                return Ok(Map::new());
+                Ok(Map::new())
             }
         }
     }
@@ -298,10 +323,6 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
     let mut results = Map::new();
     results.extend(answers.clone());
     return Ok(results);
-}
-
-pub fn get_render_config() -> RenderConfig {
-    RenderConfig::default_colored().with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
 }
 
 pub fn parse_setting<'a, P, T, K>(
@@ -407,6 +428,7 @@ impl RequirementDescription for Map {
 pub enum Caseable {
     String(String),
     List(Vec<String>),
+    Opaque(Dynamic),
 }
 
 #[derive(Clone, Debug)]
@@ -423,36 +445,6 @@ pub enum PromptType {
 impl Default for PromptType {
     fn default() -> Self {
         PromptType::Text
-    }
-}
-
-fn handle_result<T>(result: InquireResult<T>, optional: bool) -> Result<Dynamic, Box<EvalAltResult>>
-where
-    T: Into<Dynamic>,
-{
-    match result {
-        Ok(value) => Ok(value.into()),
-        Err(err) => match err {
-            InquireError::OperationCanceled => {
-                if optional {
-                    return Ok(Dynamic::UNIT);
-                }
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::ValueRequired),
-                )));
-            }
-            InquireError::OperationInterrupted => {
-                if optional {
-                    return Ok(Dynamic::UNIT);
-                }
-                return Err(Box::new(EvalAltResult::ErrorSystem(
-                    "Cancelled".to_owned(),
-                    Box::new(ArchetypeError::OperationInterrupted),
-                )));
-            }
-            err => Err(Box::new(EvalAltResult::ErrorSystem("Error".to_owned(), Box::new(err)))),
-        },
     }
 }
 
