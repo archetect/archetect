@@ -1,10 +1,10 @@
 [package]
 name = "archetect-minijinja"
-version = "0.30.6"
+version = "2.0.0-ALPHA.6"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
-description = "a powerful template engine for Rust with minimal dependencies"
+description = "A proejct-specific fork of minijjinja (0.30.6)"
 homepage = "https://github.com/mitsuhiko/minijinja"
 repository = "https://github.com/mitsuhiko/minijinja"
 keywords = ["jinja", "jinja2", "templates"]
