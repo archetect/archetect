@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use inquire::{
+use archetect_inquire::{
     error::{CustomUserError, InquireResult},
     required, CustomType, DateSelect, MultiSelect, Select, Text,
 };

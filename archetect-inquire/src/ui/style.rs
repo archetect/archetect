@@ -14,7 +14,7 @@ bitflags! {
     /// # Example
     ///
     /// ```
-    /// use inquire::ui::Attributes;
+    /// use archetect_inquire::ui::Attributes;
     ///
     /// let attributes = Attributes::ITALIC | Attributes::BOLD;
     ///
@@ -35,7 +35,7 @@ bitflags! {
 /// # Example
 ///
 /// ```
-/// use inquire::ui::{Attributes, Color, StyleSheet};
+/// use archetect_inquire::ui::{Attributes, Color, StyleSheet};
 ///
 /// let style_sheet = StyleSheet::default();
 ///
@@ -98,7 +98,7 @@ impl StyleSheet {
     /// # Example
     ///
     /// ```
-    /// use inquire::ui::{Attributes, Color, StyleSheet};
+    /// use archetect_inquire::ui::{Attributes, Color, StyleSheet};
     ///
     /// let style_sheet = StyleSheet::default().with_attr(Attributes::BOLD);
     /// assert_eq!(true,  style_sheet.att.contains(Attributes::BOLD));

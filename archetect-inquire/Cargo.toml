@@ -1,5 +1,5 @@
 [package]
-name = "inquire"
+name = "archetect-inquire"
 version = "0.6.0"
 description = "inquire is a library for building interactive prompts on terminals"
 repository = "https://github.com/mikaelmello/inquire"

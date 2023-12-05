@@ -1,4 +1,4 @@
-use inquire::{ui::RenderConfig, Confirm};
+use archetect_inquire::{ui::RenderConfig, Confirm};
 
 fn main() {
     let ans = Confirm::new("Do you live in Brazil?")

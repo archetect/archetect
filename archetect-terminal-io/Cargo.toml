@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
-inquire = { path = "../archetect-inquire", version = "0.6.0" }
+archetect-inquire = { path = "../archetect-inquire", version = "0.6.0", features = ["editor"] }
 
 log = { workspace = true }
 dyn-clone = "1"

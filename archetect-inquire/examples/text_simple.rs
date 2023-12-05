@@ -1,4 +1,4 @@
-use inquire::Text;
+use archetect_inquire::Text;
 
 fn main() {
     let name = Text::new("What is your name?").prompt();

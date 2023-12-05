@@ -1,6 +1,6 @@
 use std::sync::mpsc::SyncSender;
 
-use inquire::Confirm;
+use archetect_inquire::Confirm;
 
 use archetect_api::{BoolPromptInfo, CommandResponse, ValueSource};
 

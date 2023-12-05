@@ -15,7 +15,7 @@
 /// # Examples
 ///
 /// ```
-/// use inquire::parser::BoolParser;
+/// use archetect_inquire::parser::BoolParser;
 ///
 /// let parser: BoolParser = &|ans| match ans {
 ///     "si" => Ok(true),
@@ -38,7 +38,7 @@ pub type BoolParser<'a> = &'a dyn Fn(&str) -> Result<bool, ()>;
 /// # Examples
 ///
 /// ```
-/// use inquire::parser::CustomTypeParser;
+/// use archetect_inquire::parser::CustomTypeParser;
 ///
 /// let parser: CustomTypeParser<bool> = &|val| match val {
 ///     "si" => Ok(true),
@@ -80,8 +80,8 @@ pub const DEFAULT_BOOL_PARSER: BoolParser = &|ans| {
 /// # Examples
 ///
 /// ```
-/// use inquire::parse_type;
-/// use inquire::parser::CustomTypeParser;
+/// use archetect_inquire::parse_type;
+/// use archetect_inquire::parser::CustomTypeParser;
 ///
 /// let parser: CustomTypeParser<f64> = parse_type!(f64);
 /// assert_eq!(Ok(32.44f64), parser("32.44"));

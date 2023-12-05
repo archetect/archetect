@@ -38,7 +38,7 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use inquire::{error::InquireError, Select};
+/// use archetect_inquire::{error::InquireError, Select};
 ///
 /// let options: Vec<&str> = vec!["Banana", "Apple", "Strawberry", "Grapes",
 ///     "Lemon", "Tangerine", "Watermelon", "Orange", "Pear", "Avocado", "Pineapple",
@@ -102,8 +102,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use inquire::list_option::ListOption;
-    /// use inquire::Select;
+    /// use archetect_inquire::list_option::ListOption;
+    /// use archetect_inquire::Select;
     ///
     /// let formatter = Select::<&str>::DEFAULT_FORMATTER;
     /// assert_eq!(String::from("First option"), formatter(ListOption::new(0, &"First option")));
@@ -117,7 +117,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use inquire::Select;
+    /// use archetect_inquire::Select;
     ///
     /// let filter = Select::<&str>::DEFAULT_FILTER;
     /// assert_eq!(false, filter("sa", &"New York",      "New York",      0));

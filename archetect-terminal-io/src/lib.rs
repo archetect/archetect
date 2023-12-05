@@ -7,7 +7,7 @@ mod terminal_io_driver;
 mod text_prompt_handler;
 mod editor_prompt_info;
 
-use inquire::ui::{Color, RenderConfig, Styled};
+use archetect_inquire::ui::{Color, RenderConfig, Styled};
 pub use terminal_io_driver::TerminalIoDriver;
 
 pub(crate) fn get_render_config() -> RenderConfig {

@@ -1,4 +1,4 @@
-use inquire::Select;
+use archetect_inquire::Select;
 
 fn main() {
     let options = vec![

@@ -62,7 +62,7 @@ struct PasswordConfirmation<'a> {
 /// # Example
 ///
 /// ```no_run
-///  use inquire::{validator::{StringValidator, Validation}, Password, PasswordDisplayMode};
+///  use archetect_inquire::{validator::{StringValidator, Validation}, Password, PasswordDisplayMode};
 ///
 ///  let validator = |input: &str| if input.chars().count() < 10 {
 ///      Ok(Validation::Invalid("Keys must have at least 10 characters.".into()))

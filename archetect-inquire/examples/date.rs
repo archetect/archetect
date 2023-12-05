@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, Weekday};
-use inquire::{formatter::DEFAULT_DATE_FORMATTER, validator::Validation, CustomType, DateSelect};
+use archetect_inquire::{formatter::DEFAULT_DATE_FORMATTER, validator::Validation, CustomType, DateSelect};
 
 fn main() {
     date_select_default();

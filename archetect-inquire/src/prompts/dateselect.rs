@@ -41,7 +41,7 @@ use crate::{
 ///
 /// ```no_run
 /// use chrono::{NaiveDate, Weekday};
-/// use inquire::DateSelect;
+/// use archetect_inquire::DateSelect;
 ///
 /// let date = DateSelect::new("When do you want to travel?")
 ///     .with_starting_date(NaiveDate::from_ymd(2021, 8, 1))

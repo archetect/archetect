@@ -37,7 +37,7 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use inquire::Confirm;
+/// use archetect_inquire::Confirm;
 ///
 /// let ans = Confirm::new("Do you live in Brazil?")
 ///     .with_default(false)

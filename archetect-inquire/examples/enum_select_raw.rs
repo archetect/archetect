@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use inquire::{error::InquireResult, Select};
+use archetect_inquire::{error::InquireResult, Select};
 
 fn main() -> InquireResult<()> {
     let ans: Currency = Select::new("Currency:", Currency::VARIANTS.to_vec()).prompt()?;

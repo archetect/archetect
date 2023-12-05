@@ -57,7 +57,7 @@ const DEFAULT_HELP_MESSAGE_WITH_AC: &str = "↑↓ to move, tab to autocomplete,
 /// # Example
 ///
 /// ```no_run
-/// use inquire::Text;
+/// use archetect_inquire::Text;
 ///
 /// let name = Text::new("What is your name?").prompt();
 ///

@@ -13,6 +13,7 @@ license = "MIT"
 [dependencies]
 archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
 archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.6" }
+archetect-inquire = { path = "../archetect-inquire", version = "0.6.0", features = ["editor"] }
 archetect-minijinja = { path = "../archetect-minijinja", version= "0.30.6", features = ["source", "urlencode", "json"] }
 
 anyhow = "1.0.69"
@@ -30,7 +31,6 @@ linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
 log = { version = "0.4", features = ["std"] }
 memchr = { version = "2", default-features = false }
 
-inquire = { path = "../archetect-inquire", features = ["editor"] }
 pest = "2"
 pest_derive = "2"
 read_input = "0.8.6"

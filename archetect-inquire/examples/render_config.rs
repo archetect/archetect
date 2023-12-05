@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use inquire::{
+use archetect_inquire::{
     error::{CustomUserError, InquireResult},
     required,
     ui::{Attributes, Color, RenderConfig, StyleSheet, Styled},
@@ -8,7 +8,7 @@ use inquire::{
 };
 
 fn main() -> InquireResult<()> {
-    inquire::set_global_render_config(get_render_config());
+    archetect_inquire::set_global_render_config(get_render_config());
 
     let _date = DateSelect::new("Date:").prompt()?;
 

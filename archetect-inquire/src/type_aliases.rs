@@ -15,7 +15,7 @@ use crate::error::CustomUserError;
 /// # Examples
 ///
 /// ```
-/// use inquire::type_aliases::Filter;
+/// use archetect_inquire::type_aliases::Filter;
 ///
 /// let filter: Filter<str> = &|filter, _, string_value, _| -> bool {
 ///     let filter = filter.to_lowercase();

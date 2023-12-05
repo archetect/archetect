@@ -1,4 +1,4 @@
-use inquire::{
+use archetect_inquire::{
     error::InquireResult,
     ui::{Color, RenderConfig, Styled},
     Editor, Text,

@@ -1,4 +1,4 @@
-use inquire::{
+use archetect_inquire::{
     formatter::MultiOptionFormatter, list_option::ListOption, validator::Validation, MultiSelect,
 };
 

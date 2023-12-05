@@ -11,7 +11,7 @@ use super::{Color, StyleSheet, Styled};
 /// # Example
 ///
 /// ```
-/// use inquire::ui::{Color, RenderConfig, Styled};
+/// use archetect_inquire::ui::{Color, RenderConfig, Styled};
 ///
 /// let empty: RenderConfig = RenderConfig::empty();
 /// let default: RenderConfig = RenderConfig::default();

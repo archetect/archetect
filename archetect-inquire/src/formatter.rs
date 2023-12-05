@@ -9,8 +9,8 @@
 //! **Prompt code**
 //!
 //! ```no_run
-//! use inquire::formatter::StringFormatter;
-//! use inquire::Text;
+//! use archetect_inquire::formatter::StringFormatter;
+//! use archetect_inquire::Text;
 //!
 //! let formatter: StringFormatter = &|s| {
 //!     let mut c = s.chars();
@@ -57,7 +57,7 @@ use crate::list_option::ListOption;
 /// # Examples
 ///
 /// ```
-/// use inquire::formatter::StringFormatter;
+/// use archetect_inquire::formatter::StringFormatter;
 ///
 /// let formatter: StringFormatter = &|i| i.to_lowercase();
 /// assert_eq!(String::from("times square"), formatter("Times Square"));
@@ -79,7 +79,7 @@ pub type ListFormatter<'a> = &'a dyn Fn(&Vec<String>) -> String;
 /// # Examples
 ///
 /// ```
-/// use inquire::formatter::BoolFormatter;
+/// use archetect_inquire::formatter::BoolFormatter;
 ///
 /// let formatter: BoolFormatter = &|i| match i {
 ///     true => String::from("si"),
@@ -98,8 +98,8 @@ pub type BoolFormatter<'a> = &'a dyn Fn(bool) -> String;
 /// # Examples
 ///
 /// ```
-/// use inquire::list_option::ListOption;
-/// use inquire::formatter::OptionFormatter;
+/// use archetect_inquire::list_option::ListOption;
+/// use archetect_inquire::formatter::OptionFormatter;
 ///
 /// let formatter: OptionFormatter<str> = &|i| format!("Option {}: '{}'", i.index + 1, i.value);
 /// assert_eq!(String::from("Option 1: 'a'"), formatter(ListOption::new(0, "a")));
@@ -115,8 +115,8 @@ pub type OptionFormatter<'a, T> = &'a dyn Fn(ListOption<&T>) -> String;
 /// # Examples
 ///
 /// ```
-/// use inquire::list_option::ListOption;
-/// use inquire::formatter::MultiOptionFormatter;
+/// use archetect_inquire::list_option::ListOption;
+/// use archetect_inquire::formatter::MultiOptionFormatter;
 ///
 /// let formatter: MultiOptionFormatter<str> = &|opts| {
 ///     let len = opts.len();
@@ -143,8 +143,8 @@ pub type MultiOptionFormatter<'a, T> = &'a dyn Fn(&[ListOption<&T>]) -> String;
 /// # Examples
 ///
 /// ```
-/// use inquire::CustomType;
-/// use inquire::formatter::CustomTypeFormatter;
+/// use archetect_inquire::CustomType;
+/// use archetect_inquire::formatter::CustomTypeFormatter;
 ///
 /// let formatter: CustomTypeFormatter<f64> = &|i| format!("${:.2}", i);
 ///
@@ -165,7 +165,7 @@ pub type CustomTypeFormatter<'a, T> = &'a dyn Fn(T) -> String;
 ///
 /// ```
 /// use chrono::NaiveDate;
-/// use inquire::formatter::DateFormatter;
+/// use archetect_inquire::formatter::DateFormatter;
 ///
 /// let formatter: DateFormatter = &|val| val.format("%d/%m/%Y").to_string();
 ///
@@ -182,7 +182,7 @@ pub type DateFormatter<'a> = &'a dyn Fn(chrono::NaiveDate) -> String;
 /// # Examples
 ///
 /// ```
-/// use inquire::formatter::DEFAULT_STRING_FORMATTER;
+/// use archetect_inquire::formatter::DEFAULT_STRING_FORMATTER;
 ///
 /// let formatter = DEFAULT_STRING_FORMATTER;
 /// assert_eq!(String::from("Times Square"), formatter("Times Square"));
@@ -196,7 +196,7 @@ pub const DEFAULT_STRING_FORMATTER: StringFormatter = &|val| String::from(val);
 /// # Examples
 ///
 /// ```
-/// use inquire::formatter::DEFAULT_BOOL_FORMATTER;
+/// use archetect_inquire::formatter::DEFAULT_BOOL_FORMATTER;
 ///
 /// let formatter = DEFAULT_BOOL_FORMATTER;
 /// assert_eq!(String::from("Yes"), formatter(true));
@@ -218,7 +218,7 @@ pub const DEFAULT_BOOL_FORMATTER: BoolFormatter = &|ans| {
 ///
 /// ```
 /// use chrono::NaiveDate;
-/// use inquire::formatter::DEFAULT_DATE_FORMATTER;
+/// use archetect_inquire::formatter::DEFAULT_DATE_FORMATTER;
 ///
 /// let formatter = DEFAULT_DATE_FORMATTER;
 ///

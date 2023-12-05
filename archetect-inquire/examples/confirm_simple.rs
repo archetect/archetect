@@ -1,4 +1,4 @@
-use inquire::Confirm;
+use archetect_inquire::Confirm;
 
 fn main() {
     let ans = Confirm::new("Do you live in Brazil?")

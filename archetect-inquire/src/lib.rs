@@ -34,7 +34,7 @@
 //! # Simple Example
 //!
 //! ```rust no_run
-//! use inquire::{Text, validator::{StringValidator, Validation}};
+//! use archetect_inquire::{Text, validator::{StringValidator, Validation}};
 //!
 //! fn main() {
 //!     let validator = |input: &str| if input.chars().count() > 140 {

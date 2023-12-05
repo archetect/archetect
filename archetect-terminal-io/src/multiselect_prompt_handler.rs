@@ -1,7 +1,7 @@
 use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, MultiSelectPromptInfo, PromptInfo};
-use inquire::MultiSelect;
+use archetect_inquire::MultiSelect;
 
 use crate::get_render_config;
 

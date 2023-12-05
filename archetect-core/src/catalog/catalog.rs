@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-use inquire::{InquireError, Select};
+use archetect_inquire::{InquireError, Select};
 
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{CatalogEntry, CatalogManifest};

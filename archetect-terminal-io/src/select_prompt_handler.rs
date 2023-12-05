@@ -3,7 +3,7 @@ use std::sync::mpsc::SyncSender;
 use log::warn;
 
 use archetect_api::{CommandResponse, PromptInfo, SelectPromptInfo};
-use inquire::Select;
+use archetect_inquire::Select;
 
 use crate::get_render_config;
 

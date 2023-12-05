@@ -1,6 +1,6 @@
 use std::io::ErrorKind;
 
-use inquire::{
+use archetect_inquire::{
     autocompletion::{Autocomplete, Replacement},
     CustomUserError, Text,
 };

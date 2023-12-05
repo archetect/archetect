@@ -47,7 +47,7 @@ use crate::validator::ListValidator;
 /// # Example
 ///
 /// ```no_run
-/// use inquire::Text;
+/// use archetect_inquire::Text;
 ///
 /// let name = Text::new("What is your name?").prompt();
 ///

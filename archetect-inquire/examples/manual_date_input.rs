@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use inquire::{formatter::DEFAULT_DATE_FORMATTER, CustomType};
+use archetect_inquire::{formatter::DEFAULT_DATE_FORMATTER, CustomType};
 
 fn main() {
     let amount = CustomType::<NaiveDate>::new("When are you going to visit the office?")

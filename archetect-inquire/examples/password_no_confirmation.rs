@@ -1,4 +1,4 @@
-use inquire::Password;
+use archetect_inquire::Password;
 
 fn main() {
     let name = Password::new("RSA Encryption Key:")

@@ -104,8 +104,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use inquire::list_option::ListOption;
-    /// use inquire::MultiSelect;
+    /// use archetect_inquire::list_option::ListOption;
+    /// use archetect_inquire::MultiSelect;
     ///
     /// let formatter = MultiSelect::<&str>::DEFAULT_FORMATTER;
     ///
@@ -131,7 +131,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use inquire::MultiSelect;
+    /// use archetect_inquire::MultiSelect;
     ///
     /// let filter = MultiSelect::<&str>::DEFAULT_FILTER;
     /// assert_eq!(false, filter("sa", &"New York",      "New York",      0));

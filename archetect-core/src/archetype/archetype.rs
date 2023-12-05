@@ -9,7 +9,7 @@ use log::{debug, trace};
 use rhai::{Dynamic, Map, Scope};
 
 use archetect_api::CommandRequest;
-use inquire::Confirm;
+use archetect_inquire::Confirm;
 use archetect_minijinja::Environment;
 
 use crate::archetype::archetype_directory::ArchetypeDirectory;

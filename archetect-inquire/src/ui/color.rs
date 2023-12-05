@@ -158,7 +158,7 @@ impl Color {
     /// Shorthand method for creating a Color from RGB components
     ///
     /// ```
-    /// # use inquire::ui::Color;
+    /// # use archetect_inquire::ui::Color;
     ///
     /// assert_eq!(Color::rgb(42, 17, 97), Color::Rgb { r: 42, g: 17, b: 97 });
     /// ```

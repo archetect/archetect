@@ -25,7 +25,7 @@ impl<T> ListOption<T> {
     /// # Examples
     ///
     /// ```
-    /// use inquire::list_option::ListOption;
+    /// use archetect_inquire::list_option::ListOption;
     ///
     /// let answer = ListOption::new(0, "a");
     /// ```

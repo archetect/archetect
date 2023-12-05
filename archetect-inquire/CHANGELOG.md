@@ -161,7 +161,7 @@ The library is already featureful enough to warrant a higher version number, bum
 
 ### Improvements
 
-- Removed need to add `use inquire::validator::InquireLength` when using one of the length-related built-in validators.
+- Removed need to add `use archetect_inquire::validator::InquireLength` when using one of the length-related built-in validators.
 - Cursor should not ficker anymore in wrong positions on ~~Windows~~ slower terminals.
 - Documentation on the `Color` enum used for render configuration has been improved.
 

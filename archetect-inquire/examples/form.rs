@@ -1,4 +1,4 @@
-use inquire::{
+use archetect_inquire::{
     error::InquireResult, min_length, Confirm, DateSelect, MultiSelect, Password, Select, Text,
 };
 

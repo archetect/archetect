@@ -1,4 +1,4 @@
-use inquire::{error::CustomUserError, length, required, ui::RenderConfig, Text};
+use archetect_inquire::{error::CustomUserError, length, required, ui::RenderConfig, Text};
 
 fn main() {
     let answer = Text::new("What's your name?")

@@ -73,7 +73,7 @@ pub enum Validation {
 /// # Examples
 ///
 /// ```
-/// use inquire::validator::{StringValidator, Validation};
+/// use archetect_inquire::validator::{StringValidator, Validation};
 ///
 /// let validator = |input: &str| match input.chars().find(|c| c.is_numeric()) {
 ///     Some(_) => Ok(Validation::Valid),
@@ -87,7 +87,7 @@ pub enum Validation {
 ///     Validation::Invalid("Your password should contain at least 1 digit".into()),
 ///     validator.validate("password")?
 /// );
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 pub trait StringValidator: DynClone {
     /// Confirm the given input string is a valid value.
@@ -142,7 +142,7 @@ impl<F> ListValidator for F
 ///
 /// ```
 /// use chrono::{Datelike, NaiveDate, Weekday};
-/// use inquire::validator::{DateValidator, Validation};
+/// use archetect_inquire::validator::{DateValidator, Validation};
 ///
 /// let validator = |input: NaiveDate| {
 ///     if input.weekday() == Weekday::Sat || input.weekday() == Weekday::Sun {
@@ -157,7 +157,7 @@ impl<F> ListValidator for F
 ///     Validation::Invalid("Weekends are not allowed".into()),
 ///     validator.validate(NaiveDate::from_ymd(2021, 7, 25))?
 /// );
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[cfg(feature = "date")]
 pub trait DateValidator: DynClone {
@@ -193,8 +193,8 @@ where
 /// # Examples
 ///
 /// ```
-/// use inquire::list_option::ListOption;
-/// use inquire::validator::{MultiOptionValidator, Validation};
+/// use archetect_inquire::list_option::ListOption;
+/// use archetect_inquire::validator::{MultiOptionValidator, Validation};
 ///
 /// let validator = |input: &[ListOption<&&str>]| {
 ///     if input.len() <= 2 {
@@ -213,7 +213,7 @@ where
 ///     Validation::Invalid("You should select at most two options".into()),
 ///     validator.validate(&ans[..])?
 /// );
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 pub trait MultiOptionValidator<T: ?Sized>: DynClone {
     /// Confirm the given input list is a valid value.
@@ -247,8 +247,8 @@ where
 /// # Examples
 ///
 /// ```
-/// use inquire::list_option::ListOption;
-/// use inquire::validator::{MultiOptionValidator, Validation};
+/// use archetect_inquire::list_option::ListOption;
+/// use archetect_inquire::validator::{MultiOptionValidator, Validation};
 ///
 /// let validator = |input: &[ListOption<&&str>]| {
 ///     if input.len() <= 2 {
@@ -267,7 +267,7 @@ where
 ///     Validation::Invalid("You should select at most two options".into()),
 ///     validator.validate(&ans[..])?
 /// );
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 pub trait CustomTypeValidator<T: ?Sized>: DynClone {
     /// Confirm the given input list is a valid value.
@@ -323,7 +323,7 @@ impl<T> InquireLength for &[T] {
 /// # Examples
 ///
 /// ```
-/// use inquire::validator::{StringValidator, Validation, ValueRequiredValidator};
+/// use archetect_inquire::validator::{StringValidator, Validation, ValueRequiredValidator};
 ///
 /// let validator = ValueRequiredValidator::default();
 /// assert_eq!(Validation::Valid, validator.validate("Generic input")?);
@@ -332,7 +332,7 @@ impl<T> InquireLength for &[T] {
 /// let validator = ValueRequiredValidator::new("No empty!");
 /// assert_eq!(Validation::Valid, validator.validate("Generic input")?);
 /// assert_eq!(Validation::Invalid("No empty!".into()), validator.validate("")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[derive(Clone)]
 pub struct ValueRequiredValidator {
@@ -379,7 +379,7 @@ impl StringValidator for ValueRequiredValidator {
 /// # Examples
 ///
 /// ```
-/// use inquire::{required, validator::{StringValidator, Validation}};
+/// use archetect_inquire::{required, validator::{StringValidator, Validation}};
 ///
 /// let validator = required!();
 /// assert_eq!(Validation::Valid, validator.validate("Generic input")?);
@@ -388,7 +388,7 @@ impl StringValidator for ValueRequiredValidator {
 /// let validator = required!("No empty!");
 /// assert_eq!(Validation::Valid, validator.validate("Generic input")?);
 /// assert_eq!(Validation::Invalid("No empty!".into()), validator.validate("")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[macro_export]
 #[cfg(feature = "macros")]
@@ -412,7 +412,7 @@ macro_rules! required {
 /// # Examples
 ///
 /// ```
-/// use inquire::validator::{MaxLengthValidator, StringValidator, Validation};
+/// use archetect_inquire::validator::{MaxLengthValidator, StringValidator, Validation};
 ///
 /// let validator = MaxLengthValidator::new(5);
 /// assert_eq!(Validation::Valid, validator.validate("Good")?);
@@ -424,7 +424,7 @@ macro_rules! required {
 /// let validator = MaxLengthValidator::new(5).with_message("Not too large!");
 /// assert_eq!(Validation::Valid, validator.validate("Good")?);
 /// assert_eq!(Validation::Invalid("Not too large!".into()), validator.validate("Terrible")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[derive(Clone)]
 pub struct MaxLengthValidator {
@@ -485,7 +485,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for MaxLengthValidator {
 /// # Examples
 ///
 /// ```
-/// use inquire::{max_length, validator::{StringValidator, Validation}};
+/// use archetect_inquire::{max_length, validator::{StringValidator, Validation}};
 ///
 /// let validator = max_length!(5);
 /// assert_eq!(Validation::Valid, validator.validate("Good")?);
@@ -494,7 +494,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for MaxLengthValidator {
 /// let validator = max_length!(5, "Not too large!");
 /// assert_eq!(Validation::Valid, validator.validate("Good")?);
 /// assert_eq!(Validation::Invalid("Not too large!".into()), validator.validate("Terrible")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[macro_export]
 #[cfg(feature = "macros")]
@@ -518,7 +518,7 @@ macro_rules! max_length {
 /// # Examples
 ///
 /// ```
-/// use inquire::validator::{MinLengthValidator, StringValidator, Validation};
+/// use archetect_inquire::validator::{MinLengthValidator, StringValidator, Validation};
 ///
 /// let validator = MinLengthValidator::new(3);
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
@@ -533,7 +533,7 @@ macro_rules! max_length {
 ///     Validation::Invalid("You have to give me more than that!".into()),
 ///     validator.validate("No")?,
 /// );
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[derive(Clone)]
 pub struct MinLengthValidator {
@@ -594,7 +594,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for MinLengthValidator {
 /// # Examples
 ///
 /// ```
-/// use inquire::{min_length, validator::{StringValidator, Validation}};
+/// use archetect_inquire::{min_length, validator::{StringValidator, Validation}};
 ///
 /// let validator = min_length!(3);
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
@@ -603,7 +603,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for MinLengthValidator {
 /// let validator = min_length!(3, "You have to give me more than that!");
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
 /// assert_eq!(Validation::Invalid("You have to give me more than that!".into()), validator.validate("No")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[macro_export]
 #[cfg(feature = "macros")]
@@ -627,7 +627,7 @@ macro_rules! min_length {
 /// # Examples
 ///
 /// ```
-/// use inquire::validator::{ExactLengthValidator, StringValidator, Validation};
+/// use archetect_inquire::validator::{ExactLengthValidator, StringValidator, Validation};
 ///
 /// let validator = ExactLengthValidator::new(3);
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
@@ -639,7 +639,7 @@ macro_rules! min_length {
 /// let validator = ExactLengthValidator::new(3).with_message("Three characters please.");
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
 /// assert_eq!(Validation::Invalid("Three characters please.".into()), validator.validate("No")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[derive(Clone)]
 pub struct ExactLengthValidator {
@@ -700,7 +700,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for ExactLengthValidator {
 /// # Examples
 ///
 /// ```
-/// use inquire::{length, validator::{StringValidator, Validation}};
+/// use archetect_inquire::{length, validator::{StringValidator, Validation}};
 ///
 /// let validator = length!(3);
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
@@ -709,7 +709,7 @@ impl<T: ?Sized> MultiOptionValidator<T> for ExactLengthValidator {
 /// let validator = length!(3, "Three characters please.");
 /// assert_eq!(Validation::Valid, validator.validate("Yes")?);
 /// assert_eq!(Validation::Invalid("Three characters please.".into()), validator.validate("No")?);
-/// # Ok::<(), inquire::error::CustomUserError>(())
+/// # Ok::<(), archetect_inquire::error::CustomUserError>(())
 /// ```
 #[macro_export]
 #[cfg(feature = "macros")]

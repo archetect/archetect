@@ -2,8 +2,8 @@ use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, PromptInfo, TextPromptInfo};
 use archetect_api::validations::validate_text;
-use inquire::Text;
-use inquire::validator::Validation;
+use archetect_inquire::Text;
+use archetect_inquire::validator::Validation;
 
 use crate::get_render_config;
 

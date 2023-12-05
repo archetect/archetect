@@ -2,8 +2,8 @@ use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, ListPromptInfo, PromptInfo};
-use inquire::validator::Validation;
-use inquire::List;
+use archetect_inquire::validator::Validation;
+use archetect_inquire::List;
 
 use crate::get_render_config;
 

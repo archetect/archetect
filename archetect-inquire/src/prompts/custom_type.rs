@@ -30,7 +30,7 @@ use crate::{
 /// If your type `T` does not satisfy these constraints, you can always manually instantiate the entire struct yourself like this:
 ///
 /// ```no_run
-/// use inquire::{CustomType, ui::RenderConfig};
+/// use archetect_inquire::{CustomType, ui::RenderConfig};
 ///
 /// let amount_prompt: CustomType<f64> = CustomType {
 ///     message: "How much is your travel going to cost?",
@@ -52,7 +52,7 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use inquire::CustomType;
+/// use archetect_inquire::CustomType;
 ///
 /// let amount = CustomType::<f64>::new("How much do you want to donate?")
 ///     .with_formatter(&|i| format!("${:.2}", i))

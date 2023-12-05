@@ -1,4 +1,4 @@
-use inquire::{validator::Validation, CustomType};
+use archetect_inquire::{validator::Validation, CustomType};
 
 fn main() {
     let amount = CustomType::<f64>::new("How much do you want to donate?")
