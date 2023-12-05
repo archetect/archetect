@@ -13,27 +13,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Dynamic, Box<EvalAltResult>> {
-    if let Some(answer) = answer {
-        if let Some(answer) = answer.clone().try_cast::<String>() {
-            let answers = answer
-                .split(',')
-                .map(|v| v.trim())
-                .map(|v| v.to_owned())
-                .collect::<Vec<String>>();
-            return Ok(answers.into());
-        }
-
-        if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
-            let answers = answers.iter().map(|v| v.to_string()).collect::<Vec<String>>();
-            return Ok(answers.into());
-        }
-
-        let requirement = " an Array of Strings or a comma-separated String".to_string();
-        let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
+) -> Result<Option<Vec<String>>, Box<EvalAltResult>> {
     let optional = cast_setting("optional", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .unwrap_or_default();
@@ -56,14 +36,34 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         .with_help(help)
         ;
 
+    if let Some(answer) = answer {
+        if let Some(answer) = answer.clone().try_cast::<String>() {
+            let answers = answer
+                .split(',')
+                .map(|v| v.trim())
+                .map(|v| v.to_owned())
+                .collect::<Vec<String>>();
+            return Ok(answers.into());
+        }
+
+        if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
+            let answers = answers.iter().map(|v| v.to_string()).collect::<Vec<String>>();
+            return Ok(answers.into());
+        }
+
+        let requirement = " an Array of Strings or a comma-separated String".to_string();
+        let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, requirement);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
+    }
+
     if let Some(default_value) = settings.get("defaults_with") {
         if let Some(defaults) = default_value.clone().try_cast::<Vec<Dynamic>>() {
+            let defaults = defaults.into_iter()
+                .map(|v| v.to_string())
+                .collect();
             if runtime_context.headless() {
-                return Ok(defaults.into());
+                return Ok(Some(defaults));
             } else {
-                let defaults = defaults.into_iter()
-                    .map(|v| v.to_string())
-                    .collect();
                 prompt_info = prompt_info.with_defaults(Some(defaults));
             }
         } else {
@@ -80,14 +80,14 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     match runtime_context.response() {
         CommandResponse::Array(answer) => {
-            return Ok(answer.into());
+            return Ok(Some(answer.into()));
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(message, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
-                return Ok(Dynamic::UNIT);
+                return Ok(None);
             }
         }
         CommandResponse::Error(error) => {

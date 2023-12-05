@@ -1,8 +1,7 @@
-use log::warn;
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::validations::validate_int;
 use archetect_api::{CommandRequest, CommandResponse, IntPromptInfo, PromptInfo};
+use archetect_api::validations::validate_int;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
@@ -15,7 +14,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Dynamic, Box<EvalAltResult>> {
+) -> Result<Option<i64>, Box<EvalAltResult>> {
     let optional = cast_setting("optional", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .unwrap_or_default();
@@ -29,18 +28,32 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
         ;
+    let defaults_with = cast_setting("defaults_with", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    let mut prompt_info = IntPromptInfo::new(message)
+    let prompt_info = IntPromptInfo::new(message)
         .with_optional(optional)
         .with_min(min)
         .with_max(max)
         .with_placeholder(placeholder)
-        .with_help(help);
+        .with_help(help)
+        .with_default(defaults_with.clone())
+        ;
+
+    if runtime_context.headless() {
+        if let Some(default) = defaults_with {
+            return Ok(Some(default));
+        } else if optional {
+            return Ok(None)
+        }
+        let error = ArchetypeScriptError::headless_no_answer(message, key);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
+    }
 
     if let Some(answer) = answer {
         return if let Some(answer) = answer.clone().try_cast::<i64>() {
             match validate_int(min, max, answer) {
-                Ok(_) => Ok(answer.into()),
+                Ok(_) => Ok(Some(answer)),
                 Err(error_message) => {
                     let error =
                         ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
@@ -53,31 +66,11 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
         };
     }
 
-    if let Some(default_value) = settings.get("defaults_with") {
-        let default_value = default_value.to_string();
-        match default_value.parse::<i64>() {
-            Ok(value) => {
-                if runtime_context.headless() {
-                    return Ok(value.into());
-                } else {
-                    prompt_info = prompt_info.with_default(Some(value));
-                }
-            }
-            // TODO: return error
-            Err(_) => warn!("Default for prompt should be an 'int'', but was '{})", default_value),
-        }
-    }
-
-    if runtime_context.headless() {
-        let error = ArchetypeScriptError::headless_no_answer(message, key);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
     runtime_context.request(CommandRequest::PromptForInt(prompt_info.clone()));
 
     match runtime_context.response() {
         CommandResponse::Integer(answer) => match validate_int(min, max, answer) {
-            Ok(_) => Ok(answer.into()),
+            Ok(_) => Ok(Some(answer)),
             Err(error_message) => {
                 let error =
                     ArchetypeScriptError::answer_validation_error(answer.to_string(), message, key, error_message);
@@ -89,7 +82,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
                 let error = ArchetypeScriptError::answer_not_optional(message, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
-                return Ok(Dynamic::UNIT);
+                return Ok(None);
             }
         }
         CommandResponse::Error(error) => {

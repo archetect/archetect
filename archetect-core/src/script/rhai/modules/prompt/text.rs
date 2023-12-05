@@ -14,7 +14,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     runtime_context: &RuntimeContext,
     key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Dynamic, Box<EvalAltResult>> {
+) -> Result<Option<String>, Box<EvalAltResult>> {
     let optional = cast_setting("optional", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .unwrap_or_default();
@@ -29,6 +29,17 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     let help = cast_setting("help", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
+    let defaults_with = cast_setting("defaults_with", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+
+    let prompt_info = TextPromptInfo::new(message)
+        .with_optional(optional)
+        .with_min(min)
+        .with_max(max)
+        .with_placeholder(placeholder)
+        .with_help(help)
+        .with_default(defaults_with.clone())
         ;
 
     if let Some(answer) = answer {
@@ -46,31 +57,16 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    let mut prompt_info = TextPromptInfo::new(message)
-        .with_optional(optional)
-        .with_min(min)
-        .with_max(max)
-        .with_placeholder(placeholder)
-        .with_help(help)
-        ;
-
-    if let Some(default_value) = settings.get("defaults_with") {
-        if runtime_context.headless() {
-            return Ok(default_value.clone());
-        } else {
-            prompt_info = prompt_info.with_default(Some(default_value.to_string()));
-        }
-    }
-
     if runtime_context.headless() {
-        // If we're headless, and there was no default, but this is an optional prompt,
-        // return a UNIT
-        if optional {
-            return Ok(Dynamic::UNIT);
+        if let Some(default) = defaults_with {
+            return Ok(Some(default));
+        } else if optional {
+            return Ok(None);
         }
         let error = ArchetypeScriptError::headless_no_answer(message, key);
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
+
 
     runtime_context.request(CommandRequest::PromptForText(prompt_info.clone()));
 
@@ -89,7 +85,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 let error = ArchetypeScriptError::answer_not_optional(message, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
-                return Ok(Dynamic::UNIT);
+                return Ok(None);
             }
         }
         CommandResponse::Error(error) => {

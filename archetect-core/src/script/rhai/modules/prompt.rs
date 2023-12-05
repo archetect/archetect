@@ -1,17 +1,17 @@
 use std::borrow::Cow;
 use std::str::FromStr;
 
-use rhai::{Dynamic, Engine, EvalAltResult, exported_module, Map};
 use rhai::plugin::*;
+use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
 use inquire::error::InquireResult;
-use inquire::InquireError;
 use inquire::ui::{Color, RenderConfig, Styled};
+use inquire::InquireError;
 
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
+use crate::script::rhai::modules::cases::{expand_key_value_cases, CaseStyle};
 
 mod bool;
 mod editor;
@@ -21,11 +21,7 @@ mod multiselect;
 mod select;
 mod text;
 
-pub(crate) fn register(
-    engine: &mut Engine,
-    archetype_context: RenderContext,
-    runtime_context: RuntimeContext,
-) {
+pub(crate) fn register(engine: &mut Engine, archetype_context: RenderContext, runtime_context: RuntimeContext) {
     engine.register_global_module(exported_module!(module).into());
 
     let ctx = archetype_context.clone();
@@ -59,7 +55,7 @@ pub(crate) fn register(
     });
 }
 
-fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
+fn prompt_to_map<'a, K: AsRef<str>>(
     call: &NativeCallContext,
     message: &str,
     runtime_context: RuntimeContext,
@@ -67,34 +63,49 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
     key: K,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
-    let key = key.into();
+    let key = key.as_ref();
 
-    let prompt_type = cast_setting("type", &settings, message, None::<Cow<'_, str>>)
-        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
-        ?.unwrap_or_default()
-        ;
+    let prompt_type = cast_setting("type", &settings, message, Some(key))
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))?
+        .unwrap_or_default();
 
     let mut results: Map = Map::new();
 
-    let answers = &get_answers(call, message, &settings, Some(key.clone()), &render_context)?;
-    let answer = answers.get(key.as_ref());
+    let answers = &get_answers(call, message, &settings, Some(key), &render_context)?;
+    let answer = answers.get(key);
 
     return match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context, Some(key.clone()), answer)?;
-            results.insert(key.as_ref().into(), value.clone().into());
-            expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
-            Ok(results.into())
+            let value = text::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => {
+                    results.insert(key.into(), value.clone().into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
+                    Ok(results.into())
+                }
+            }
+
         }
         PromptType::Bool => {
-            let value = bool::prompt(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
-            results.insert(key.into(), value.into());
-            Ok(results.into())
+            let value = bool::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => {
+                    results.insert(key.into(), value.into());
+                    Ok(results.into())
+                }
+            }
         }
         PromptType::Int => {
-            let value = int::prompt_int(call, message, &runtime_context, &settings, Some(key.clone()), answer)?;
-            results.insert(key.into(), value.into());
-            Ok(results.into())
+            let value = int::prompt_int(call, message, &runtime_context, &settings, Some(key), answer)?;
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => {
+                    results.insert(key.into(), value.into());
+                    Ok(results.into())
+                }
+            }
         }
         PromptType::Select(options) => {
             let value = select::prompt(
@@ -103,12 +114,17 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
                 options,
                 &runtime_context,
                 &settings,
-                Some(key.clone()),
+                Some(key),
                 answer,
             )?;
-            results.insert(key.clone().into(), value.clone().into());
-            expand_key_value_cases(&settings, &mut results, key.as_ref(), value.to_string().as_str());
-            Ok(results.into())
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => {
+                    results.insert(key.into(), value.clone().into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
+                    Ok(results.into())
+                }
+            }
         }
         PromptType::MultiSelect(options) => {
             let value = multiselect::prompt(
@@ -117,11 +133,17 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
                 options,
                 &runtime_context,
                 &settings,
-                Some(key.clone()),
+                Some(key),
                 answer,
             )?;
-            results.insert(key.into(), value.into());
-            Ok(results.into())
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => {
+                    results.insert(key.into(), value.clone().into());
+                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::List(value));
+                    Ok(results.into())
+                }
+            }
         }
         PromptType::Editor => {
             let value = editor::prompt(message)?;
@@ -129,11 +151,14 @@ fn prompt_to_map<'a, K: Into<Cow<'a, str>>>(
             Ok(results.into())
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, Some(key.as_ref()), answer)?;
-            results.insert(key.into(), value.clone().into());
-            // TODO Consider casing strategies
-            // expand_cases(&settings, &mut results, key, &value);
-            Ok(results.into())
+            match list::prompt(call, message, &runtime_context, &settings, Some(key), answer)? {
+                None => Ok(Dynamic::UNIT),
+                Some(list) => {
+                    results.insert(key.into(), list.clone().into());
+                    expand_key_value_cases(&settings, &mut results, key, Caseable::List(list));
+                    Ok(results.into())
+                }
+            }
         }
     };
 }
@@ -146,18 +171,15 @@ fn prompt_to_value(
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
     let prompt_type = cast_setting("type", &settings, message, None::<Cow<'_, str>>)
-        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
-        ?.unwrap_or_default()
-        ;
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))?
+        .unwrap_or_default();
 
     let case = cast_setting("cased_as", &settings, message, None::<Cow<'_, str>>)
-        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
-    ?;
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))?;
 
     let answers = &get_answers::<Cow<'_, str>>(call, message, &settings, None::<Cow<'_, str>>, &render_context)?;
     let answer_key: Option<String> = cast_setting("answer_key", &settings, message, None::<Cow<'_, str>>)
-        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))
-        ?;
+        .map_err(|err| ArchetypeScriptErrorWrapper(call, err))?;
     let answer = if let Some(key) = &answer_key {
         answers.get(key.as_str())
     } else {
@@ -166,37 +188,55 @@ fn prompt_to_value(
 
     match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context, answer_key, answer)?;
-            Ok(apply_case(&value, case))
+            let value = text::prompt(call, message, &settings, &runtime_context,  answer_key.as_ref(), answer)?;
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(list) => Ok(apply_case(Caseable::String(list), case)),
+            }
         }
         PromptType::Bool => {
             let value = bool::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
-            Ok(apply_case(&value, case))
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => Ok(value.into())
+            }
         }
         PromptType::Int => {
             let value = int::prompt_int(call, message, &runtime_context, &settings, answer_key, answer)?;
-            Ok(apply_case(&value, case))
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(value) => Ok(value.into())
+            }
         }
         PromptType::Select(options) => {
             let value = select::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
-            Ok(apply_case(&value, case))
+            match value {
+                Some(value) => Ok(apply_case(Caseable::String(value), case)),
+                None => Ok(Dynamic::UNIT),
+            }
         }
         PromptType::MultiSelect(options) => {
             let value = multiselect::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
-            Ok(apply_case(&value, case))
+            match value {
+                Some(value) => Ok(apply_case(Caseable::List(value), case)),
+                None => Ok(Dynamic::UNIT),
+            }
         }
         PromptType::Editor => {
             let value = editor::prompt(message)?;
-            Ok(apply_case(&value, case))
+            Ok(apply_case_2(&value, case))
         }
         PromptType::List => {
             let value = list::prompt(call, message, &runtime_context, &settings, answer_key.as_ref(), answer)?;
-            Ok(apply_case(&value, case))
+            match value {
+                None => Ok(Dynamic::UNIT),
+                Some(list) => Ok(apply_case(Caseable::List(list), case)),
+            }
         }
     }
 }
 
-fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
+fn apply_case_2(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
     if let Some(case) = case {
         if input.is_array() {
             return input
@@ -217,6 +257,22 @@ fn apply_case(input: &Dynamic, case: Option<CaseStyle>) -> Dynamic {
     }
 }
 
+fn apply_case(input: Caseable, case: Option<CaseStyle>) -> Dynamic {
+    match case {
+        None => match input.into() {
+            Caseable::String(value) => Dynamic::from(value),
+            Caseable::List(value) => Dynamic::from(value),
+        },
+        Some(case) => match input.into() {
+            Caseable::String(value) => Dynamic::from(case.to_case(&value)),
+            Caseable::List(list) => {
+                let result = list.into_iter().map(|v| case.to_case(&v)).collect::<Vec<String>>();
+                Dynamic::from(result)
+            }
+        },
+    }
+}
+
 fn get_answers<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
@@ -231,8 +287,7 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
         } else {
             if !answers.is_unit() {
                 let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
-                let error =
-                    ArchetypeScriptError::invalid_setting(message, setting, requirement, key);
+                let error = ArchetypeScriptError::invalid_setting(message, setting, requirement, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
                 return Ok(Map::new());
@@ -249,11 +304,16 @@ pub fn get_render_config() -> RenderConfig {
     RenderConfig::default_colored().with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
 }
 
-pub fn parse_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: Option<K>) -> Result<Option<T>, ArchetypeScriptError>
-    where
-        P: AsRef<str>,
-        K: AsRef<str>,
-        T: RequirementDescription + FromStr + 'static
+pub fn parse_setting<'a, P, T, K>(
+    setting: &str,
+    settings: &Map,
+    prompt: P,
+    key: Option<K>,
+) -> Result<Option<T>, ArchetypeScriptError>
+where
+    P: AsRef<str>,
+    K: AsRef<str>,
+    T: RequirementDescription + FromStr + 'static,
 {
     match settings.get(setting) {
         None => return Ok(None),
@@ -271,11 +331,16 @@ pub fn parse_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key:
     }
 }
 
-pub fn cast_setting<'a, P, T, K>(setting: &str, settings: &Map, prompt: P, key: Option<K>) -> Result<Option<T>, ArchetypeScriptError>
+pub fn cast_setting<'a, P, T, K>(
+    setting: &str,
+    settings: &Map,
+    prompt: P,
+    key: Option<K>,
+) -> Result<Option<T>, ArchetypeScriptError>
 where
     P: AsRef<str>,
     K: AsRef<str>,
-    T: RequirementDescription + 'static
+    T: RequirementDescription + 'static,
 {
     match settings.get(setting) {
         None => return Ok(None),
@@ -331,6 +396,17 @@ impl RequirementDescription for bool {
     fn get_requirement() -> Cow<'static, str> {
         "a boolean".into()
     }
+}
+
+impl RequirementDescription for Map {
+    fn get_requirement() -> Cow<'static, str> {
+        "a Map".into()
+    }
+}
+
+pub enum Caseable {
+    String(String),
+    List(Vec<String>),
 }
 
 #[derive(Clone, Debug)]

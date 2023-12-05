@@ -2,7 +2,7 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
 
-use crate::errors::{ArchetectError, ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::runtime::context::RuntimeContext;
 use crate::script::rhai::modules::prompt::cast_setting;
 
@@ -14,8 +14,9 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Dynamic, Box<EvalAltResult>> {
+) -> Result<Option<String>, Box<EvalAltResult>> {
     let options = &options;
+    let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
     let optional = cast_setting("optional", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .unwrap_or_default();
@@ -25,11 +26,20 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
         .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
         ;
+    let defaults_with = cast_setting("defaults_with", settings, message, key.clone())
+        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+
+    let prompt_info = SelectPromptInfo::new(message, options.clone())
+        .with_optional(optional)
+        .with_placeholder(placeholder)
+        .with_help(help )
+        .with_default(defaults_with.clone())
+        ;
 
     if let Some(answer) = answer {
         for option in options {
             if option.to_string().as_str().to_lowercase() == answer.to_string().as_str().to_lowercase() {
-                return Ok(option.clone());
+                return Ok(option.into());
             }
         }
         let requirement = "must match one of the required options";
@@ -38,30 +48,13 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     };
 
     if runtime_context.headless() {
-        return Err(Box::new(EvalAltResult::ErrorSystem(
-            "Headless Mode Error".to_owned(),
-            Box::new(ArchetectError::HeadlessNoDefault),
-        )));
-    }
-
-    let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
-
-    let mut prompt_info = SelectPromptInfo::new(message, options)
-        .with_optional(optional)
-        .with_placeholder(placeholder)
-        .with_help(help )
-        ;
-
-    if let Some(default_value) = settings.get("defaults_with") {
-        if let Some(default) = default_value.clone().try_cast::<String>() {
-            if runtime_context.headless() {
-                return Ok(default.into());
-            } else {
-                prompt_info = prompt_info.with_default(Some(default));
-            }
-        } else {
-            // TODO: Throw error about wrong type
+        if let Some(default) = defaults_with {
+            return Ok(Some(default));
+        } else if optional {
+            return Ok(None);
         }
+        let error = ArchetypeScriptError::headless_no_answer(message, key);
+        return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     // if let Some(page_size) = settings.get("page_size") {
@@ -81,14 +74,14 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     match runtime_context.response() {
         CommandResponse::String(answer) => {
-            return Ok(answer.into());
+            return Ok(Some(answer));
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(message, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
-                return Ok(Dynamic::UNIT);
+                return Ok(None);
             }
         }
         CommandResponse::Error(error) => {

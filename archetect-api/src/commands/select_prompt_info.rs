@@ -51,8 +51,8 @@ impl SelectPromptInfo {
         self.default.as_deref()
     }
 
-    pub fn with_default<T: Into<String>>(mut self, value: Option<T>) -> Self {
-        self.default = value.map(|v| v.into());
+    pub fn with_default(mut self, value: Option<String>) -> Self {
+        self.default = value;
         self
     }
 

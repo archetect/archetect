@@ -14,7 +14,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
-) -> Result<Dynamic, Box<EvalAltResult>> {
+) -> Result<Option<Vec<String>>, Box<EvalAltResult>> {
     let options = options.iter().map(|v| v.to_string()).collect::<Vec<String>>();
     let optional = cast_setting("optional", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?
@@ -45,7 +45,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 }
             }
 
-            return Ok(results.into());
+            return Ok(Some(results));
         }
         // Handle an answer as an array of values
         if let Some(answers) = answer.clone().try_cast::<Vec<Dynamic>>() {
@@ -62,7 +62,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                     return Err(ArchetypeScriptErrorWrapper(call, error).into());
                 }
             }
-            return Ok(results.into());
+            return Ok(Some(results));
         } else {
             let error = ArchetypeScriptError::answer_validation_error(
                 answer.to_string(),
@@ -124,14 +124,14 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     match runtime_context.response() {
         CommandResponse::Array(answer) => {
-            return Ok(answer.into());
+            return Ok(Some(answer));
         }
         CommandResponse::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(message, key);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             } else {
-                return Ok(Dynamic::UNIT);
+                return Ok(None);
             }
         }
         CommandResponse::Error(error) => {
