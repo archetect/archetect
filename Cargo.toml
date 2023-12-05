@@ -7,8 +7,8 @@ members = [
   "archetect-core",
   # "archetect-models",
   "archetect-terminal-io",
-  "vendor/minijinja",
-  "vendor/inquire",
+  "archetect-minijinja",
+  "archetect-inquire",
 ]
 
 [workspace.dependencies]

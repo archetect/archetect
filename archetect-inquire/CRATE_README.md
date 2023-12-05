@@ -9,7 +9,7 @@
 ---
 
 <p align="center">
-  <img width="460" src="./assets/inquire.png">
+  <img width="460" src="assets/inquire.png">
   <br>
   <code>inquire</code> is a library for building interactive prompts on terminals.
 </p>
@@ -29,8 +29,8 @@ It provides several different prompts in order to interactively ask the user for
 
 ## Demo
 
-![Animated GIF making a demonstration of a questionnaire created with this library. You can replay this recording in your terminal with asciinema play command - asciinema play ./assets/expense_tracker.cast](./assets/expense_tracker.gif)
-[Source](./examples/expense_tracker.rs)
+![Animated GIF making a demonstration of a questionnaire created with this library. You can replay this recording in your terminal with asciinema play command - asciinema play ./assets/expense_tracker.cast](assets/expense_tracker.gif)
+[Source](examples/expense_tracker.rs)
 
 ## Features
 
