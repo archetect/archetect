@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BoolPromptInfo {
     message: String,
+    key: Option<String>,
     default: Option<bool>,
     help: Option<String>,
     placeholder: Option<String>,
@@ -26,13 +27,30 @@ impl PromptInfo for BoolPromptInfo {
     fn placeholder(&self) -> Option<&str> {
         self.placeholder.as_deref()
     }
+
+    fn set_optional(&mut self, value: bool) {
+        self.optional = value;
+    }
+
+    fn set_help(&mut self, value: Option<String>) {
+        self.help = value;
+    }
+
+    fn set_placeholder(&mut self, value: Option<String>) {
+        self.placeholder = value;
+    }
+
+    fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
 }
 
 //noinspection DuplicatedCode
 impl BoolPromptInfo {
-    pub fn new<M: Into<String>>(message: M) -> Self {
+    pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>) -> Self {
         BoolPromptInfo {
             message: message.into(),
+            key: key.map(|v|v.as_ref().to_string()),
             default: Default::default(),
             help: Default::default(),
             placeholder: Default::default(),

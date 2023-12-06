@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use rhai::{Dynamic, Engine, EvalAltResult, exported_module, Map};
 use rhai::plugin::*;
+use archetect_api::{PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRestrictions, PromptInfoPageable};
 
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
@@ -312,7 +313,7 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
         } else {
             if !answers.is_unit() {
                 let requirement = "a 'map' (\"#{{ .. }}\") or Unit type (\"()\")".to_string();
-                let error = ArchetypeScriptError::invalid_setting(message, setting, requirement, key);
+                let error = ArchetypeScriptError::invalid_setting(message, key, setting, requirement);
                 Err(ArchetypeScriptErrorWrapper(call, error).into())
             } else {
                 Ok(Map::new())
@@ -344,9 +345,9 @@ where
             }
             return Err(ArchetypeScriptError::invalid_setting(
                 prompt.as_ref(),
+                key.as_ref(),
                 setting,
                 T::get_requirement(),
-                key.as_ref(),
             ));
         }
     }
@@ -371,12 +372,62 @@ where
             }
             return Err(ArchetypeScriptError::invalid_setting(
                 prompt.as_ref(),
+                key.as_ref(),
                 setting,
                 T::get_requirement(),
-                key.as_ref(),
             ));
         }
     }
+}
+
+pub fn extract_prompt_info<T: PromptInfo>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+    let optional = cast_setting("optional", settings, prompt_info.message(), prompt_info.key())?
+        .unwrap_or_default();
+    let placeholder = cast_setting("placeholder", settings, prompt_info.message(), prompt_info.key())?;
+    let help = cast_setting("help", settings, prompt_info.message(), prompt_info.key())?
+        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
+        ;
+    prompt_info.set_optional(optional);
+    prompt_info.set_placeholder(placeholder);
+    prompt_info.set_help(help);
+    Ok(())
+}
+
+pub fn extract_prompt_length_restrictions<T: PromptInfoLengthRestrictions>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+    let min = parse_setting("min", settings, prompt_info.message(), prompt_info.key())?;
+    let max = parse_setting("max", settings, prompt_info.message(), prompt_info.key())?;
+    // Don't overwrite defaults, if set
+    if min.is_some() {
+        prompt_info.set_min(min);
+    }
+    // Don't overwrite defaults, if set
+    if max.is_some() {
+        prompt_info.set_max(max)
+    }
+    Ok(())
+}
+
+pub fn extract_prompt_items_restrictions<T: PromptInfoItemsRestrictions>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+    let min_items = parse_setting("min_items", settings, prompt_info.message(), prompt_info.key())?;
+    let max_items = parse_setting("max_items", settings, prompt_info.message(), prompt_info.key())?;
+    // Don't overwrite defaults, if set
+    if min_items.is_some() {
+        prompt_info.set_min_items(min_items);
+    }
+    // Don't overwrite defaults, if set
+    if max_items.is_some() {
+        prompt_info.set_max_items(max_items);
+    }
+    Ok(())
+}
+
+pub fn extract_prompt_info_pageable<T: PromptInfoPageable>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+    let page_size = parse_setting("page_size", settings, prompt_info.message(), prompt_info.key())?;
+    // Don't overwrite defaults, if set
+    if page_size.is_some() {
+        prompt_info.set_page_size(page_size);
+    }
+    Ok(())
 }
 
 pub trait RequirementDescription {

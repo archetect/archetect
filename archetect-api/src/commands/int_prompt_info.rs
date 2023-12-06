@@ -1,9 +1,11 @@
 use crate::commands::prompt_info::PromptInfo;
 use serde::{Deserialize, Serialize};
+use crate::PromptInfoLengthRestrictions;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct IntPromptInfo {
     message: String,
+    key: Option<String>,
     default: Option<i64>,
     min: Option<i64>,
     max: Option<i64>,
@@ -28,13 +30,48 @@ impl PromptInfo for IntPromptInfo {
     fn placeholder(&self) -> Option<&str> {
         self.placeholder.as_deref()
     }
+
+    fn set_optional(&mut self, value: bool) {
+        self.optional = value;
+    }
+
+    fn set_help(&mut self, value: Option<String>) {
+        self.help = value;
+    }
+
+    fn set_placeholder(&mut self, value: Option<String>) {
+        self.placeholder = value;
+    }
+
+    fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+}
+
+impl PromptInfoLengthRestrictions for IntPromptInfo {
+    fn min(&self) -> Option<i64> {
+        self.min
+    }
+
+    fn set_min(&mut self, value: Option<i64>) {
+        self.min = value;
+    }
+
+    fn max(&self) -> Option<i64> {
+        self.max
+    }
+
+    fn set_max(&mut self, value: Option<i64>) {
+        self.max = value;
+    }
 }
 
 //noinspection DuplicatedCode
 impl IntPromptInfo {
-    pub fn new<M: Into<String>>(message: M) -> Self {
+    pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>) -> Self {
         IntPromptInfo {
             message: message.into(),
+            key: key.map(|v|v.as_ref().to_string()),
             default: Default::default(),
             min: Default::default(),
             max: Default::default(),
@@ -50,38 +87,6 @@ impl IntPromptInfo {
 
     pub fn with_default(mut self, value: Option<i64>) -> Self {
         self.default = value;
-        self
-    }
-
-    pub fn with_help(mut self, value: Option<String>) -> Self {
-        self.help = value;
-        self
-    }
-
-    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
-        self.placeholder = value;
-        self
-    }
-
-    pub fn min(&self) -> Option<i64> {
-        self.min
-    }
-
-    pub fn max(&self) -> Option<i64> {
-        self.max
-    }
-
-    pub fn with_min(mut self, min: Option<i64>) -> Self {
-        self.min = min;
-        self
-    }
-    pub fn with_max(mut self, max: Option<i64>) -> Self {
-        self.max = max;
-        self
-    }
-
-    pub fn with_optional(mut self, optional: bool) -> Self {
-        self.optional = optional;
         self
     }
 }

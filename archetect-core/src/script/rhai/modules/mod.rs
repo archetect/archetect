@@ -6,6 +6,6 @@ pub(crate) mod formats;
 pub(crate) mod log;
 pub(crate) mod prompt;
 pub(crate) mod render;
-pub(crate) mod runtime;
+pub(crate) mod archetect;
 pub(crate) mod set;
 pub(crate) mod utils;

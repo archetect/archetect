@@ -22,7 +22,6 @@ pub struct RuntimeContext {
 struct Inner {
     offline: bool,
     headless: bool,
-    local: bool,
     version: Version,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
@@ -87,7 +86,6 @@ impl RuntimeContext {
             inner: Arc::new(Inner {
                 offline: configuration.offline(),
                 headless: configuration.headless(),
-                local: configuration.locals().enabled(),
                 version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
                 updates: configuration.updates().clone(),
                 locals: configuration.locals().clone(),
@@ -107,10 +105,6 @@ impl RuntimeContext {
 
     pub fn headless(&self) -> bool {
         self.inner.headless
-    }
-
-    pub fn local(&self) -> bool {
-        self.inner.local
     }
 
     pub fn archetect_version(&self) -> &Version {

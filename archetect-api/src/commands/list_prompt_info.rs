@@ -1,15 +1,16 @@
-use crate::commands::prompt_info::PromptInfo;
+use crate::commands::prompt_info::{PromptInfo, PromptInfoItemsRestrictions};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListPromptInfo {
     message: String,
+    key: Option<String>,
     defaults: Option<Vec<String>>,
     help: Option<String>,
     placeholder: Option<String>,
+    optional: bool,
     min_items: Option<usize>,
     max_items: Option<usize>,
-    optional: bool,
 }
 
 impl PromptInfo for ListPromptInfo {
@@ -28,13 +29,48 @@ impl PromptInfo for ListPromptInfo {
     fn placeholder(&self) -> Option<&str> {
         self.placeholder.as_deref()
     }
+
+    fn set_optional(&mut self, value: bool) {
+        self.optional = value;
+    }
+
+    fn set_help(&mut self, value: Option<String>) {
+        self.help = value;
+    }
+
+    fn set_placeholder(&mut self, value: Option<String>) {
+        self.placeholder = value;
+    }
+
+    fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+}
+
+impl PromptInfoItemsRestrictions for ListPromptInfo {
+    fn min_items(&self) -> Option<usize> {
+        self.min_items
+    }
+
+    fn set_min_items(&mut self, value: Option<usize>) {
+        self.max_items = value;
+    }
+
+    fn max_items(&self) -> Option<usize> {
+        self.max_items
+    }
+
+    fn set_max_items(&mut self, value: Option<usize>) {
+        self.max_items = value;
+    }
 }
 
 //noinspection DuplicatedCode
 impl ListPromptInfo {
-    pub fn new<M: Into<String>>(message: M) -> Self {
+    pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>) -> Self {
         ListPromptInfo {
             message: message.into(),
+            key: key.map(|v| v.as_ref().to_string()),
             defaults: Default::default(),
             help: Default::default(),
             placeholder: Default::default(),
@@ -48,41 +84,7 @@ impl ListPromptInfo {
         self.defaults.clone()
     }
 
-    pub fn with_defaults(mut self, value: Option<Vec<String>>) -> Self {
+    pub fn set_default(&mut self, value: Option<Vec<String>>) {
         self.defaults = value;
-        self
-    }
-
-    pub fn with_help(mut self, value: Option<String>) -> Self {
-        self.help = value;
-        self
-    }
-
-    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
-        self.placeholder = value;
-        self
-    }
-
-    pub fn with_min_items(mut self, min_items: Option<usize>) -> Self {
-        self.min_items = min_items;
-        self
-    }
-
-    pub fn with_max_items(mut self, max_items: Option<usize>) -> Self {
-        self.max_items = max_items;
-        self
-    }
-
-    pub fn min_items(&self) -> Option<usize> {
-        self.min_items
-    }
-
-    pub fn max_items(&self) -> Option<usize> {
-        self.max_items
-    }
-
-    pub fn with_optional(mut self, optional: bool) -> Self {
-        self.optional = optional;
-        self
     }
 }

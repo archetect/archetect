@@ -3,22 +3,24 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 pub use crate::commands::bool_prompt_info::BoolPromptInfo;
+pub use crate::commands::editor_prompt_info::EditorPromptInfo;
 pub use crate::commands::int_prompt_info::IntPromptInfo;
 pub use crate::commands::list_prompt_info::ListPromptInfo;
 pub use crate::commands::multiselect_prompt_info::MultiSelectPromptInfo;
-pub use crate::commands::prompt_info::PromptInfo;
+pub use crate::commands::prompt_info::{
+    PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRestrictions, PromptInfoPageable,
+};
 pub use crate::commands::select_prompt_info::SelectPromptInfo;
 pub use crate::commands::text_prompt_info::TextPromptInfo;
-pub use crate::commands::editor_prompt_info::EditorPromptInfo;
 
 mod bool_prompt_info;
+mod editor_prompt_info;
 mod int_prompt_info;
 mod list_prompt_info;
 mod multiselect_prompt_info;
 mod prompt_info;
 mod select_prompt_info;
 mod text_prompt_info;
-mod editor_prompt_info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum CommandRequest {

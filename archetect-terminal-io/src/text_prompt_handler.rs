@@ -1,6 +1,6 @@
 use std::sync::mpsc::SyncSender;
 
-use archetect_api::{CommandResponse, PromptInfo, TextPromptInfo};
+use archetect_api::{CommandResponse, PromptInfo, PromptInfoLengthRestrictions, TextPromptInfo};
 use archetect_api::validations::validate_text;
 use archetect_inquire::Text;
 use archetect_inquire::validator::Validation;

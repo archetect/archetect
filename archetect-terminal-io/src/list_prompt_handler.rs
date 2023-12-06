@@ -1,7 +1,7 @@
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 use std::sync::mpsc::SyncSender;
 
-use archetect_api::{CommandResponse, ListPromptInfo, PromptInfo};
+use archetect_api::{CommandResponse, ListPromptInfo, PromptInfo, PromptInfoItemsRestrictions};
 use archetect_inquire::validator::Validation;
 use archetect_inquire::List;
 

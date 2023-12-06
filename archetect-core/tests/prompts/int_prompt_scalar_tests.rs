@@ -1,4 +1,4 @@
-use archetect_api::{api_driver_and_handle, CommandRequest, CommandResponse, PromptInfo};
+use archetect_api::{api_driver_and_handle, CommandRequest, CommandResponse, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::errors::ArchetectError;
 use archetect_core::runtime::context::RuntimeContext;

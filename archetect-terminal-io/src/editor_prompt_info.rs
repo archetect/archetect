@@ -1,6 +1,6 @@
 use std::sync::mpsc::SyncSender;
 
-use archetect_api::{CommandResponse, PromptInfo, EditorPromptInfo};
+use archetect_api::{CommandResponse, PromptInfo, PromptInfoLengthRestrictions, EditorPromptInfo};
 use archetect_api::validations::{validate_text};
 use archetect_inquire::Editor;
 use archetect_inquire::validator::Validation;
@@ -9,7 +9,8 @@ use crate::get_render_config;
 
 pub fn handle_editor_prompt(prompt_info: EditorPromptInfo, responses: &SyncSender<CommandResponse>) {
     let mut prompt = Editor::new(prompt_info.message()).with_render_config(get_render_config());
-    prompt.predefined_text = prompt_info.default();
+    let text = prompt_info.default();
+    prompt.predefined_text = text.as_deref();
     prompt.help_message = prompt_info.help();
     let min = prompt_info.min();
     let max = prompt_info.max();

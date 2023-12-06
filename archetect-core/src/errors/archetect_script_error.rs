@@ -1,6 +1,6 @@
 use rhai::{EvalAltResult, NativeCallContext};
 
-use archetect_api::CommandResponse;
+use archetect_api::{CommandResponse, PromptInfo};
 use ArchetypeScriptError::{
     AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError,
     HeadlessNoAnswer, InvalidSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError,
@@ -125,201 +125,186 @@ impl ArchetypeScriptError {
             InvalidSetting { .. } | KeyedInvalidSetting { .. } => ErrorType::Function,
             DefaultTypeError { .. } | KeyedDefaultTypeError { .. } => ErrorType::Function,
             PromptError(_) => ErrorType::System,
-            UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => { ErrorType::Function}
+            UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => ErrorType::Function,
         }
     }
 
-    pub fn answer_validation_error<'a, D, P, K, R>(
-        answer: D,
-        prompt: P,
-        key: Option<K>,
-        requirement: R,
-    ) -> ArchetypeScriptError
+    pub fn answer_validation_error<'a, D, P, R>(answer: D, prompt: &P, requirement: R) -> ArchetypeScriptError
     where
         D: Into<String>,
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
         R: Into<String>,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedAnswerValidationError {
                 answer: answer.into(),
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
                 requires: requirement.into(),
             }
         } else {
             AnswerValidationError {
                 answer: answer.into(),
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 requires: requirement.into(),
             }
         }
     }
 
-    pub fn answer_type_error<'a, D, P, K, R>(
-        answer: D,
-        prompt: P,
-        key: Option<K>,
-        requirement: R,
-    ) -> ArchetypeScriptError
+    pub fn answer_type_error<'a, D, P, R>(answer: D, prompt: &P, requirement: R) -> ArchetypeScriptError
     where
         D: Into<String>,
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
         R: Into<String>,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedAnswerTypeError {
                 answer: answer.into(),
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
                 requires: requirement.into(),
             }
         } else {
             AnswerTypeError {
                 answer: answer.into(),
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 requires: requirement.into(),
             }
         }
     }
 
-    pub fn default_validation_error<'a, D, P, K, R>(
-        default: D,
-        prompt: P,
-        key: Option<K>,
-        requirement: R,
-    ) -> ArchetypeScriptError
+    pub fn default_validation_error<'a, D, P, R>(default: D, prompt: &P, requirement: R) -> ArchetypeScriptError
     where
         D: Into<String>,
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
         R: Into<String>,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedDefaultValidationError {
                 default: default.into(),
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
                 requires: requirement.into(),
             }
         } else {
             DefaultValidationError {
                 default: default.into(),
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 requires: requirement.into(),
             }
         }
     }
 
-    pub fn default_type_error<'a, D, P, K, R>(
-        default: D,
-        prompt: P,
-        key: Option<K>,
-        requirement: R,
-    ) -> ArchetypeScriptError
+    pub fn default_type_error<'a, D, P, R>(default: D, prompt: &P, requirement: R) -> ArchetypeScriptError
     where
         D: Into<String>,
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
         R: Into<String>,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedDefaultTypeError {
                 default: default.into(),
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
                 requires: requirement.into(),
             }
         } else {
             DefaultTypeError {
                 default: default.into(),
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 requires: requirement.into(),
             }
         }
     }
 
-    pub fn answer_not_optional<'a, P, K>(prompt: P, key: Option<K>) -> ArchetypeScriptError
+    pub fn answer_not_optional<'a, P>(prompt: &P) -> ArchetypeScriptError
     where
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedAnswerNotOptional {
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
             }
         } else {
-            AnswerNotOptional { prompt: prompt.into() }
+            AnswerNotOptional {
+                prompt: prompt.message().to_string(),
+            }
         }
     }
 
-    pub fn headless_no_answer<'a, P, K>(prompt: P, key: Option<K>) -> ArchetypeScriptError
+    pub fn headless_no_answer<'a, P>(prompt: &P) -> ArchetypeScriptError
     where
-        P: Into<String>,
-        K: AsRef<str>,
+        P: PromptInfo,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedHeadlessNoAnswer {
-                prompt: prompt.into(),
-                key: key.as_ref().to_string(),
+                prompt: prompt.message().to_string(),
+                key: key.to_string(),
             }
         } else {
-            HeadlessNoAnswer { prompt: prompt.into() }
+            HeadlessNoAnswer {
+                prompt: prompt.message().to_string(),
+            }
         }
     }
 
-    pub fn invalid_setting<'a, P, S, R, K>(
-        prompt: P,
-        setting: S,
-        requirement: R,
-        key: Option<K>,
-    ) -> ArchetypeScriptError
+    pub fn invalid_prompt_setting<'a, P, S, R>(prompt: &P, setting: S, requirement: R) -> ArchetypeScriptError
     where
-        P: Into<String>,
+        P: PromptInfo,
         S: Into<String>,
         R: Into<String>,
+    {
+        ArchetypeScriptError::invalid_setting(prompt.message(), prompt.key(), setting, requirement)
+    }
+
+    pub fn invalid_setting<'a, P, K, S, R>(
+        prompt: P,
+        key: Option<K>,
+        setting: S,
+        requirement: R,
+    ) -> ArchetypeScriptError
+    where
+        P: AsRef<str>,
         K: AsRef<str>,
+        S: Into<String>,
+        R: Into<String>,
     {
         if let Some(key) = key {
             KeyedInvalidSetting {
-                prompt: prompt.into(),
+                prompt: prompt.as_ref().to_string(),
                 setting: setting.into(),
                 requirement: requirement.into(),
                 key: key.as_ref().to_string(),
             }
         } else {
             InvalidSetting {
-                prompt: prompt.into(),
+                prompt: prompt.as_ref().to_string(),
                 setting: setting.into(),
                 requirement: requirement.into(),
             }
         }
     }
 
-    pub fn unexpected_prompt_response<'a, P, K, E>(
-        prompt: P,
-        key: Option<K>,
+    pub fn unexpected_prompt_response<'a, P, E>(
+        prompt: &P,
         expected: E,
         actual: CommandResponse,
     ) -> ArchetypeScriptError
-        where
-            P: Into<String>,
-            K: AsRef<str>,
-            E: Into<String>,
+    where
+        P: PromptInfo,
+        E: Into<String>,
     {
-        if let Some(key) = key {
+        if let Some(key) = prompt.key() {
             KeyedUnexpectedPromptResponse {
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 expected: expected.into(),
                 actual: format!("{:?}", actual),
-                key: key.as_ref().to_string(),
+                key: key.to_string(),
             }
         } else {
             UnexpectedPromptResponse {
-                prompt: prompt.into(),
+                prompt: prompt.message().to_string(),
                 expected: expected.into(),
                 actual: format!("{:?}", actual),
             }

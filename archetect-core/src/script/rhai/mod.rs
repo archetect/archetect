@@ -23,7 +23,7 @@ pub(crate) fn create_engine(
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 
-    modules::runtime::register(&mut engine, runtime_context.clone());
+    modules::archetect::register(&mut engine, runtime_context.clone());
     modules::utils::register(&mut engine, runtime_context.clone(), &render_context);
     modules::cases::register(&mut engine);
     modules::exec::register(&mut engine);
