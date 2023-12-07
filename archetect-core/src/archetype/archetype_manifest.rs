@@ -1,19 +1,20 @@
-mod requirements;
-mod scripting;
-mod templating;
+use std::fs;
+
+use camino::Utf8PathBuf;
+use linked_hash_map::LinkedHashMap;
 
 pub use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
 use crate::archetype::archetype_manifest::scripting::ScriptingConfig;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
-use camino::Utf8PathBuf;
-use linked_hash_map::LinkedHashMap;
-use std::fs;
+
+mod requirements;
+mod scripting;
+mod templating;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArchetypeManifest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     authors: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -56,8 +57,12 @@ impl ArchetypeManifest {
         }
     }
 
+    pub fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
     pub fn with_description(mut self, description: &str) -> ArchetypeManifest {
-        self.description = Some(description.into());
+        self.description = description.to_string();
         self
     }
 
