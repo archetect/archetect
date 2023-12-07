@@ -82,6 +82,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                     validated_defaults.push(default.to_string());
                 }
             }
+            prompt_info.set_defaults(Some(validated_defaults));
         } else {
             let requirement = "an Array of Strings";
             let error = ArchetypeScriptError::default_type_error(defaults.to_string(), &prompt_info, requirement);
@@ -94,23 +95,13 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
             return Ok(Some(default));
         } else if prompt_info.optional() {
             return Ok(None);
+        } else {
+            // TODO: Validate empty list
+            return Ok(vec![].into())
         }
-        let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        // let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
+        // return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
-
-    // if let Some(page_size) = settings.get("page_size") {
-    //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
-    //         prompt.page_size = page_size as usize;
-    //     } else {
-    //         warn!(
-    //             "Invalid data type used for 'page_size': {}; should be an integer",
-    //             page_size.type_name()
-    //         );
-    //     }
-    // } else {
-    //     prompt.page_size = 10;
-    // }
 
     runtime_context.request(CommandRequest::PromptForMultiSelect(prompt_info.clone()));
 

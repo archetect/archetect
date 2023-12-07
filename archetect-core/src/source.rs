@@ -41,11 +41,11 @@ fn cached_paths() -> &'static Mutex<HashSet<String>> {
 
 impl Source {
     pub fn detect(runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
-        let git_cache = runtime_context.layout().git_cache_dir();
+        let cache_dir = runtime_context.layout().cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
         if let Some(captures) = ssh_git_pattern().captures(url_parts[0]) {
-            let cache_path = git_cache
+            let cache_path = cache_dir
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
 
@@ -65,7 +65,7 @@ impl Source {
         if let Ok(url) = Url::parse(path) {
             if path.contains(".git") && url.has_host() {
                 let cache_path =
-                    git_cache
+                    cache_dir
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());

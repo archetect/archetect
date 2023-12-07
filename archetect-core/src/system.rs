@@ -12,32 +12,12 @@ pub enum LayoutType {
 }
 
 pub trait SystemLayout: Debug + Send + Sync + 'static {
-    fn configs_dir(&self) -> Utf8PathBuf;
+    fn etc_dir(&self) -> Utf8PathBuf;
 
     fn cache_dir(&self) -> Utf8PathBuf;
 
-    fn catalog_cache_dir(&self) -> Utf8PathBuf {
-        self.cache_dir().join("catalogs")
-    }
-
-    fn git_cache_dir(&self) -> Utf8PathBuf {
-        self.cache_dir().join("git")
-    }
-
-    fn http_cache_dir(&self) -> Utf8PathBuf {
-        self.cache_dir().join("http")
-    }
-
-    fn answers_config(&self) -> Utf8PathBuf {
-        self.configs_dir().join("answers.yml")
-    }
-
     fn configuration_path(&self) -> Utf8PathBuf {
-        self.configs_dir().join("archetect.yaml")
-    }
-
-    fn catalog(&self) -> Utf8PathBuf {
-        self.configs_dir().join("catalog.yml")
+        self.etc_dir().join("archetect.yaml")
     }
 }
 
@@ -64,7 +44,7 @@ impl NativeSystemLayout {
 }
 
 impl SystemLayout for NativeSystemLayout {
-    fn configs_dir(&self) -> Utf8PathBuf {
+    fn etc_dir(&self) -> Utf8PathBuf {
         Utf8PathBuf::from_path_buf(self.project.config_dir().to_owned()).unwrap()
     }
 
@@ -83,13 +63,6 @@ impl RootedSystemLayout {
         let directory = directory.as_ref();
         let directory = directory.to_owned();
         let layout = RootedSystemLayout { directory };
-
-        if !layout.answers_config().exists() {
-            if layout.configs_dir().join("answers.yaml").exists() {
-                std::fs::rename(layout.configs_dir().join("answers.yaml"), layout.answers_config())?;
-            }
-        }
-
         Ok(layout)
     }
 
@@ -103,21 +76,19 @@ impl RootedSystemLayout {
 }
 
 impl SystemLayout for RootedSystemLayout {
-    fn configs_dir(&self) -> Utf8PathBuf {
+    fn etc_dir(&self) -> Utf8PathBuf {
         self.directory.clone().join("etc")
     }
 
     fn cache_dir(&self) -> Utf8PathBuf {
-        self.directory.clone().join("var")
+        self.directory.clone().join("cache")
     }
 }
 
 impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "{}: {}", "Configs Directory", self.configs_dir())?;
-        writeln!(f, "{}: {}", "User Answers", self.answers_config())?;
-        writeln!(f, "{}: {}", "Git Cache", self.git_cache_dir())?;
-        writeln!(f, "{}: {}", "Catalog Cache", self.catalog_cache_dir())?;
+        writeln!(f, "{}: {}", "Etc Directory", self.etc_dir())?;
+        writeln!(f, "{}: {}", "Cache Directory", self.cache_dir())?;
         Ok(())
     }
 }

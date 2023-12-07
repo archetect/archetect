@@ -50,19 +50,6 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
-    // if let Some(page_size) = settings.get("page_size") {
-    //     if let Some(page_size) = page_size.clone().try_cast::<i64>() {
-    //         prompt.page_size = page_size as usize;
-    //     } else {
-    //         warn!(
-    //             "Invalid data type used for 'page_size': {}; should be an integer",
-    //             page_size.type_name()
-    //         );
-    //     }
-    // } else {
-    //     prompt.page_size = 10;
-    // }
-
     runtime_context.request(CommandRequest::PromptForSelect(prompt_info.clone()));
 
     match runtime_context.response() {

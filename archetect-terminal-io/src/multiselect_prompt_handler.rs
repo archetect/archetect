@@ -24,7 +24,7 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
     }
 
     prompt.help_message = prompt_info.help().map(|v| v.to_string());
-    
+
     if let Some(page_size) = prompt_info.page_size() {
         prompt.page_size = page_size;
     }

@@ -55,9 +55,12 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
             return Ok(Some(default));
         } else if prompt_info.optional() {
             return Ok(None);
+        } else {
+            // TODO: Validate empty list
+            return Ok(vec![].into())
         }
-        let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        // let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
+        // return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     runtime_context.request(CommandRequest::PromptForList(prompt_info.clone()));

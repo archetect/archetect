@@ -282,7 +282,12 @@ fn apply_case(input: Caseable, case: Option<CaseStyle>) -> Dynamic {
     match case {
         None => match input {
             Caseable::String(value) => Dynamic::from(value),
-            Caseable::List(value) => Dynamic::from(value),
+            Caseable::List(value) => {
+                let result = value.into_iter()
+                    .map(|v| Dynamic::from(v))
+                    .collect::<Vec<Dynamic>>();
+                Dynamic::from(result)
+            },
             Caseable::Opaque(value) => value.clone_cast(),
         },
         Some(case) => match input.into() {

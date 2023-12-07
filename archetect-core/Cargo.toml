@@ -65,6 +65,7 @@ thiserror = "1.0.26"
 [dev-dependencies]
 pretty_assertions = "1.4.0"
 assert_matches = { workspace = true }
+function_name = { workspace = true }
 
 [features]
 default = []

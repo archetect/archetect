@@ -13,6 +13,7 @@ members = [
 
 [workspace.dependencies]
 assert_matches = "1.5.0"
+function_name = "0.3.0"
 serde = { version = "1.0.159", features = ["derive"] }
 log = { version = "0.4", features = ["std"] }
 

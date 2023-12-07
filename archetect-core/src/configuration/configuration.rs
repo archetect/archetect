@@ -25,6 +25,12 @@ impl Configuration {
     pub fn headless(&self) -> bool {
         self.headless.unwrap_or_default()
     }
+
+    pub fn with_headless(mut self, value: bool) -> Self {
+        self.headless = Some(value);
+        self
+    }
+
     pub fn offline(&self) -> bool {
         self.offline.unwrap_or_default()
     }

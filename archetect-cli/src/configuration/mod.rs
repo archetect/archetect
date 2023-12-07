@@ -15,7 +15,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             Configuration::default().to_yaml().as_str(),
             FileFormat::Yaml,
         ))
-        .add_source(File::with_name(layout.configs_dir().join(CONFIGURATION_FILE).as_str()).required(false));
+        .add_source(File::with_name(layout.etc_dir().join(CONFIGURATION_FILE).as_str()).required(false));
 
     // Merge Config File specified from Command Line
     let config = if let Some(config_file) = args.get_one::<String>("config-file") {
