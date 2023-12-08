@@ -12,7 +12,9 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
     let default = prompt_info.default().map(|v| v.to_string());
     prompt.default = default;
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
-    prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    if prompt_info.help().is_some() {
+        prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    }
     let prompt_info = prompt_info.clone();
     let validator = move |input: &str| match validate(prompt_info.min(), prompt_info.max(), input) {
         Ok(_) => Ok(Validation::Valid),

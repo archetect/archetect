@@ -11,7 +11,9 @@ pub fn handle_prompt_text(prompt_info: TextPromptInfo, responses: &SyncSender<Co
     let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
     prompt.default = prompt_info.default().map(|v| v.to_string());
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
-    prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    if prompt_info.help().is_some() {
+        prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    }
     let min = prompt_info.min();
     let max = prompt_info.max();
     let validator = move |input: &str| {

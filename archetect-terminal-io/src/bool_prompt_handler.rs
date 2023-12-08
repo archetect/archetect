@@ -11,7 +11,9 @@ pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &SyncSender<Co
     let default = prompt_info.default();
     prompt.default = default;
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
-    prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    if prompt_info.help().is_some() {
+        prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    }
     let prompt_info = prompt_info.clone();
     let parser = |ans: &str| {
         if ans.len() > 5 {

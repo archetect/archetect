@@ -11,7 +11,10 @@ pub fn handle_editor_prompt(prompt_info: EditorPromptInfo, responses: &SyncSende
     let mut prompt = Editor::new(prompt_info.message()).with_render_config(get_render_config());
     let text = prompt_info.default();
     prompt.predefined_text = text.as_deref();
-    prompt.help_message = prompt_info.help();
+    if prompt_info.help().is_some() {
+        prompt.help_message = prompt_info.help();
+    }
+
     let min = prompt_info.min();
     let max = prompt_info.max();
     let validator = move |input: &str| {

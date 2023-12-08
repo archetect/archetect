@@ -21,7 +21,9 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &SyncSender<Co
 
     prompt.defaults = prompt_info.defaults();
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
-    prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    if prompt_info.help().is_some() {
+        prompt.help_message = prompt_info.help().map(|v| v.to_string());
+    }
 
     match prompt.prompt_skippable() {
         Ok(answer) => {
