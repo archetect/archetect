@@ -142,7 +142,7 @@ fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogIte
 
 fn item_icon(entry: &CatalogEntry) -> &'static str {
     match entry {
-        CatalogEntry::Archetype { .. } => "📄",
+        CatalogEntry::Archetype { .. } => "📦",
         _ => "📂",
     }
 }
