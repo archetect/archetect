@@ -5,12 +5,12 @@ use clap::ArgMatches;
 use rhai::{Dynamic, Map};
 
 use archetect_api::{CommandRequest, IoDriver};
+use archetect_core::{self};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError};
 use archetect_core::runtime::context::RuntimeContext;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
-use archetect_core::{self};
 use archetect_terminal_io::TerminalIoDriver;
 use ArchetypeError::ScriptAbortError;
 
@@ -20,6 +20,7 @@ mod answers;
 mod cli;
 mod configuration;
 pub mod vendor;
+mod subcommands;
 
 fn main() {
     let matches = cli::command().get_matches();
@@ -76,27 +77,26 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         }
     }
 
+    let runtime_context = RuntimeContext::builder()
+        .with_configuration(configuration)
+        .with_driver(driver)
+        .with_layout(layout)
+        .build()?;
+
+
     match matches.subcommand() {
         None => {
-            default(&matches, &configuration, answers, driver, layout)?;
+            default(&matches, runtime_context, answers)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, &configuration, answers, driver, layout).map(|_| ())?,
-        Some(("catalog", args)) => catalog(args, &configuration, answers, driver, layout).map(|_| ())?,
-        Some(("config", args)) => config(args, &configuration).map(|_| ())?,
+        Some(("render", args)) => render(args, runtime_context, answers).map(|_| ())?,
+        Some(("catalog", args)) => catalog(args, runtime_context, answers).map(|_| ())?,
+        Some(("config", args)) => config(args, runtime_context.configuration()).map(|_| ())?,
+        Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &runtime_context)?,
         _ => {}
     }
 
     Ok(())
-}
-
-fn create_runtime_context<D: IoDriver, L: SystemLayout>(
-    configuration: &Configuration,
-    driver: D,
-    layout: L,
-) -> Result<RuntimeContext, ArchetectError> {
-    let runtime_context = RuntimeContext::new(configuration, driver, layout);
-    Ok(runtime_context)
 }
 
 fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), ArchetectError> {
@@ -114,54 +114,45 @@ fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), Arc
     Ok(())
 }
 
-fn default<D: IoDriver, L: SystemLayout>(
+fn default(
     matches: &ArgMatches,
-    configuration: &Configuration,
+    runtime_context: RuntimeContext,
     answers: Map,
-    driver: D,
-    layout: L,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, driver, layout)?;
-    let catalog = configuration.catalog();
+    let catalog = runtime_context.configuration().catalog();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, configuration));
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
     catalog.render(runtime_context, render_context)?;
     Ok(())
 }
 
-fn catalog<D: IoDriver, L: SystemLayout>(
+fn catalog(
     matches: &ArgMatches,
-    configuration: &Configuration,
+    runtime_context: RuntimeContext,
     answers: Map,
-    driver: D,
-    layout: L,
 ) -> Result<(), ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let source = matches.get_one::<String>("source").unwrap();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
-    let catalog = runtime_context.new_catalog(source)?;
+    let catalog = runtime_context.new_catalog(source, false)?;
     catalog.check_requirements(&runtime_context)?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, configuration));
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
     catalog.render(runtime_context, render_context)?;
     Ok(())
 }
 
-pub fn render<D: IoDriver, L: SystemLayout>(
+pub fn render(
     matches: &ArgMatches,
-    configuration: &Configuration,
+    runtime_context: RuntimeContext,
     answers: Map,
-    driver: D,
-    layout: L,
 ) -> Result<Dynamic, ArchetectError> {
-    let runtime_context = create_runtime_context(configuration, driver, layout)?;
     let source = matches.get_one::<String>("source").unwrap();
-    let archetype = runtime_context.new_archetype(source)?;
+    let archetype = runtime_context.new_archetype(source, false)?;
 
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
     archetype.check_requirements(&runtime_context)?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, configuration));
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
     Ok(archetype.render(runtime_context, render_context)?)
 }
 

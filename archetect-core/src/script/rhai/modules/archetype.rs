@@ -120,7 +120,7 @@ fn create_archetype(
     if let Some(archetypes) = parent.manifest().components() {
         if let Some(path) = archetypes.get(key) {
             // TODO: Handle unwrap
-            let child = runtime_context.new_archetype(path).unwrap();
+            let child = runtime_context.new_archetype(path, false).unwrap();
 
             return Ok(ArchetypeFacade {
                 child,

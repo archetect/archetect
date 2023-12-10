@@ -40,7 +40,7 @@ fn cached_paths() -> &'static Mutex<HashSet<String>> {
 }
 
 impl Source {
-    pub fn detect(runtime_context: &RuntimeContext, path: &str) -> Result<Source, SourceError> {
+    pub fn create(runtime_context: &RuntimeContext, path: &str, force_pull: bool) -> Result<Source, SourceError> {
         let cache_dir = runtime_context.layout().cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
@@ -54,7 +54,7 @@ impl Source {
             } else {
                 None
             };
-            cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path)?;
+            cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path, force_pull)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -69,7 +69,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path)?;
+                cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path, force_pull)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -179,6 +179,7 @@ fn cache_git_repo(
     url: &str,
     gitref: &Option<String>,
     cache_destination: &Utf8Path,
+    force_pull: bool,
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
         if !runtime_context.offline() && cached_paths().lock().unwrap().insert(url.to_owned()) {
@@ -192,7 +193,7 @@ fn cache_git_repo(
         }
     } else if cached_paths().lock().unwrap().insert(url.to_owned()) {
         let repo = git2::Repository::open(cache_destination.join(".git"))?;
-        if should_pull(&repo, &runtime_context)? {
+        if force_pull || should_pull(&repo, &runtime_context)? {
             info!("Fetching {}", url);
             handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
             write_timestamp(&repo)?;

@@ -42,7 +42,7 @@ impl TestHarness {
             .build()?;
 
         let rt = runtime_context.clone();
-        let archetype = runtime_context.new_archetype(archetype_dir.as_str())?;
+        let archetype = runtime_context.new_archetype(archetype_dir.as_str(), false)?;
         let (status_tx, status_rx) = mpsc::sync_channel(1);
         std::thread::spawn(move || match archetype.render(rt, render_context) {
             Ok(_) => {

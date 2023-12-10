@@ -1,89 +1,62 @@
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
-
 use archetect_inquire::{InquireError, Select};
 
-use crate::archetype::render_context::RenderContext;
-use crate::catalog::{CatalogEntry, CatalogManifest};
+use crate::catalog::{Catalog, CatalogEntry, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::runtime::context::RuntimeContext;
-use crate::source::Source;
 
-#[derive(Clone)]
-pub struct Catalog {
-    pub(crate) inner: Rc<Inner>,
+
+pub struct CacheManager {
+    runtime_context: RuntimeContext,
 }
 
-pub(crate) struct Inner {
-    manifest: CatalogManifest,
-}
-
-impl Catalog {
-    pub fn load(source: &Source) -> Result<Catalog, CatalogError> {
-        let manifest = CatalogManifest::load(source.local_path())?;
-        let inner = Rc::new(Inner { manifest });
-        let catalog = Catalog { inner };
-        Ok(catalog)
-    }
-
-    pub fn new(manifest: CatalogManifest) -> Self {
-        Catalog {
-            inner: Rc::new(Inner { manifest }),
+impl CacheManager {
+    pub fn new(runtime_context: RuntimeContext) -> CacheManager {
+        Self {
+            runtime_context,
         }
     }
-
-
-
-    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), CatalogError> {
-        self.inner.manifest.requires().check_requirements(runtime_context)?;
-        Ok(())
-    }
-
-    pub fn entries(&self) -> &[CatalogEntry] {
-        self.inner.manifest.entries()
-    }
-
-    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), ArchetectError> {
-        let mut catalog = self.clone();
+    pub fn manage(&self, catalog: &Catalog) -> Result<(), ArchetectError> {
+        let mut catalog = catalog.clone();
 
         loop {
-            let entries = catalog.inner.manifest.entries().to_owned();
+            let entries = catalog.entries().to_owned();
             if entries.is_empty() {
                 return Err(CatalogError::EmptyCatalog.into());
             }
 
             let choice = self.select_from_entries(entries)?;
 
-            match choice {
-                CatalogEntry::Catalog { description: _, source } => {
-                    catalog = runtime_context.new_catalog(&source, false)?;
-                }
-                CatalogEntry::Archetype {
-                    description: _,
-                    source,
-                    answers: catalog_answers,
-                } => {
-                    let mut answers = render_context.answers_owned();
-                    if let Some(catalog_answers) = catalog_answers {
-                        for (k, v) in catalog_answers {
-                            answers.entry(k).or_insert(v);
+            let operations = select_management_operations(&choice);
+            match Select::new("Operation:", operations).prompt() {
+                Ok(operation) => {
+                    match operation {
+                        ManagementOperation::Pull => {
+                            choice.cache(&self.runtime_context)?;
+                            break;
+                        }
+                        ManagementOperation::Invalidate => {
+                            // TODO: Implement
+                            break
+                        }
+                        ManagementOperation::Purge => {
+                            // TODO: Implement
+                        }
+                        ManagementOperation::View => {
+                            if let CatalogEntry::Catalog { description: _, source } = choice {
+                                catalog = self.runtime_context.new_catalog(&source, false)?;
+                                continue;
+                            }
                         }
                     }
-                    let archetype = runtime_context.new_archetype(&source, false)?;
-                    let destination = render_context.destination().to_path_buf();
-                    let render_context = RenderContext::new(destination, answers);
-
-                    archetype.check_requirements(&runtime_context)?;
-                    let _result = archetype.render(runtime_context, render_context)?;
-                    return Ok(());
                 }
-                CatalogEntry::Group {
-                    description: _,
-                    entries: _,
-                } => unreachable!(),
+                Err(_) => {}
             }
         }
+
+        Ok(())
     }
+
 
     pub fn select_from_entries(&self, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
         if entry_items.is_empty() {
@@ -127,14 +100,23 @@ impl Catalog {
             }
         }
     }
+}
 
-    pub fn cache(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetectError> {
-        for entry in self.inner.manifest.entries() {
-            entry.cache(runtime_context)?;
+fn select_management_operations(catalog_entry: &CatalogEntry) -> Vec<ManagementOperation> {
+    let mut operations = vec![];
+    operations.push(ManagementOperation::Pull);
+    // operations.push(ManagementOperation::Invalidate);
+    // operations.push(ManagementOperation::Purge);
+    match catalog_entry {
+        CatalogEntry::Group { .. } => {
+            unreachable!()
         }
-
-        Ok(())
+        CatalogEntry::Catalog { .. } => {
+            operations.insert(0, ManagementOperation::View)
+        }
+        CatalogEntry::Archetype { .. } => {}
     }
+    operations
 }
 
 fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
@@ -161,22 +143,30 @@ fn item_icon(entry: &CatalogEntry) -> &'static str {
     }
 }
 
-pub(crate) struct CatalogItem {
-    text: String,
-    pub(crate) entry: CatalogEntry,
+enum ManagementOperation {
+    Pull,
+    #[allow(dead_code)]
+    Invalidate,
+    #[allow(dead_code)]
+    Purge,
+    View,
 }
 
-impl CatalogItem {
-    pub fn new(text: String, entry: CatalogEntry) -> CatalogItem {
-        CatalogItem { text, entry }
-    }
-    pub fn entry(self) -> CatalogEntry {
-        self.entry
-    }
-}
-
-impl Display for CatalogItem {
+impl Display for ManagementOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.text)
+        match self {
+            ManagementOperation::Pull => {
+                write!(f, "Pull")
+            }
+            ManagementOperation::Invalidate => {
+                write!(f, "Invalidate")
+            }
+            ManagementOperation::Purge => {
+                write!(f, "Purge")
+            }
+            ManagementOperation::View => {
+                write!(f, "View Entries")
+            }
+        }
     }
 }

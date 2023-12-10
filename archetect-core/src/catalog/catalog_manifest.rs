@@ -5,7 +5,8 @@ use camino::Utf8PathBuf;
 use rhai::Map;
 
 use crate::archetype::archetype_manifest::RuntimeRequirements;
-use crate::errors::CatalogError;
+use crate::errors::{ArchetectError, CatalogError};
+use crate::runtime::context::RuntimeContext;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
@@ -109,6 +110,25 @@ impl CatalogEntry {
                 answers: _,
             } => description.as_str(),
         }
+    }
+
+    pub fn cache(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetectError> {
+        match self {
+            CatalogEntry::Group { description: _, entries } => {
+                for entry in entries {
+                    entry.cache(runtime_context)?;
+                }
+            }
+            CatalogEntry::Catalog { description: _, source } => {
+                let catalog = runtime_context.new_catalog(source, true)?;
+                catalog.cache(runtime_context)?;
+            }
+            CatalogEntry::Archetype { description: _, source, answers: _ } => {
+                let _ = runtime_context.new_archetype(source, true)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

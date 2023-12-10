@@ -168,9 +168,15 @@ pub fn command() -> Command {
         .subcommand(
             Command::new("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(Command::new("select"))
-                .subcommand(Command::new("clear"))
-                .subcommand(Command::new("pull"))
+                .subcommand(
+                    Command::new("manage")
+                        .about("Manage Archetect's cache through a Catalog")
+                )
+                .subcommand(Command::new("clear")
+                    .about("Removes Archetect's entire Repository Cache"))
+                .subcommand(Command::new("pull")
+                    .about("Pull all Archetypes and Catalogs in Archetect's Catalog")
+                )
         )
         .subcommand(
             Command::new("render")
