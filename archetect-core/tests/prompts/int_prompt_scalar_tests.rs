@@ -17,7 +17,7 @@ fn test_scalar_int_prompt() -> Result<(), ArchetectError> {
     answers.insert("debug_port".into(), 8070.into());
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers);
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     assert_matches!(harness.receive(), CommandRequest::PromptForInt(prompt_info) => {
         assert_eq!(prompt_info.message(), "Service Port:");
@@ -57,7 +57,7 @@ fn test_scalar_int_prompt() -> Result<(), ArchetectError> {
 fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 
@@ -77,7 +77,7 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
 fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 
@@ -102,7 +102,7 @@ fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
 fn test_scalar_int_prompt_unexpected() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 

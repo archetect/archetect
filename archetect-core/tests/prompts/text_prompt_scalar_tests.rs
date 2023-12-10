@@ -17,7 +17,7 @@ fn test_scalar_text_prompt() -> Result<(), ArchetectError> {
     answers.insert("description".into(), "Customer Service".into());
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers);
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
     assert_matches!(harness.receive(), CommandRequest::PromptForText(prompt_info) => {
@@ -59,7 +59,7 @@ fn test_scalar_text_prompt() -> Result<(), ArchetectError> {
 fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 
@@ -79,7 +79,7 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
 fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 
@@ -100,7 +100,7 @@ fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
 fn test_scalar_text_prompt_unexpected() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     let _ = harness.receive(); // Swallow Prompt
 

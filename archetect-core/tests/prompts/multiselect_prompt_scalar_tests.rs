@@ -18,7 +18,7 @@ fn test_scalar_defaults() -> Result<(), ArchetectError> {
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
     assert_matches!(harness.receive(), CommandRequest::PromptForMultiSelect(prompt_info) => {
@@ -53,7 +53,7 @@ fn test_map_defaults() -> Result<(), ArchetectError> {
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
     assert_matches!(harness.receive(), CommandRequest::PromptForMultiSelect(prompt_info) => {
@@ -88,7 +88,7 @@ fn test_scalar_cased_as() -> Result<(), ArchetectError> {
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
     assert_matches!(harness.receive(), CommandRequest::PromptForMultiSelect(prompt_info) => {
@@ -125,7 +125,7 @@ fn test_scalar_headless_defaults_headless() -> Result<(), ArchetectError> {
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     assert_matches!(harness.receive(), CommandRequest::Display(output) => {
         assert_eq!(output, "46:5 | #{\"languages\": [\"Rust\", \"JavaScript\"]}: tests/prompts/multiselect_prompt_scalar_tests/archetype.rhai");
@@ -148,7 +148,7 @@ fn test_scalar_headless_defaults_cased_as_headless() -> Result<(), ArchetectErro
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     assert_matches!(harness.receive(), CommandRequest::Display(output) => {
         assert_eq!(output, "59:5 | #{\"languages\": [\"rust\", \"javaScript\"]}: tests/prompts/multiselect_prompt_scalar_tests/archetype.rhai");
@@ -169,7 +169,7 @@ fn test_scalar_with_defaults() -> Result<(), ArchetectError> {
         .with_switch(function_name!())
         ;
 
-    let harness = TestHarness::new(file!(), &configuration, render_context)?;
+    let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
     assert_matches!(harness.receive(), CommandRequest::PromptForMultiSelect(prompt_info) => {

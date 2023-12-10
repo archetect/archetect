@@ -28,7 +28,7 @@ pub struct TestHarness {
 impl TestHarness {
     pub fn new(
         test_file: &str,
-        configuration: &Configuration,
+        configuration: Configuration,
         render_context: RenderContext,
 
     ) -> Result<TestHarness, ArchetectError> {
