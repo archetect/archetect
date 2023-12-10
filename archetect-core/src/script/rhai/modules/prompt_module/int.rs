@@ -4,13 +4,13 @@ use archetect_api::{CommandRequest, CommandResponse, IntPromptInfo, PromptInfo, 
 use archetect_api::validations::validate_int;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
+use crate::Archetect;
+use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
 
 pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
-    runtime_context: &RuntimeContext,
+    archetect: &Archetect,
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
@@ -27,7 +27,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     extract_prompt_length_restrictions(&mut prompt_info, settings)
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    if runtime_context.headless() {
+    if archetect.is_headless() {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
@@ -53,9 +53,9 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
         };
     }
 
-    runtime_context.request(CommandRequest::PromptForInt(prompt_info.clone()));
+    archetect.request(CommandRequest::PromptForInt(prompt_info.clone()));
 
-    match runtime_context.response() {
+    match archetect.response() {
         CommandResponse::Integer(answer) => match validate_int(prompt_info.min(), prompt_info.max(), answer) {
             Ok(_) => Ok(Some(answer)),
             Err(error_message) => {

@@ -16,13 +16,14 @@ use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeError, RenderError};
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use crate::script::create_environment;
 use crate::script::rhai::create_engine;
 use crate::source::Source;
 
 #[derive(Clone)]
 pub struct Archetype {
+    archetect: Archetect,
     pub(crate) inner: Arc<Inner>,
 }
 
@@ -31,10 +32,10 @@ pub(crate) struct Inner {
 }
 
 impl Archetype {
-    pub fn new(source: &Source) -> Result<Archetype, ArchetypeError> {
+    pub fn new(archetect: Archetect, source: &Source) -> Result<Archetype, ArchetypeError> {
         let directory = ArchetypeDirectory::new(source.clone())?;
         let inner = Arc::new(Inner { directory });
-        let archetype = Archetype { inner };
+        let archetype = Archetype { archetect, inner };
 
         Ok(archetype)
     }
@@ -59,13 +60,13 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<Dynamic, ArchetypeError> {
+    pub fn render(&self, render_context: RenderContext) -> Result<Dynamic, ArchetypeError> {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
         scope.push_constant("SWITCHES", render_context.switches_as_array());
 
-        let environment = create_environment(self, runtime_context.clone(), &render_context);
-        let engine = create_engine(environment, self.clone(), runtime_context.clone(), render_context);
+        let environment = create_environment(self, self.archetect.clone(), &render_context);
+        let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);
 
         match engine.compile_file_with_scope(&mut scope,self.directory().script()?.into_std_path_buf()) {
 
@@ -75,27 +76,27 @@ impl Archetype {
                         Ok(result)
                     }
                     Err(error) => {
-                        runtime_context.request(CommandRequest::LogError(format!("{}", error)));
+                        self.archetect.request(CommandRequest::LogError(format!("{}", error)));
                         return Err(ArchetypeError::ScriptAbortError);
                     }
                 }
             }
             Err(error) => {
-                runtime_context.request(CommandRequest::LogError(format!("{}", error)));
+                self.archetect.request(CommandRequest::LogError(format!("{}", error)));
                 return Err(ArchetypeError::ScriptAbortError);
             }
         }
     }
 
-    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetypeError> {
-        self.manifest().requires().check_requirements(runtime_context)?;
+    pub fn check_requirements(&self, archetect: &Archetect) -> Result<(), ArchetypeError> {
+        self.manifest().requires().check_requirements(archetect)?;
         Ok(())
     }
 }
 
 pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
     environment: &Environment<'static>,
-    runtime_context: &RuntimeContext,
+    archetect: &Archetect,
     context: &Map,
     source: SRC,
     destination: DEST,
@@ -113,7 +114,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
             fs::create_dir_all(destination.as_path())?;
             render_directory(
                 environment,
-                runtime_context,
+                archetect,
                 context,
                 path,
                 destination,
@@ -146,7 +147,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                                 trace!("Preserving  {:?}", destination);
                             }
                             OverwritePolicy::Prompt => {
-                                if runtime_context.headless() {
+                                if archetect.is_headless() {
                                     trace!("Preserving  {:?}", destination);
                                 } else {
                                     if Confirm::new(format!("Overwrite '{}'?", destination).as_str())

@@ -5,21 +5,21 @@ use uuid::Uuid;
 use archetect_api::{api_driver_and_handle, CommandRequest};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::errors::ArchetectError;
-use archetect_core::runtime::context::RuntimeContext;
+use archetect_core::Archetect;
 
 #[test]
 fn test_utils() -> Result<(), ArchetectError> {
     let (driver, handle) = api_driver_and_handle();
-    let runtime_context = RuntimeContext::builder()
+    let archetect = Archetect::builder()
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = runtime_context.new_archetype("tests/utils/utils_tests", false)?;
+    let archetype = archetect.new_archetype("tests/utils/utils_tests", false)?;
 
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
 
-        assert!(archetype.render(runtime_context, render_context).is_ok());
+        assert!(archetype.render(render_context).is_ok());
     });
 
     // Commands coming from utils/
@@ -78,15 +78,15 @@ fn test_utils() -> Result<(), ArchetectError> {
 #[test]
 fn test_switches() -> Result<(), ArchetectError> {
     let (driver, handle) = api_driver_and_handle();
-    let runtime_context = RuntimeContext::builder()
+    let archetect = Archetect::builder()
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = runtime_context.new_archetype("tests/utils/switches", false)?;
+    let archetype = archetect.new_archetype("tests/utils/switches", false)?;
 
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default()).with_switch("build");
-        assert!(archetype.render(runtime_context, render_context).is_ok());
+        assert!(archetype.render(render_context).is_ok());
     });
 
     assert_matches!(handle.receive(), CommandRequest::Display(message) => {

@@ -1,10 +1,10 @@
-use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
-use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 use git2;
 use linked_hash_map::LinkedHashMap;
 use rhai::Map;
 
-use crate::catalog::{Catalog, CatalogEntry, CatalogManifest};
+use crate::catalog::CatalogEntry;
+use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
+use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {
@@ -48,16 +48,6 @@ impl Configuration {
 
     pub fn catalogs(&self) -> &LinkedHashMap<String, Vec<CatalogEntry>> {
         &self.catalogs
-    }
-
-    pub fn catalog(&self) -> Catalog {
-        let mut manifest = CatalogManifest::new();
-        for (_key, entries) in self.catalogs() {
-            for entry in entries.iter() {
-                manifest.entries_owned().push(entry.to_owned());
-            }
-        }
-        Catalog::new(manifest)
     }
 
     pub fn switches(&self) -> &[String] {

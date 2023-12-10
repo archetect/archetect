@@ -4,14 +4,14 @@ use archetect_api::{CommandRequest, CommandResponse, PromptInfo, PromptInfoLengt
 use archetect_api::validations::validate_text;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
+use crate::Archetect;
+use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     settings: &Map,
-    runtime_context: &RuntimeContext,
+    archetect: &Archetect,
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Option<String>, Box<EvalAltResult>> {
@@ -42,7 +42,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    if runtime_context.headless() {
+    if archetect.is_headless() {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
@@ -53,9 +53,9 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     }
 
 
-    runtime_context.request(CommandRequest::PromptForText(prompt_info.clone()));
+    archetect.request(CommandRequest::PromptForText(prompt_info.clone()));
 
-    match runtime_context.response() {
+    match archetect.response() {
         CommandResponse::String(answer) => {
             match validate_text(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
                 Ok(_) => Ok(answer.into()),

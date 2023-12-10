@@ -1,6 +1,6 @@
-use crate::script::rhai::modules::cases::expand_key_value_cases;
+use crate::script::rhai::modules::cases_module::expand_key_value_cases;
 use rhai::{Dynamic, Engine, EvalAltResult, Map};
-use crate::script::rhai::modules::prompt::Caseable;
+use crate::script::rhai::modules::prompt_module::Caseable;
 
 pub(crate) fn register(engine: &mut Engine) {
     engine.register_fn("set", |key: &str, value: Dynamic| set(key, value, Map::new()));

@@ -8,7 +8,7 @@ use archetect_api::{api_driver_and_handle, ApiIoHandle, CommandRequest, CommandR
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
-use archetect_core::runtime::context::RuntimeContext;
+use archetect_core::Archetect;
 
 pub fn get_archetype_path(rs_file: &str) -> Utf8PathBuf {
     let rust_file = Utf8PathBuf::from(rs_file);
@@ -35,16 +35,15 @@ impl TestHarness {
         let archetype_dir = get_archetype_path(test_file);
 
         let (driver, handle) = api_driver_and_handle();
-        let runtime_context = RuntimeContext::builder()
+        let archetect = Archetect::builder()
             .with_driver(driver)
             .with_configuration(configuration)
             .with_temp_layout()?
             .build()?;
 
-        let rt = runtime_context.clone();
-        let archetype = runtime_context.new_archetype(archetype_dir.as_str(), false)?;
+        let archetype = archetect.new_archetype(archetype_dir.as_str(), false)?;
         let (status_tx, status_rx) = mpsc::sync_channel(1);
-        std::thread::spawn(move || match archetype.render(rt, render_context) {
+        std::thread::spawn(move || match archetype.render(render_context) {
             Ok(_) => {
                 status_tx.send(true).expect("Send Error");
             }

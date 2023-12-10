@@ -8,7 +8,7 @@ pub mod archetype;
 pub mod catalog;
 pub mod configuration;
 pub mod errors;
-pub mod runtime;
+mod archetect;
 pub mod script;
 pub mod source;
 pub mod system;
@@ -18,3 +18,5 @@ mod cache_manager;
 
 
 pub use cache_manager::*;
+
+pub use archetect::*;

@@ -6,23 +6,23 @@ use archetect_minijinja::Environment;
 
 use crate::archetype::archetype::{render_directory, Archetype, OverwritePolicy};
 use crate::archetype::render_context::RenderContext;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
     engine: &mut Engine,
     environment: Environment<'static>,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     archetype: Archetype,
-    archetype_context: RenderContext,
+    render_context: RenderContext,
 ) {
     engine.register_global_module(exported_module!(module).into());
     let mut module = Module::new();
     let arch = archetype.clone();
-    let ctx = archetype_context.clone();
-    let rc = runtime_context.clone();
+    let ctx = render_context.clone();
+    let archetect_clone = archetect.clone();
     module.set_native_fn("Directory", move |path: &str| {
-        Directory::new(environment.clone(), arch.clone(), rc.clone(), ctx.clone(), path)
+        Directory::new(environment.clone(), arch.clone(), archetect_clone.clone(), ctx.clone(), path)
     });
     engine.register_global_module(module.into());
 
@@ -37,8 +37,8 @@ pub(crate) fn register(
 pub struct Directory {
     environment: Environment<'static>,
     archetype: Archetype,
-    runtime_context: RuntimeContext,
-    archetype_context: RenderContext,
+    archetect: Archetect,
+    render_context: RenderContext,
     path: Utf8PathBuf,
 }
 
@@ -46,25 +46,25 @@ impl Directory {
     pub fn new<T: Into<Utf8PathBuf>>(
         environment: Environment<'static>,
         archetype: Archetype,
-        runtime_context: RuntimeContext,
-        archetype_context: RenderContext,
+        archetect: Archetect,
+        render_context: RenderContext,
         path: T,
     ) -> Result<Directory, Box<EvalAltResult>> {
         Ok(Directory {
             environment,
-            runtime_context,
+            archetect,
             archetype,
-            archetype_context,
+            render_context,
             path: path.into(),
         })
     }
 
     pub fn render(&mut self, context: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
-        let destination = self.archetype_context.destination();
+        let destination = self.render_context.destination();
         render_directory(
             &self.environment,
-            &self.runtime_context,
+            &self.archetect,
             &context,
             source,
             destination,
@@ -75,7 +75,7 @@ impl Directory {
 
     pub fn render_with_settings(&mut self, context: Map, settings: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
-        let destination = self.archetype_context.destination();
+        let destination = self.render_context.destination();
         let overwrite_policy = settings
             .get("if_exists")
             .map(|v| v.clone().try_cast::<OverwritePolicy>())
@@ -83,7 +83,7 @@ impl Directory {
             .unwrap_or_default();
         render_directory(
             &self.environment,
-            &self.runtime_context,
+            &self.archetect,
             &context,
             source,
             destination,
@@ -95,12 +95,12 @@ impl Directory {
     pub fn render_with_destination(&mut self, destination: &str, context: Map) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
         let destination = self
-            .archetype_context
+            .render_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         render_directory(
             &self.environment,
-            &self.runtime_context,
+            &self.archetect,
             &context,
             source,
             destination,
@@ -117,7 +117,7 @@ impl Directory {
     ) -> Result<(), Box<EvalAltResult>> {
         let source = self.archetype.content_directory().join(&self.path);
         let destination = self
-            .archetype_context
+            .render_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let overwrite_policy = settings
@@ -127,7 +127,7 @@ impl Directory {
             .unwrap_or_default();
         render_directory(
             &self.environment,
-            &self.runtime_context,
+            &self.archetect,
             &context,
             source,
             destination,

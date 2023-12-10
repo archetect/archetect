@@ -3,17 +3,17 @@ use archetect_inquire::{InquireError, Select};
 
 use crate::catalog::{Catalog, CatalogEntry, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 
 pub struct CacheManager {
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
 }
 
 impl CacheManager {
-    pub fn new(runtime_context: RuntimeContext) -> CacheManager {
+    pub fn new(archetect: Archetect) -> CacheManager {
         Self {
-            runtime_context,
+            archetect,
         }
     }
     pub fn manage(&self, catalog: &Catalog) -> Result<(), ArchetectError> {
@@ -32,7 +32,7 @@ impl CacheManager {
                 Ok(operation) => {
                     match operation {
                         ManagementOperation::Pull => {
-                            choice.cache(&self.runtime_context)?;
+                            choice.cache(&self.archetect)?;
                             break;
                         }
                         ManagementOperation::Invalidate => {
@@ -44,7 +44,7 @@ impl CacheManager {
                         }
                         ManagementOperation::View => {
                             if let CatalogEntry::Catalog { description: _, source } = choice {
-                                catalog = self.runtime_context.new_catalog(&source, false)?;
+                                catalog = self.archetect.new_catalog(&source, false)?;
                                 continue;
                             }
                         }

@@ -1,15 +1,15 @@
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use archetect_api::CommandRequest;
 use rhai::plugin::*;
 
-pub fn register(engine: &mut Engine, runtime_context: RuntimeContext) {
+pub fn register(engine: &mut Engine, archetect: Archetect) {
     engine.register_global_module(exported_module!(module).into());
     engine.register_fn("log", move |level: LogLevel, message: &str| match level {
-        LogLevel::Info => runtime_context.request(CommandRequest::LogInfo(message.to_string())),
-        LogLevel::Trace => runtime_context.request(CommandRequest::LogTrace(message.to_string())),
-        LogLevel::Debug => runtime_context.request(CommandRequest::LogDebug(message.to_string())),
-        LogLevel::Warn => runtime_context.request(CommandRequest::LogWarn(message.to_string())),
-        LogLevel::Error => runtime_context.request(CommandRequest::LogError(message.to_string())),
+        LogLevel::Info => archetect.request(CommandRequest::LogInfo(message.to_string())),
+        LogLevel::Trace => archetect.request(CommandRequest::LogTrace(message.to_string())),
+        LogLevel::Debug => archetect.request(CommandRequest::LogDebug(message.to_string())),
+        LogLevel::Warn => archetect.request(CommandRequest::LogWarn(message.to_string())),
+        LogLevel::Error => archetect.request(CommandRequest::LogError(message.to_string())),
     });
 }
 
@@ -25,7 +25,7 @@ pub enum LogLevel {
 #[allow(non_upper_case_globals)]
 #[export_module]
 pub mod module {
-    pub type LogLevel = crate::script::rhai::modules::log::LogLevel;
+    pub type LogLevel = crate::script::rhai::modules::log_module::LogLevel;
     pub const Info: LogLevel = LogLevel::Info;
     pub const Trace: LogLevel = LogLevel::Trace;
     pub const Debug: LogLevel = LogLevel::Debug;

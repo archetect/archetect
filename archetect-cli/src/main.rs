@@ -9,7 +9,7 @@ use archetect_core::{self};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError};
-use archetect_core::runtime::context::RuntimeContext;
+use archetect_core::Archetect;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
 use archetect_terminal_io::TerminalIoDriver;
 use ArchetypeError::ScriptAbortError;
@@ -77,22 +77,21 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         }
     }
 
-    let runtime_context = RuntimeContext::builder()
+    let archetect = Archetect::builder()
         .with_configuration(configuration)
         .with_driver(driver)
         .with_layout(layout)
         .build()?;
 
-
     match matches.subcommand() {
         None => {
-            default(&matches, runtime_context, answers)?;
+            default(&matches, archetect, answers)?;
         }
         Some(("completions", args)) => cli::completions(args)?,
-        Some(("render", args)) => render(args, runtime_context, answers).map(|_| ())?,
-        Some(("catalog", args)) => catalog(args, runtime_context, answers).map(|_| ())?,
-        Some(("config", args)) => config(args, runtime_context.configuration()).map(|_| ())?,
-        Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &runtime_context)?,
+        Some(("render", args)) => render(args, archetect, answers).map(|_| ())?,
+        Some(("catalog", args)) => catalog(args, archetect, answers).map(|_| ())?,
+        Some(("config", args)) => config(args, archetect.configuration()).map(|_| ())?,
+        Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
         _ => {}
     }
 
@@ -116,44 +115,44 @@ fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), Arc
 
 fn default(
     matches: &ArgMatches,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     answers: Map,
 ) -> Result<(), ArchetectError> {
-    let catalog = runtime_context.configuration().catalog();
+    let catalog = archetect.catalog();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
-    catalog.render(runtime_context, render_context)?;
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    catalog.render(render_context)?;
     Ok(())
 }
 
 fn catalog(
     matches: &ArgMatches,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     answers: Map,
 ) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
-    let catalog = runtime_context.new_catalog(source, false)?;
-    catalog.check_requirements(&runtime_context)?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
-    catalog.render(runtime_context, render_context)?;
+    let catalog = archetect.new_catalog(source, false)?;
+    catalog.check_requirements()?;
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    catalog.render(render_context)?;
     Ok(())
 }
 
 pub fn render(
     matches: &ArgMatches,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     answers: Map,
 ) -> Result<Dynamic, ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
-    let archetype = runtime_context.new_archetype(source, false)?;
+    let archetype = archetect.new_archetype(source, false)?;
 
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
-    archetype.check_requirements(&runtime_context)?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, runtime_context.configuration()));
-    Ok(archetype.render(runtime_context, render_context)?)
+    archetype.check_requirements(&archetect)?;
+    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    Ok(archetype.render(render_context)?)
 }
 
 fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<String> {

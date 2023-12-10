@@ -6,7 +6,7 @@ use rhai::Map;
 
 use crate::archetype::archetype_manifest::RuntimeRequirements;
 use crate::errors::{ArchetectError, CatalogError};
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
@@ -112,19 +112,19 @@ impl CatalogEntry {
         }
     }
 
-    pub fn cache(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetectError> {
+    pub fn cache(&self, archetect: &Archetect) -> Result<(), ArchetectError> {
         match self {
             CatalogEntry::Group { description: _, entries } => {
                 for entry in entries {
-                    entry.cache(runtime_context)?;
+                    entry.cache(archetect)?;
                 }
             }
             CatalogEntry::Catalog { description: _, source } => {
-                let catalog = runtime_context.new_catalog(source, true)?;
-                catalog.cache(runtime_context)?;
+                let catalog = archetect.new_catalog(source, true)?;
+                catalog.cache(archetect)?;
             }
             CatalogEntry::Archetype { description: _, source, answers: _ } => {
-                let _ = runtime_context.new_archetype(source, true)?;
+                let _ = archetect.new_archetype(source, true)?;
             }
         }
 

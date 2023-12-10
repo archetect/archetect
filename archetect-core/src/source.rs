@@ -10,7 +10,7 @@ use regex::Regex;
 use url::Url;
 
 use crate::errors::SourceError;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use crate::utils::to_utf8_path_buf;
 
 //noinspection SpellCheckingInspection
@@ -40,8 +40,8 @@ fn cached_paths() -> &'static Mutex<HashSet<String>> {
 }
 
 impl Source {
-    pub fn create(runtime_context: &RuntimeContext, path: &str, force_pull: bool) -> Result<Source, SourceError> {
-        let cache_dir = runtime_context.layout().cache_dir();
+    pub fn create(archetect: &Archetect, path: &str, force_pull: bool) -> Result<Source, SourceError> {
+        let cache_dir = archetect.layout().cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
         if let Some(captures) = ssh_git_pattern().captures(url_parts[0]) {
@@ -54,7 +54,7 @@ impl Source {
             } else {
                 None
             };
-            cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path, force_pull)?;
+            cache_git_repo(&archetect, url_parts[0], &gitref, &cache_path, force_pull)?;
             return Ok(Source::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
@@ -69,7 +69,7 @@ impl Source {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(&runtime_context, url_parts[0], &gitref, &cache_path, force_pull)?;
+                cache_git_repo(&archetect, url_parts[0], &gitref, &cache_path, force_pull)?;
                 return Ok(Source::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
@@ -149,11 +149,11 @@ fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
     format!("{}", get_cache_hash(input))
 }
 
-fn should_pull(repo: &Repository, runtime_context: &RuntimeContext) -> Result<bool, SourceError> {
-    if runtime_context.offline() {
+fn should_pull(repo: &Repository, archetect: &Archetect) -> Result<bool, SourceError> {
+    if archetect.is_offline() {
         return Ok(false);
     }
-    if runtime_context.updates().force() {
+    if archetect.configuration().updates().force() {
         return Ok(true);
     }
 
@@ -162,7 +162,7 @@ fn should_pull(repo: &Repository, runtime_context: &RuntimeContext) -> Result<bo
         let timestamp = chrono::Utc.timestamp_millis_opt(timestamp);
         let now = chrono::Utc::now();
         let delta = now - timestamp.unwrap();
-        Ok(delta > runtime_context.updates().interval())
+        Ok(delta > archetect.configuration().updates().interval())
     } else {
         Ok(true)
     }
@@ -175,14 +175,14 @@ fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
 }
 
 fn cache_git_repo(
-    runtime_context: &RuntimeContext,
+    archetect: &Archetect,
     url: &str,
     gitref: &Option<String>,
     cache_destination: &Utf8Path,
     force_pull: bool,
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
-        if !runtime_context.offline() && cached_paths().lock().unwrap().insert(url.to_owned()) {
+        if !archetect.is_offline() && cached_paths().lock().unwrap().insert(url.to_owned()) {
             info!("Cloning {}", url);
             debug!("Cloning to {}", cache_destination.as_str());
             handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
@@ -193,7 +193,7 @@ fn cache_git_repo(
         }
     } else if cached_paths().lock().unwrap().insert(url.to_owned()) {
         let repo = git2::Repository::open(cache_destination.join(".git"))?;
-        if force_pull || should_pull(&repo, &runtime_context)? {
+        if force_pull || should_pull(&repo, &archetect)? {
             info!("Fetching {}", url);
             handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
             write_timestamp(&repo)?;

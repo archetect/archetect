@@ -1,38 +1,38 @@
 use crate::archetype::render_context::RenderContext;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use archetect_api::CommandRequest;
 use rhai::Engine;
 use uuid::Uuid;
 
-pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext, render_context: &RenderContext) {
-    let rt = runtime_context.clone();
+pub(crate) fn register(engine: &mut Engine, archetect: Archetect, render_context: &RenderContext) {
+    let archetect_clone = archetect.clone();
     engine.register_fn("display", move |message: &str| {
-        rt.request(CommandRequest::Display(message.to_string()));
+        archetect_clone.request(CommandRequest::Display(message.to_string()));
     });
 
-    let rt = runtime_context.clone();
+    let archetect_clone = archetect.clone();
     engine.register_fn("display", move || {
-        rt.request(CommandRequest::Display("".to_string()));
+        archetect_clone.request(CommandRequest::Display("".to_string()));
     });
 
-    let rt = runtime_context.clone();
+    let archetect_clone = archetect.clone();
     engine.on_print(move |message| {
-        rt.request(CommandRequest::Print(message.to_string()));
+        archetect_clone.request(CommandRequest::Print(message.to_string()));
     });
 
-    let rt = runtime_context.clone();
+    let archetect_clone = archetect.clone();
     engine.on_debug(move |s, src, pos| {
         let message = if let Some(src) = src {
             format!("{pos:?} | {s}: {src}")
         } else {
             format!("{pos:?} | {s}")
         };
-        rt.request(CommandRequest::Display(message));
+        archetect_clone.request(CommandRequest::Display(message));
     });
 
-    let rt = runtime_context.clone();
+    let archetect_clone = archetect.clone();
     engine.on_print(move |message| {
-        rt.request(CommandRequest::Print(message.to_string()));
+        archetect_clone.request(CommandRequest::Print(message.to_string()));
     });
 
     engine.register_fn("uuid", move || Uuid::new_v4().to_string());

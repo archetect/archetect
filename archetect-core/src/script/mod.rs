@@ -6,14 +6,14 @@ use archetect_minijinja::{Environment, Source, UndefinedBehavior};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::cases::{to_cobol_case, to_directory_case, to_package_case};
+use crate::Archetect;
+use crate::script::rhai::modules::cases_module::{to_cobol_case, to_directory_case, to_package_case};
 
 pub mod rhai;
 
 pub(crate) fn create_environment(
     archetype: &Archetype,
-    _runtime_context: RuntimeContext,
+    _archetect: Archetect,
     render_context: &RenderContext,
 ) -> Environment<'static> {
     let mut environment = Environment::new();

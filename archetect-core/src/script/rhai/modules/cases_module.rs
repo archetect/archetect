@@ -2,8 +2,8 @@ use cruet::case::to_case_snake_like;
 use rhai::Map;
 use rhai::plugin::*;
 
-use crate::script::rhai::modules::cases::module::to_case;
-use crate::script::rhai::modules::prompt::Caseable;
+use crate::script::rhai::modules::cases_module::module::to_case;
+use crate::script::rhai::modules::prompt_module::Caseable;
 
 pub fn register(engine: &mut Engine) {
     engine.register_global_module(exported_module!(module).into());
@@ -205,8 +205,8 @@ pub mod module {
     use log::warn;
     use rhai::{Dynamic, Map};
 
-    pub type CaseStyle = crate::script::rhai::modules::cases::CaseStyle;
-    pub type CaseStrategy = crate::script::rhai::modules::cases::CaseStrategy;
+    pub type CaseStyle = crate::script::rhai::modules::cases_module::CaseStyle;
+    pub type CaseStrategy = crate::script::rhai::modules::cases_module::CaseStrategy;
     pub const CamelCase: CaseStyle = CaseStyle::CamelCase;
     pub const ClassCase: CaseStyle = CaseStyle::ClassCase;
     pub const CobolCase: CaseStyle = CaseStyle::CobolCase;

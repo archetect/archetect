@@ -3,14 +3,14 @@ use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::prompt::{cast_setting, extract_prompt_info, extract_prompt_info_pageable};
+use crate::Archetect;
+use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_info_pageable};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     options: Vec<Dynamic>,
-    runtime_context: &RuntimeContext,
+    archetect: &Archetect,
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
@@ -40,7 +40,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     };
 
-    if runtime_context.headless() {
+    if archetect.is_headless() {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
@@ -50,9 +50,9 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
-    runtime_context.request(CommandRequest::PromptForSelect(prompt_info.clone()));
+    archetect.request(CommandRequest::PromptForSelect(prompt_info.clone()));
 
-    match runtime_context.response() {
+    match archetect.response() {
         CommandResponse::String(answer) => {
             return Ok(Some(answer));
         }

@@ -2,23 +2,24 @@ use rhai::{Dynamic, Engine, EvalAltResult, Module, NativeCallContext};
 use rhai::module_resolvers::{FileModuleResolver, ModuleResolversCollection, StaticModuleResolver};
 
 use crate::archetype::archetype::Archetype;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 
-pub(crate) fn register(engine: &mut Engine, runtime_context: RuntimeContext, archetype: Archetype) {
+pub(crate) fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype) {
     let mut module = Module::new();
 
-    let rt = runtime_context.clone();
-    module.set_native_fn("version", move || Ok(rt.archetect_version().to_string()));
-    let rt = runtime_context.clone();
-    module.set_native_fn("version_major", move || Ok(rt.archetect_version().major.to_string()));
-    let rt = runtime_context.clone();
-    module.set_native_fn("version_minor", move || Ok(rt.archetect_version().minor.to_string()));
-    let rt = runtime_context.clone();
-    module.set_native_fn("version_patch", move || Ok(rt.archetect_version().patch.to_string()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("version", move || Ok(archetect_clone.version().to_string()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("version_major", move || Ok(archetect_clone.version().major.to_string()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("version_minor", move || Ok(archetect_clone.version().minor.to_string()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("version_patch", move || Ok(archetect_clone.version().patch.to_string()));
 
     let archetype_module = archetype_module(archetype.clone());
     module.set_sub_module("archetype", archetype_module.clone());
-    let runtime_module = runtime_module(runtime_context.clone());
+    let archetect_clone = archetect.clone();
+    let runtime_module = runtime_module(archetect_clone.clone());
     module.set_sub_module("runtime", runtime_module.clone());
 
     let mut resolver = ModuleResolversCollection::new();
@@ -65,14 +66,14 @@ fn archetype_module(archetype: Archetype) -> Module {
     module
 }
 
-fn runtime_module(runtime_context: RuntimeContext) -> Module {
+fn runtime_module(archetect: Archetect) -> Module {
     let mut module = Module::new();
-    let rt = runtime_context.clone();
-    module.set_native_fn("is_offline", move || Ok(rt.offline()));
-    let rt = runtime_context.clone();
-    module.set_native_fn("is_headless", move || Ok(rt.headless()));
-    let rt = runtime_context.clone();
-    module.set_native_fn("locals_enabled", move|| Ok(rt.locals().enabled()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("is_offline", move || Ok(archetect_clone.is_offline()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("is_headless", move || Ok(archetect_clone.is_headless()));
+    let archetect_clone = archetect.clone();
+    module.set_native_fn("locals_enabled", move|| Ok(archetect_clone.configuration().locals().enabled()));
     module
 }
 

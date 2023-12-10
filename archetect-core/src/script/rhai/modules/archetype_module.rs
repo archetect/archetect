@@ -4,22 +4,22 @@ use rhai::{Dynamic, Engine, EvalAltResult, Map, Module};
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetypeError;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
     engine: &mut Engine,
     parent: Archetype,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     render_context: RenderContext,
 ) {
     let mut module = Module::new();
 
     let p = parent.clone();
     let ctx = render_context.clone();
-    let rc = runtime_context.clone();
+    let archetect_clone = archetect.clone();
     module.set_native_fn("Archetype", move |key: &str| {
-        create_archetype(p.clone(), ctx.clone(), rc.clone(), key)
+        create_archetype(p.clone(), ctx.clone(), archetect_clone.clone(), key)
     });
     engine.register_global_module(module.into());
 
@@ -34,17 +34,16 @@ pub(crate) fn register(
 #[derive(Clone)]
 pub struct ArchetypeFacade {
     child: Archetype,
-    runtime_context: RuntimeContext,
-    archetype_context: RenderContext,
+    render_context: RenderContext,
 }
 
 // TODO: Allow overwrites
 impl ArchetypeFacade {
     pub fn render(&mut self, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self.archetype_context.destination().to_path_buf();
+        let destination = self.render_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers);
         let result = self.child
-            .render(self.runtime_context.clone(), render_context)
+            .render( render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
                     "Archetype Render Error".to_string(),
@@ -55,11 +54,11 @@ impl ArchetypeFacade {
     }
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self.archetype_context.destination().to_path_buf();
+        let destination = self.render_context.destination().to_path_buf();
         let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
 
         let result = self.child
-            .render(self.runtime_context.clone(), render_context)
+            .render(render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
                     "Archetype Render Error".to_string(),
@@ -71,12 +70,12 @@ impl ArchetypeFacade {
 
     pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
         let destination = self
-            .archetype_context
+            .render_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers);
         let result = self.child
-            .render(self.runtime_context.clone(), render_context)
+            .render(render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
                     "Archetype Render Error".to_string(),
@@ -94,12 +93,12 @@ impl ArchetypeFacade {
     ) -> Result<Dynamic, Box<EvalAltResult>> {
         info!("render_with_destination_and_settings: {:?}", answers);
         let destination = self
-            .archetype_context
+            .render_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
         let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
         let result = self.child
-            .render(self.runtime_context.to_owned(), render_context)
+            .render(render_context)
             .map_err(|err| {
                 Box::new(EvalAltResult::ErrorSystem(
                     "Archetype Render Error".to_string(),
@@ -113,19 +112,18 @@ impl ArchetypeFacade {
 
 fn create_archetype(
     parent: Archetype,
-    archetype_context: RenderContext,
-    runtime_context: RuntimeContext,
+    render_context: RenderContext,
+    archetect: Archetect,
     key: &str,
 ) -> Result<ArchetypeFacade, Box<EvalAltResult>> {
     if let Some(archetypes) = parent.manifest().components() {
         if let Some(path) = archetypes.get(key) {
             // TODO: Handle unwrap
-            let child = runtime_context.new_archetype(path, false).unwrap();
+            let child = archetect.new_archetype(path, false).unwrap();
 
             return Ok(ArchetypeFacade {
                 child,
-                archetype_context,
-                runtime_context: runtime_context.clone(),
+                render_context,
             });
         }
     }

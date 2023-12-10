@@ -7,8 +7,8 @@ use archetect_api::{PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRes
 
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
-use crate::runtime::context::RuntimeContext;
-use crate::script::rhai::modules::cases::{CaseStyle, expand_key_value_cases};
+use crate::Archetect;
+use crate::script::rhai::modules::cases_module::{CaseStyle, expand_key_value_cases};
 
 mod bool;
 mod editor;
@@ -18,44 +18,44 @@ mod multiselect;
 mod select;
 mod text;
 
-pub(crate) fn register(engine: &mut Engine, archetype_context: RenderContext, runtime_context: RuntimeContext) {
+pub(crate) fn register(engine: &mut Engine, render_context: RenderContext, archetect: Archetect) {
     engine.register_global_module(exported_module!(module).into());
 
-    let ctx = archetype_context.clone();
-    let rt = runtime_context.clone();
+    let ctx = render_context.clone();
+    let archetect_clone = archetect.clone();
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, key: &str, settings: Map| {
-            prompt_to_map(&call, message, rt.clone(), ctx.clone(), key, settings)
+            prompt_to_map(&call, message, archetect_clone.clone(), ctx.clone(), key, settings)
         },
     );
 
-    let ctx = archetype_context.clone();
-    let rt = runtime_context.clone();
+    let ctx = render_context.clone();
+    let archetect_clone = archetect.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str, key: &str| {
-        prompt_to_map(&call, message, rt.clone(), ctx.clone(), key, Map::new())
+        prompt_to_map(&call, message, archetect_clone.clone(), ctx.clone(), key, Map::new())
     });
 
-    let rt = runtime_context.clone();
-    let ctx = archetype_context.clone();
+    let archetect_clone = archetect.clone();
+    let ctx = render_context.clone();
     engine.register_fn(
         "prompt",
         move |call: NativeCallContext, message: &str, settings: Map| {
-            prompt_to_value(&call, message, rt.clone(), ctx.clone(), settings)
+            prompt_to_value(&call, message, archetect_clone.clone(), ctx.clone(), settings)
         },
     );
 
-    let rt = runtime_context.clone();
-    let ctx = archetype_context.clone();
+    let archetect_clone = archetect.clone();
+    let ctx = render_context.clone();
     engine.register_fn("prompt", move |call: NativeCallContext, message: &str| {
-        prompt_to_value(&call, message, rt.clone(), ctx.clone(), Map::new())
+        prompt_to_value(&call, message, archetect_clone.clone(), ctx.clone(), Map::new())
     });
 }
 
 fn prompt_to_map<'a, K: AsRef<str>>(
     call: &NativeCallContext,
     message: &str,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     render_context: RenderContext,
     key: K,
     settings: Map,
@@ -73,7 +73,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
 
     return match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            let value = text::prompt(call, message, &settings, &archetect, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
@@ -89,7 +89,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
 
         }
         PromptType::Bool => {
-            let value = bool::prompt(call, message, &runtime_context, &settings, Some(key), answer)?;
+            let value = bool::prompt(call, message, &archetect, &settings, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
@@ -104,7 +104,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::Int => {
-            let value = int::prompt_int(call, message, &runtime_context, &settings, Some(key), answer)?;
+            let value = int::prompt_int(call, message, &archetect, &settings, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
@@ -123,7 +123,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 call,
                 message,
                 options,
-                &runtime_context,
+                &archetect,
                 &settings,
                 Some(key),
                 answer,
@@ -146,7 +146,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 call,
                 message,
                 options,
-                &runtime_context,
+                &archetect,
                 &settings,
                 Some(key),
                 answer,
@@ -168,7 +168,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(call, message, &settings, &runtime_context, Some(key), answer)?;
+            let value = editor::prompt(call, message, &settings, &archetect, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
@@ -183,7 +183,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::List => {
-            match list::prompt(call, message, &runtime_context, &settings, Some(key), answer)? {
+            match list::prompt(call, message, &archetect, &settings, Some(key), answer)? {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
@@ -205,7 +205,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
 fn prompt_to_value(
     call: &NativeCallContext,
     message: &str,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     render_context: RenderContext,
     settings: Map,
 ) -> Result<Dynamic, Box<EvalAltResult>> {
@@ -227,49 +227,49 @@ fn prompt_to_value(
 
     match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &runtime_context,  answer_key.as_ref(), answer)?;
+            let value = text::prompt(call, message, &settings, &archetect,  answer_key.as_ref(), answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::String(list), case)),
             }
         }
         PromptType::Bool => {
-            let value = bool::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            let value = bool::prompt(call, message, &archetect, &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(value) => Ok(value.into())
             }
         }
         PromptType::Int => {
-            let value = int::prompt_int(call, message, &runtime_context, &settings, answer_key, answer)?;
+            let value = int::prompt_int(call, message, &archetect, &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(value) => Ok(value.into())
             }
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
+            let value = select::prompt(call, message, options, &archetect, &settings, answer_key, answer)?;
             match value {
                 Some(value) => Ok(apply_case(Caseable::String(value), case)),
                 None => Ok(Dynamic::UNIT),
             }
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &runtime_context, &settings, answer_key, answer)?;
+            let value = multiselect::prompt(call, message, options, &archetect, &settings, answer_key, answer)?;
             match value {
                 Some(value) => Ok(apply_case(Caseable::List(value), case)),
                 None => Ok(Dynamic::UNIT),
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(call, message, &settings, &runtime_context,  answer_key, answer)?;
+            let value = editor::prompt(call, message, &settings, &archetect,  answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::String(list), case)),
             }
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &runtime_context, &settings, answer_key, answer)?;
+            let value = list::prompt(call, message, &archetect, &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::List(list), case)),
@@ -309,7 +309,7 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
     message: &str,
     settings: &Map,
     key: Option<K>,
-    archetype_context: &RenderContext,
+    render_context: &RenderContext,
 ) -> Result<Map, Box<EvalAltResult>> {
     let setting = "answer_source";
     if let Some(answers) = settings.get(setting) {
@@ -325,7 +325,7 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
             }
         }
     }
-    let answers = archetype_context.answers();
+    let answers = render_context.answers();
     let mut results = Map::new();
     results.extend(answers.clone());
     return Ok(results);
@@ -510,7 +510,7 @@ impl Default for PromptType {
 pub mod module {
     use rhai::Dynamic;
 
-    pub type PromptType = crate::script::rhai::modules::prompt::PromptType;
+    pub type PromptType = crate::script::rhai::modules::prompt_module::PromptType;
 
     pub const Text: PromptType = PromptType::Text;
     pub const String: PromptType = PromptType::Text;

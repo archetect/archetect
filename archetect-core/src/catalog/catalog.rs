@@ -6,11 +6,12 @@ use archetect_inquire::{InquireError, Select};
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{CatalogEntry, CatalogManifest};
 use crate::errors::{ArchetectError, CatalogError};
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 use crate::source::Source;
 
 #[derive(Clone)]
 pub struct Catalog {
+    archetect: Archetect,
     pub(crate) inner: Rc<Inner>,
 }
 
@@ -19,23 +20,24 @@ pub(crate) struct Inner {
 }
 
 impl Catalog {
-    pub fn load(source: &Source) -> Result<Catalog, CatalogError> {
+    pub fn load(archetect: Archetect, source: &Source) -> Result<Catalog, CatalogError> {
         let manifest = CatalogManifest::load(source.local_path())?;
         let inner = Rc::new(Inner { manifest });
-        let catalog = Catalog { inner };
+        let catalog = Catalog { archetect, inner };
         Ok(catalog)
     }
 
-    pub fn new(manifest: CatalogManifest) -> Self {
+    pub fn new(archetect: Archetect, manifest: CatalogManifest) -> Self {
         Catalog {
+            archetect,
             inner: Rc::new(Inner { manifest }),
         }
     }
 
 
 
-    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), CatalogError> {
-        self.inner.manifest.requires().check_requirements(runtime_context)?;
+    pub fn check_requirements(&self) -> Result<(), CatalogError> {
+        self.inner.manifest.requires().check_requirements(&self.archetect)?;
         Ok(())
     }
 
@@ -43,7 +45,7 @@ impl Catalog {
         self.inner.manifest.entries()
     }
 
-    pub fn render(&self, runtime_context: RuntimeContext, render_context: RenderContext) -> Result<(), ArchetectError> {
+    pub fn render(&self, render_context: RenderContext) -> Result<(), ArchetectError> {
         let mut catalog = self.clone();
 
         loop {
@@ -56,7 +58,7 @@ impl Catalog {
 
             match choice {
                 CatalogEntry::Catalog { description: _, source } => {
-                    catalog = runtime_context.new_catalog(&source, false)?;
+                    catalog = self.archetect.new_catalog(&source, false)?;
                 }
                 CatalogEntry::Archetype {
                     description: _,
@@ -69,12 +71,12 @@ impl Catalog {
                             answers.entry(k).or_insert(v);
                         }
                     }
-                    let archetype = runtime_context.new_archetype(&source, false)?;
+                    let archetype = self.archetect.new_archetype(&source, false)?;
                     let destination = render_context.destination().to_path_buf();
                     let render_context = RenderContext::new(destination, answers);
 
-                    archetype.check_requirements(&runtime_context)?;
-                    let _result = archetype.render(runtime_context, render_context)?;
+                    archetype.check_requirements(&self.archetect)?;
+                    let _result = archetype.render(render_context)?;
                     return Ok(());
                 }
                 CatalogEntry::Group {
@@ -128,9 +130,9 @@ impl Catalog {
         }
     }
 
-    pub fn cache(&self, runtime_context: &RuntimeContext) -> Result<(), ArchetectError> {
+    pub fn cache(&self, archetect: &Archetect) -> Result<(), ArchetectError> {
         for entry in self.inner.manifest.entries() {
-            entry.cache(runtime_context)?;
+            entry.cache(archetect)?;
         }
 
         Ok(())

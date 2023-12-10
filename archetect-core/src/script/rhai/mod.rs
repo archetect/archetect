@@ -5,14 +5,14 @@ use archetect_minijinja::Environment;
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 pub(crate) mod modules;
 
 pub(crate) fn create_engine(
     environment: Environment<'static>,
     archetype: Archetype,
-    runtime_context: RuntimeContext,
+    archetect: Archetect,
     render_context: RenderContext,
 ) -> Engine {
     let mut engine = Engine::new();
@@ -23,30 +23,30 @@ pub(crate) fn create_engine(
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 
-    modules::archetect::register(&mut engine, runtime_context.clone(), archetype.clone());
-    modules::utils::register(&mut engine, runtime_context.clone(), &render_context);
-    modules::cases::register(&mut engine);
-    modules::exec::register(&mut engine);
-    modules::formats::register(&mut engine);
-    modules::log::register(&mut engine, runtime_context.clone());
-    modules::prompt::register(
+    modules::archetect_module::register(&mut engine, archetect.clone(), archetype.clone());
+    modules::utils_module::register(&mut engine, archetect.clone(), &render_context);
+    modules::cases_module::register(&mut engine);
+    modules::exec_module::register(&mut engine);
+    modules::formats_module::register(&mut engine);
+    modules::log_module::register(&mut engine, archetect.clone());
+    modules::prompt_module::register(
         &mut engine,
         render_context.clone(),
-        runtime_context.clone(),
+        archetect.clone(),
     );
-    modules::set::register(&mut engine);
-    modules::render::register(&mut engine, environment.clone());
-    modules::directory::register(
+    modules::set_module::register(&mut engine);
+    modules::render_module::register(&mut engine, environment.clone());
+    modules::directory_module::register(
         &mut engine,
         environment.clone(),
-        runtime_context.clone(),
+        archetect.clone(),
         archetype.clone(),
         render_context.clone(),
     );
-    modules::archetype::register(
+    modules::archetype_module::register(
         &mut engine,
         archetype.clone(),
-        runtime_context.clone(),
+        archetect.clone(),
         render_context.clone(),
     );
 

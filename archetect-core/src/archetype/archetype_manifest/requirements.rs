@@ -1,7 +1,7 @@
 use semver::VersionReq;
 
 use crate::errors::RequirementsError;
-use crate::runtime::context::RuntimeContext;
+use crate::Archetect;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RuntimeRequirements {
@@ -14,12 +14,12 @@ impl RuntimeRequirements {
         &self.archetect_version
     }
 
-    pub fn check_requirements(&self, runtime_context: &RuntimeContext) -> Result<(), RequirementsError> {
-        let version = runtime_context.archetect_version();
+    pub fn check_requirements(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
+        let version = archetect.version();
 
         if !self.archetect_version.matches(version) {
             return Err(RequirementsError::ArchetectVersion(
-                runtime_context.archetect_version().clone(),
+                archetect.version().clone(),
                 self.archetect_version.clone(),
             ));
         }
