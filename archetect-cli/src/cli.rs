@@ -22,78 +22,6 @@ pub fn command() -> Command {
                 .global(true)
         )
         .arg(
-            Arg::new("offline")
-                .help("Only use directories and already-cached remote git URLs")
-                .short('o')
-                .long("offline")
-                .env("ARCHETECT_OFFLINE")
-                .action(ArgAction::SetTrue)
-                .global(true)
-        )
-        .arg(
-            Arg::new("headless")
-                .help("Expect all variable values to be provided by answer arguments or files, never waiting for user input.")
-                .long("headless")
-                .env("ARCHETECT_HEADLESS")
-                .action(ArgAction::SetTrue)
-                .global(true)
-        )
-        .arg(
-            Arg::new("local")
-                .help("Use local development checkouts where available and configured")
-                .long("local")
-                .short('l')
-                .env("ARCHETECT_LOCAL")
-                .action(ArgAction::SetTrue)
-                .global(true)
-        )
-        .arg(
-            Arg::new("force-update")
-                .help("Use local development checkouts where available and configured")
-                .long("force-update")
-                .short('U')
-                .env("ARCHETECT_FORCE_UPDATE")
-                .action(ArgAction::SetTrue)
-                .global(true)
-        )
-        .arg(
-            Arg::new("answer")
-                .help("Supply a key=value pair as an answer to a variable question.")
-                .long_help(VALID_ANSWER_INPUTS)
-                .long("answer")
-                .short('a')
-                .action(ArgAction::Append)
-                .value_name("key=value")
-                .global(true)
-        )
-        .arg(
-            Arg::new("use-defaults")
-                .help("Use the configured default value for a prompt key")
-                .long("use-default")
-                .short('d')
-                .value_delimiter(',')
-                .action(ArgAction::Append)
-                .value_name("prompt key")
-                .global(true)
-        )
-        .arg(
-            Arg::new("use-defaults-all")
-                .help("Use the configured default values for all prompts without explicit answers")
-                .long("use-defaults-all")
-                .short('D')
-                .action(ArgAction::SetTrue)
-                .global(true)
-        )
-        .arg(
-            Arg::new("switches")
-                .help("Enable switches that may trigger functionality within Archetypes")
-                .long("switch")
-                .short('s')
-                .action(ArgAction::Append)
-                .value_name("switch name")
-                .global(true)
-        )
-        .arg(
             Arg::new("config-file")
                 .help("Supply an additional configuration file.")
                 .long_help("Supply an additional configuration file to supplement or override \
@@ -104,41 +32,28 @@ pub fn command() -> Command {
                 .global(true)
                 .value_name("config")
         )
-        .arg(
-            Arg::new("answer-file")
-                .help("Supply an answers file as answers to variable questions.")
-                .long_help(
-                    "Supply an answers file as answers to variable questions. This option may \
-                     be specified more than once.",
+        .subcommand(
+            Command::new("render")
+                .alias("create")
+                .about("Render an Archetype")
+                .arg(
+                    Arg::new("source")
+                        .help("The Archetype source directory or git URL")
+                        .action(ArgAction::Set)
+                        .required(true),
                 )
-                .long("answer-file")
-                .short('A')
-                .action(ArgAction::Append)
-                .global(true)
-                .value_name("path")
-                // .value_parser(ValueParser::new(parse_answer_file))
-        )
-        .arg(
-            Arg::new("destination")
-                .help("The directory to render the Archetype in")
-                .default_value(".")
-                .action(ArgAction::Set)
+                .args(render_args())
         )
         .subcommand(
             Command::new("catalog")
-                .about("Select From a Catalog")
+                .about("Render an Archetype from a Catalog")
                 .arg(
                     Arg::new("source")
                         .help("The Catalog source directory or git URL")
                         .action(ArgAction::Set)
                         .required(true),
                 )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set)
-                )
+                .args(render_args())
         )
         .subcommand(
             Command::new("completions")
@@ -197,23 +112,102 @@ pub fn command() -> Command {
                     .about("Pull all Archetypes and Catalogs in Archetect's Catalog")
                 )
         )
-        .subcommand(
-            Command::new("render")
-                .alias("create")
-                .about("Creates content from an Archetype")
-                .arg(
-                    Arg::new("source")
-                        .help("The Archetype source directory or git URL")
-                        .action(ArgAction::Set)
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set)
-                )
-        )
+}
+
+fn render_args() -> Vec<Arg> {
+    let mut args = vec![];
+    args.push(
+        Arg::new("answer-file")
+            .help("Supply an answers file in JSON, YAML, or Rhai format as answers to variable questions.")
+            .long_help(
+                "Supply an answers file in JSON, YAML, or Rhai format as answers to variable questions. This option may \
+                     be specified more than once.",
+            )
+            .long("answer-file")
+            .short('A')
+            .action(ArgAction::Append)
+            .value_name("path"),
+    );
+
+    args.push(
+        Arg::new("answer")
+            .help("Supply a key=value pair as an answer to a variable question.")
+            .long_help(VALID_ANSWER_INPUTS)
+            .long("answer")
+            .short('a')
+            .action(ArgAction::Append)
+            .value_name("prompt key=value"),
+    );
+
+    args.push(
+        Arg::new("use-defaults")
+            .help("Use the configured default value for a prompt key")
+            .long("use-default")
+            .short('d')
+            .value_delimiter(',')
+            .action(ArgAction::Append)
+            .value_name("prompt key"),
+    );
+
+    args.push(
+        Arg::new("use-defaults-all")
+            .help("Use the configured default values for all prompts without explicit answers")
+            .long("use-defaults-all")
+            .short('D')
+            .action(ArgAction::SetTrue),
+    );
+
+    args.push(
+        Arg::new("destination")
+            .help("The directory to render the Archetype in to")
+            .default_value(".")
+            .action(ArgAction::Set),
+    );
+
+    args.push(
+        Arg::new("switches")
+            .help("Enable switches that may trigger functionality within Archetypes")
+            .long("switch")
+            .short('s')
+            .action(ArgAction::Append)
+            .value_name("switch name")
+    );
+
+    args.push(
+        Arg::new("offline")
+            .help("Only use directories and already-cached remote git URLs")
+            .short('o')
+            .long("offline")
+            .env("ARCHETECT_OFFLINE")
+            .action(ArgAction::SetTrue)
+    );
+        args.push(
+            Arg::new("headless")
+                .help("Expect all inputs to be resolved by answers, defaults, and optional values, never waiting on interactive user input.")
+                .long("headless")
+                .env("ARCHETECT_HEADLESS")
+                .action(ArgAction::SetTrue)
+                .global(true)
+        );
+        args.push(
+            Arg::new("local")
+                .help("Use local development checkouts where available and configured")
+                .long("local")
+                .short('l')
+                .env("ARCHETECT_LOCAL")
+                .action(ArgAction::SetTrue)
+                .global(true)
+        );
+        args.push(
+            Arg::new("force-update")
+                .help("Force updates for all Catalogs and Archetypes when rendering")
+                .long("force-update")
+                .short('U')
+                .env("ARCHETECT_FORCE_UPDATE")
+                .action(ArgAction::SetTrue)
+                .global(true)
+        );
+    args
 }
 
 pub fn configure(matches: &ArgMatches) {
