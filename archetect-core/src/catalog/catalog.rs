@@ -63,8 +63,8 @@ impl Catalog {
                     source,
                     answers: catalog_answers,
                     switches,
-                    defaults,
-                    default_unanswered,
+                    use_defaults,
+                    use_defaults_all,
                 } => {
                     let mut answers = render_context.answers_owned();
                     if let Some(catalog_answers) = catalog_answers {
@@ -74,19 +74,14 @@ impl Catalog {
                     }
                     let archetype = self.archetect.new_archetype(&source, false)?;
                     let destination = render_context.destination().to_path_buf();
-                    let mut render_context = RenderContext::new(destination, answers);
-                    if let Some(switches) = switches {
-                        render_context.set_switches(switches);
-                    }
-                    if let Some(defaults) = defaults {
-                        render_context.set_use_defaults(defaults);
-                    }
-                    if let Some(default_unanswered) = default_unanswered {
-                        render_context.set_use_defaults_all(default_unanswered);
-                    }
+                    let rc = RenderContext::new(destination, answers)
+                        .with_switches(switches.unwrap_or(render_context.switches().to_owned()))
+                        .with_use_defaults(use_defaults.unwrap_or(render_context.use_defaults().to_owned()))
+                        .with_use_defaults_all(use_defaults_all.unwrap_or(render_context.use_defaults_all()))
+                        ;
 
                     archetype.check_requirements(&self.archetect)?;
-                    let _result = archetype.render(render_context)?;
+                    let _result = archetype.render(rc)?;
                     return Ok(());
                 }
                 CatalogEntry::Group {

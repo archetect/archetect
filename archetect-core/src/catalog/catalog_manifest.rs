@@ -96,9 +96,9 @@ pub enum CatalogEntry {
         answers: Option<Map>,
         switches: Option<HashSet<String>>,
         #[serde(rename = "use_defaults")]
-        defaults: Option<HashSet<String>>,
+        use_defaults: Option<HashSet<String>>,
         #[serde(rename = "use_defaults_all")]
-        default_unanswered: Option<bool>,
+        use_defaults_all: Option<bool>,
     },
 }
 
@@ -115,8 +115,8 @@ impl CatalogEntry {
                 source: _,
                 answers: _,
                 switches: _,
-                defaults: _,
-                default_unanswered: _
+                use_defaults: _,
+                use_defaults_all: _
             } => description.as_str(),
         }
     }
@@ -140,8 +140,8 @@ impl CatalogEntry {
                 source,
                 answers: _,
                 switches: _,
-                defaults: _,
-                default_unanswered: _
+                use_defaults: _,
+                use_defaults_all: _
             } => {
                 let _ = archetect.new_archetype(source, true)?;
             }
@@ -203,8 +203,8 @@ mod tests {
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
             answers: None,
             switches: None,
-            defaults: None,
-            default_unanswered: None,
+            use_defaults: None,
+            use_defaults_all: None,
         }
     }
 
@@ -214,8 +214,8 @@ mod tests {
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
             answers: None,
             switches: None,
-            defaults: None,
-            default_unanswered: None,
+            use_defaults: None,
+            use_defaults_all: None,
         }
     }
 
@@ -227,8 +227,8 @@ mod tests {
                 source: "~/projects/python/python-service".to_owned(),
                 answers: None,
                 switches: None,
-                defaults: None,
-                default_unanswered: None,
+                use_defaults: None,
+                use_defaults_all: None,
             }],
         }
     }

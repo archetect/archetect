@@ -95,7 +95,7 @@ impl RenderContext {
     }
 
     pub fn with_use_defaults_all(mut self, value: bool) -> Self {
-        self.use_defaults_all = value;
+        self.set_use_defaults_all(value);
         self
     }
 

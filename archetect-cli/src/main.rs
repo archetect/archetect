@@ -5,12 +5,12 @@ use clap::ArgMatches;
 use rhai::{Dynamic, Map};
 
 use archetect_api::{CommandRequest, IoDriver};
-use archetect_core::{self};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError};
-use archetect_core::Archetect;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
+use archetect_core::Archetect;
+use archetect_core::{self};
 use archetect_terminal_io::TerminalIoDriver;
 use ArchetypeError::ScriptAbortError;
 
@@ -19,8 +19,8 @@ use crate::answers::parse_answer_pair;
 mod answers;
 mod cli;
 mod configuration;
-pub mod vendor;
 mod subcommands;
+pub mod vendor;
 
 fn main() {
     let matches = cli::command().get_matches();
@@ -113,58 +113,42 @@ fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), Arc
     Ok(())
 }
 
-fn default(
-    matches: &ArgMatches,
-    archetect: Archetect,
-    answers: Map,
-) -> Result<(), ArchetectError> {
+fn default(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     let catalog = archetect.catalog();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = RenderContext::new(destination, answers)
-        .with_switches(get_switches(matches, archetect.configuration()))
-        .with_use_defaults(get_defaults(matches))
-        ;
+    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
     catalog.render(render_context)?;
     Ok(())
 }
 
-fn catalog(
-    matches: &ArgMatches,
-    archetect: Archetect,
-    answers: Map,
-) -> Result<(), ArchetectError> {
+fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-
     let catalog = archetect.new_catalog(source, false)?;
     catalog.check_requirements()?;
-    let render_context = RenderContext::new(destination, answers)
-        .with_switches(get_switches(matches, archetect.configuration()))
-        .with_use_defaults_all(matches.get_flag("use-defaults-all"))
-        .with_use_defaults(get_defaults(matches))
-        ;
+    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
     catalog.render(render_context)?;
     Ok(())
 }
 
-pub fn render(
-    matches: &ArgMatches,
-    archetect: Archetect,
-    answers: Map,
-) -> Result<Dynamic, ArchetectError> {
+pub fn render(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<Dynamic, ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let archetype = archetect.new_archetype(source, false)?;
-
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-
     archetype.check_requirements(&archetect)?;
-    let render_context = RenderContext::new(destination, answers)
+    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+    Ok(archetype.render(render_context)?)
+}
+
+fn configure_render_context(
+    render_context: RenderContext,
+    archetect: &Archetect,
+    matches: &ArgMatches,
+) -> RenderContext {
+    render_context
         .with_switches(get_switches(matches, archetect.configuration()))
         .with_use_defaults_all(matches.get_flag("use-defaults-all"))
         .with_use_defaults(get_defaults(matches))
-        ;
-
-    Ok(archetype.render(render_context)?)
 }
 
 fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<String> {
@@ -183,9 +167,9 @@ fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<
 fn get_defaults(matches: &ArgMatches) -> HashSet<String> {
     let mut defaults = HashSet::new();
     if let Some(cli_defaults) = matches.get_many::<String>("use-defaults") {
-       for default in cli_defaults {
-           defaults.insert(default.to_string());
-       }
+        for default in cli_defaults {
+            defaults.insert(default.to_string());
+        }
     }
     defaults
 }
