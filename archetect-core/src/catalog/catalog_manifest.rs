@@ -1,12 +1,13 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
 use camino::Utf8PathBuf;
 use rhai::Map;
 
+use crate::Archetect;
 use crate::archetype::archetype_manifest::RuntimeRequirements;
 use crate::errors::{ArchetectError, CatalogError};
-use crate::Archetect;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
@@ -93,6 +94,11 @@ pub enum CatalogEntry {
         description: String,
         source: String,
         answers: Option<Map>,
+        switches: Option<HashSet<String>>,
+        #[serde(rename = "use_defaults")]
+        defaults: Option<HashSet<String>>,
+        #[serde(rename = "use_defaults_all")]
+        default_unanswered: Option<bool>,
     },
 }
 
@@ -108,13 +114,19 @@ impl CatalogEntry {
                 description,
                 source: _,
                 answers: _,
+                switches: _,
+                defaults: _,
+                default_unanswered: _
             } => description.as_str(),
         }
     }
 
     pub fn cache(&self, archetect: &Archetect) -> Result<(), ArchetectError> {
         match self {
-            CatalogEntry::Group { description: _, entries } => {
+            CatalogEntry::Group {
+                description: _,
+                entries,
+            } => {
                 for entry in entries {
                     entry.cache(archetect)?;
                 }
@@ -123,7 +135,14 @@ impl CatalogEntry {
                 let catalog = archetect.new_catalog(source, true)?;
                 catalog.cache(archetect)?;
             }
-            CatalogEntry::Archetype { description: _, source, answers: _ } => {
+            CatalogEntry::Archetype {
+                description: _,
+                source,
+                answers: _,
+                switches: _,
+                defaults: _,
+                default_unanswered: _
+            } => {
                 let _ = archetect.new_archetype(source, true)?;
             }
         }
@@ -183,6 +202,9 @@ mod tests {
             description: "Rust CLI".to_owned(),
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
             answers: None,
+            switches: None,
+            defaults: None,
+            default_unanswered: None,
         }
     }
 
@@ -191,6 +213,9 @@ mod tests {
             description: "Rust CLI Workspace".to_owned(),
             source: "~/projects/test_archetypes/rust-cie".to_owned(),
             answers: None,
+            switches: None,
+            defaults: None,
+            default_unanswered: None,
         }
     }
 
@@ -201,6 +226,9 @@ mod tests {
                 description: "Python Service".to_owned(),
                 source: "~/projects/python/python-service".to_owned(),
                 answers: None,
+                switches: None,
+                defaults: None,
+                default_unanswered: None,
             }],
         }
     }

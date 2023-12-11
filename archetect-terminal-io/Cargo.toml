@@ -1,14 +1,14 @@
 [package]
 name = "archetect-terminal-io"
-version = "2.0.0-ALPHA.6"
+version = "2.0.0-ALPHA.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
-archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.6", features = ["editor"] }
-archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.6" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.7" }
+archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.7", features = ["editor"] }
+archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.7" }
 
 log = { workspace = true }
 dyn-clone = "1"

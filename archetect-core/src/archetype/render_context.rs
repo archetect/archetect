@@ -6,8 +6,8 @@ use std::collections::HashSet;
 pub struct RenderContext {
     destination: Utf8PathBuf,
     answers: Map,
-    defaults: HashSet<String>,
-    defaults_all: bool,
+    use_defaults: HashSet<String>,
+    use_defaults_all: bool,
     switches: HashSet<String>,
     settings: Map,
 }
@@ -17,8 +17,8 @@ impl RenderContext {
         RenderContext {
             destination: destination.into(),
             answers,
-            defaults: Default::default(),
-            defaults_all: false,
+            use_defaults: Default::default(),
+            use_defaults_all: false,
             switches: Default::default(),
             settings: Default::default(),
         }
@@ -50,8 +50,12 @@ impl RenderContext {
     }
 
     pub fn with_switches(mut self, switches: HashSet<String>) -> Self {
-        self.switches = switches;
+        self.set_switches(switches);
         self
+    }
+
+    pub fn set_switches(&mut self, switches: HashSet<String>) {
+        self.switches = switches;
     }
 
     pub fn settings(&self) -> &Map {
@@ -68,27 +72,35 @@ impl RenderContext {
         self
     }
 
-    pub fn defaults(&self) -> &HashSet<String> {
-        &self.defaults
+    pub fn use_defaults(&self) -> &HashSet<String> {
+        &self.use_defaults
     }
 
-    pub fn with_default<D: Into<String>>(mut self, default: D) -> Self {
-        self.defaults.insert(default.into());
+    pub fn with_use_default<D: Into<String>>(mut self, default: D) -> Self {
+        self.use_defaults.insert(default.into());
         self
     }
     
-    pub fn with_defaults(mut self, defaults: HashSet<String>) -> Self {
-        self.defaults = defaults;
+    pub fn with_use_defaults(mut self, defaults: HashSet<String>) -> Self {
+        self.set_use_defaults(defaults);
         self
     }
 
-    pub fn defaults_all(&self) -> bool {
-        self.defaults_all
+    pub fn set_use_defaults(&mut self, use_defaults: HashSet<String>) {
+        self.use_defaults = use_defaults;
     }
 
-    pub fn with_defaults_all(mut self, value: bool) -> Self {
-        self.defaults_all = value;
+    pub fn use_defaults_all(&self) -> bool {
+        self.use_defaults_all
+    }
+
+    pub fn with_use_defaults_all(mut self, value: bool) -> Self {
+        self.use_defaults_all = value;
         self
+    }
+
+    pub fn set_use_defaults_all(&mut self, value: bool) {
+        self.use_defaults_all = value;
     }
 }
 

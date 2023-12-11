@@ -122,7 +122,7 @@ fn default(
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
     let render_context = RenderContext::new(destination, answers)
         .with_switches(get_switches(matches, archetect.configuration()))
-        .with_defaults(get_defaults(matches))
+        .with_use_defaults(get_defaults(matches))
         ;
     catalog.render(render_context)?;
     Ok(())
@@ -140,8 +140,8 @@ fn catalog(
     catalog.check_requirements()?;
     let render_context = RenderContext::new(destination, answers)
         .with_switches(get_switches(matches, archetect.configuration()))
-        .with_defaults_all(matches.get_flag("defaults-all"))
-        .with_defaults(get_defaults(matches))
+        .with_use_defaults_all(matches.get_flag("use-defaults-all"))
+        .with_use_defaults(get_defaults(matches))
         ;
     catalog.render(render_context)?;
     Ok(())
@@ -160,8 +160,8 @@ pub fn render(
     archetype.check_requirements(&archetect)?;
     let render_context = RenderContext::new(destination, answers)
         .with_switches(get_switches(matches, archetect.configuration()))
-        .with_defaults_all(matches.get_flag("defaults-all"))
-        .with_defaults(get_defaults(matches))
+        .with_use_defaults_all(matches.get_flag("use-defaults-all"))
+        .with_use_defaults(get_defaults(matches))
         ;
 
     Ok(archetype.render(render_context)?)
@@ -182,7 +182,7 @@ fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<
 
 fn get_defaults(matches: &ArgMatches) -> HashSet<String> {
     let mut defaults = HashSet::new();
-    if let Some(cli_defaults) = matches.get_many::<String>("defaults") {
+    if let Some(cli_defaults) = matches.get_many::<String>("use-defaults") {
        for default in cli_defaults {
            defaults.insert(default.to_string());
        }

@@ -5,7 +5,7 @@ homepage = "https://archetect.github.io"
 repository = "https://github.com/archetect/archetect"
 keywords = ["code-generation", "rhai", "jinja", "cli"]
 readme = "../README.md"
-version = "2.0.0-ALPHA.6"
+version = "2.0.0-ALPHA.7"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -16,10 +16,10 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.6" }
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
-archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.6" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.6" }
+archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.7" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.7" }
+archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.7" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.7" }
 
 ansi_term = "0.12"
 anyhow = "1.0.69"

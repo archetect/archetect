@@ -1,10 +1,9 @@
-use log::info;
 use rhai::{Dynamic, Engine, EvalAltResult, Map, Module};
 
+use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetypeError;
-use crate::Archetect;
 use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
@@ -55,7 +54,8 @@ impl ArchetypeFacade {
 
     pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
         let destination = self.render_context.destination().to_path_buf();
-        let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+        let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+        extract_render_context_settings(&mut render_context, &settings);
 
         let result = self.child
             .render(render_context)
@@ -91,12 +91,12 @@ impl ArchetypeFacade {
         answers: Map,
         settings: Map,
     ) -> Result<Dynamic, Box<EvalAltResult>> {
-        info!("render_with_destination_and_settings: {:?}", answers);
         let destination = self
             .render_context
             .destination()
             .join(restrict_path_manipulation(destination)?);
-        let render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+        let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+        extract_render_context_settings(&mut render_context, &settings);
         let result = self.child
             .render(render_context)
             .map_err(|err| {
@@ -107,6 +107,26 @@ impl ArchetypeFacade {
             })?;
 
         Ok(result)
+    }
+}
+
+fn extract_render_context_settings(render_context: &mut RenderContext, settings: &Map) {
+    if let Some(use_defaults_all) = settings.get("use_defaults_all") {
+        if use_defaults_all.is_bool() {
+            render_context.set_use_defaults_all(use_defaults_all.as_bool().expect("Pre-checked"));
+        }
+    }
+    if let Some(defaults) = settings.get("use_defaults") {
+        // TODO: return error on incorrect Array item type
+        if let Ok(use_defaults) = defaults.clone().into_typed_array::<String>() {
+            render_context.set_use_defaults(use_defaults.into_iter().collect());
+        }
+    }
+    if let Some(switches) = settings.get("switches") {
+        // TODO: return error on incorrect Array item type
+       if let Ok(switches) = switches.clone().into_typed_array::<String>() {
+           render_context.set_switches(switches.into_iter().collect());
+       }
     }
 }
 

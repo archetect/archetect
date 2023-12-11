@@ -42,7 +42,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     };
 
-    if archetect.is_headless() || render_context.defaults_all() || render_context.defaults().contains(prompt_info.key().unwrap_or("")) {
+    if archetect.is_headless() || render_context.use_defaults_all() || render_context.use_defaults().contains(prompt_info.key().unwrap_or("")) {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {

@@ -1,6 +1,6 @@
 [package]
 name = "archetect-core"
-version = "2.0.0-ALPHA.6"
+version = "2.0.0-ALPHA.7"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
 homepage = "https://archetect.github.io"
@@ -11,11 +11,11 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.6" }
-archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.6", features = ["editor"] }
-archetect-minijinja = { path = "../archetect-minijinja", version= "2.0.0-ALPHA.6", features = ["source", "urlencode", "json"] }
-archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.6" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.7" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.7" }
+archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.7", features = ["editor"] }
+archetect-minijinja = { path = "../archetect-minijinja", version= "2.0.0-ALPHA.7", features = ["source", "urlencode", "json"] }
+archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.7" }
 
 anyhow = "1.0.69"
 atty = "0.2"

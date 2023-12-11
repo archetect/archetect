@@ -6,8 +6,8 @@ use archetect_inquire::{InquireError, Select};
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{CatalogEntry, CatalogManifest};
 use crate::errors::{ArchetectError, CatalogError};
-use crate::Archetect;
 use crate::source::Source;
+use crate::Archetect;
 
 #[derive(Clone)]
 pub struct Catalog {
@@ -33,8 +33,6 @@ impl Catalog {
             inner: Rc::new(Inner { manifest }),
         }
     }
-
-
 
     pub fn check_requirements(&self) -> Result<(), CatalogError> {
         self.inner.manifest.requires().check_requirements(&self.archetect)?;
@@ -64,6 +62,9 @@ impl Catalog {
                     description: _,
                     source,
                     answers: catalog_answers,
+                    switches,
+                    defaults,
+                    default_unanswered,
                 } => {
                     let mut answers = render_context.answers_owned();
                     if let Some(catalog_answers) = catalog_answers {
@@ -73,7 +74,16 @@ impl Catalog {
                     }
                     let archetype = self.archetect.new_archetype(&source, false)?;
                     let destination = render_context.destination().to_path_buf();
-                    let render_context = RenderContext::new(destination, answers);
+                    let mut render_context = RenderContext::new(destination, answers);
+                    if let Some(switches) = switches {
+                        render_context.set_switches(switches);
+                    }
+                    if let Some(defaults) = defaults {
+                        render_context.set_use_defaults(defaults);
+                    }
+                    if let Some(default_unanswered) = default_unanswered {
+                        render_context.set_use_defaults_all(default_unanswered);
+                    }
 
                     archetype.check_requirements(&self.archetect)?;
                     let _result = archetype.render(render_context)?;
@@ -109,15 +119,8 @@ impl Catalog {
                     } => {
                         entry_items = entries;
                     }
-                    CatalogEntry::Catalog {
-                        description: _,
-                        source: _,
-                    } => return Ok(item.entry()),
-                    CatalogEntry::Archetype {
-                        description: _,
-                        source: _,
-                        answers: _,
-                    } => return Ok(item.entry()),
+                    CatalogEntry::Catalog { .. } => return Ok(item.entry()),
+                    CatalogEntry::Archetype { .. } => return Ok(item.entry()),
                 },
                 Err(err) => {
                     return match err {

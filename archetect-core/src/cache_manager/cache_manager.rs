@@ -1,10 +1,9 @@
-use std::fmt::{Display, Formatter};
 use archetect_inquire::{InquireError, Select};
+use std::fmt::{Display, Formatter};
 
 use crate::catalog::{Catalog, CatalogEntry, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::Archetect;
-
 
 pub struct CacheManager {
     archetect: Archetect,
@@ -12,9 +11,7 @@ pub struct CacheManager {
 
 impl CacheManager {
     pub fn new(archetect: Archetect) -> CacheManager {
-        Self {
-            archetect,
-        }
+        Self { archetect }
     }
     pub fn manage(&self, catalog: &Catalog) -> Result<(), ArchetectError> {
         let mut catalog = catalog.clone();
@@ -37,7 +34,7 @@ impl CacheManager {
                         }
                         ManagementOperation::Invalidate => {
                             // TODO: Implement
-                            break
+                            break;
                         }
                         ManagementOperation::Purge => {
                             // TODO: Implement
@@ -56,7 +53,6 @@ impl CacheManager {
 
         Ok(())
     }
-
 
     pub fn select_from_entries(&self, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
         if entry_items.is_empty() {
@@ -80,15 +76,8 @@ impl CacheManager {
                     } => {
                         entry_items = entries;
                     }
-                    CatalogEntry::Catalog {
-                        description: _,
-                        source: _,
-                    } => return Ok(item.entry()),
-                    CatalogEntry::Archetype {
-                        description: _,
-                        source: _,
-                        answers: _,
-                    } => return Ok(item.entry()),
+                    CatalogEntry::Catalog { .. } => return Ok(item.entry()),
+                    CatalogEntry::Archetype { .. } => return Ok(item.entry()),
                 },
                 Err(err) => {
                     return match err {
@@ -111,9 +100,7 @@ fn select_management_operations(catalog_entry: &CatalogEntry) -> Vec<ManagementO
         CatalogEntry::Group { .. } => {
             unreachable!()
         }
-        CatalogEntry::Catalog { .. } => {
-            operations.insert(0, ManagementOperation::View)
-        }
+        CatalogEntry::Catalog { .. } => operations.insert(0, ManagementOperation::View),
         CatalogEntry::Archetype { .. } => {}
     }
     operations
