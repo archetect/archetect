@@ -57,7 +57,7 @@ impl PromptInfoItemsRestrictions for MultiSelectPromptInfo {
     }
 
     fn set_min_items(&mut self, value: Option<usize>) {
-        self.max_items = value;
+        self.min_items = value;
     }
 
     fn max_items(&self) -> Option<usize> {

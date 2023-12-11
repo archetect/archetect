@@ -76,6 +76,7 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
 #[test]
 fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
+
     let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 

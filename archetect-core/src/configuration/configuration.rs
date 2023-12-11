@@ -1,6 +1,6 @@
 use git2;
 use linked_hash_map::LinkedHashMap;
-use rhai::Map;
+use rhai::{Dynamic, Identifier, Map};
 
 use crate::catalog::CatalogEntry;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
@@ -34,6 +34,11 @@ impl Configuration {
     pub fn offline(&self) -> bool {
         self.offline.unwrap_or_default()
     }
+
+    pub fn with_offline(mut self, value: bool) -> Self {
+        self.offline = Some(value);
+        self
+    }
     pub fn updates(&self) -> &ConfigurationUpdateSection {
         &self.updates
     }
@@ -46,6 +51,11 @@ impl Configuration {
         &self.answers
     }
 
+    pub fn with_answer<K: Into<Identifier>, V: Into<Dynamic>>(mut self, key: K, value: V) -> Self {
+        self.answers.insert(key.into(), value.into());
+        self
+    }
+
     pub fn catalogs(&self) -> &LinkedHashMap<String, Vec<CatalogEntry>> {
         &self.catalogs
     }
@@ -56,6 +66,11 @@ impl Configuration {
         } else {
             Default::default()
         }
+    }
+
+    pub fn with_switch<S: Into<String>>(mut self, switch: S) -> Self {
+        self.switches.get_or_insert_with(||Default::default()) .push(switch.into());
+        self
     }
 
     pub fn to_yaml(&self) -> String {

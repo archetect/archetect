@@ -9,6 +9,7 @@ members = [
   "archetect-terminal-io",
   "archetect-minijinja",
   "archetect-inquire",
+  "archetect-validations",
 ]
 
 [workspace.dependencies]

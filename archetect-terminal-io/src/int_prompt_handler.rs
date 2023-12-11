@@ -1,6 +1,6 @@
 use std::sync::mpsc::SyncSender;
 
-use archetect_api::validations::validate_int;
+use archetect_validations::validate_int_size;
 use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_inquire::validator::Validation;
 use archetect_inquire::Text;
@@ -42,7 +42,7 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
 fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
     match input.parse::<i64>() {
         Ok(value) => {
-            validate_int(min, max, value)
+            validate_int_size(min, max, value)
         },
         Err(_) => Err(format!("{} is not an 'int'", input)),
     }

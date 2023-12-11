@@ -1,7 +1,7 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
-use archetect_api::validations::validate_int;
+use archetect_validations::validate_int_size;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
@@ -39,7 +39,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
 
     if let Some(answer) = answer {
         return if let Some(answer) = answer.clone().try_cast::<i64>() {
-            match validate_int(prompt_info.min(), prompt_info.max(), answer) {
+            match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
                 Ok(_) => Ok(Some(answer)),
                 Err(error_message) => {
                     let error =
@@ -56,7 +56,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     archetect.request(CommandRequest::PromptForInt(prompt_info.clone()));
 
     match archetect.response() {
-        CommandResponse::Integer(answer) => match validate_int(prompt_info.min(), prompt_info.max(), answer) {
+        CommandResponse::Integer(answer) => match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
             Ok(_) => Ok(Some(answer)),
             Err(error_message) => {
                 let error =

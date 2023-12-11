@@ -15,6 +15,7 @@ archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.6" }
 archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.6" }
 archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.6", features = ["editor"] }
 archetect-minijinja = { path = "../archetect-minijinja", version= "2.0.0-ALPHA.6", features = ["source", "urlencode", "json"] }
+archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.6" }
 
 anyhow = "1.0.69"
 atty = "0.2"

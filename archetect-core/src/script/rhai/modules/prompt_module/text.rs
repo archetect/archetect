@@ -1,7 +1,7 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
 use archetect_api::{CommandRequest, CommandResponse, PromptInfo, PromptInfoLengthRestrictions, TextPromptInfo};
-use archetect_api::validations::validate_text;
+use archetect_validations::validate_text_length;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
@@ -29,7 +29,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     if let Some(answer) = answer {
         return if let Some(answer) = answer.clone().try_cast::<String>() {
-            match validate_text(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
+            match validate_text_length(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
                 Ok(_) => Ok(answer.into()),
                 Err(error_message) => {
                     let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), &prompt_info, error_message);
@@ -57,7 +57,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     match archetect.response() {
         CommandResponse::String(answer) => {
-            match validate_text(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
+            match validate_text_length(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
                 Ok(_) => Ok(answer.into()),
                 Err(error_message) => {
                     let error = ArchetypeScriptError::answer_validation_error(answer.to_string(), &prompt_info, error_message);

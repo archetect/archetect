@@ -1,7 +1,7 @@
 use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, PromptInfo, PromptInfoLengthRestrictions, EditorPromptInfo};
-use archetect_api::validations::{validate_text};
+use archetect_validations::{validate_text_length};
 use archetect_inquire::Editor;
 use archetect_inquire::validator::Validation;
 
@@ -18,7 +18,7 @@ pub fn handle_editor_prompt(prompt_info: EditorPromptInfo, responses: &SyncSende
     let min = prompt_info.min();
     let max = prompt_info.max();
     let validator = move |input: &str| {
-        match validate_text(min, max, input) {
+        match validate_text_length(min, max, input) {
             Ok(_) => Ok(Validation::Valid),
             Err(message) => Ok(Validation::Invalid(message.into())),
         }
