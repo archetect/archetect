@@ -120,7 +120,10 @@ fn default(
 ) -> Result<(), ArchetectError> {
     let catalog = archetect.catalog();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, archetect.configuration()))
+        .with_defaults(get_defaults(matches))
+        ;
     catalog.render(render_context)?;
     Ok(())
 }
@@ -135,7 +138,11 @@ fn catalog(
 
     let catalog = archetect.new_catalog(source, false)?;
     catalog.check_requirements()?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, archetect.configuration()))
+        .with_defaults_all(matches.get_flag("defaults-all"))
+        .with_defaults(get_defaults(matches))
+        ;
     catalog.render(render_context)?;
     Ok(())
 }
@@ -151,7 +158,12 @@ pub fn render(
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
 
     archetype.check_requirements(&archetect)?;
-    let render_context = RenderContext::new(destination, answers).with_switches(get_switches(matches, archetect.configuration()));
+    let render_context = RenderContext::new(destination, answers)
+        .with_switches(get_switches(matches, archetect.configuration()))
+        .with_defaults_all(matches.get_flag("defaults-all"))
+        .with_defaults(get_defaults(matches))
+        ;
+
     Ok(archetype.render(render_context)?)
 }
 
@@ -160,10 +172,20 @@ fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<
     for switch in configuration.switches() {
         switches.insert(switch.to_string());
     }
-    if let Some(answer_switches) = matches.get_many::<String>("switches") {
-        for switch in answer_switches {
+    if let Some(cli_switches) = matches.get_many::<String>("switches") {
+        for switch in cli_switches {
             switches.insert(switch.to_string());
         }
     }
     switches
+}
+
+fn get_defaults(matches: &ArgMatches) -> HashSet<String> {
+    let mut defaults = HashSet::new();
+    if let Some(cli_defaults) = matches.get_many::<String>("defaults") {
+       for default in cli_defaults {
+           defaults.insert(default.to_string());
+       }
+    }
+    defaults
 }

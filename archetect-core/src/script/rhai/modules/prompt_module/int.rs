@@ -5,12 +5,14 @@ use archetect_validations::validate_int_size;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
+use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
 
 pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     archetect: &Archetect,
+    render_context: &RenderContext,
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
@@ -27,16 +29,6 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     extract_prompt_length_restrictions(&mut prompt_info, settings)
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    if archetect.is_headless() {
-        if let Some(default) = prompt_info.default() {
-            return Ok(Some(default));
-        } else if prompt_info.optional() {
-            return Ok(None)
-        }
-        let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
     if let Some(answer) = answer {
         return if let Some(answer) = answer.clone().try_cast::<i64>() {
             match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
@@ -51,6 +43,19 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
             let error = ArchetypeScriptError::answer_type_error(answer.to_string(), &prompt_info, "an Integer");
             Err(ArchetypeScriptErrorWrapper(call, error).into())
         };
+    }
+
+    if archetect.is_headless() || render_context.defaults_all() || render_context.defaults().contains(prompt_info.key().unwrap_or("")) {
+        if let Some(default) = prompt_info.default() {
+            return Ok(Some(default));
+        } else if prompt_info.optional() {
+            return Ok(None)
+        }
+        if archetect.is_headless() {
+            let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        }
+
     }
 
     archetect.request(CommandRequest::PromptForInt(prompt_info.clone()));

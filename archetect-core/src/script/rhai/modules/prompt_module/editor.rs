@@ -5,6 +5,7 @@ use archetect_validations::validate_text_length;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
+use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
@@ -12,6 +13,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     message: &str,
     settings: &Map,
     archetect: &Archetect,
+    render_context: &RenderContext,
     key: Option<K>,
     answer: Option<&Dynamic>,
 ) -> Result<Option<String>, Box<EvalAltResult>> {
@@ -42,14 +44,17 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    if archetect.is_headless() {
+    if archetect.is_headless() || render_context.defaults_all() || render_context.defaults().contains(prompt_info.key().unwrap_or("")) {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
             return Ok(None);
         }
-        let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        if archetect.is_headless() {
+            let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        }
+
     }
 
     archetect.request(CommandRequest::PromptForEditor(prompt_info.clone()));

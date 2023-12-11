@@ -6,6 +6,8 @@ use std::collections::HashSet;
 pub struct RenderContext {
     destination: Utf8PathBuf,
     answers: Map,
+    defaults: HashSet<String>,
+    defaults_all: bool,
     switches: HashSet<String>,
     settings: Map,
 }
@@ -15,6 +17,8 @@ impl RenderContext {
         RenderContext {
             destination: destination.into(),
             answers,
+            defaults: Default::default(),
+            defaults_all: false,
             switches: Default::default(),
             settings: Default::default(),
         }
@@ -63,13 +67,30 @@ impl RenderContext {
         self.settings = settings;
         self
     }
-}
 
-// fn create_owned_map(input: &Map) -> Map {
-//     let mut results = Map::new();
-//     results.extend(input.clone());
-//     results
-// }
+    pub fn defaults(&self) -> &HashSet<String> {
+        &self.defaults
+    }
+
+    pub fn with_default<D: Into<String>>(mut self, default: D) -> Self {
+        self.defaults.insert(default.into());
+        self
+    }
+    
+    pub fn with_defaults(mut self, defaults: HashSet<String>) -> Self {
+        self.defaults = defaults;
+        self
+    }
+
+    pub fn defaults_all(&self) -> bool {
+        self.defaults_all
+    }
+
+    pub fn with_defaults_all(mut self, value: bool) -> Self {
+        self.defaults_all = value;
+        self
+    }
+}
 
 #[cfg(test)]
 mod tests {

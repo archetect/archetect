@@ -4,6 +4,7 @@ use archetect_api::{BoolPromptInfo, CommandRequest, CommandResponse, PromptInfo}
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
+use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info};
 
 // TODO: Better help messages
@@ -11,6 +12,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     archetect: &Archetect,
+    render_context: &RenderContext,
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
@@ -25,16 +27,6 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     extract_prompt_info(&mut prompt_info, settings)
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    if archetect.is_headless() {
-        if let Some(default) = prompt_info.default() {
-            return Ok(Some(default));
-        } else if prompt_info.optional() {
-            return Ok(None)
-        }
-        let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        return Err(ArchetypeScriptErrorWrapper(call, error).into());
-    }
-
     if let Some(answer) = answer {
         return match get_boolean(answer.to_string().as_str()) {
             Ok(value) => Ok(value.into()),
@@ -47,6 +39,18 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             }
         };
+    }
+
+    if archetect.is_headless() || render_context.defaults_all() || render_context.defaults().contains(prompt_info.key().unwrap_or("")){
+        if let Some(default) = prompt_info.default() {
+            return Ok(Some(default));
+        } else if prompt_info.optional() {
+            return Ok(None)
+        }
+        if archetect.is_headless() {
+            let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
+            return Err(ArchetypeScriptErrorWrapper(call, error).into());
+        }
     }
 
     archetect.request(CommandRequest::PromptForBool(prompt_info.clone()));

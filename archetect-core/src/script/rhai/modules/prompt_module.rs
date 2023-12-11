@@ -1,14 +1,14 @@
 use std::borrow::Cow;
 use std::str::FromStr;
 
-use rhai::{Dynamic, Engine, EvalAltResult, exported_module, Map};
-use rhai::plugin::*;
 use archetect_api::{PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRestrictions, PromptInfoPageable};
+use rhai::plugin::*;
+use rhai::{exported_module, Dynamic, Engine, EvalAltResult, Map};
 
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::script::rhai::modules::cases_module::{expand_key_value_cases, CaseStyle};
 use crate::Archetect;
-use crate::script::rhai::modules::cases_module::{CaseStyle, expand_key_value_cases};
 
 mod bool;
 mod editor;
@@ -73,29 +73,28 @@ fn prompt_to_map<'a, K: AsRef<str>>(
 
     return match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &archetect, Some(key), answer)?;
+            let value = text::prompt(call, message, &settings, &archetect, &render_context, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
                     results.insert(key.into(), value.clone().into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
                     Ok(results.into())
                 }
             }
-
         }
         PromptType::Bool => {
-            let value = bool::prompt(call, message, &archetect, &settings, Some(key), answer)?;
+            let value = bool::prompt(call, message, &archetect, &render_context, &settings, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
                     results.insert(key.into(), value.into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(value.into()));
@@ -104,13 +103,13 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::Int => {
-            let value = int::prompt_int(call, message, &archetect, &settings, Some(key), answer)?;
+            let value = int::prompt_int(call, message, &archetect, &render_context, &settings, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
                     results.insert(key.into(), value.into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(value.into()));
@@ -124,6 +123,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 message,
                 options,
                 &archetect,
+                &render_context,
                 &settings,
                 Some(key),
                 answer,
@@ -133,7 +133,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
                     results.insert(key.into(), value.clone().into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
@@ -142,24 +142,18 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(
-                call,
-                message,
-                options,
-                &archetect,
-                &settings,
-                Some(key),
-                answer,
-            )?;
+            let value = multiselect::prompt(call, message, options, &archetect,&render_context,  &settings, Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
-                    let dynamic_list = value.clone().into_iter()
-                        .map(|v|Dynamic::from(v))
+                    let dynamic_list = value
+                        .clone()
+                        .into_iter()
+                        .map(|v| Dynamic::from(v))
                         .collect::<Vec<Dynamic>>();
                     results.insert(key.into(), dynamic_list.into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::List(value));
@@ -168,13 +162,13 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(call, message, &settings, &archetect, Some(key), answer)?;
+            let value = editor::prompt(call, message, &settings, &archetect,&render_context,  Some(key), answer)?;
             match value {
                 None => {
                     results.insert(key.into(), Dynamic::UNIT);
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
-                },
+                }
                 Some(value) => {
                     results.insert(key.into(), value.clone().into());
                     expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::String(value));
@@ -182,23 +176,23 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                 }
             }
         }
-        PromptType::List => {
-            match list::prompt(call, message, &archetect, &settings, Some(key), answer)? {
-                None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
-                    Ok(results.into())
-                },
-                Some(list) => {
-                    let dynamic_list = list.clone().into_iter()
-                        .map(|v|Dynamic::from(v))
-                        .collect::<Vec<Dynamic>>();
-                    results.insert(key.into(), dynamic_list.into());
-                    expand_key_value_cases(&settings, &mut results, key, Caseable::List(list));
-                    Ok(results.into())
-                }
+        PromptType::List => match list::prompt(call, message, &archetect,&render_context,  &settings, Some(key), answer)? {
+            None => {
+                results.insert(key.into(), Dynamic::UNIT);
+                expand_key_value_cases(&settings, &mut results, key.as_ref(), Caseable::Opaque(Dynamic::UNIT));
+                Ok(results.into())
             }
-        }
+            Some(list) => {
+                let dynamic_list = list
+                    .clone()
+                    .into_iter()
+                    .map(|v| Dynamic::from(v))
+                    .collect::<Vec<Dynamic>>();
+                results.insert(key.into(), dynamic_list.into());
+                expand_key_value_cases(&settings, &mut results, key, Caseable::List(list));
+                Ok(results.into())
+            }
+        },
     };
 }
 
@@ -227,49 +221,57 @@ fn prompt_to_value(
 
     match prompt_type {
         PromptType::Text => {
-            let value = text::prompt(call, message, &settings, &archetect,  answer_key.as_ref(), answer)?;
+            let value = text::prompt(
+                call,
+                message,
+                &settings,
+                &archetect,
+                &render_context,
+                answer_key.as_ref(),
+                answer,
+            )?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::String(list), case)),
             }
         }
         PromptType::Bool => {
-            let value = bool::prompt(call, message, &archetect, &settings, answer_key, answer)?;
+            let value = bool::prompt(call, message, &archetect,&render_context,  &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
-                Some(value) => Ok(value.into())
+                Some(value) => Ok(value.into()),
             }
         }
         PromptType::Int => {
-            let value = int::prompt_int(call, message, &archetect, &settings, answer_key, answer)?;
+            let value = int::prompt_int(call, message, &archetect,&render_context,  &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
-                Some(value) => Ok(value.into())
+                Some(value) => Ok(value.into()),
             }
         }
         PromptType::Select(options) => {
-            let value = select::prompt(call, message, options, &archetect, &settings, answer_key, answer)?;
+            let value = select::prompt(call, message, options, &archetect,&render_context,  &settings, answer_key, answer)?;
             match value {
                 Some(value) => Ok(apply_case(Caseable::String(value), case)),
                 None => Ok(Dynamic::UNIT),
             }
         }
         PromptType::MultiSelect(options) => {
-            let value = multiselect::prompt(call, message, options, &archetect, &settings, answer_key, answer)?;
+            let value = multiselect::prompt(call, message, options, &archetect,&render_context,  &settings, answer_key, answer)?;
             match value {
                 Some(value) => Ok(apply_case(Caseable::List(value), case)),
                 None => Ok(Dynamic::UNIT),
             }
         }
         PromptType::Editor => {
-            let value = editor::prompt(call, message, &settings, &archetect,  answer_key, answer)?;
+            let value = editor::prompt(call, message, &settings, &archetect,&render_context,  answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::String(list), case)),
             }
         }
         PromptType::List => {
-            let value = list::prompt(call, message, &archetect, &settings, answer_key, answer)?;
+            let value = list::prompt(call, message, &archetect,&render_context,  &settings, answer_key, answer)?;
             match value {
                 None => Ok(Dynamic::UNIT),
                 Some(list) => Ok(apply_case(Caseable::List(list), case)),
@@ -283,19 +285,18 @@ fn apply_case(input: Caseable, case: Option<CaseStyle>) -> Dynamic {
         None => match input {
             Caseable::String(value) => Dynamic::from(value),
             Caseable::List(value) => {
-                let result = value.into_iter()
-                    .map(|v| Dynamic::from(v))
-                    .collect::<Vec<Dynamic>>();
+                let result = value.into_iter().map(|v| Dynamic::from(v)).collect::<Vec<Dynamic>>();
                 Dynamic::from(result)
-            },
+            }
             Caseable::Opaque(value) => value.clone_cast(),
         },
         Some(case) => match input.into() {
             Caseable::String(value) => Dynamic::from(case.to_case(&value)),
             Caseable::List(list) => {
-                let result = list.into_iter()
+                let result = list
+                    .into_iter()
                     .map(|v| case.to_case(&v))
-                    .map(|v|Dynamic::from(v))
+                    .map(|v| Dynamic::from(v))
                     .collect::<Vec<Dynamic>>();
                 Dynamic::from(result)
             }
@@ -323,7 +324,7 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
             } else {
                 Ok(Map::new())
             }
-        }
+        };
     }
     let answers = render_context.answers();
     let mut results = Map::new();
@@ -342,18 +343,18 @@ where
     K: AsRef<str>,
     T: RequirementDescription + FromStr + 'static,
 {
-    match settings.get(setting) {
-        None => return Ok(None),
+    return match settings.get(setting) {
+        None => Ok(None),
         Some(value) => {
             if let Ok(value) = value.to_string().parse::<T>() {
                 return Ok(Some(value));
             }
-            return Err(ArchetypeScriptError::invalid_setting(
+            Err(ArchetypeScriptError::invalid_setting(
                 prompt.as_ref(),
                 key.as_ref(),
                 setting,
                 T::get_requirement(),
-            ));
+            ))
         }
     }
 }
@@ -369,36 +370,42 @@ where
     K: AsRef<str>,
     T: RequirementDescription + 'static,
 {
-    match settings.get(setting) {
-        None => return Ok(None),
+    return match settings.get(setting) {
+        None => Ok(None),
         Some(value) => {
             if let Some(value) = value.clone().try_cast::<T>() {
                 return Ok(Some(value));
             }
-            return Err(ArchetypeScriptError::invalid_setting(
+            Err(ArchetypeScriptError::invalid_setting(
                 prompt.as_ref(),
                 key.as_ref(),
                 setting,
                 T::get_requirement(),
-            ));
+            ))
         }
     }
 }
 
 pub fn extract_prompt_info<T: PromptInfo>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
-    let optional = cast_setting("optional", settings, prompt_info.message(), prompt_info.key())?
-        .unwrap_or_default();
+    let optional = cast_setting("optional", settings, prompt_info.message(), prompt_info.key())?.unwrap_or_default();
     let placeholder = cast_setting("placeholder", settings, prompt_info.message(), prompt_info.key())?;
-    let help = cast_setting("help", settings, prompt_info.message(), prompt_info.key())?
-        .or_else(|| if optional { Some("<esc> for None".to_string()) } else { None })
-        ;
+    let help = cast_setting("help", settings, prompt_info.message(), prompt_info.key())?.or_else(|| {
+        if optional {
+            Some("<esc> for None".to_string())
+        } else {
+            None
+        }
+    });
     prompt_info.set_optional(optional);
     prompt_info.set_placeholder(placeholder);
     prompt_info.set_help(help);
     Ok(())
 }
 
-pub fn extract_prompt_length_restrictions<T: PromptInfoLengthRestrictions>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+pub fn extract_prompt_length_restrictions<T: PromptInfoLengthRestrictions>(
+    prompt_info: &mut T,
+    settings: &Map,
+) -> Result<(), ArchetypeScriptError> {
     let min = parse_setting("min", settings, prompt_info.message(), prompt_info.key())?;
     let max = parse_setting("max", settings, prompt_info.message(), prompt_info.key())?;
     // Don't overwrite defaults, if set
@@ -412,7 +419,10 @@ pub fn extract_prompt_length_restrictions<T: PromptInfoLengthRestrictions>(promp
     Ok(())
 }
 
-pub fn extract_prompt_items_restrictions<T: PromptInfoItemsRestrictions>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+pub fn extract_prompt_items_restrictions<T: PromptInfoItemsRestrictions>(
+    prompt_info: &mut T,
+    settings: &Map,
+) -> Result<(), ArchetypeScriptError> {
     let min_items = parse_setting("min_items", settings, prompt_info.message(), prompt_info.key())?;
     let max_items = parse_setting("max_items", settings, prompt_info.message(), prompt_info.key())?;
     // Don't overwrite defaults, if set
@@ -426,7 +436,10 @@ pub fn extract_prompt_items_restrictions<T: PromptInfoItemsRestrictions>(prompt_
     Ok(())
 }
 
-pub fn extract_prompt_info_pageable<T: PromptInfoPageable>(prompt_info: &mut T, settings: &Map) -> Result<(), ArchetypeScriptError> {
+pub fn extract_prompt_info_pageable<T: PromptInfoPageable>(
+    prompt_info: &mut T,
+    settings: &Map,
+) -> Result<(), ArchetypeScriptError> {
     let page_size = parse_setting("page_size", settings, prompt_info.message(), prompt_info.key())?;
     // Don't overwrite defaults, if set
     if page_size.is_some() {

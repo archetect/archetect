@@ -4,12 +4,14 @@ use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo, PromptInfo}
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
+use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{extract_prompt_info, extract_prompt_items_restrictions};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
     archetect: &Archetect,
+    render_context: &RenderContext,
     settings: &Map,
     key: Option<K>,
     answer: Option<&Dynamic>,
@@ -50,7 +52,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    if archetect.is_headless() {
+    if archetect.is_headless() || render_context.defaults_all() || render_context.defaults().contains(prompt_info.key().unwrap_or("")) {
         if let Some(default) = prompt_info.defaults() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
@@ -59,8 +61,6 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
             // TODO: Validate empty list
             return Ok(vec![].into())
         }
-        // let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
-        // return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
     archetect.request(CommandRequest::PromptForList(prompt_info.clone()));
