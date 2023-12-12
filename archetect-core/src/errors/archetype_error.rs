@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use camino::Utf8PathBuf;
 
-use crate::errors::RequirementsError;
+use crate::errors::{RequirementsError, SourceError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetypeError {
@@ -23,6 +23,8 @@ pub enum ArchetypeError {
         path: Utf8PathBuf,
         source: serde_yaml::Error,
     },
+    #[error(transparent)]
+    SourceError(#[from] SourceError),
     #[error("Operation was interrupted")]
     OperationInterrupted,
     #[error("Value is required")]

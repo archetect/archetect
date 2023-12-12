@@ -5,20 +5,69 @@ use std::sync::{Mutex, OnceLock};
 use camino::{Utf8Path, Utf8PathBuf};
 use chrono::TimeZone;
 use git2::Repository;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use regex::Regex;
 use url::Url;
 
-use crate::errors::SourceError;
 use crate::Archetect;
+use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
+
+pub struct Source {
+    archetect: Archetect,
+    source_type: SourceType,
+}
+
+impl Source {
+    pub fn new(archetect: Archetect, path: &str, force_pull: bool) -> Result<Self, SourceError> {
+        let source_type = SourceType::create(&archetect, path, force_pull)?;
+        Ok(Source {
+            archetect,
+            source_type,
+        })
+    }
+
+    pub fn directory(&self) -> Result<Utf8PathBuf, SourceError> {
+        if self.archetect.configuration().locals().enabled() {
+            match &self.source_type {
+                SourceType::RemoteGit { url: _, path: _, directory_name, gitref: _ } => {
+                    if let Some(directory_name) = directory_name {
+                        for local_root in self.archetect.configuration().locals().paths() {
+                            match shellexpand::full(local_root.as_str()) {
+                                Ok(expanded_root) => {
+                                    let local_directory = Utf8PathBuf::from(expanded_root.as_ref());
+                                    let local_directory = local_directory.join(directory_name);
+                                    if local_directory.is_dir() {
+                                        warn!("Using local: {}", local_directory);
+                                        return Ok(local_directory);
+                                    }
+                                }
+                                Err(err) => {
+                                    warn!("Local Path in archetect.yaml is invalid: {}", err);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {},
+            }
+        }
+
+        Ok(self.source_type.directory().to_path_buf())
+    }
+
+    pub fn source_type(&self) -> &SourceType {
+        &self.source_type
+    }
+}
 
 //noinspection SpellCheckingInspection
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
-pub enum Source {
+pub enum SourceType {
     RemoteGit {
         url: String,
         path: Utf8PathBuf,
+        directory_name: Option<String>,
         gitref: Option<String>,
     },
     LocalDirectory {
@@ -39,8 +88,8 @@ fn cached_paths() -> &'static Mutex<HashSet<String>> {
     CACHED_PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-impl Source {
-    pub fn create(archetect: &Archetect, path: &str, force_pull: bool) -> Result<Source, SourceError> {
+impl SourceType {
+    pub fn create(archetect: &Archetect, path: &str, force_pull: bool) -> Result<SourceType, SourceError> {
         let cache_dir = archetect.layout().cache_dir();
 
         let url_parts: Vec<&str> = path.split('#').collect();
@@ -49,15 +98,19 @@ impl Source {
                 .clone()
                 .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
 
+            let repo_path = Utf8PathBuf::from(&captures[2]);
+            let directory_name = repo_path.file_stem().map(|stem|stem.to_string());
+
             let gitref = if url_parts.len() > 1 {
                 Some(url_parts[1].to_owned())
             } else {
                 None
             };
             cache_git_repo(&archetect, url_parts[0], &gitref, &cache_path, force_pull)?;
-            return Ok(Source::RemoteGit {
+            return Ok(SourceType::RemoteGit {
                 url: path.to_owned(),
                 path: cache_path,
+                directory_name,
                 gitref,
             });
         };
@@ -68,11 +121,14 @@ impl Source {
                     cache_dir
                         .clone()
                         .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
+                let directory_name = Utf8PathBuf::from(url.path()).file_stem().map(|stem|stem.to_string());
+
                 let gitref = url.fragment().map(|r| r.to_owned());
                 cache_git_repo(&archetect, url_parts[0], &gitref, &cache_path, force_pull)?;
-                return Ok(Source::RemoteGit {
+                return Ok(SourceType::RemoteGit {
                     url: path.to_owned(),
                     path: cache_path,
+                    directory_name,
                     gitref,
                 });
             }
@@ -80,7 +136,7 @@ impl Source {
             if let Ok(local_path) = url.to_file_path() {
                 let local_path = to_utf8_path_buf(local_path);
                 return if local_path.exists() {
-                    Ok(Source::LocalDirectory { path: local_path })
+                    Ok(SourceType::LocalDirectory { path: local_path })
                 } else {
                     Err(SourceError::SourceNotFound(local_path.to_string()))
                 };
@@ -91,9 +147,9 @@ impl Source {
             let local_path = Utf8PathBuf::from(path.as_ref());
             if local_path.exists() {
                 if local_path.is_dir() {
-                    Ok(Source::LocalDirectory { path: local_path })
+                    Ok(SourceType::LocalDirectory { path: local_path })
                 } else {
-                    Ok(Source::LocalFile { path: local_path })
+                    Ok(SourceType::LocalFile { path: local_path })
                 }
             } else {
                 Err(SourceError::SourceNotFound(local_path.to_string()))
@@ -105,37 +161,40 @@ impl Source {
 
     pub fn directory(&self) -> &Utf8Path {
         match self {
-            Source::RemoteGit {
+            SourceType::RemoteGit {
                 url: _,
                 path,
+                directory_name: _,
                 gitref: _,
             } => path.as_path(),
-            Source::LocalDirectory { path } => path.as_path(),
-            Source::LocalFile { path } => path.parent().unwrap_or(path),
+            SourceType::LocalDirectory { path } => path.as_path(),
+            SourceType::LocalFile { path } => path.parent().unwrap_or(path),
         }
     }
 
     pub fn local_path(&self) -> &Utf8Path {
         match self {
-            Source::RemoteGit {
+            SourceType::RemoteGit {
                 url: _,
                 path,
+                directory_name: _,
                 gitref: _,
             } => path.as_path(),
-            Source::LocalDirectory { path } => path.as_path(),
-            Source::LocalFile { path } => path.as_path(),
+            SourceType::LocalDirectory { path } => path.as_path(),
+            SourceType::LocalFile { path } => path.as_path(),
         }
     }
 
     pub fn source(&self) -> &str {
         match self {
-            Source::RemoteGit {
+            SourceType::RemoteGit {
                 url,
                 path: _,
+                directory_name: _,
                 gitref: _,
             } => url,
-            Source::LocalDirectory { path } => path.as_str(),
-            Source::LocalFile { path } => path.as_str(),
+            SourceType::LocalDirectory { path } => path.as_str(),
+            SourceType::LocalFile { path } => path.as_str(),
         }
     }
 }
@@ -353,11 +412,11 @@ mod tests {
     //
 
     #[test]
-    fn test_short_git_pattern() {
+    fn test_ssh_git_pattern() {
         let captures = ssh_git_pattern()
-            .captures("git@github.com:jimmiebfulton/archetect.git")
+            .captures("git@github.com:archetect/archetect.git")
             .unwrap();
         assert_eq!(&captures[1], "github.com");
-        assert_eq!(&captures[2], "jimmiebfulton/archetect.git");
+        assert_eq!(&captures[2], "archetect/archetect.git");
     }
 }

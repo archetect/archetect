@@ -12,11 +12,11 @@ use archetect_api::CommandRequest;
 use archetect_inquire::Confirm;
 use archetect_minijinja::Environment;
 
+use crate::Archetect;
 use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::{ArchetypeError, RenderError};
-use crate::Archetect;
 use crate::script::create_environment;
 use crate::script::rhai::create_engine;
 use crate::source::Source;
@@ -32,8 +32,8 @@ pub(crate) struct Inner {
 }
 
 impl Archetype {
-    pub fn new(archetect: Archetect, source: &Source) -> Result<Archetype, ArchetypeError> {
-        let directory = ArchetypeDirectory::new(source.clone())?;
+    pub fn new(archetect: Archetect, source: Source) -> Result<Archetype, ArchetypeError> {
+        let directory = ArchetypeDirectory::new(source.directory()?)?;
         let inner = Arc::new(Inner { directory });
         let archetype = Archetype { archetect, inner };
 

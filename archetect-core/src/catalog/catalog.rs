@@ -3,11 +3,11 @@ use std::rc::Rc;
 
 use archetect_inquire::{InquireError, Select};
 
+use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{CatalogEntry, CatalogManifest};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::Source;
-use crate::Archetect;
 
 #[derive(Clone)]
 pub struct Catalog {
@@ -20,8 +20,8 @@ pub(crate) struct Inner {
 }
 
 impl Catalog {
-    pub fn load(archetect: Archetect, source: &Source) -> Result<Catalog, CatalogError> {
-        let manifest = CatalogManifest::load(source.local_path())?;
+    pub fn load(archetect: Archetect, source: Source) -> Result<Catalog, CatalogError> {
+        let manifest = CatalogManifest::load(source.directory()?)?;
         let inner = Rc::new(Inner { manifest });
         let catalog = Catalog { archetect, inner };
         Ok(catalog)

@@ -2,7 +2,6 @@ use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::errors::ArchetypeError;
-use crate::source::Source;
 
 #[derive(Clone, Debug)]
 pub struct ArchetypeDirectory {
@@ -11,10 +10,8 @@ pub struct ArchetypeDirectory {
 }
 
 impl ArchetypeDirectory {
-    pub fn new(source: Source) -> Result<ArchetypeDirectory, ArchetypeError> {
-        let root = source.local_path().to_owned();
+    pub fn new(root: Utf8PathBuf) -> Result<ArchetypeDirectory, ArchetypeError> {
         let manifest = ArchetypeManifest::load(&root)?;
-
         Ok(ArchetypeDirectory { manifest, root })
     }
 
