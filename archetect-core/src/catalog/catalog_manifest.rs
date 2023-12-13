@@ -5,9 +5,10 @@ use std::path::Path;
 use camino::Utf8PathBuf;
 use rhai::Map;
 
-use crate::Archetect;
+use crate::{Archetect, CacheCommand};
 use crate::archetype::archetype_manifest::RuntimeRequirements;
 use crate::errors::{ArchetectError, CatalogError};
+use crate::source::SourceCommand;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
@@ -116,24 +117,41 @@ impl CatalogEntry {
                 answers: _,
                 switches: _,
                 use_defaults: _,
-                use_defaults_all: _
+                use_defaults_all: _,
             } => description.as_str(),
         }
     }
 
-    pub fn cache(&self, archetect: &Archetect) -> Result<(), ArchetectError> {
+    pub fn execute_cache_command(&self, archetect: &Archetect, command: CacheCommand) -> Result<(), ArchetectError> {
         match self {
             CatalogEntry::Group {
                 description: _,
                 entries,
             } => {
                 for entry in entries {
-                    entry.cache(archetect)?;
+                    entry.execute_cache_command(archetect, command)?;
                 }
             }
-            CatalogEntry::Catalog { description: _, source } => {
-                let catalog = archetect.new_catalog(source, true)?;
-                catalog.cache(archetect)?;
+            CatalogEntry::Catalog { source, .. } => {
+                let catalog = archetect.new_catalog(source)?;
+                match command {
+                    CacheCommand::Pull | CacheCommand::PullAll => {
+                        if let Some(source) = catalog.source() {
+                            source.execute(SourceCommand::Pull)?;
+                        }
+                        if let CacheCommand::PullAll = command {
+                            for entry in catalog.entries() {
+                                entry.execute_cache_command(archetect, command)?;
+                            }
+                        }
+                    }
+                    CacheCommand::Invalidate => {
+                        if let Some(source) = catalog.source() {
+                            source.execute(SourceCommand::Invalidate)?;
+                        }
+                    }
+                    CacheCommand::View => unreachable!(),
+                }
             }
             CatalogEntry::Archetype {
                 description: _,
@@ -141,9 +159,18 @@ impl CatalogEntry {
                 answers: _,
                 switches: _,
                 use_defaults: _,
-                use_defaults_all: _
+                use_defaults_all: _,
             } => {
-                let _ = archetect.new_archetype(source, true)?;
+                let source = archetect.new_source(source)?;
+                match command {
+                    CacheCommand::Pull | CacheCommand::PullAll  => {
+                        source.execute(SourceCommand::Pull)?;
+                    }
+                    CacheCommand::Invalidate => {
+                        source.execute(SourceCommand::Invalidate)?;
+                    }
+                    CacheCommand::View => unreachable!(),
+                }
             }
         }
 

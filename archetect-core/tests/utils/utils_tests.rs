@@ -14,7 +14,7 @@ fn test_utils() -> Result<(), ArchetectError> {
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = archetect.new_archetype("tests/utils/utils_tests", false)?;
+    let archetype = archetect.new_archetype("tests/utils/utils_tests")?;
 
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default());
@@ -82,7 +82,7 @@ fn test_switches() -> Result<(), ArchetectError> {
         .with_driver(driver)
         .with_temp_layout()?
         .build()?;
-    let archetype = archetect.new_archetype("tests/utils/switches", false)?;
+    let archetype = archetect.new_archetype("tests/utils/switches")?;
 
     std::thread::spawn(move || {
         let render_context = RenderContext::new(Utf8PathBuf::new(), Default::default()).with_switch("build");

@@ -1,6 +1,6 @@
 use std::sync::mpsc::SyncSender;
 
-use archetect_inquire::Confirm;
+use archetect_inquire::{Confirm, InquireError};
 
 use archetect_api::{BoolPromptInfo, CommandResponse, ValueSource};
 
@@ -33,9 +33,17 @@ pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &SyncSender<Co
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                   responses.send(CommandResponse::Abort)
+                       .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

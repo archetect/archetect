@@ -3,7 +3,7 @@ use std::sync::mpsc::SyncSender;
 use archetect_validations::validate_int_size;
 use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_inquire::validator::Validation;
-use archetect_inquire::Text;
+use archetect_inquire::{InquireError, Text};
 
 use crate::get_render_config;
 
@@ -32,9 +32,17 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                    responses.send(CommandResponse::Abort)
+                        .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

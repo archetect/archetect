@@ -1,7 +1,7 @@
 use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
-use archetect_inquire::MultiSelect;
+use archetect_inquire::{InquireError, MultiSelect};
 
 use crate::get_render_config;
 
@@ -42,9 +42,17 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                    responses.send(CommandResponse::Abort)
+                        .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

@@ -123,20 +123,20 @@ impl Archetect {
             .expect("Receive Error")
     }
 
-    pub fn new_archetype(&self, path: &str, force_pull: bool) -> Result<Archetype, ArchetectError> {
-        let source = self.new_source(path, force_pull)?;
+    pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {
+        let source = self.new_source(path)?;
         let archetype = Archetype::new(self.clone(), source)?;
         Ok(archetype)
     }
 
-    pub fn new_catalog(&self, path: &str, force_pull: bool) -> Result<Catalog, ArchetectError> {
-        let source = self.new_source(path, force_pull)?;
+    pub fn new_catalog(&self, path: &str) -> Result<Catalog, ArchetectError> {
+        let source = self.new_source(path)?;
         let catalog = Catalog::load(self.clone(), source)?;
         Ok(catalog)
     }
 
-    pub fn new_source(&self, path: &str, force_pull: bool) -> Result<Source, ArchetectError> {
-        let source = Source::new(self.clone(), path, force_pull)?;
+    pub fn new_source(&self, path: &str) -> Result<Source, ArchetectError> {
+        let source = Source::new(self.clone(), path)?;
         Ok(source)
     }
 

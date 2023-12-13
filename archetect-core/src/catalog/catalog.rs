@@ -16,13 +16,14 @@ pub struct Catalog {
 }
 
 pub(crate) struct Inner {
+    source: Option<Source>,
     manifest: CatalogManifest,
 }
 
 impl Catalog {
     pub fn load(archetect: Archetect, source: Source) -> Result<Catalog, CatalogError> {
-        let manifest = CatalogManifest::load(source.directory()?)?;
-        let inner = Rc::new(Inner { manifest });
+        let manifest = CatalogManifest::load(source.path()?)?;
+        let inner = Rc::new(Inner { source: Some(source), manifest });
         let catalog = Catalog { archetect, inner };
         Ok(catalog)
     }
@@ -30,8 +31,12 @@ impl Catalog {
     pub fn new(archetect: Archetect, manifest: CatalogManifest) -> Self {
         Catalog {
             archetect,
-            inner: Rc::new(Inner { manifest }),
+            inner: Rc::new(Inner { source: None, manifest }),
         }
+    }
+
+    pub fn source(&self) -> &Option<Source> {
+        &self.inner.source
     }
 
     pub fn check_requirements(&self) -> Result<(), CatalogError> {
@@ -56,7 +61,7 @@ impl Catalog {
 
             match choice {
                 CatalogEntry::Catalog { description: _, source } => {
-                    catalog = self.archetect.new_catalog(&source, false)?;
+                    catalog = self.archetect.new_catalog(&source)?;
                 }
                 CatalogEntry::Archetype {
                     description: _,
@@ -72,7 +77,7 @@ impl Catalog {
                             answers.entry(k).or_insert(v);
                         }
                     }
-                    let archetype = self.archetect.new_archetype(&source, false)?;
+                    let archetype = self.archetect.new_archetype(&source)?;
                     let destination = render_context.destination().to_path_buf();
                     let rc = RenderContext::new(destination, answers)
                         .with_switches(switches.unwrap_or(render_context.switches().to_owned()))
@@ -126,14 +131,6 @@ impl Catalog {
                 }
             }
         }
-    }
-
-    pub fn cache(&self, archetect: &Archetect) -> Result<(), ArchetectError> {
-        for entry in self.inner.manifest.entries() {
-            entry.cache(archetect)?;
-        }
-
-        Ok(())
     }
 }
 

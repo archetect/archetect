@@ -28,16 +28,21 @@ pub struct Archetype {
 }
 
 pub(crate) struct Inner {
+    source: Option<Source>,
     pub directory: ArchetypeDirectory,
 }
 
 impl Archetype {
     pub fn new(archetect: Archetect, source: Source) -> Result<Archetype, ArchetypeError> {
-        let directory = ArchetypeDirectory::new(source.directory()?)?;
-        let inner = Arc::new(Inner { directory });
+        let directory = ArchetypeDirectory::new(source.path()?)?;
+        let inner = Arc::new(Inner { directory, source: Some(source) });
         let archetype = Archetype { archetect, inner };
 
         Ok(archetype)
+    }
+
+    pub fn source(&self) -> &Option<Source> {
+        &self.inner.source
     }
 
     pub fn directory(&self) -> &ArchetypeDirectory {

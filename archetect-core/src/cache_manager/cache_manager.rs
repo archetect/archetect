@@ -13,6 +13,7 @@ impl CacheManager {
     pub fn new(archetect: Archetect) -> CacheManager {
         Self { archetect }
     }
+
     pub fn manage(&self, catalog: &Catalog) -> Result<(), ArchetectError> {
         let mut catalog = catalog.clone();
 
@@ -28,26 +29,22 @@ impl CacheManager {
             match Select::new("Operation:", operations).prompt() {
                 Ok(operation) => {
                     match operation {
-                        ManagementOperation::Pull => {
-                            choice.cache(&self.archetect)?;
-                            break;
-                        }
-                        ManagementOperation::Invalidate => {
-                            // TODO: Implement
-                            break;
-                        }
-                        ManagementOperation::Purge => {
-                            // TODO: Implement
-                        }
-                        ManagementOperation::View => {
+                        CacheCommand::View => {
                             if let CatalogEntry::Catalog { description: _, source } = choice {
-                                catalog = self.archetect.new_catalog(&source, false)?;
+                                catalog = self.archetect.new_catalog(&source)?;
                                 continue;
                             }
                         }
+                        _ => {
+                            choice.execute_cache_command(&self.archetect, operation)?;
+                            break;
+                        },
                     }
                 }
-                Err(_) => {}
+                Err(_) => {
+                    break;
+                }
+
             }
         }
 
@@ -91,16 +88,18 @@ impl CacheManager {
     }
 }
 
-fn select_management_operations(catalog_entry: &CatalogEntry) -> Vec<ManagementOperation> {
+fn select_management_operations(catalog_entry: &CatalogEntry) -> Vec<CacheCommand> {
     let mut operations = vec![];
-    operations.push(ManagementOperation::Pull);
-    // operations.push(ManagementOperation::Invalidate);
-    // operations.push(ManagementOperation::Purge);
+    operations.push(CacheCommand::Pull);
+    operations.push(CacheCommand::Invalidate);
     match catalog_entry {
         CatalogEntry::Group { .. } => {
             unreachable!()
         }
-        CatalogEntry::Catalog { .. } => operations.insert(0, ManagementOperation::View),
+        CatalogEntry::Catalog { .. } => {
+            operations.insert(0, CacheCommand::View);
+            operations.insert(2, CacheCommand::PullAll);
+        },
         CatalogEntry::Archetype { .. } => {}
     }
     operations
@@ -130,29 +129,28 @@ fn item_icon(entry: &CatalogEntry) -> &'static str {
     }
 }
 
-enum ManagementOperation {
+#[derive(Copy, Clone)]
+pub enum CacheCommand {
     Pull,
-    #[allow(dead_code)]
+    PullAll,
     Invalidate,
-    #[allow(dead_code)]
-    Purge,
     View,
 }
 
-impl Display for ManagementOperation {
+impl Display for CacheCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ManagementOperation::Pull => {
+            CacheCommand::View => {
+                write!(f, "View Entries")
+            }
+            CacheCommand::Pull => {
                 write!(f, "Pull")
             }
-            ManagementOperation::Invalidate => {
+            CacheCommand::PullAll => {
+                write!(f, "Pull All")
+            }
+            CacheCommand::Invalidate => {
                 write!(f, "Invalidate")
-            }
-            ManagementOperation::Purge => {
-                write!(f, "Purge")
-            }
-            ManagementOperation::View => {
-                write!(f, "View Entries")
             }
         }
     }

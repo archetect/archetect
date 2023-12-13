@@ -41,7 +41,7 @@ impl TestHarness {
             .with_temp_layout()?
             .build()?;
 
-        let archetype = archetect.new_archetype(archetype_dir.as_str(), false)?;
+        let archetype = archetect.new_archetype(archetype_dir.as_str())?;
         let (status_tx, status_rx) = mpsc::sync_channel(1);
         std::thread::spawn(move || match archetype.render(render_context) {
             Ok(_) => {

@@ -3,7 +3,7 @@ use std::sync::mpsc::SyncSender;
 use log::warn;
 
 use archetect_api::{CommandResponse, PromptInfo, PromptInfoPageable, SelectPromptInfo};
-use archetect_inquire::Select;
+use archetect_inquire::{InquireError, Select};
 
 use crate::get_render_config;
 
@@ -42,9 +42,17 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &SyncSende
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                    responses.send(CommandResponse::Abort)
+                        .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ use rhai::{Dynamic, Map};
 use archetect_api::{CommandRequest, IoDriver};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
-use archetect_core::errors::{ArchetectError, ArchetypeError};
+use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError};
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
 use archetect_core::Archetect;
 use archetect_core::{self};
@@ -35,6 +35,7 @@ fn main() {
             match error {
                 // Handled when the Rhai script ends by the IO Driver
                 ArchetectError::ArchetypeError(ScriptAbortError) => {}
+                ArchetectError::CatalogError(CatalogError::SelectionCancelled) => {}
                 _ => {
                     driver.send(CommandRequest::LogError(format!("{}", error)));
                 }
@@ -124,7 +125,7 @@ fn default(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(
 fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let catalog = archetect.new_catalog(source, false)?;
+    let catalog = archetect.new_catalog(source)?;
     catalog.check_requirements()?;
     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
     catalog.render(render_context)?;
@@ -133,7 +134,7 @@ fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(
 
 pub fn render(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<Dynamic, ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
-    let archetype = archetect.new_archetype(source, false)?;
+    let archetype = archetect.new_archetype(source)?;
     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
     archetype.check_requirements(&archetect)?;
     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);

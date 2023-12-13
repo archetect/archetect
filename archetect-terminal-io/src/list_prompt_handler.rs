@@ -3,7 +3,7 @@ use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, ListPromptInfo, PromptInfo, PromptInfoItemsRestrictions};
 use archetect_inquire::validator::Validation;
-use archetect_inquire::List;
+use archetect_inquire::{InquireError, List};
 
 use crate::get_render_config;
 
@@ -36,9 +36,17 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &SyncSender<Co
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                    responses.send(CommandResponse::Abort)
+                        .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

@@ -2,7 +2,7 @@ use std::sync::mpsc::SyncSender;
 
 use archetect_api::{CommandResponse, PromptInfo, PromptInfoLengthRestrictions, TextPromptInfo};
 use archetect_validations::validate_text_length;
-use archetect_inquire::Text;
+use archetect_inquire::{InquireError, Text};
 use archetect_inquire::validator::Validation;
 
 use crate::get_render_config;
@@ -34,9 +34,17 @@ pub fn handle_prompt_text(prompt_info: TextPromptInfo, responses: &SyncSender<Co
             }
         }
         Err(error) => {
-            responses
-                .send(CommandResponse::Error(error.to_string()))
-                .expect("Channel Send Error");
+            match error {
+                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                    responses.send(CommandResponse::Abort)
+                        .expect("Channel Send Error");
+                }
+                _ => {
+                    responses
+                        .send(CommandResponse::Error(error.to_string()))
+                        .expect("Channel Send Error");
+                }
+            }
         }
     }
 }

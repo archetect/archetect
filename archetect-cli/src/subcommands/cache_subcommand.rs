@@ -2,7 +2,7 @@ use std::fs;
 
 use clap::ArgMatches;
 use log::error;
-use archetect_core::CacheManager;
+use archetect_core::{CacheCommand, CacheManager};
 
 use archetect_core::errors::ArchetectError;
 use archetect_core::Archetect;
@@ -19,7 +19,9 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
             cache_manager.manage(&archetect.catalog())?;
         }
         Some(("pull", _args)) => {
-            archetect.catalog().cache(&archetect)?;
+            for entry in archetect.catalog().entries() {
+                entry.execute_cache_command(&archetect, CacheCommand::PullAll)?;
+            }
         }
         Some(("clear", _args)) => {
             let prompt = Confirm::new("Are you sure you want to remove all cached Archetypes and Catalogs?")

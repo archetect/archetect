@@ -62,4 +62,5 @@ pub enum CommandResponse {
     Array(Vec<String>),
     None,
     Error(String),
+    Abort,
 }
