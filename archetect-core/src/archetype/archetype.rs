@@ -6,7 +6,7 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use log::{debug, trace};
-use rhai::{Dynamic, Map, Scope};
+use rhai::{Dynamic, EvalAltResult, Map, Scope};
 
 use archetect_api::CommandRequest;
 use archetect_inquire::Confirm;
@@ -81,8 +81,12 @@ impl Archetype {
                         Ok(result)
                     }
                     Err(error) => {
-                        self.archetect.request(CommandRequest::LogError(format!("{}", error)));
-                        return Err(ArchetypeError::ScriptAbortError);
+                        return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {
+                            Err(ArchetypeError::ScriptAbortError)
+                        } else {
+                            self.archetect.request(CommandRequest::LogError(format!("{}", error)));
+                            Err(ArchetypeError::ScriptAbortError)
+                        }
                     }
                 }
             }

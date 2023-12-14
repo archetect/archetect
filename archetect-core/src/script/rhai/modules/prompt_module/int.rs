@@ -81,7 +81,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
         CommandResponse::Abort => {
-            return Err(Box::new(EvalAltResult::Exit(Dynamic::UNIT, call.position())));
+            return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {
             let error = ArchetypeScriptError::unexpected_prompt_response(&prompt_info, "Int", response);

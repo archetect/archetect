@@ -14,7 +14,6 @@ pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CatalogManifest {
-    #[serde(default = "RuntimeRequirements::default")]
     requires: RuntimeRequirements,
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
     entries: Vec<CatalogEntry>,

@@ -13,7 +13,7 @@ pub fn command() -> Command {
     command!()
         .name("archetect")
         .help_expected(true)
-        .args(render_args())
+        .args(render_args(false))
         .arg(
             Arg::new("verbosity")
                 .help("Increase verbosity level")
@@ -45,7 +45,7 @@ pub fn command() -> Command {
                         .action(ArgAction::Set)
                         .required(true),
                 )
-                .args(render_args()),
+                .args(render_args(true)),
         )
         .subcommand(
             Command::new("catalog")
@@ -56,7 +56,7 @@ pub fn command() -> Command {
                         .action(ArgAction::Set)
                         .required(true),
                 )
-                .args(render_args()),
+                .args(render_args(true)),
         )
         .subcommand(
             Command::new("completions")
@@ -110,7 +110,7 @@ pub fn command() -> Command {
         )
 }
 
-fn render_args() -> Vec<Arg> {
+fn render_args(global: bool) -> Vec<Arg> {
     let mut args = vec![];
     args.push(
         Arg::new("answer")
@@ -119,7 +119,9 @@ fn render_args() -> Vec<Arg> {
             .long("answer")
             .short('a')
             .action(ArgAction::Append)
-            .value_name("prompt key=value"),
+            .value_name("prompt key=value")
+            .global(global)
+        ,
     );
 
     args.push(
@@ -132,7 +134,9 @@ fn render_args() -> Vec<Arg> {
             .long("answer-file")
             .short('A')
             .action(ArgAction::Append)
-            .value_name("path"),
+            .value_name("path")
+            .global(global)
+        ,
     );
 
     args.push(
@@ -142,7 +146,9 @@ fn render_args() -> Vec<Arg> {
             .short('d')
             .value_delimiter(',')
             .action(ArgAction::Append)
-            .value_name("prompt key"),
+            .value_name("prompt key")
+            .global(global)
+        ,
     );
 
     args.push(
@@ -150,7 +156,9 @@ fn render_args() -> Vec<Arg> {
             .help("Use the configured default values for all prompts without explicit answers")
             .long("use-defaults-all")
             .short('D')
-            .action(ArgAction::SetTrue),
+            .action(ArgAction::SetTrue)
+            .global(global)
+        ,
     );
 
     args.push(
@@ -159,14 +167,18 @@ fn render_args() -> Vec<Arg> {
             .long("switch")
             .short('s')
             .action(ArgAction::Append)
-            .value_name("switch name"),
+            .value_name("switch name")
+            .global(global)
+        ,
     );
 
     args.push(
         Arg::new("destination")
             .help("The directory to render the Archetype in to")
             .default_value(".")
-            .action(ArgAction::Set),
+            .action(ArgAction::Set)
+            .global(global)
+        ,
     );
 
     args.push(
@@ -175,7 +187,9 @@ fn render_args() -> Vec<Arg> {
             .short('o')
             .long("offline")
             .env("ARCHETECT_OFFLINE")
-            .action(ArgAction::SetTrue),
+            .action(ArgAction::SetTrue)
+            .global(global)
+        ,
     );
     args.push(
             Arg::new("headless")
@@ -183,6 +197,7 @@ fn render_args() -> Vec<Arg> {
                 .long("headless")
                 .env("ARCHETECT_HEADLESS")
                 .action(ArgAction::SetTrue)
+                .global(global)
         );
     args.push(
         Arg::new("local")
@@ -191,6 +206,7 @@ fn render_args() -> Vec<Arg> {
             .short('l')
             .env("ARCHETECT_LOCAL")
             .action(ArgAction::SetTrue)
+            .global(global)
     );
     args.push(
         Arg::new("force-update")
@@ -199,6 +215,7 @@ fn render_args() -> Vec<Arg> {
             .short('U')
             .env("ARCHETECT_FORCE_UPDATE")
             .action(ArgAction::SetTrue)
+            .global(global)
     );
     args
 }

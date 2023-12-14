@@ -1,11 +1,27 @@
+use std::fmt::{Display, Formatter};
+
 use cruet::case::to_case_snake_like;
-use rhai::Map;
+use rhai::{Dynamic, Map};
 use rhai::plugin::*;
 
 use crate::script::rhai::modules::cases_module::module::to_case;
 use crate::script::rhai::modules::prompt_module::Caseable;
 
 pub fn register(engine: &mut Engine) {
+    let mut m = Module::new();
+    m.set_var(
+        "PROGRAMMING_CASES",
+        vec![
+            Dynamic::from(CaseStyle::CamelCase),
+            Dynamic::from(CaseStyle::CobolCase),
+            Dynamic::from(CaseStyle::ConstantCase),
+            Dynamic::from(CaseStyle::KebabCase),
+            Dynamic::from(CaseStyle::PascalCase),
+            Dynamic::from(CaseStyle::SnakeCase),
+            Dynamic::from(CaseStyle::TrainCase),
+        ],
+    );
+    engine.register_global_module(m.into());
     engine.register_global_module(exported_module!(module).into());
     engine.register_fn("camel_case", cruet::to_camel_case);
     engine.register_fn("class_case", cruet::to_class_case);
@@ -49,6 +65,55 @@ pub enum CaseStyle {
     TitleCase,
     TrainCase,
     UpperCase,
+}
+
+impl Display for CaseStyle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CaseStyle::CamelCase => {
+                write!(f, "CamelCase")
+            }
+            CaseStyle::ClassCase => {
+                write!(f, "ClassCase")
+            }
+            CaseStyle::CobolCase => {
+                write!(f, "CobolCase")
+            }
+            CaseStyle::ConstantCase => {
+                write!(f, "ConstantCase")
+            }
+            CaseStyle::DirectoryCase => {
+                write!(f, "DirectoryCase")
+            }
+            CaseStyle::KebabCase => {
+                write!(f, "KebabCase")
+            }
+            CaseStyle::LowerCase => {
+               write!(f, "LowerCase")
+            }
+            CaseStyle::PackageCase => {
+               write!(f, "PackageCase")
+            }
+            CaseStyle::PascalCase => {
+               write!(f, "PascalCase")
+            }
+            CaseStyle::SentenceCase => {
+               write!(f, "SentenceCase")
+            }
+            CaseStyle::SnakeCase => {
+               write!(f, "SnakeCase")
+            }
+            CaseStyle::TitleCase => {
+               write!(f, "TitleCase")
+            }
+            CaseStyle::TrainCase => {
+               write!(f, "TrainCase")
+            }
+            CaseStyle::UpperCase => {
+               write!(f, "UpperCase")
+            }
+        }
+    }
 }
 
 impl CaseStyle {
@@ -112,17 +177,15 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                     );
                                 }
                                 Caseable::List(list) => {
-                                    let value = list.into_iter()
+                                    let value = list
+                                        .into_iter()
                                         .map(|v| style.to_case(&v))
                                         .map(|v| Dynamic::from(v))
                                         .collect::<Vec<Dynamic>>();
                                     results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
                                 }
                                 Caseable::Opaque(value) => {
-                                    results.insert(
-                                        style.to_case(key.to_string().as_str()).into(),
-                                        value.clone_cast(),
-                                    );
+                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
                                 }
                             }
                         }
@@ -137,61 +200,51 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
                                     );
                                 }
                                 Caseable::List(list) => {
-                                    let value = list.into_iter()
+                                    let value = list
+                                        .into_iter()
                                         .map(|v| style.to_case(&v))
                                         .map(|v| Dynamic::from(v))
                                         .collect::<Vec<Dynamic>>();
                                     results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
                                 }
                                 Caseable::Opaque(value) => {
-                                    results.insert(
-                                        style.to_case(key.to_string().as_str()).into(),
-                                        value.clone_cast(),
-                                    );
+                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
                                 }
                             }
                         }
                     }
-                    CaseStrategy::FixedIdentityCasedValue { style } => {
-                        match &value {
-                            Caseable::String(value) => {
-                                results.insert(key.into(), to_case(value, style).into());
-                            }
-                            Caseable::List(list) => {
-                                let value = list.into_iter()
-                                    .map(|v| style.to_case(&v))
-                                    .map(|v| Dynamic::from(v))
-                                    .collect::<Vec<Dynamic>>();
-                                results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                            }
-                            Caseable::Opaque(value) => {
-                                results.insert(
-                                    style.to_case(key.to_string().as_str()).into(),
-                                    value.clone_cast(),
-                                );
-                            }
+                    CaseStrategy::FixedIdentityCasedValue { style } => match &value {
+                        Caseable::String(value) => {
+                            results.insert(key.into(), to_case(value, style).into());
                         }
-                    }
-                    CaseStrategy::FixedKeyCasedValue { key, style } => {
-                        match &value {
-                            Caseable::String(value) => {
-                                results.insert(key.into(), to_case(value, style).into());
-                            }
-                            Caseable::List(list) => {
-                                let value = list.into_iter()
-                                    .map(|v| style.to_case(&v))
-                                    .map(|v| Dynamic::from(v))
-                                    .collect::<Vec<Dynamic>>();
-                                results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                            }
-                            Caseable::Opaque(value) => {
-                                results.insert(
-                                    style.to_case(key.to_string().as_str()).into(),
-                                    value.clone_cast(),
-                                );
-                            }
+                        Caseable::List(list) => {
+                            let value = list
+                                .into_iter()
+                                .map(|v| style.to_case(&v))
+                                .map(|v| Dynamic::from(v))
+                                .collect::<Vec<Dynamic>>();
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
                         }
-                    }
+                        Caseable::Opaque(value) => {
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                        }
+                    },
+                    CaseStrategy::FixedKeyCasedValue { key, style } => match &value {
+                        Caseable::String(value) => {
+                            results.insert(key.into(), to_case(value, style).into());
+                        }
+                        Caseable::List(list) => {
+                            let value = list
+                                .into_iter()
+                                .map(|v| style.to_case(&v))
+                                .map(|v| Dynamic::from(v))
+                                .collect::<Vec<Dynamic>>();
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                        }
+                        Caseable::Opaque(value) => {
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                        }
+                    },
                 }
             }
         }
@@ -203,10 +256,11 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
 #[export_module]
 pub mod module {
     use log::warn;
-    use rhai::{Dynamic, Map};
+    use rhai::{Dynamic};
 
-    pub type CaseStyle = crate::script::rhai::modules::cases_module::CaseStyle;
-    pub type CaseStrategy = crate::script::rhai::modules::cases_module::CaseStrategy;
+    pub type CaseStyle = super::CaseStyle;
+    pub type CaseStrategy = super::CaseStrategy;
+
     pub const CamelCase: CaseStyle = CaseStyle::CamelCase;
     pub const ClassCase: CaseStyle = CaseStyle::ClassCase;
     pub const CobolCase: CaseStyle = CaseStyle::CobolCase;
@@ -283,24 +337,5 @@ pub mod module {
 
     pub fn to_case(input: &str, style: CaseStyle) -> String {
         style.to_case(input)
-    }
-
-    pub fn all_cases() -> Map {
-        let mut results = Map::new();
-        results.insert("CamelCase".into(), Dynamic::from(CaseStyle::CamelCase));
-        results.insert("ClassCase".into(), Dynamic::from(CaseStyle::ClassCase));
-        results.insert("CobolCase".into(), Dynamic::from(CaseStyle::CobolCase));
-        results.insert("ConstantCase".into(), Dynamic::from(CaseStyle::ConstantCase));
-        results.insert("DirectoryCase".into(), Dynamic::from(CaseStyle::DirectoryCase));
-        results.insert("KebabCase".into(), Dynamic::from(CaseStyle::KebabCase));
-        results.insert("LowerCase".into(), Dynamic::from(CaseStyle::LowerCase));
-        results.insert("PascalCase".into(), Dynamic::from(CaseStyle::PascalCase));
-        results.insert("PackageCase".into(), Dynamic::from(CaseStyle::PackageCase));
-        results.insert("SnakeCase".into(), Dynamic::from(CaseStyle::SnakeCase));
-        results.insert("SentenceCase".into(), Dynamic::from(CaseStyle::SentenceCase));
-        results.insert("TitleCase".into(), Dynamic::from(CaseStyle::TitleCase));
-        results.insert("TrainCase".into(), Dynamic::from(CaseStyle::TrainCase));
-        results.insert("UpperCase".into(), Dynamic::from(CaseStyle::UpperCase));
-        results
     }
 }
