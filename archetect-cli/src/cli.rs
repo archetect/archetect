@@ -99,7 +99,12 @@ pub fn command() -> Command {
                 .subcommand(Command::new("defaults").about(
                     "Show Archetect's default configuration, which may be used for re-creating \
                     a configuration file.",
-                )),
+                ))
+                .subcommand(Command::new("edit")
+                    .about("Open Archetect's config file in an editor")
+                )
+                .args(render_args(true))
+
         )
         .subcommand(
             Command::new("cache")

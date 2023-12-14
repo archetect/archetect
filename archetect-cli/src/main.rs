@@ -91,23 +91,8 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         Some(("completions", args)) => cli::completions(args)?,
         Some(("render", args)) => render(args, archetect, answers).map(|_| ())?,
         Some(("catalog", args)) => catalog(args, archetect, answers).map(|_| ())?,
-        Some(("config", args)) => config(args, archetect.configuration()).map(|_| ())?,
+        Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
-        _ => {}
-    }
-
-    Ok(())
-}
-
-fn config(matches: &ArgMatches, configuration: &Configuration) -> Result<(), ArchetectError> {
-    match matches.subcommand() {
-        Some(("merged", _args)) => {
-            println!("{}", configuration.to_yaml());
-        }
-        Some(("defaults", _args)) => {
-            println!("{}", Configuration::default().to_yaml());
-        }
-        None => {}
         _ => {}
     }
 
