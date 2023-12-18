@@ -4,6 +4,7 @@ use rhai::{Dynamic, Identifier, Map};
 
 use crate::catalog::CatalogEntry;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
+use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -17,6 +18,7 @@ pub struct Configuration {
     catalogs: LinkedHashMap<String, Vec<CatalogEntry>>,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
+    security: ConfigurationSecuritySection,
     #[serde(skip_serializing_if = "Option::is_none")]
     switches: Option<Vec<String>>,
 }
@@ -45,6 +47,10 @@ impl Configuration {
 
     pub fn locals(&self) -> &ConfigurationLocalsSection {
         &self.locals
+    }
+
+    pub fn security(&self) -> &ConfigurationSecuritySection {
+        &self.security
     }
 
     pub fn answers(&self) -> &Map {
@@ -93,6 +99,7 @@ impl Default for Configuration {
             headless: Default::default(),
             offline: Default::default(),
             updates: Default::default(),
+            security: Default::default(),
             answers: derive_answers(),
             catalogs,
             locals: Default::default(),

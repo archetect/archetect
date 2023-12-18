@@ -1,12 +1,13 @@
 use std::io;
 
-use archetect_core::errors::ArchetectError;
-use clap::{command, value_parser, Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, ArgMatches, command, Command, value_parser};
+use clap::builder::BoolishValueParser;
 use clap_complete::{generate, Shell};
 use log::Level;
 
-use crate::cli;
+use archetect_core::errors::ArchetectError;
 
+use crate::cli;
 use crate::vendor::loggerv;
 
 pub fn command() -> Command {
@@ -100,11 +101,8 @@ pub fn command() -> Command {
                     "Show Archetect's default configuration, which may be used for re-creating \
                     a configuration file.",
                 ))
-                .subcommand(Command::new("edit")
-                    .about("Open Archetect's config file in an editor")
-                )
-                .args(render_args(true))
-
+                .subcommand(Command::new("edit").about("Open Archetect's config file in an editor"))
+                .args(render_args(true)),
         )
         .subcommand(
             Command::new("cache")
@@ -125,8 +123,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .short('a')
             .action(ArgAction::Append)
             .value_name("prompt key=value")
-            .global(global)
-        ,
+            .global(global),
     );
 
     args.push(
@@ -152,8 +149,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .value_delimiter(',')
             .action(ArgAction::Append)
             .value_name("prompt key")
-            .global(global)
-        ,
+            .global(global),
     );
 
     args.push(
@@ -162,8 +158,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .long("use-defaults-all")
             .short('D')
             .action(ArgAction::SetTrue)
-            .global(global)
-        ,
+            .global(global),
     );
 
     args.push(
@@ -173,8 +168,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .short('s')
             .action(ArgAction::Append)
             .value_name("switch name")
-            .global(global)
-        ,
+            .global(global),
     );
 
     args.push(
@@ -182,8 +176,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .help("The directory to render the Archetype in to")
             .default_value(".")
             .action(ArgAction::Set)
-            .global(global)
-        ,
+            .global(global),
     );
 
     args.push(
@@ -194,7 +187,20 @@ fn render_args(global: bool) -> Vec<Arg> {
             .env("ARCHETECT_OFFLINE")
             .action(ArgAction::SetTrue)
             .global(global)
-        ,
+    );
+    args.push(
+        Arg::new("allow-exec")
+            .help("Allow Archetypes to execute arbitrary commands")
+            .long("allow-exec")
+            .alias("ae")
+            .short('e')
+            .env("ARCHETECT_ALLOW_EXEC")
+            .action(ArgAction::Set)
+            .default_missing_value("true")
+            .default_value("false")
+            .num_args(0..=1)
+            .value_parser(BoolishValueParser::new())
+            .global(global)
     );
     args.push(
             Arg::new("headless")
@@ -220,7 +226,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .short('U')
             .env("ARCHETECT_FORCE_UPDATE")
             .action(ArgAction::SetTrue)
-            .global(global)
+            .global(global),
     );
     args
 }

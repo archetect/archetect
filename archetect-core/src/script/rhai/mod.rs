@@ -26,7 +26,7 @@ pub(crate) fn create_engine(
     modules::archetect_module::register(&mut engine, archetect.clone(), archetype.clone());
     modules::utils_module::register(&mut engine, archetect.clone(), &render_context);
     modules::cases_module::register(&mut engine);
-    modules::exec_module::register(&mut engine);
+    modules::exec_module::register(&mut engine, archetect.clone(), archetype.clone());
     modules::formats_module::register(&mut engine);
     modules::log_module::register(&mut engine, archetect.clone());
     modules::prompt_module::register(

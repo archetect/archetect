@@ -32,21 +32,27 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     let mut mappings = HashMap::new();
     mappings.insert(
         "force-update".into(),
-        ArgExtractor::Bool {
+        ArgExtractor::Flag {
             path: "updates.force".into(),
         },
     );
-    mappings.insert("offline".into(), ArgExtractor::Bool { path: "offline".into() });
+    mappings.insert("offline".into(), ArgExtractor::Flag { path: "offline".into() });
     mappings.insert(
         "headless".into(),
-        ArgExtractor::Bool {
+        ArgExtractor::Flag {
             path: "headless".into(),
         },
     );
     mappings.insert(
         "local".into(),
-        ArgExtractor::Bool {
+        ArgExtractor::Flag {
             path: "locals.enabled".into(),
+        },
+    );
+    mappings.insert(
+        "allow-exec".into(),
+        ArgExtractor::Bool {
+            path: "security.allow_exec".into(),
         },
     );
     let config = config.add_source(ClapSource::new(args.clone(), mappings));
@@ -95,6 +101,9 @@ enum ArgExtractor {
     Bool {
         path: String,
     },
+    Flag {
+        path: String,
+    },
 }
 
 impl ArgExtractor {
@@ -107,7 +116,7 @@ impl ArgExtractor {
                     None
                 }
             }
-            ArgExtractor::Bool { .. } => match matches.value_source(key) {
+            ArgExtractor::Flag { .. } => match matches.value_source(key) {
                 None => None,
                 Some(source) => match source {
                     // Only override if explicitly set; don't consider a default as an override
@@ -115,12 +124,22 @@ impl ArgExtractor {
                     _ => None,
                 },
             },
+            ArgExtractor::Bool { .. } => match matches.value_source(key) {
+                None => None,
+                Some(source) => match source {
+                    // Only override if explicitly set; don't consider a default as an override
+                    ValueSource::CommandLine | ValueSource::EnvVariable => Some(matches.get_one::<bool>(key).map(|v|*v).into()),
+                    _ => None,
+                },
+            },
+
         }
     }
 
     fn path(&self) -> &str {
         match self {
             ArgExtractor::String { path } => path.as_str(),
+            ArgExtractor::Flag { path } => path.as_str(),
             ArgExtractor::Bool { path } => path.as_str(),
         }
     }
