@@ -42,7 +42,7 @@ pub fn command() -> Command {
                 .about("Render an Archetype")
                 .arg(
                     Arg::new("source")
-                        .help("The Archetype source directory or git URL")
+                        .help("The Archetype or Catalog source directory or git URL")
                         .action(ArgAction::Set)
                         .required(true),
                 )

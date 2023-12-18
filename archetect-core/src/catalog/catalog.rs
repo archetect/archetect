@@ -85,7 +85,7 @@ impl Catalog {
                         .with_use_defaults_all(use_defaults_all.unwrap_or(render_context.use_defaults_all()))
                         ;
 
-                    archetype.check_requirements(&self.archetect)?;
+                    archetype.check_requirements()?;
                     let _result = archetype.render(rc)?;
                     return Ok(());
                 }

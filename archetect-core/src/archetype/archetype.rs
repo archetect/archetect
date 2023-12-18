@@ -97,8 +97,8 @@ impl Archetype {
         }
     }
 
-    pub fn check_requirements(&self, archetect: &Archetect) -> Result<(), ArchetypeError> {
-        self.manifest().requires().check_requirements(archetect)?;
+    pub fn check_requirements(&self) -> Result<(), ArchetypeError> {
+        self.manifest().requires().check_requirements(&self.archetect)?;
         Ok(())
     }
 }

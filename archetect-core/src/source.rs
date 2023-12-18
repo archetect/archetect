@@ -65,6 +65,20 @@ impl Source {
         &self.source_type
     }
 
+    pub fn source_contents(&self) -> SourceContents {
+        if self.source_type().directory().join("catalog.yaml").is_file() ||
+            self.source_type().directory().join("catalog.yml").is_file() {
+            return SourceContents::Catalog;
+        }
+
+        if self.source_type().directory().join("archetype.yaml").is_file() ||
+            self.source_type().directory().join("archetype.yml").is_file() {
+            return SourceContents::Archetype;
+        }
+
+        SourceContents::Unknown
+    }
+
     pub fn execute(&self, command: SourceCommand) -> Result<(), SourceError> {
         match command {
             SourceCommand::Pull => {
@@ -97,6 +111,13 @@ impl Source {
 
         Ok(())
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum SourceContents {
+    Archetype,
+    Catalog,
+    Unknown,
 }
 
 #[derive(Clone, Copy)]

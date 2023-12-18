@@ -18,6 +18,8 @@ pub enum SourceError {
     IoError(std::io::Error),
     #[error("Git Error: `{0}`")]
     GitError(#[from] git2::Error),
+    #[error("Source does not contain either an Archetype or Catalog")]
+    UnknownSourceContent,
 }
 
 impl From<std::io::Error> for SourceError {
