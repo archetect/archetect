@@ -15,6 +15,57 @@ pub fn command() -> Command {
         .name("archetect")
         .help_expected(true)
         .args(render_args(false))
+        .subcommand(
+            Command::new("render")
+                .about("Render an Archetype")
+                .long_about("Render an Archetype from an archetype or catalog directory or git URL")
+                .arg(
+                    Arg::new("source")
+                        .help("The Archetype or Catalog source directory or git URL")
+                        .action(ArgAction::Set)
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in to")
+                        .default_value(".")
+                        .action(ArgAction::Set),
+                )
+                .args(render_args(true)),
+        )
+        .subcommand(
+            Command::new("catalog")
+                .about("Render an Archetype from a Catalog")
+                .hide(true)
+                .arg(
+                    Arg::new("source")
+                        .help("The Catalog source directory or git URL")
+                        .action(ArgAction::Set)
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in to")
+                        .default_value(".")
+                        .action(ArgAction::Set),
+                )
+                .args(render_args(true)),
+        )
+        .subcommand(
+            Command::new("config")
+                .arg_required_else_help(true)
+                .about("Manage Archetect's configuration")
+                .subcommand(Command::new("merged").about(
+                    "Show Archetect's merged configuration after applying command line arguments, \
+                    environment variables, and configuration files.",
+                ))
+                .subcommand(Command::new("defaults").about(
+                    "Show Archetect's default configuration, which may be used for re-creating \
+                    a configuration file.",
+                ))
+                .subcommand(Command::new("edit").about("Open Archetect's config file in an editor"))
+                .args(render_args(true)),
+        )
         .arg(
             Arg::new("action")
                 .help("Execute a configured actions")
@@ -56,40 +107,6 @@ pub fn command() -> Command {
                 .action(ArgAction::Set),
         )
         .subcommand(
-            Command::new("render")
-                .about("Render an Archetype")
-                .arg(
-                    Arg::new("source")
-                        .help("The Archetype or Catalog source directory or git URL")
-                        .action(ArgAction::Set)
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set),
-                )
-                .args(render_args(true)),
-        )
-        .subcommand(
-            Command::new("catalog")
-                .about("Render an Archetype from a Catalog")
-                .arg(
-                    Arg::new("source")
-                        .help("The Catalog source directory or git URL")
-                        .action(ArgAction::Set)
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set),
-                )
-                .args(render_args(true)),
-        )
-        .subcommand(
             Command::new("completions")
                 .about("Generate shell completions")
                 .arg_required_else_help(true)
@@ -118,21 +135,6 @@ pub fn command() -> Command {
                         )
                         .subcommand(Command::new("answers").about("The location where answers are specified.")),
                 ),
-        )
-        .subcommand(
-            Command::new("config")
-                .arg_required_else_help(true)
-                .about("Manage Archetect's configuration")
-                .subcommand(Command::new("merged").about(
-                    "Show Archetect's merged configuration after applying command line arguments, \
-                    environment variables, and configuration files.",
-                ))
-                .subcommand(Command::new("defaults").about(
-                    "Show Archetect's default configuration, which may be used for re-creating \
-                    a configuration file.",
-                ))
-                .subcommand(Command::new("edit").about("Open Archetect's config file in an editor"))
-                .args(render_args(true)),
         )
         .subcommand(
             Command::new("cache")
