@@ -38,4 +38,6 @@ pub enum ArchetectError {
     HeadlessNoDefault,
     #[error("Error: {0}")]
     GeneralError(String),
+    #[error("Command '{0}' not defined in configuration")]
+    MissingCommand(String),
 }

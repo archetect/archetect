@@ -30,8 +30,8 @@ impl CacheManager {
                 Ok(operation) => {
                     match operation {
                         CacheCommand::View => {
-                            if let CatalogEntry::Catalog { description: _, source } = choice {
-                                catalog = self.archetect.new_catalog(&source)?;
+                            if let CatalogEntry::Catalog { description: _, info} = choice {
+                                catalog = self.archetect.new_catalog(info.source())?;
                                 continue;
                             }
                         }
@@ -69,9 +69,9 @@ impl CacheManager {
                 Ok(item) => match item.entry {
                     CatalogEntry::Group {
                         description: _,
-                        entries,
+                        info,
                     } => {
-                        entry_items = entries;
+                        entry_items = info.entries;
                     }
                     CatalogEntry::Catalog { .. } => return Ok(item.entry()),
                     CatalogEntry::Archetype { .. } => return Ok(item.entry()),

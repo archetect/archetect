@@ -1,12 +1,11 @@
-use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
 use camino::Utf8PathBuf;
-use rhai::Map;
 
 use crate::{Archetect, CacheCommand};
 use crate::archetype::archetype_manifest::RuntimeRequirements;
+use crate::configuration::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::SourceCommand;
 
@@ -25,6 +24,11 @@ impl CatalogManifest {
             requires: RuntimeRequirements::default(),
             entries: vec![],
         }
+    }
+
+    pub fn with_entries(mut self, entries: Vec<CatalogEntry>) -> Self {
+        self.entries = entries;
+        self
     }
 
     pub fn load<P: Into<Utf8PathBuf>>(path: P) -> Result<CatalogManifest, CatalogError> {
@@ -85,54 +89,41 @@ pub enum CatalogEntry {
     #[serde(rename = "group")]
     Group {
         description: String,
-        entries: Vec<CatalogEntry>,
+        #[serde(flatten)]
+        info: RenderGroupInfo,
     },
     #[serde(rename = "catalog")]
-    Catalog { description: String, source: String },
+    Catalog {
+        description: String,
+        #[serde(flatten)]
+        info: RenderCatalogInfo,
+    },
     #[serde(rename = "archetype")]
     Archetype {
         description: String,
-        source: String,
-        answers: Option<Map>,
-        switches: Option<HashSet<String>>,
-        #[serde(rename = "use_defaults")]
-        use_defaults: Option<HashSet<String>>,
-        #[serde(rename = "use_defaults_all")]
-        use_defaults_all: Option<bool>,
+        #[serde(flatten)]
+        info: RenderArchetypeInfo,
     },
 }
 
 impl CatalogEntry {
     pub fn description(&self) -> &str {
         match self {
-            CatalogEntry::Group {
-                description,
-                entries: _,
-            } => description.as_str(),
-            CatalogEntry::Catalog { description, source: _ } => description.as_str(),
-            CatalogEntry::Archetype {
-                description,
-                source: _,
-                answers: _,
-                switches: _,
-                use_defaults: _,
-                use_defaults_all: _,
-            } => description.as_str(),
+            CatalogEntry::Group { description, info: _ } => description.as_str(),
+            CatalogEntry::Catalog { description, info: _ } => description.as_str(),
+            CatalogEntry::Archetype { description, info: _} => description.as_str(),
         }
     }
 
     pub fn execute_cache_command(&self, archetect: &Archetect, command: CacheCommand) -> Result<(), ArchetectError> {
         match self {
-            CatalogEntry::Group {
-                description: _,
-                entries,
-            } => {
-                for entry in entries {
+            CatalogEntry::Group { description: _, info } => {
+                for entry in &info.entries {
                     entry.execute_cache_command(archetect, command)?;
                 }
             }
-            CatalogEntry::Catalog { source, .. } => {
-                let catalog = archetect.new_catalog(source)?;
+            CatalogEntry::Catalog { info, .. } => {
+                let catalog = archetect.new_catalog(info.source())?;
                 match command {
                     CacheCommand::Pull | CacheCommand::PullAll => {
                         if let Some(source) = catalog.source() {
@@ -152,17 +143,10 @@ impl CatalogEntry {
                     CacheCommand::View => unreachable!(),
                 }
             }
-            CatalogEntry::Archetype {
-                description: _,
-                source,
-                answers: _,
-                switches: _,
-                use_defaults: _,
-                use_defaults_all: _,
-            } => {
-                let source = archetect.new_source(source)?;
+            CatalogEntry::Archetype { description: _, info } => {
+                let source = archetect.new_source(info.source())?;
                 match command {
-                    CacheCommand::Pull | CacheCommand::PullAll  => {
+                    CacheCommand::Pull | CacheCommand::PullAll => {
                         source.execute(SourceCommand::Pull)?;
                     }
                     CacheCommand::Invalidate => {
@@ -203,7 +187,7 @@ mod tests {
                 lang_group(),
                 CatalogEntry::Catalog {
                     description: "Java".to_owned(),
-                    source: "~/projects/catalogs/java.yml".to_owned(),
+                    info: RenderCatalogInfo::new("~/projects/catalogs/java.yml"),
                 },
             ],
         }
@@ -212,50 +196,62 @@ mod tests {
     fn lang_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Languages".to_owned(),
-            entries: vec![rust_group(), python_group()],
+            info: RenderGroupInfo {
+                entries: vec![rust_group(), python_group()],
+            },
         }
     }
 
     fn rust_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Rust".to_owned(),
-            entries: vec![rust_cli_archetype(), rust_cli_workspace_archetype()],
+            info: RenderGroupInfo {
+                entries: vec![rust_cli_archetype(), rust_cli_workspace_archetype()],
+            },
         }
     }
 
     fn rust_cli_archetype() -> CatalogEntry {
         CatalogEntry::Archetype {
             description: "Rust CLI".to_owned(),
-            source: "~/projects/test_archetypes/rust-cie".to_owned(),
-            answers: None,
-            switches: None,
-            use_defaults: None,
-            use_defaults_all: None,
+            info: RenderArchetypeInfo {
+                source: "~/projects/test_archetypes/rust-cie".to_owned(),
+                answers: None,
+                switches: None,
+                use_defaults: None,
+                use_defaults_all: None,
+            },
         }
     }
 
     fn rust_cli_workspace_archetype() -> CatalogEntry {
         CatalogEntry::Archetype {
             description: "Rust CLI Workspace".to_owned(),
-            source: "~/projects/test_archetypes/rust-cie".to_owned(),
-            answers: None,
-            switches: None,
-            use_defaults: None,
-            use_defaults_all: None,
+            info: RenderArchetypeInfo {
+                source: "~/projects/test_archetypes/rust-cie".to_owned(),
+                answers: None,
+                switches: None,
+                use_defaults: None,
+                use_defaults_all: None,
+            },
         }
     }
 
     fn python_group() -> CatalogEntry {
         CatalogEntry::Group {
             description: "Python".to_owned(),
-            entries: vec![CatalogEntry::Archetype {
-                description: "Python Service".to_owned(),
-                source: "~/projects/python/python-service".to_owned(),
-                answers: None,
-                switches: None,
-                use_defaults: None,
-                use_defaults_all: None,
-            }],
+            info: RenderGroupInfo {
+                entries: vec![CatalogEntry::Archetype {
+                    description: "Python Service".to_owned(),
+                    info: RenderArchetypeInfo {
+                        source: "~/projects/python/python-service".to_owned(),
+                        answers: None,
+                        switches: None,
+                        use_defaults: None,
+                        use_defaults_all: None,
+                    }
+                }],
+            },
         }
     }
 }

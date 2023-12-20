@@ -23,7 +23,10 @@ pub(crate) struct Inner {
 impl Catalog {
     pub fn load(archetect: Archetect, source: Source) -> Result<Catalog, CatalogError> {
         let manifest = CatalogManifest::load(source.path()?)?;
-        let inner = Rc::new(Inner { source: Some(source), manifest });
+        let inner = Rc::new(Inner {
+            source: Some(source),
+            manifest,
+        });
         let catalog = Catalog { archetect, inner };
         Ok(catalog)
     }
@@ -48,7 +51,7 @@ impl Catalog {
         self.inner.manifest.entries()
     }
 
-    pub fn render(&self, render_context: RenderContext) -> Result<(), ArchetectError> {
+    pub fn render(&self, mut render_context: RenderContext) -> Result<(), ArchetectError> {
         let mut catalog = self.clone();
 
         loop {
@@ -60,38 +63,36 @@ impl Catalog {
             let choice = self.select_from_entries(entries)?;
 
             match choice {
-                CatalogEntry::Catalog { description: _, source } => {
-                    catalog = self.archetect.new_catalog(&source)?;
+                CatalogEntry::Catalog { description: _, info } => {
+                    catalog = self.archetect.new_catalog(info.source())?;
                 }
                 CatalogEntry::Archetype {
                     description: _,
-                    source,
-                    answers: catalog_answers,
-                    switches,
-                    use_defaults,
-                    use_defaults_all,
+                    info
+                        // RenderArchetypeInfo {
+                        //     source,
+                        //     answers: catalog_answers,
+                        //     switches,
+                        //     use_defaults,
+                        //     use_defaults_all,
+                        // },
                 } => {
                     let mut answers = render_context.answers_owned();
-                    if let Some(catalog_answers) = catalog_answers {
+                    if let Some(catalog_answers) = info.answers() {
                         for (k, v) in catalog_answers {
-                            answers.entry(k).or_insert(v);
+                            answers.entry(k.clone()).or_insert(v.clone());
                         }
                     }
-                    let archetype = self.archetect.new_archetype(&source)?;
-                    let destination = render_context.destination().to_path_buf();
-                    let rc = RenderContext::new(destination, answers)
-                        .with_switches(switches.unwrap_or(render_context.switches().to_owned()))
-                        .with_use_defaults(use_defaults.unwrap_or(render_context.use_defaults().to_owned()))
-                        .with_use_defaults_all(use_defaults_all.unwrap_or(render_context.use_defaults_all()))
-                        ;
+                    let archetype = self.archetect.new_archetype(info.source())?;
+                    render_context = render_context.with_archetype_info(&info);
 
                     archetype.check_requirements()?;
-                    let _result = archetype.render(rc)?;
+                    let _result = archetype.render(render_context)?;
                     return Ok(());
                 }
                 CatalogEntry::Group {
                     description: _,
-                    entries: _,
+                    info: _,
                 } => unreachable!(),
             }
         }
@@ -113,11 +114,8 @@ impl Catalog {
 
             match prompt.prompt() {
                 Ok(item) => match item.entry {
-                    CatalogEntry::Group {
-                        description: _,
-                        entries,
-                    } => {
-                        entry_items = entries;
+                    CatalogEntry::Group { description: _, info } => {
+                        entry_items = info.entries;
                     }
                     CatalogEntry::Catalog { .. } => return Ok(item.entry()),
                     CatalogEntry::Archetype { .. } => return Ok(item.entry()),

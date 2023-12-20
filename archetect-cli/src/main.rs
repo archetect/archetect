@@ -10,8 +10,8 @@ use archetect_core::{self};
 use archetect_core::Archetect;
 use archetect_core::archetype::archetype::Archetype;
 use archetect_core::archetype::render_context::RenderContext;
-use archetect_core::catalog::Catalog;
-use archetect_core::configuration::Configuration;
+use archetect_core::catalog::{Catalog, CatalogManifest};
+use archetect_core::configuration::{ArchetectCommand, Configuration};
 use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError, SourceError};
 use archetect_core::source::SourceContents;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
@@ -19,6 +19,7 @@ use archetect_terminal_io::TerminalIoDriver;
 use ArchetypeError::ScriptAbortError;
 
 use crate::answers::parse_answer_pair;
+use crate::subcommands::handle_commands_subcommand;
 
 mod answers;
 mod cli;
@@ -27,7 +28,8 @@ mod subcommands;
 pub mod vendor;
 
 fn main() {
-    let matches = cli::command().get_matches();
+    let matches = cli::command()
+        .get_matches();
     cli::configure(&matches);
 
     let driver = TerminalIoDriver::default();
@@ -89,26 +91,58 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         .build()?;
 
     match matches.subcommand() {
-        None => {
-            default(&matches, archetect, answers)?;
-        }
         Some(("completions", args)) => cli::completions(args)?,
+        Some(("actions", args)) => handle_commands_subcommand(args, &archetect),
         Some(("render", args)) => render(args, archetect, answers)?,
         Some(("catalog", args)) => catalog(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
-        _ => {}
+        Some((command, _args)) => {
+            println!("Executing Command: {}", command);
+        },
+        None => {
+            default(&matches, archetect, answers)?;
+        }
     }
 
     Ok(())
 }
 
 fn default(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
-    let catalog = archetect.catalog();
-    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
-    catalog.render(render_context)?;
-    Ok(())
+    let command = matches.get_one::<String>("action").expect("Expected an action");
+    match archetect.configuration().get_command(&command) {
+        None => {
+            Err(ArchetectError::MissingCommand(command.to_string()))
+        }
+        Some(command) => {
+            match command {
+                ArchetectCommand::RenderGroup(info) => {
+                    let catalog = Catalog::new(archetect.clone(), CatalogManifest::new().with_entries(info.entries().clone()));
+                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+                    catalog.render(render_context)?;
+                }
+                ArchetectCommand::RenderCatalog(info) => {
+                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+                    let catalog = archetect.new_catalog(info.source())?;
+                    catalog.check_requirements()?;
+                    catalog.render(render_context)?;
+                }
+                ArchetectCommand::RenderArchetype(info) => {
+                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches)
+                        .with_archetype_info(&info)
+                        ;
+                    let archetype = archetect.new_archetype(info.source())?;
+                    archetype.check_requirements()?;
+                    let _ = archetype.render(render_context)?;
+
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {

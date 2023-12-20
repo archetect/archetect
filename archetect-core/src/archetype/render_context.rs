@@ -1,6 +1,7 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::{Dynamic, Map};
 use std::collections::HashSet;
+use crate::configuration::RenderArchetypeInfo;
 
 #[derive(Clone)]
 pub struct RenderContext {
@@ -22,6 +23,19 @@ impl RenderContext {
             switches: Default::default(),
             settings: Default::default(),
         }
+    }
+
+    pub fn with_archetype_info(mut self, info: &RenderArchetypeInfo) -> Self {
+        if let Some(switches) = info.switches() {
+            self = self.with_switches(switches.clone());
+        }
+        if let Some(use_defaults) = info.use_defaults() {
+            self = self.with_use_defaults(use_defaults.clone());
+        }
+        if let Some(use_defaults_all) = info.use_defaults_all() {
+            self = self.with_use_defaults_all(use_defaults_all);
+        }
+        self
     }
 
     pub fn answers(&self) -> &Map {

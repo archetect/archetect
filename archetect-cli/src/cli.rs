@@ -1,7 +1,7 @@
 use std::io;
 
-use clap::{Arg, ArgAction, ArgMatches, command, Command, value_parser};
 use clap::builder::BoolishValueParser;
+use clap::{command, value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use log::Level;
 
@@ -15,6 +15,17 @@ pub fn command() -> Command {
         .name("archetect")
         .help_expected(true)
         .args(render_args(false))
+        .arg(
+            Arg::new("action")
+                .help("Execute a configured actions")
+                .long_help("Execute a configured action defined within an archetect.yaml file")
+                .default_value("default")
+                .action(ArgAction::Set)
+        )
+        .subcommand(
+            Command::new("actions")
+                .about("List configured actions")
+        )
         .arg(
             Arg::new("verbosity")
                 .help("Increase verbosity level")
@@ -36,15 +47,28 @@ pub fn command() -> Command {
                 .global(true)
                 .value_name("config"),
         )
+        .arg(
+            Arg::new("destination")
+                .help("The directory to render the Archetype in to")
+                .long("destination")
+                .visible_alias("dest")
+                .default_value(".")
+                .action(ArgAction::Set),
+        )
         .subcommand(
             Command::new("render")
-                .alias("create")
                 .about("Render an Archetype")
                 .arg(
                     Arg::new("source")
                         .help("The Archetype or Catalog source directory or git URL")
                         .action(ArgAction::Set)
                         .required(true),
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in to")
+                        .default_value(".")
+                        .action(ArgAction::Set),
                 )
                 .args(render_args(true)),
         )
@@ -56,6 +80,12 @@ pub fn command() -> Command {
                         .help("The Catalog source directory or git URL")
                         .action(ArgAction::Set)
                         .required(true),
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in to")
+                        .default_value(".")
+                        .action(ArgAction::Set),
                 )
                 .args(render_args(true)),
         )
@@ -111,6 +141,7 @@ pub fn command() -> Command {
                 .subcommand(Command::new("clear").about("Removes Archetect's entire Repository Cache"))
                 .subcommand(Command::new("pull").about("Pull all Archetypes and Catalogs in Archetect's Catalog")),
         )
+        .allow_external_subcommands(true)
 }
 
 fn render_args(global: bool) -> Vec<Arg> {
@@ -172,21 +203,13 @@ fn render_args(global: bool) -> Vec<Arg> {
     );
 
     args.push(
-        Arg::new("destination")
-            .help("The directory to render the Archetype in to")
-            .default_value(".")
-            .action(ArgAction::Set)
-            .global(global),
-    );
-
-    args.push(
         Arg::new("offline")
             .help("Only use directories and already-cached remote git URLs")
             .short('o')
             .long("offline")
             .env("ARCHETECT_OFFLINE")
             .action(ArgAction::SetTrue)
-            .global(global)
+            .global(global),
     );
     args.push(
         Arg::new("allow-exec")
@@ -200,7 +223,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .default_value("false")
             .num_args(0..=1)
             .value_parser(BoolishValueParser::new())
-            .global(global)
+            .global(global),
     );
     args.push(
             Arg::new("headless")
@@ -217,7 +240,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .short('l')
             .env("ARCHETECT_LOCAL")
             .action(ArgAction::SetTrue)
-            .global(global)
+            .global(global),
     );
     args.push(
         Arg::new("force-update")

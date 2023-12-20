@@ -8,6 +8,7 @@ use archetect_core::configuration::Configuration;
 use archetect_core::system::SystemLayout;
 
 pub const CONFIGURATION_FILE: &str = "archetect";
+pub const DOT_CONFIGURATION_FILE: &str = ".archetect";
 
 pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Result<Configuration, ConfigError> {
     let config = Config::builder()
@@ -16,6 +17,10 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             FileFormat::Yaml,
         ))
         .add_source(File::with_name(layout.etc_dir().join(CONFIGURATION_FILE).as_str()).required(false));
+
+
+    let config = config.add_source(File::with_name(DOT_CONFIGURATION_FILE).required(false));
+    let config = config.add_source(File::with_name(CONFIGURATION_FILE).required(false));
 
     // Merge Config File specified from Command Line
     let config = if let Some(config_file) = args.get_one::<String>("config-file") {
