@@ -4,8 +4,8 @@ use std::path::Path;
 use camino::Utf8PathBuf;
 
 use crate::{Archetect, CacheCommand};
+use crate::actions::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
 use crate::archetype::archetype_manifest::RuntimeRequirements;
-use crate::configuration::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::SourceCommand;
 
@@ -118,7 +118,7 @@ impl CatalogEntry {
     pub fn execute_cache_command(&self, archetect: &Archetect, command: CacheCommand) -> Result<(), ArchetectError> {
         match self {
             CatalogEntry::Group { description: _, info } => {
-                for entry in &info.entries {
+                for entry in info.entries() {
                     entry.execute_cache_command(archetect, command)?;
                 }
             }

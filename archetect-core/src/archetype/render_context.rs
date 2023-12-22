@@ -1,7 +1,7 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::{Dynamic, Map};
 use std::collections::HashSet;
-use crate::configuration::RenderArchetypeInfo;
+use crate::actions::RenderArchetypeInfo;
 
 #[derive(Clone)]
 pub struct RenderContext {

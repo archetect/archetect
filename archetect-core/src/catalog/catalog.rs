@@ -68,14 +68,7 @@ impl Catalog {
                 }
                 CatalogEntry::Archetype {
                     description: _,
-                    info
-                        // RenderArchetypeInfo {
-                        //     source,
-                        //     answers: catalog_answers,
-                        //     switches,
-                        //     use_defaults,
-                        //     use_defaults_all,
-                        // },
+                    info,
                 } => {
                     let mut answers = render_context.answers_owned();
                     if let Some(catalog_answers) = info.answers() {
@@ -115,7 +108,7 @@ impl Catalog {
             match prompt.prompt() {
                 Ok(item) => match item.entry {
                     CatalogEntry::Group { description: _, info } => {
-                        entry_items = info.entries;
+                        entry_items = info.entries_owned();
                     }
                     CatalogEntry::Catalog { .. } => return Ok(item.entry()),
                     CatalogEntry::Archetype { .. } => return Ok(item.entry()),

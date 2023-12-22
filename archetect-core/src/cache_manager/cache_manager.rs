@@ -1,9 +1,11 @@
-use archetect_inquire::{InquireError, Select};
 use std::fmt::{Display, Formatter};
 
+use archetect_inquire::{InquireError, Select};
+use crate::actions::RenderArchetypeInfo;
+
+use crate::Archetect;
 use crate::catalog::{Catalog, CatalogEntry, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
-use crate::Archetect;
 
 pub struct CacheManager {
     archetect: Archetect,
@@ -46,6 +48,22 @@ impl CacheManager {
                 }
 
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn manage_archetype(&self, info: &RenderArchetypeInfo) -> Result<(), ArchetectError> {
+        let entry = CatalogEntry::Archetype {
+            description: "Manage Archetype".to_string(),
+            info: info.clone(),
+        };
+        let operations = select_management_operations(&entry);
+        match Select::new("Operation:", operations).prompt() {
+            Ok(operation) => {
+                entry.execute_cache_command(&self.archetect, operation)?;
+            }
+            Err(_) => (),
         }
 
         Ok(())

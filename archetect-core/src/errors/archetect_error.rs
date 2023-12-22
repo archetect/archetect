@@ -38,6 +38,6 @@ pub enum ArchetectError {
     HeadlessNoDefault,
     #[error("Error: {0}")]
     GeneralError(String),
-    #[error("Command '{0}' not defined in configuration")]
-    MissingCommand(String),
+    #[error("Action \"{0}\" is not defined in configuration. Available actions: {1:?}.")]
+    MissingAction(String, Vec<String>),
 }

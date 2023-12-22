@@ -72,6 +72,7 @@ pub fn command() -> Command {
                 .long_help("Execute a configured action defined within an archetect.yaml file")
                 .default_value("default")
                 .action(ArgAction::Set)
+                .global(true)
         )
         .subcommand(
             Command::new("actions")
@@ -139,7 +140,15 @@ pub fn command() -> Command {
         .subcommand(
             Command::new("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(Command::new("manage").about("Manage Archetect's cache through a Catalog"))
+                .subcommand(Command::new("manage").about("Manage Archetect's cache for entries defined within actions")
+                    .arg(
+                        Arg::new("action")
+                            .help("The action to managed")
+                            .long_help("The action to managed, as defined within an archetype.yaml")
+                            .default_value("default")
+                            .action(ArgAction::Set)
+                    )
+                )
                 .subcommand(Command::new("clear").about("Removes Archetect's entire Repository Cache"))
                 .subcommand(Command::new("pull").about("Pull all Archetypes and Catalogs in Archetect's Catalog")),
         )

@@ -1,19 +1,8 @@
 use std::collections::HashSet;
 
-use linked_hash_map::LinkedHashMap;
 use rhai::Map;
 
 use crate::catalog::CatalogEntry;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ArchetectCommand {
-    #[serde(rename = "render_group")]
-    RenderGroup(RenderGroupInfo),
-    #[serde(rename = "render_catalog")]
-    RenderCatalog(RenderCatalogInfo),
-    #[serde(rename = "render_archetype")]
-    RenderArchetype(RenderArchetypeInfo) ,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RenderGroupInfo {
@@ -29,6 +18,10 @@ impl RenderGroupInfo {
 
     pub fn entries(&self) -> &Vec<CatalogEntry> {
         &self.entries
+    }
+
+    pub fn entries_owned(self) -> Vec<CatalogEntry> {
+        self.entries
     }
 }
 
@@ -80,8 +73,3 @@ impl RenderArchetypeInfo {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ConfigurationCommandSection {
-    #[serde(with = "serde_yaml::with::singleton_map_recursive")]
-    catalogs: LinkedHashMap<String, Vec<CatalogEntry>>,
-}

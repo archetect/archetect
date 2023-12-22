@@ -2,10 +2,8 @@ use git2;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Identifier, Map};
 
+use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
 use crate::catalog::CatalogEntry;
-use crate::configuration::{RenderCatalogInfo, RenderGroupInfo};
-use crate::configuration::ArchetectCommand::RenderGroup;
-use crate::configuration::configuration_actions_section::ArchetectCommand;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
@@ -13,7 +11,7 @@ use crate::configuration::configuration_update_section::ConfigurationUpdateSecti
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Configuration {
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
-    actions: LinkedHashMap<String, ArchetectCommand>,
+    actions: LinkedHashMap<String, ArchetectAction>,
     #[serde(skip_serializing_if = "Option::is_none")]
     offline: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -58,11 +56,11 @@ impl Configuration {
         &self.security
     }
 
-    pub fn commands(&self) -> &LinkedHashMap<String, ArchetectCommand> {
+    pub fn actions(&self) -> &LinkedHashMap<String, ArchetectAction> {
         &self.actions
     }
 
-    pub fn get_command<C: AsRef<str>>(&self, command_name: C) -> Option<&ArchetectCommand> {
+    pub fn action<C: AsRef<str>>(&self, command_name: C) -> Option<&ArchetectAction> {
         self.actions.get(command_name.as_ref())
     }
 
@@ -115,7 +113,7 @@ impl Default for Configuration {
     }
 }
 
-fn default_commands() -> LinkedHashMap<String, ArchetectCommand> {
+fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
     let mut commands = LinkedHashMap::new();
     let mut entries = vec![];
 
@@ -128,7 +126,7 @@ fn default_commands() -> LinkedHashMap<String, ArchetectCommand> {
 
     let command = RenderGroupInfo::new(entries);
 
-    commands.insert("default".to_string(), RenderGroup(command));
+    commands.insert("default".to_string(), ArchetectAction::RenderGroup{description: "Archetect".to_string(), info: command });
     commands
 }
 

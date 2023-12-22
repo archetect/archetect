@@ -3,7 +3,7 @@ use archetect_core::Archetect;
 
 pub fn handle_commands_subcommand(_args: &ArgMatches, archetect: &Archetect) {
     let mut keys = vec![];
-    for key in archetect.configuration().commands().keys() {
+    for key in archetect.configuration().actions().keys() {
         keys.push(key);
     }
     keys.sort();
