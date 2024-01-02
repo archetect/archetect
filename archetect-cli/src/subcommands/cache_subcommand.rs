@@ -3,7 +3,7 @@ use std::fs;
 use clap::ArgMatches;
 use log::error;
 
-use archetect_core::{CacheCommand, CacheManager};
+use archetect_core::{CacheManager};
 use archetect_core::actions::ArchetectAction;
 use archetect_core::Archetect;
 use archetect_core::catalog::{Catalog, CatalogManifest};
@@ -33,7 +33,7 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
                 Some(action) => {
                     match action {
                         ArchetectAction::RenderGroup{info, .. } => {
-                            let manifest = CatalogManifest::new().with_entries(info.entries().to_vec());
+                            let manifest = CatalogManifest::new().with_entries(info.actions().to_vec());
                             let catalog = Catalog::new(archetect.clone(), manifest);
                             cache_manager.manage(&catalog)?;
                         }
@@ -46,11 +46,6 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
                         }
                     }
                 }
-            }
-        }
-        Some(("pull", _args)) => {
-            for entry in archetect.catalog().entries() {
-                entry.execute_cache_command(&archetect, CacheCommand::PullAll)?;
             }
         }
         Some(("clear", _args)) => {

@@ -2,10 +2,11 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use archetect_inquire::{InquireError, Select};
+use crate::actions::ArchetectAction;
 
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
-use crate::catalog::{CatalogEntry, CatalogManifest};
+use crate::catalog::{CatalogManifest};
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::Source;
 
@@ -47,7 +48,7 @@ impl Catalog {
         Ok(())
     }
 
-    pub fn entries(&self) -> &[CatalogEntry] {
+    pub fn entries(&self) -> &[ArchetectAction] {
         self.inner.manifest.entries()
     }
 
@@ -63,10 +64,10 @@ impl Catalog {
             let choice = self.select_from_entries(entries)?;
 
             match choice {
-                CatalogEntry::Catalog { description: _, info } => {
+                ArchetectAction::RenderCatalog { description: _, info } => {
                     catalog = self.archetect.new_catalog(info.source())?;
                 }
-                CatalogEntry::Archetype {
+                ArchetectAction::RenderArchetype {
                     description: _,
                     info,
                 } => {
@@ -83,7 +84,7 @@ impl Catalog {
                     let _result = archetype.render(render_context)?;
                     return Ok(());
                 }
-                CatalogEntry::Group {
+                ArchetectAction::RenderGroup {
                     description: _,
                     info: _,
                 } => unreachable!(),
@@ -91,7 +92,7 @@ impl Catalog {
         }
     }
 
-    pub fn select_from_entries(&self, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
+    pub fn select_from_entries(&self, mut entry_items: Vec<ArchetectAction>) -> Result<ArchetectAction, CatalogError> {
         if entry_items.is_empty() {
             return Err(CatalogError::EmptyGroup);
         }
@@ -107,11 +108,11 @@ impl Catalog {
 
             match prompt.prompt() {
                 Ok(item) => match item.entry {
-                    CatalogEntry::Group { description: _, info } => {
-                        entry_items = info.entries_owned();
+                    ArchetectAction::RenderGroup { description: _, info } => {
+                        entry_items = info.actions_owned();
                     }
-                    CatalogEntry::Catalog { .. } => return Ok(item.entry()),
-                    CatalogEntry::Archetype { .. } => return Ok(item.entry()),
+                    ArchetectAction::RenderCatalog { .. } => return Ok(item.entry()),
+                    ArchetectAction::RenderArchetype { .. } => return Ok(item.entry()),
                 },
                 Err(err) => {
                     return match err {
@@ -125,7 +126,7 @@ impl Catalog {
     }
 }
 
-fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
+fn create_item(item_count: usize, id: usize, entry: &ArchetectAction) -> CatalogItem {
     match item_count {
         1..=99 => CatalogItem::new(
             format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()),
@@ -142,23 +143,23 @@ fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogIte
     }
 }
 
-fn item_icon(entry: &CatalogEntry) -> &'static str {
+fn item_icon(entry: &ArchetectAction) -> &'static str {
     match entry {
-        CatalogEntry::Archetype { .. } => "📦",
+        ArchetectAction::RenderArchetype { .. } => "📦",
         _ => "📂",
     }
 }
 
 pub(crate) struct CatalogItem {
     text: String,
-    pub(crate) entry: CatalogEntry,
+    pub(crate) entry: ArchetectAction,
 }
 
 impl CatalogItem {
-    pub fn new(text: String, entry: CatalogEntry) -> CatalogItem {
+    pub fn new(text: String, entry: ArchetectAction) -> CatalogItem {
         CatalogItem { text, entry }
     }
-    pub fn entry(self) -> CatalogEntry {
+    pub fn entry(self) -> ArchetectAction {
         self.entry
     }
 }

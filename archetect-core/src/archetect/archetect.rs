@@ -6,7 +6,7 @@ use archetect_api::{CommandRequest, CommandResponse, IoDriver};
 use archetect_terminal_io::TerminalIoDriver;
 
 use crate::archetype::archetype::Archetype;
-use crate::catalog::{Catalog, CatalogManifest};
+use crate::catalog::{Catalog};
 use crate::configuration::Configuration;
 use crate::errors::ArchetectError;
 use crate::source::Source;
@@ -138,15 +138,5 @@ impl Archetect {
     pub fn new_source(&self, path: &str) -> Result<Source, ArchetectError> {
         let source = Source::new(self.clone(), path)?;
         Ok(source)
-    }
-
-    pub fn catalog(&self) -> Catalog {
-        let mut manifest = CatalogManifest::new();
-        for (_key, entries) in self.configuration().catalogs() {
-            for entry in entries.iter() {
-                manifest.entries_owned().push(entry.to_owned());
-            }
-        }
-        Catalog::new(self.clone(), manifest)
     }
 }

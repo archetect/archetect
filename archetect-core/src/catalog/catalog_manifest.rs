@@ -3,11 +3,9 @@ use std::path::Path;
 
 use camino::Utf8PathBuf;
 
-use crate::{Archetect, CacheCommand};
-use crate::actions::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
+use crate::actions::{ArchetectAction};
 use crate::archetype::archetype_manifest::RuntimeRequirements;
-use crate::errors::{ArchetectError, CatalogError};
-use crate::source::SourceCommand;
+use crate::errors::CatalogError;
 
 pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 
@@ -15,7 +13,7 @@ pub const CATALOG_FILE_NAMES: &[&str] = &["catalog.yaml", "catalog.yml"];
 pub struct CatalogManifest {
     requires: RuntimeRequirements,
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
-    entries: Vec<CatalogEntry>,
+    entries: Vec<ArchetectAction>,
 }
 
 impl CatalogManifest {
@@ -26,7 +24,7 @@ impl CatalogManifest {
         }
     }
 
-    pub fn with_entries(mut self, entries: Vec<CatalogEntry>) -> Self {
+    pub fn with_entries(mut self, entries: Vec<ArchetectAction>) -> Self {
         self.entries = entries;
         self
     }
@@ -61,11 +59,11 @@ impl CatalogManifest {
         Ok(())
     }
 
-    pub fn entries(&self) -> &[CatalogEntry] {
+    pub fn entries(&self) -> &[ArchetectAction] {
         self.entries.as_slice()
     }
 
-    pub fn entries_owned(&mut self) -> &mut Vec<CatalogEntry> {
+    pub fn entries_owned(&mut self) -> &mut Vec<ArchetectAction> {
         &mut self.entries
     }
 
@@ -84,85 +82,10 @@ impl Default for CatalogManifest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum CatalogEntry {
-    #[serde(rename = "group")]
-    Group {
-        description: String,
-        #[serde(flatten)]
-        info: RenderGroupInfo,
-    },
-    #[serde(rename = "catalog")]
-    Catalog {
-        description: String,
-        #[serde(flatten)]
-        info: RenderCatalogInfo,
-    },
-    #[serde(rename = "archetype")]
-    Archetype {
-        description: String,
-        #[serde(flatten)]
-        info: RenderArchetypeInfo,
-    },
-}
-
-impl CatalogEntry {
-    pub fn description(&self) -> &str {
-        match self {
-            CatalogEntry::Group { description, info: _ } => description.as_str(),
-            CatalogEntry::Catalog { description, info: _ } => description.as_str(),
-            CatalogEntry::Archetype { description, info: _} => description.as_str(),
-        }
-    }
-
-    pub fn execute_cache_command(&self, archetect: &Archetect, command: CacheCommand) -> Result<(), ArchetectError> {
-        match self {
-            CatalogEntry::Group { description: _, info } => {
-                for entry in info.entries() {
-                    entry.execute_cache_command(archetect, command)?;
-                }
-            }
-            CatalogEntry::Catalog { info, .. } => {
-                let catalog = archetect.new_catalog(info.source())?;
-                match command {
-                    CacheCommand::Pull | CacheCommand::PullAll => {
-                        if let Some(source) = catalog.source() {
-                            source.execute(SourceCommand::Pull)?;
-                        }
-                        if let CacheCommand::PullAll = command {
-                            for entry in catalog.entries() {
-                                entry.execute_cache_command(archetect, command)?;
-                            }
-                        }
-                    }
-                    CacheCommand::Invalidate => {
-                        if let Some(source) = catalog.source() {
-                            source.execute(SourceCommand::Invalidate)?;
-                        }
-                    }
-                    CacheCommand::View => unreachable!(),
-                }
-            }
-            CatalogEntry::Archetype { description: _, info } => {
-                let source = archetect.new_source(info.source())?;
-                match command {
-                    CacheCommand::Pull | CacheCommand::PullAll => {
-                        source.execute(SourceCommand::Pull)?;
-                    }
-                    CacheCommand::Invalidate => {
-                        source.execute(SourceCommand::Invalidate)?;
-                    }
-                    CacheCommand::View => unreachable!(),
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
 
 #[cfg(test)]
 mod tests {
+    use crate::actions::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
     use super::*;
 
     #[test]
@@ -185,7 +108,7 @@ mod tests {
             requires: RuntimeRequirements::default(),
             entries: vec![
                 lang_group(),
-                CatalogEntry::Catalog {
+                ArchetectAction::RenderCatalog {
                     description: "Java".to_owned(),
                     info: RenderCatalogInfo::new("~/projects/catalogs/java.yml"),
                 },
@@ -193,8 +116,8 @@ mod tests {
         }
     }
 
-    fn lang_group() -> CatalogEntry {
-        CatalogEntry::Group {
+    fn lang_group() -> ArchetectAction {
+        ArchetectAction::RenderGroup {
             description: "Languages".to_owned(),
             info: RenderGroupInfo {
                 entries: vec![rust_group(), python_group()],
@@ -202,8 +125,8 @@ mod tests {
         }
     }
 
-    fn rust_group() -> CatalogEntry {
-        CatalogEntry::Group {
+    fn rust_group() -> ArchetectAction {
+        ArchetectAction::RenderGroup {
             description: "Rust".to_owned(),
             info: RenderGroupInfo {
                 entries: vec![rust_cli_archetype(), rust_cli_workspace_archetype()],
@@ -211,8 +134,8 @@ mod tests {
         }
     }
 
-    fn rust_cli_archetype() -> CatalogEntry {
-        CatalogEntry::Archetype {
+    fn rust_cli_archetype() -> ArchetectAction {
+        ArchetectAction::RenderArchetype {
             description: "Rust CLI".to_owned(),
             info: RenderArchetypeInfo {
                 source: "~/projects/test_archetypes/rust-cie".to_owned(),
@@ -224,8 +147,8 @@ mod tests {
         }
     }
 
-    fn rust_cli_workspace_archetype() -> CatalogEntry {
-        CatalogEntry::Archetype {
+    fn rust_cli_workspace_archetype() -> ArchetectAction {
+        ArchetectAction::RenderArchetype {
             description: "Rust CLI Workspace".to_owned(),
             info: RenderArchetypeInfo {
                 source: "~/projects/test_archetypes/rust-cie".to_owned(),
@@ -237,11 +160,11 @@ mod tests {
         }
     }
 
-    fn python_group() -> CatalogEntry {
-        CatalogEntry::Group {
+    fn python_group() -> ArchetectAction {
+        ArchetectAction::RenderGroup {
             description: "Python".to_owned(),
             info: RenderGroupInfo {
-                entries: vec![CatalogEntry::Archetype {
+                entries: vec![ArchetectAction::RenderArchetype {
                     description: "Python Service".to_owned(),
                     info: RenderArchetypeInfo {
                         source: "~/projects/python/python-service".to_owned(),

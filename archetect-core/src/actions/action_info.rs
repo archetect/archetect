@@ -1,26 +1,26 @@
 use std::collections::HashSet;
 
 use rhai::Map;
+use crate::actions::ArchetectAction;
 
-use crate::catalog::CatalogEntry;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RenderGroupInfo {
-    pub(crate) entries: Vec<CatalogEntry>,
+    pub(crate) entries: Vec<ArchetectAction>,
 }
 
 impl RenderGroupInfo {
-    pub fn new(entries: Vec<CatalogEntry>) -> RenderGroupInfo {
+    pub fn new(entries: Vec<ArchetectAction>) -> RenderGroupInfo {
         RenderGroupInfo {
             entries,
         }
     }
 
-    pub fn entries(&self) -> &Vec<CatalogEntry> {
+    pub fn actions(&self) -> &Vec<ArchetectAction> {
         &self.entries
     }
 
-    pub fn entries_owned(self) -> Vec<CatalogEntry> {
+    pub fn actions_owned(self) -> Vec<ArchetectAction> {
         self.entries
     }
 }

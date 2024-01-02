@@ -1,10 +1,10 @@
 use std::fmt::{Display, Formatter};
 
 use archetect_inquire::{InquireError, Select};
-use crate::actions::RenderArchetypeInfo;
+use crate::actions::{ArchetectAction, RenderArchetypeInfo};
 
 use crate::Archetect;
-use crate::catalog::{Catalog, CatalogEntry, CatalogItem};
+use crate::catalog::{Catalog, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
 
 pub struct CacheManager {
@@ -32,7 +32,7 @@ impl CacheManager {
                 Ok(operation) => {
                     match operation {
                         CacheCommand::View => {
-                            if let CatalogEntry::Catalog { description: _, info} = choice {
+                            if let ArchetectAction::RenderCatalog { description: _, info} = choice {
                                 catalog = self.archetect.new_catalog(info.source())?;
                                 continue;
                             }
@@ -54,7 +54,7 @@ impl CacheManager {
     }
 
     pub fn manage_archetype(&self, info: &RenderArchetypeInfo) -> Result<(), ArchetectError> {
-        let entry = CatalogEntry::Archetype {
+        let entry = ArchetectAction::RenderArchetype {
             description: "Manage Archetype".to_string(),
             info: info.clone(),
         };
@@ -69,7 +69,7 @@ impl CacheManager {
         Ok(())
     }
 
-    pub fn select_from_entries(&self, mut entry_items: Vec<CatalogEntry>) -> Result<CatalogEntry, CatalogError> {
+    pub fn select_from_entries(&self, mut entry_items: Vec<ArchetectAction>) -> Result<ArchetectAction, CatalogError> {
         if entry_items.is_empty() {
             return Err(CatalogError::EmptyGroup);
         }
@@ -85,14 +85,14 @@ impl CacheManager {
 
             match prompt.prompt() {
                 Ok(item) => match item.entry {
-                    CatalogEntry::Group {
+                    ArchetectAction::RenderGroup {
                         description: _,
                         info,
                     } => {
                         entry_items = info.entries;
                     }
-                    CatalogEntry::Catalog { .. } => return Ok(item.entry()),
-                    CatalogEntry::Archetype { .. } => return Ok(item.entry()),
+                    ArchetectAction::RenderCatalog { .. } => return Ok(item.entry()),
+                    ArchetectAction::RenderArchetype { .. } => return Ok(item.entry()),
                 },
                 Err(err) => {
                     return match err {
@@ -106,24 +106,24 @@ impl CacheManager {
     }
 }
 
-fn select_management_operations(catalog_entry: &CatalogEntry) -> Vec<CacheCommand> {
+fn select_management_operations(catalog_entry: &ArchetectAction) -> Vec<CacheCommand> {
     let mut operations = vec![];
     operations.push(CacheCommand::Pull);
     operations.push(CacheCommand::Invalidate);
     match catalog_entry {
-        CatalogEntry::Group { .. } => {
+        ArchetectAction::RenderGroup { .. } => {
             unreachable!()
         }
-        CatalogEntry::Catalog { .. } => {
+        ArchetectAction::RenderCatalog { .. } => {
             operations.insert(0, CacheCommand::View);
             operations.insert(2, CacheCommand::PullAll);
         },
-        CatalogEntry::Archetype { .. } => {}
+        ArchetectAction::RenderArchetype { .. } => {}
     }
     operations
 }
 
-fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogItem {
+fn create_item(item_count: usize, id: usize, entry: &ArchetectAction) -> CatalogItem {
     match item_count {
         1..=99 => CatalogItem::new(
             format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()),
@@ -140,9 +140,9 @@ fn create_item(item_count: usize, id: usize, entry: &CatalogEntry) -> CatalogIte
     }
 }
 
-fn item_icon(entry: &CatalogEntry) -> &'static str {
+fn item_icon(entry: &ArchetectAction) -> &'static str {
     match entry {
-        CatalogEntry::Archetype { .. } => "📦",
+        ArchetectAction::RenderArchetype { .. } => "📦",
         _ => "📂",
     }
 }

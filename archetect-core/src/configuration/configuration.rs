@@ -3,7 +3,6 @@ use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Identifier, Map};
 
 use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
-use crate::catalog::CatalogEntry;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
@@ -17,8 +16,6 @@ pub struct Configuration {
     #[serde(skip_serializing_if = "Option::is_none")]
     headless: Option<bool>,
     answers: Map,
-    #[serde(with = "serde_yaml::with::singleton_map_recursive")]
-    catalogs: LinkedHashMap<String, Vec<CatalogEntry>>,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
     security: ConfigurationSecuritySection,
@@ -73,10 +70,6 @@ impl Configuration {
         self
     }
 
-    pub fn catalogs(&self) -> &LinkedHashMap<String, Vec<CatalogEntry>> {
-        &self.catalogs
-    }
-
     pub fn switches(&self) -> &[String] {
         if let Some(switches) = &self.switches {
             switches
@@ -106,7 +99,6 @@ impl Default for Configuration {
             updates: Default::default(),
             security: Default::default(),
             answers: default_answers(),
-            catalogs: default_catalog(),
             locals: Default::default(),
             switches: Default::default(),
         }
@@ -117,7 +109,7 @@ fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
     let mut commands = LinkedHashMap::new();
     let mut entries = vec![];
 
-    let archetect_catalog = CatalogEntry::Catalog {
+    let archetect_catalog = ArchetectAction::RenderCatalog {
         description: "Archetect".to_string(),
         info: RenderCatalogInfo::new("https://github.com/archetect/archetect.catalog.git"),
     };
@@ -128,18 +120,6 @@ fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
 
     commands.insert("default".to_string(), ArchetectAction::RenderGroup{description: "Archetect".to_string(), info: command });
     commands
-}
-
-fn default_catalog() -> LinkedHashMap<String, Vec<CatalogEntry>> {
-    let mut catalogs = LinkedHashMap::new();
-    catalogs.insert(
-        "default".to_owned(),
-        vec![CatalogEntry::Catalog {
-            description: "Archetect".to_owned(),
-            info: RenderCatalogInfo::new("https://github.com/archetect/archetect.catalog.git"),
-        }],
-    );
-    catalogs
 }
 
 fn default_answers() -> Map {

@@ -98,18 +98,18 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         Some(("catalog", args)) => catalog(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
-        Some((command, _args)) => {
-            println!("Executing Command: {}", command);
+        Some((_, _args)) => {
+            execute_action(&matches, archetect, answers)?;
         },
         None => {
-            default(&matches, archetect, answers)?;
+            execute_action(&matches, archetect, answers)?;
         }
     }
 
     Ok(())
 }
 
-fn default(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
+fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     let action = matches.get_one::<String>("action").expect("Expected an action");
     match archetect.configuration().action(&action) {
         None => {
@@ -127,7 +127,7 @@ fn default(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(
         Some(command) => {
             match command {
                 ArchetectAction::RenderGroup{info, ..} => {
-                    let catalog = Catalog::new(archetect.clone(), CatalogManifest::new().with_entries(info.entries().clone()));
+                    let catalog = Catalog::new(archetect.clone(), CatalogManifest::new().with_entries(info.actions().clone()));
                     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
                     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
                     catalog.render(render_context)?;
