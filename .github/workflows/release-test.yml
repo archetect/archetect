@@ -1,125 +1,40 @@
----
-name: Release
+name: release
+
+# Only do the release on x.y.z tags.
 on:
   push:
-    branches:
-      - '**'
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+.*"
+
+# We need this to be able to create releases.
+permissions:
+  contents: write
 
 jobs:
+  # The create-release job runs purely to initialize the GitHub release itself,
+  # and names the release after the `x.y.z` tag that was pushed. It's separate
+  # from building the release so that we only create the release once.
   create-release:
     name: create-release
     runs-on: ubuntu-latest
     steps:
-      - name: Create artifacts directory
-        run: mkdir artifacts
-
+      - uses: actions/checkout@v4
       - name: Get the release version from the tag
-        if: env.APP_VERSION == ''
+        if: env.VERSION == ''
+        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Show the version
         run: |
-          echo "APP_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "version is: ${{ env.APP_VERSION }}"
-      - name: Create GitHub release
-        id: release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.APP_VERSION }}
-          release_name: ${{ env.APP_VERSION }}
-
-      - name: Save release upload URL to artifact
-        run: echo "${{ steps.release.outputs.upload_url }}" > artifacts/release-upload-url
-
-      - name: Save version number to artifact
-        run: echo "${{ env.APP_VERSION }}" > artifacts/release-version
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v1
-        with:
-          name: artifacts
-          path: artifacts
-
-
-  build-release:
-    name: build-release
-    needs: ['create-release']
-    runs-on: ${{ matrix.os }}
-    env:
-      RUST_BACKTRACE: 1
-      TARGET_DIR: ./target
-      BINARY: archetect
-
-    strategy:
-      matrix:
-        platform: [linux, osx, windows]
-        include:
-          - platform: linux
-            os: ubuntu-18.04
-          - platform: osx
-            os: macos-latest
-          - platform: windows
-            os: windows-2019
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Run Cargo Build (Release)
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-
-
-      - name: Strip Release Binary (linux and macos)
-        if: matrix.platform == 'linux' || matrix.platform == 'macos'
-        run: strip "target/release/${{ env.BINARY }}"
-
-      - name: Get release download URL
-        uses: actions/download-artifact@v1
-        with:
-          name: artifacts
-          path: artifacts
-
-      - name: Set release upload URL and release version
+          echo "version is: $VERSION"
+      - name: Check that tag version and Cargo.toml version are the same
         shell: bash
         run: |
-          release_upload_url="$(cat artifacts/release-upload-url)"
-          echo "RELEASE_UPLOAD_URL=$release_upload_url" >> $GITHUB_ENV
-          echo "release upload url: $RELEASE_UPLOAD_URL"
-          release_version="$(cat artifacts/release-version)"
-          echo "RELEASE_VERSION=$release_version" >> $GITHUB_ENV
-          echo "release version: $RELEASE_VERSION"
-          cat artifacts/release-upload-url
-          cat $GITHUB_ENV
-
-      - name: Build archive
-        shell: bash
-        run: |
-          outdir="${{ env.TARGET_DIR }}"
-          staging="${{ env.BINARY }}_${{ env.RELEASE_VERSION }}_${{ matrix.platform }}-x64"
-          mkdir -p "$staging"
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            cp "target/release/${{ env.BINARY }}.exe" "$staging/"
-            7z a "$staging.zip" "$staging"
-            echo "ASSET=$staging.zip" >> $GITHUB_ENV
-          else
-            cp "target/release/${{ env.BINARY }}" "$staging/"
-            tar czf "$staging.tar.gz" "$staging"
-            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+          if ! grep -q "version = \"$VERSION\"" Cargo.toml; then
+            echo "version does not match Cargo.toml" >&2
+            exit 1
           fi
-
-      - name: Upload release archive
-        uses: actions/upload-release-asset@v1.0.1
+      - name: Create GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ env.RELEASE_UPLOAD_URL }}
-          asset_path: ${{ env.ASSET }}
-          asset_name: ${{ env.ASSET }}
-          asset_content_type: application/octet-stream
+        run: gh release create $VERSION --draft --verify-tag --title $VERSION
+    outputs:
+      version: ${{ env.VERSION }}
