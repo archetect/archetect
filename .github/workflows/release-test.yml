@@ -3,7 +3,7 @@ name: test release
 # Only do the release on x.y.z tags.
 on:
   push:
-    branches:
+    tags:
       - '**'
 
 # We need this to be able to create releases.
