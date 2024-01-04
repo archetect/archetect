@@ -26,6 +26,10 @@ impl RenderContext {
     }
 
     pub fn with_archetype_info(mut self, info: &RenderArchetypeInfo) -> Self {
+        if let Some(answers) = info.answers() {
+            let mut answers = answers.clone();
+            self.answers.append(&mut answers);
+        }
         if let Some(switches) = info.switches() {
             self = self.with_switches(switches.clone());
         }

@@ -1,6 +1,7 @@
 use git2;
 use linked_hash_map::LinkedHashMap;
 use rhai::{Dynamic, Identifier, Map};
+use serde::{Deserialize, Serialize};
 
 use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;

@@ -1,7 +1,8 @@
 use semver::VersionReq;
+use serde::{Deserialize, Serialize};
 
-use crate::errors::RequirementsError;
 use crate::Archetect;
+use crate::errors::RequirementsError;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RuntimeRequirements {
@@ -30,8 +31,9 @@ impl RuntimeRequirements {
 
 impl Default for RuntimeRequirements {
     fn default() -> Self {
+        let archetect_version = VersionReq::parse(env!("CARGO_PKG_VERSION")).unwrap();
         RuntimeRequirements {
-            archetect_version: VersionReq::any(),
+            archetect_version,
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::fs;
 
 use camino::Utf8PathBuf;
+use serde::{Deserialize, Serialize};
 use linked_hash_map::LinkedHashMap;
 
 pub use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;

@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_CONTENT_DIRECTORY: &str = ".";
 const DEFAULT_TEMPLATES_DIRECTORY: &str = "templates";

@@ -71,12 +71,6 @@ impl Catalog {
                     description: _,
                     info,
                 } => {
-                    let mut answers = render_context.answers_owned();
-                    if let Some(catalog_answers) = info.answers() {
-                        for (k, v) in catalog_answers {
-                            answers.entry(k.clone()).or_insert(v.clone());
-                        }
-                    }
                     let archetype = self.archetect.new_archetype(info.source())?;
                     render_context = render_context.with_archetype_info(&info);
 

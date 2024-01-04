@@ -1,14 +1,14 @@
 [package]
 name = "archetect-core"
-version = "2.0.0-ALPHA.8"
-authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 description = "Generates Content from Archetype Template Directories and Git Repositories."
-homepage = "https://archetect.github.io"
-repository = "https://github.com/archetect/archetect"
-keywords = ["code-generation", "content-generation", "jinja2"]
-readme = "../README.md"
-edition = "2021"
-license = "MIT"
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.8" }
@@ -17,57 +17,31 @@ archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.8", 
 archetect-minijinja = { path = "../archetect-minijinja", version= "2.0.0-ALPHA.8", features = ["source", "urlencode", "json"] }
 archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.8" }
 
-anyhow = "1.0.69"
-atty = "0.2"
-camino = { version= "1.1", features = ["serde1"] }
-content_inspector = "0.2"
-cruet = "0.13.3"
-directories = "5.0.1"
-indoc = "2.0.4"
-farmhash = "1.1"
-git2 = "0.18.1"
-glob = "0.3"
-globwalk = "0.8.1"
-linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
-log = { version = "0.4", features = ["std"] }
-memchr = { version = "2", default-features = false }
+camino = { workspace = true }
+chrono = { workspace = true }
+content_inspector = { workspace = true }
+cruet = { workspace = true }
+directories = { workspace = true }
+farmhash = { workspace = true }
+git2 = { workspace = true }
+linked-hash-map = { workspace = true }
+log = { workspace = true }
+memchr = { workspace = true }
+regex = { workspace = true }
+rhai = { workspace = true }
+semver = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml= { workspace = true }
+shellexpand  = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+unicode-segmentation = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
 
-pest = "2"
-pest_derive = "2"
-read_input = "0.8.6"
-rhai = { version = "1.16", features = ["serde", "internals", "metadata", "debugging", "std", "bin-features", "sync"] }
-semver = { version = "0.9", features = ["serde"] }
-serde = "1.0.116"
-serde_derive = "1.0.116"
-serde_json = "1.0.40"
-serde_yaml = "0.9.27"
-shellexpand = "3.1.0"
-tempfile = "3.4.0"
-unicode-segmentation = "1.2.0"
-uuid = { version = "1.5.0", features = ["serde", "v4"] }
-
-v_htmlescape = "0.15.8"
-
-# used in slugify filter
-slug = "0.1"
-# used in striptags filters
-regex = "1.0"
-# used in urlencode filter
-url = "2"
-# used in filesizeformat filter
-humansize = "2.1"
-# used in date format filter
-chrono = "0.4"
-chrono-tz = "0.8.4"
-# used in truncate filter
-unic-segment = "0.9"
-thiserror = "1.0.26"
 
 [dev-dependencies]
-pretty_assertions = "1.4.0"
+anyhow = { workspace = true }
 assert_matches = { workspace = true }
 function_name = { workspace = true }
-
-[features]
-default = []
-preserve_order = ["serde_json/preserve_order"]

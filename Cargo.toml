@@ -5,16 +5,52 @@ members = [
   "archetect-api",
   "archetect-cli",
   "archetect-core",
-  # "archetect-models",
   "archetect-terminal-io",
   "archetect-minijinja",
   "archetect-inquire",
   "archetect-validations",
 ]
 
-[workspace.dependencies]
-assert_matches = "1.5.0"
-function_name = "0.3.0"
-serde = { version = "1.0.159", features = ["derive"] }
-log = { version = "0.4", features = ["std"] }
+[workspace.package]
+version = "2.0.0-ALPHA.8"
+authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
+documentation = "https:/archetect.github.io"
+edition = "2021"
+homepage = "https://archetect.github.io"
+license = "MIT"
+repository = "https://github.com/archetect/archetect"
 
+[workspace.dependencies]
+ansi_term = "0.12"
+anyhow = "1.0.69"
+atty = "0.2"
+assert_matches = "1.5.0"
+camino = { version= "1.1", features = ["serde1"] }
+chrono = "0.4"
+clap = { version = "4.4", features = ["cargo", "env", "color"] }
+clap_complete = "4.4"
+config = { version = "0.13", default-features = false, features = ["yaml"] }
+content_inspector = "0.2"
+cruet = "0.14"
+directories = "5.0.1"
+dyn-clone = "1"
+farmhash = "1.1"
+git2 = "0.18.1"
+function_name = "0.3.0"
+linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
+log = { version = "0.4", features = ["std"] }
+pest = "2"
+pest_derive = "2"
+regex = "1.0"
+rhai = { version = "1.16", features = ["serde", "internals", "metadata", "debugging", "std", "bin-features", "sync"] }
+memchr = { version = "2", default-features = false }
+semver = { version = "1.0", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+shellexpand = "3.1.0"
+tempfile = "3.4.0"
+thiserror = "1.0.26"
+unicode-segmentation = "1.2.0"
+url = "2"
+uuid = { version = "1.6", features = ["serde", "v4"] }

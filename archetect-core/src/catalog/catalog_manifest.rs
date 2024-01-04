@@ -2,8 +2,9 @@ use std::fs;
 use std::path::Path;
 
 use camino::Utf8PathBuf;
+use serde::{Deserialize, Serialize};
 
-use crate::actions::{ArchetectAction};
+use crate::actions::ArchetectAction;
 use crate::archetype::archetype_manifest::RuntimeRequirements;
 use crate::errors::CatalogError;
 
@@ -76,16 +77,10 @@ impl CatalogManifest {
     }
 }
 
-impl Default for CatalogManifest {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-
 #[cfg(test)]
 mod tests {
     use crate::actions::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
+
     use super::*;
 
     #[test]

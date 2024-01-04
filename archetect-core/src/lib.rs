@@ -1,9 +1,3 @@
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-#[macro_use]
-extern crate serde_derive;
-
 pub mod archetype;
 pub mod catalog;
 pub mod configuration;

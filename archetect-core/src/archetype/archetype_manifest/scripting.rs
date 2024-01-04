@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_MAIN_SCRIPT: &str = "archetype.rhai";
 const DEFAULT_MODULES_DIRECTORIES: &str = "modules";
