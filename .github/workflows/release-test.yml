@@ -21,14 +21,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Get the release version from the tag
         if: env.VERSION == ''
-        run: echo "VERSION=${{ github.ref_name }}" >> ${GITHUB_ENV:1}
+        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV}
       - name: Show the version
         run: |
           echo "version is: $VERSION"
       - name: Check that tag version and Cargo.toml version are the same
         shell: bash
         run: |
-          if ! grep -q "version = \"$VERSION\"" Cargo.toml; then
+          if ! grep -q "version = \"${VERSION:1}\"" Cargo.toml; then
             echo "version does not match Cargo.toml" >&2
             exit 1
           fi
