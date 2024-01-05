@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
   "archetect-api",
-  "archetect-cli",
+  "archetect-bin",
   "archetect-core",
   "archetect-terminal-io",
   "archetect-minijinja",

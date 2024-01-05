@@ -16,7 +16,7 @@ projects, or entire architectures. Key features include:
 
 Modules:
 
-- [archetect-cli](archetect-cli/README.md)
+- [archetect-cli](archetect-bin/README.md)
 - [archetect-core](archetect-core/README.md)
 
 ## Quick Start

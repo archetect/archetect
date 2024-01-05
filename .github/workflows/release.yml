@@ -1,19 +1,15 @@
 name: test release
 
-# Only do the release on x.y.z tags.
 on:
   push:
     tags:
       - '**'
 
-# We need this to be able to create releases.
 permissions:
   contents: write
 
 jobs:
-  # The create-release job runs purely to initialize the GitHub release itself,
-  # and names the release after the `x.y.z` tag that was pushed. It's separate
-  # from building the release so that we only create the release once.
+  # Create a draft release placeholder for each build to publish to
   create-release:
     name: create-release
     runs-on: ubuntu-latest
@@ -53,7 +49,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux, macos, windows]
         include:
           - platform: linux
             os: ubuntu-latest
@@ -61,7 +56,7 @@ jobs:
           - platform: macos
             os: macos-latest
             rust: stable
-            arch: arm64
+            arch: aarch64
           - platform: windows
             os: windows-latest
             rust: stable
