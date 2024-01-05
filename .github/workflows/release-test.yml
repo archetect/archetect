@@ -51,7 +51,7 @@ jobs:
       BINARY: archetect
 
     strategy:
-      fail-fast: false,
+      fail-fast: false
       matrix:
         platform: [linux, osx, windows]
         include:
