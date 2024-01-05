@@ -44,7 +44,6 @@ jobs:
   build-release:
     name: build-release
     needs: ['create-release']
-    runs-on: ${{ matrix.os }}
     env:
       RUST_BACKTRACE: 1
       TARGET_DIR: ./target
@@ -53,21 +52,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux, osx, windows]
+        platform: [linux, macos, windows]
         include:
-          - build: linux
+          - platform: linux
             os: ubuntu-latest
-            rust: stable
-            target: x86_64-unknown-linux-musl
-            strip: x86_64-linux-musl-strip
-          - build: macos
+            arch: x64
+          - platform: macos
             os: macos-latest
             rust: stable
-            target: x86_64-apple-darwin
-          - build: windows
+            arch: arm64
+          - platform: windows
             os: windows-latest
             rust: stable
-            target: i686-pc-windows-msvc
+            arch: x64
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout Repository
@@ -82,32 +80,51 @@ jobs:
           command: build
           args: --release
 
+      - name: Build release binary
+        shell: bash
+        run: |
+          cargo build --verbose --release
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            bin="target/release/${{ env.BINARY}}.exe"
+          else
+            bin="target/release/${{ env.BINARY }}"
+          fi
+          echo "BIN=$bin" >> $GITHUB_ENV
 
       - name: Strip Release Binary (linux and macos)
         if: matrix.platform == 'linux' || matrix.platform == 'macos'
-        run: strip "target/release/${{ env.BINARY }}"
+        run: strip "$BIN"
 
       - name: Determine Archive Name
         shell: bash
         run: |
           version="${{ needs.create-release.outputs.version }}"
-          echo "ARCHIVE=${{ env.BINARY }}-$version-${{ matrix.target }}" >> $GITHUB_ENV
+          echo "ARCHIVE=${{ env.BINARY }}-$version-${{ matrix.platform }}_${{ matrix.arch }}" >> $GITHUB_ENV
 
-      - name: Build archive
+      - name: Creating Archive Directory
         shell: bash
         run: |
-          outdir="${{ env.TARGET_DIR }}"
-          staging="${{ env.BINARY }}_${{ env.RELEASE_VERSION }}_${{ matrix.platform }}-x64"
-          mkdir -p "$staging"
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            cp "target/release/${{ env.BINARY }}.exe" "$staging/"
-            7z a "$staging.zip" "$staging"
-            echo "ASSET=$staging.zip" >> $GITHUB_ENV
-          else
-            cp "target/release/${{ env.BINARY }}" "$staging/"
-            tar czf "$staging.tar.gz" "$staging"
-            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
-          fi
+          mkdir -p "$ARCHIVE"/
+          cp "$BIN" "$ARCHIVE"/
+          cp {README.md,LICENSE} "$ARCHIVE"/
+
+      - name: Build archive (Windows)
+        shell: bash
+        if: matrix.platform == 'windows'
+        run: |
+          7z a "$ARCHIVE.zip" "$ARCHIVE"
+          certutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
+          echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
+          echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
+
+      - name: Build archive (Unix)
+        shell: bash
+        if: matrix.os != 'windows'
+        run: |
+          tar czf "$ARCHIVE.tar.gz" "$ARCHIVE"
+          shasum -a 256 "$ARCHIVE.tar.gz" > "$ARCHIVE.tar.gz.sha256"
+          echo "ASSET=$ARCHIVE.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_SUM=$ARCHIVE.tar.gz.sha256" >> $GITHUB_ENV
 
       - name: Upload release archive
         env:
