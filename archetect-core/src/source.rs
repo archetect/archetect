@@ -320,7 +320,7 @@ fn cache_git_repo(
             if cached_paths().lock().unwrap().insert(url.to_owned()) {
                 info!("Cloning {}", url);
                 debug!("Cloning to {}", cache_destination.as_str());
-                handle_git(Command::new("git").args(["clone", url, cache_destination.as_str()]))?;
+                handle_git(Command::new("git").args(["clone", url, cache_destination.as_str(), "-q"]))?;
                 let repo = git2::Repository::open(cache_destination.join(".git"))?;
                 write_timestamp(&repo)?;
             }
@@ -332,7 +332,7 @@ fn cache_git_repo(
         if force_pull || should_pull(&repo, &archetect)? {
             if cached_paths().lock().unwrap().insert(url.to_owned()) {
                 info!("Fetching {}", url);
-                handle_git(Command::new("git").current_dir(cache_destination).args(["fetch"]))?;
+                handle_git(Command::new("git").current_dir(cache_destination).args(["fetch", "-q"]))?;
                 write_timestamp(&repo)?;
             }
         } else {
