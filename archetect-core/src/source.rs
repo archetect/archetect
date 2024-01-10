@@ -384,11 +384,6 @@ fn find_default_branch(path: &str) -> Result<String, SourceError> {
 }
 
 fn handle_git(command: &mut Command) -> Result<(), SourceError> {
-    println!("OS: {}", std::env::consts::OS);
-    // if cfg!(target_os = "windows") {
-    //     command.stdin(Stdio::inherit());
-    //     command.stderr(Stdio::inherit());
-    // }
     match command.output() {
         Ok(output) => match output.status.code() {
             Some(0) => Ok(()),
