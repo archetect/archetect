@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.9" }
-archetect-inquire = { path = "../archetect-inquire", version = "2.0.0-ALPHA.9", features = ["editor"] }
+archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.9", features = ["editor"] }
 archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.9" }
 
 dyn-clone = { workspace = true }

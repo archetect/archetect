@@ -6,8 +6,8 @@ members = [
   "archetect-bin",
   "archetect-core",
   "archetect-terminal-io",
-  "archetect-minijinja",
-  "archetect-inquire",
+  "archetect-templating",
+  "archetect-terminal-prompts",
   "archetect-validations",
 ]
 
