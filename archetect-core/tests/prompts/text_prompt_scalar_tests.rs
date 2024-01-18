@@ -107,9 +107,9 @@ fn test_scalar_text_prompt_unexpected() -> Result<(), ArchetectError> {
     harness.respond(CommandResponse::Integer(1));
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Unexpected Response: 'Service Prefix:' expects a String, but received \
-        Integer(1)\nin call to function 'prompt' @ \
-        'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
+        assert_eq!(message, "Unexpected Response: The 'Service Prefix:' prompt expects a String, but received \
+        Integer(1)\nin call to function 'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' \
+        (line 7, position 26)");
     });
 
     Ok(())

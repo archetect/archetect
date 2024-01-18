@@ -110,9 +110,9 @@ fn test_scalar_int_prompt_unexpected() -> Result<(), ArchetectError> {
     harness.respond(CommandResponse::String("8080".to_string()));
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Unexpected Response: 'Service Port:' expects Int, but received \
-        String(\"8080\")\nin call to function 'prompt' @ \
-        'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
+        assert_eq!(message,"Unexpected Response: The 'Service Port:' prompt expects Int, but received \
+        String(\"8080\")\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' \
+        (line 7, position 24)");
     });
 
     assert!(!harness.render_succeeded());
