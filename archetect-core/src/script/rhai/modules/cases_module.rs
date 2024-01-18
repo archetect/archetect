@@ -4,6 +4,9 @@ use cruet::case::to_case_snake_like;
 use rhai::{Dynamic, Map};
 use rhai::plugin::*;
 
+use CaseStrategy::{CasedIdentityCasedValue, CasedKeyCasedValue, FixedKeyCasedValue};
+
+use crate::script::rhai::modules::cases_module::CaseStrategy::FixedIdentityCasedValue;
 use crate::script::rhai::modules::cases_module::module::to_case;
 use crate::script::rhai::modules::prompt_module::Caseable;
 
@@ -48,7 +51,7 @@ pub fn register(engine: &mut Engine) {
     engine.register_fn("deordinalize", cruet::deordinalize);
 }
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub enum CaseStyle {
     CamelCase,
@@ -89,28 +92,28 @@ impl Display for CaseStyle {
                 write!(f, "KebabCase")
             }
             CaseStyle::LowerCase => {
-               write!(f, "LowerCase")
+                write!(f, "LowerCase")
             }
             CaseStyle::PackageCase => {
-               write!(f, "PackageCase")
+                write!(f, "PackageCase")
             }
             CaseStyle::PascalCase => {
-               write!(f, "PascalCase")
+                write!(f, "PascalCase")
             }
             CaseStyle::SentenceCase => {
-               write!(f, "SentenceCase")
+                write!(f, "SentenceCase")
             }
             CaseStyle::SnakeCase => {
-               write!(f, "SnakeCase")
+                write!(f, "SnakeCase")
             }
             CaseStyle::TitleCase => {
-               write!(f, "TitleCase")
+                write!(f, "TitleCase")
             }
             CaseStyle::TrainCase => {
-               write!(f, "TrainCase")
+                write!(f, "TrainCase")
             }
             CaseStyle::UpperCase => {
-               write!(f, "UpperCase")
+                write!(f, "UpperCase")
             }
         }
     }
@@ -157,96 +160,113 @@ pub fn to_directory_case(non_snake_case_string: &str) -> String {
     to_case_snake_like(non_snake_case_string, "/", "lower")
 }
 
-pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, value: Caseable) {
-    if let Some(strategies) = settings.get("cased_as").or(settings.get("cases")) {
-        let maybe_strategies: Option<Vec<Dynamic>> = strategies.clone().try_cast::<Vec<Dynamic>>();
-        if let Some(strategies) = maybe_strategies {
-            let strategies = strategies
-                .into_iter()
-                .filter_map(|style| style.try_cast::<CaseStrategy>())
-                .collect::<Vec<CaseStrategy>>();
-            for strategy in strategies {
-                match strategy {
-                    CaseStrategy::CasedIdentityCasedValue { styles } => {
-                        for style in styles {
-                            match &value {
-                                Caseable::String(value) => {
-                                    results.insert(
-                                        style.to_case(key.to_string().as_str()).into(),
-                                        style.to_case(&value).into(),
-                                    );
-                                }
-                                Caseable::List(list) => {
-                                    let value = list
-                                        .into_iter()
-                                        .map(|v| style.to_case(&v))
-                                        .map(|v| Dynamic::from(v))
-                                        .collect::<Vec<Dynamic>>();
-                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                                }
-                                Caseable::Opaque(value) => {
-                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
-                                }
-                            }
-                        }
-                    }
-                    CaseStrategy::CasedKeyCasedValue { key, styles } => {
-                        for style in styles {
-                            match &value {
-                                Caseable::String(value) => {
-                                    results.insert(
-                                        style.to_case(key.to_string().as_str()).into(),
-                                        style.to_case(value).into(),
-                                    );
-                                }
-                                Caseable::List(list) => {
-                                    let value = list
-                                        .into_iter()
-                                        .map(|v| style.to_case(&v))
-                                        .map(|v| Dynamic::from(v))
-                                        .collect::<Vec<Dynamic>>();
-                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                                }
-                                Caseable::Opaque(value) => {
-                                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
-                                }
-                            }
-                        }
-                    }
-                    CaseStrategy::FixedIdentityCasedValue { style } => match &value {
-                        Caseable::String(value) => {
-                            results.insert(key.into(), to_case(value, style).into());
-                        }
-                        Caseable::List(list) => {
-                            let value = list
-                                .into_iter()
-                                .map(|v| style.to_case(&v))
-                                .map(|v| Dynamic::from(v))
-                                .collect::<Vec<Dynamic>>();
-                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                        }
-                        Caseable::Opaque(value) => {
-                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
-                        }
-                    },
-                    CaseStrategy::FixedKeyCasedValue { key, style } => match &value {
-                        Caseable::String(value) => {
-                            results.insert(key.into(), to_case(value, style).into());
-                        }
-                        Caseable::List(list) => {
-                            let value = list
-                                .into_iter()
-                                .map(|v| style.to_case(&v))
-                                .map(|v| Dynamic::from(v))
-                                .collect::<Vec<Dynamic>>();
-                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
-                        }
-                        Caseable::Opaque(value) => {
-                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
-                        }
-                    },
+pub fn extract_case_strategies(settings: &Map) -> Result<Vec<CaseStrategy>, String> {
+    let mut results = vec![];
+    if let Some(setting) = settings.get("cased_as").or(settings.get("cases")) {
+        if let Some(style) = setting.clone().try_cast::<CaseStyle>() {
+            results.push(FixedIdentityCasedValue { style });
+        } else if let Some(strategy) = setting.clone().try_cast::<CaseStrategy>() {
+            results.push(strategy);
+        } else if let Some(strategies) = setting.clone().try_cast::<Vec<Dynamic>>() {
+            for strategy in strategies.into_iter() {
+                if let Some(strategy) = strategy.clone().try_cast::<CaseStrategy>() {
+                    results.push(strategy);
+                } else {
+                    let requirement = format!(
+                        "an array of CaseStrategy elements, but contains {:?} ({})",
+                        &strategy, &strategy.type_name()
+                    );
+                    return Err(requirement);
                 }
             }
+        } else {
+            return Err("an array of CaseStrategy elements, a single CaseStrategy, or a single CaseStyle".to_string());
+        }
+    }
+    Ok(results)
+}
+
+pub fn expand_key_value_cases(strategies: &[CaseStrategy], results: &mut Map, key: &str, value: Caseable) {
+    for strategy in strategies {
+        match strategy {
+            CasedIdentityCasedValue { styles } => {
+                for style in styles {
+                    match &value {
+                        Caseable::String(value) => {
+                            results.insert(
+                                style.to_case(key.to_string().as_str()).into(),
+                                style.to_case(&value).into(),
+                            );
+                        }
+                        Caseable::List(list) => {
+                            let value = list
+                                .into_iter()
+                                .map(|v| style.to_case(&v))
+                                .map(|v| Dynamic::from(v))
+                                .collect::<Vec<Dynamic>>();
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                        }
+                        Caseable::Opaque(value) => {
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                        }
+                    }
+                }
+            }
+            CasedKeyCasedValue { key, styles } => {
+                for style in styles {
+                    match &value {
+                        Caseable::String(value) => {
+                            results.insert(
+                                style.to_case(key.to_string().as_str()).into(),
+                                style.to_case(value).into(),
+                            );
+                        }
+                        Caseable::List(list) => {
+                            let value = list
+                                .into_iter()
+                                .map(|v| style.to_case(&v))
+                                .map(|v| Dynamic::from(v))
+                                .collect::<Vec<Dynamic>>();
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                        }
+                        Caseable::Opaque(value) => {
+                            results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                        }
+                    }
+                }
+            }
+            FixedIdentityCasedValue { style } => match &value {
+                Caseable::String(value) => {
+                    results.insert(key.into(), to_case(value, *style).into());
+                }
+                Caseable::List(list) => {
+                    let value = list
+                        .into_iter()
+                        .map(|v| style.to_case(&v))
+                        .map(|v| Dynamic::from(v))
+                        .collect::<Vec<Dynamic>>();
+                    results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                }
+                Caseable::Opaque(value) => {
+                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                }
+            },
+            FixedKeyCasedValue { key, style } => match &value {
+                Caseable::String(value) => {
+                    results.insert(key.into(), to_case(value, *style).into());
+                }
+                Caseable::List(list) => {
+                    let value = list
+                        .into_iter()
+                        .map(|v| style.to_case(&v))
+                        .map(|v| Dynamic::from(v))
+                        .collect::<Vec<Dynamic>>();
+                    results.insert(style.to_case(key.to_string().as_str()).into(), value.into());
+                }
+                Caseable::Opaque(value) => {
+                    results.insert(style.to_case(key.to_string().as_str()).into(), value.clone_cast());
+                }
+            },
         }
     }
 }
@@ -256,7 +276,7 @@ pub fn expand_key_value_cases(settings: &Map, results: &mut Map, key: &str, valu
 #[export_module]
 pub mod module {
     use log::warn;
-    use rhai::{Dynamic};
+    use rhai::Dynamic;
 
     pub type CaseStyle = super::CaseStyle;
     pub type CaseStrategy = super::CaseStrategy;
@@ -281,7 +301,7 @@ pub mod module {
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedIdentityCasedValue { styles }
+        CasedIdentityCasedValue { styles }
     }
 
     /// An alias for 'CasedIdentityCasedValue'
@@ -299,7 +319,7 @@ pub mod module {
             .into_iter()
             .filter_map(|style| style.try_cast::<CaseStyle>())
             .collect::<Vec<CaseStyle>>();
-        CaseStrategy::CasedKeyCasedValue { key, styles }
+        CasedKeyCasedValue { key, styles }
     }
 
     /// An alias for 'CasedKeyCasedValue'
@@ -327,7 +347,7 @@ pub mod module {
     }
 
     pub fn FixedKeyCasedValue(key: String, style: CaseStyle) -> CaseStrategy {
-        CaseStrategy::FixedKeyCasedValue { key, style }
+        FixedKeyCasedValue { key, style }
     }
 
     pub fn FixedKey(key: String, style: CaseStyle) -> CaseStrategy {

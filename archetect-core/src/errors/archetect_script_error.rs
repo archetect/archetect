@@ -1,12 +1,8 @@
 use rhai::{EvalAltResult, NativeCallContext};
 
 use archetect_api::{CommandResponse, PromptInfo};
-use ArchetypeScriptError::{
-    AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError,
-    HeadlessNoAnswer, InvalidSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError,
-    KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidSetting,
-    KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse,
-};
+use ArchetypeScriptError::{AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError, HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError, KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting, KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse};
+use crate::errors::ArchetypeScriptError::KeyedInvalidSetSetting;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetypeScriptError {
@@ -70,22 +66,28 @@ pub enum ArchetypeScriptError {
     AnswerNotOptional { prompt: String },
     #[error("'{prompt}' (key: '{key}') is not optional")]
     KeyedAnswerNotOptional { prompt: String, key: String },
-    #[error("For '{prompt}', the '{setting}' setting must be {requirement}")]
-    InvalidSetting {
+    #[error("For the '{prompt}' prompt, the '{setting}' setting must be {requirement}")]
+    InvalidPromptSetting {
         prompt: String,
         setting: String,
         requirement: String,
     },
-    #[error("For '{prompt}' (key: '{key}'), the '{setting}' setting must be {requirement}")]
-    KeyedInvalidSetting {
+    #[error("For the '{prompt}' prompt (key: '{key}'), the '{setting}' setting must be {requirement}")]
+    KeyedInvalidPromptSetting {
         prompt: String,
+        setting: String,
+        requirement: String,
+        key: String,
+    },
+    #[error("For 'set' (key: '{key}', the '{setting}' setting must be {requirement}")]
+    KeyedInvalidSetSetting {
         setting: String,
         requirement: String,
         key: String,
     },
     #[error("{0}")]
     PromptError(String),
-    #[error("'{prompt}' expects {expected}, but received {actual}")]
+    #[error("The '{prompt}' prompt expects {expected}, but received {actual}")]
     UnexpectedPromptResponse {
         prompt: String,
         expected: String,
@@ -108,7 +110,8 @@ impl ArchetypeScriptError {
             DefaultValidationError { .. } | KeyedDefaultValidationError { .. } => "Default Invalid",
             HeadlessNoAnswer { .. } | KeyedHeadlessNoAnswer { .. } => "Headless Mode",
             AnswerNotOptional { .. } | KeyedAnswerNotOptional { .. } => "Required",
-            InvalidSetting { .. } | KeyedInvalidSetting { .. } => "Invalid Setting",
+            InvalidPromptSetting { .. } | KeyedInvalidPromptSetting { .. } => "Invalid Setting",
+            KeyedInvalidSetSetting { .. } => "Invalid Setting",
             DefaultTypeError { .. } | KeyedDefaultTypeError { .. } => "Default Type",
             PromptError(_) => "Prompt Error",
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => "Unexpected Response",
@@ -122,10 +125,11 @@ impl ArchetypeScriptError {
             DefaultValidationError { .. } | KeyedDefaultValidationError { .. } => ErrorType::Function,
             HeadlessNoAnswer { .. } | KeyedHeadlessNoAnswer { .. } => ErrorType::Function,
             AnswerNotOptional { .. } | KeyedAnswerNotOptional { .. } => ErrorType::Function,
-            InvalidSetting { .. } | KeyedInvalidSetting { .. } => ErrorType::Function,
+            InvalidPromptSetting { .. } | KeyedInvalidPromptSetting { .. } => ErrorType::Function,
             DefaultTypeError { .. } | KeyedDefaultTypeError { .. } => ErrorType::Function,
             PromptError(_) => ErrorType::System,
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => ErrorType::Function,
+            KeyedInvalidSetSetting { .. } => ErrorType::Function,
         }
     }
 
@@ -249,16 +253,16 @@ impl ArchetypeScriptError {
         }
     }
 
-    pub fn invalid_prompt_setting<'a, P, S, R>(prompt: &P, setting: S, requirement: R) -> ArchetypeScriptError
+    pub fn invalid_promptinfo_setting<'a, P, S, R>(prompt: &P, setting: S, requirement: R) -> ArchetypeScriptError
     where
         P: PromptInfo,
         S: Into<String>,
         R: Into<String>,
     {
-        ArchetypeScriptError::invalid_setting(prompt.message(), prompt.key(), setting, requirement)
+        ArchetypeScriptError::invalid_prompt_setting(prompt.message(), prompt.key(), setting, requirement)
     }
 
-    pub fn invalid_setting<'a, P, K, S, R>(
+    pub fn invalid_prompt_setting<'a, P, K, S, R>(
         prompt: P,
         key: Option<K>,
         setting: S,
@@ -271,14 +275,14 @@ impl ArchetypeScriptError {
         R: Into<String>,
     {
         if let Some(key) = key {
-            KeyedInvalidSetting {
+            KeyedInvalidPromptSetting {
                 prompt: prompt.as_ref().to_string(),
                 setting: setting.into(),
                 requirement: requirement.into(),
                 key: key.as_ref().to_string(),
             }
         } else {
-            InvalidSetting {
+            InvalidPromptSetting {
                 prompt: prompt.as_ref().to_string(),
                 setting: setting.into(),
                 requirement: requirement.into(),

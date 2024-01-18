@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -10,9 +10,9 @@ use log::{debug, info, trace, warn};
 use regex::Regex;
 use url::Url;
 
+use crate::Archetect;
 use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
-use crate::Archetect;
 
 const ARCHETECT_PULLED: &'static str = "archetect.pulled";
 

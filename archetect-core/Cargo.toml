@@ -39,9 +39,11 @@ thiserror = { workspace = true }
 unicode-segmentation = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
+indoc = "2.0.4"
 
 
 [dev-dependencies]
 anyhow = { workspace = true }
 assert_matches = { workspace = true }
 function_name = { workspace = true }
+indoc = { workspace = true }
