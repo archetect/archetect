@@ -152,10 +152,13 @@ fn test_map_cased_results() -> anyhow::Result<()> {
 
     assert_matches!(harness.receive(), CommandRequest::Print(message) => {
         assert_eq!(message, indoc! {"
-           services:
-           - cart
-           - customer
-           - transaction-processing
+            services:
+            - item-name: cart
+              item_name: Cart
+            - item-name: customer
+              item_name: customer
+            - item-name: transaction-processing
+              item_name: transactionProcessing
         "
     })});
 
@@ -182,10 +185,13 @@ fn  test_map_cased_as_with_single_strategy() -> anyhow::Result<()> {
 
     assert_matches!(harness.receive(), CommandRequest::Print(message) => {
         assert_eq!(message, indoc! {"
-           services:
-           - cart
-           - customer
-           - transaction-processing
+            services:
+            - item-name: cart
+              item_name: Cart
+            - item-name: customer
+              item_name: customer
+            - item-name: transaction-processing
+              item_name: transactionProcessing
         "
     })});
 

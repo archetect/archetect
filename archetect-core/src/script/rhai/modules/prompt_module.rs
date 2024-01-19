@@ -201,14 +201,23 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                     );
                     Ok(results.into())
                 }
-                Some(value) => {
-                    let dynamic_list = value
-                        .clone()
-                        .into_iter()
-                        .map(|v| Dynamic::from(v))
-                        .collect::<Vec<Dynamic>>();
-                    results.insert(key.into(), dynamic_list.into());
-                    expand_key_value_cases(&case_strategies, &mut results, key.as_ref(), Caseable::List(value));
+                Some(list) => {
+                    if case_strategies.len() > 0 {
+                        let mut item_list = vec![];
+                        for item in list {
+                            let mut item_map = Map::new();
+                            expand_key_value_cases(&case_strategies, &mut item_map, "item_name", Caseable::String(item));
+                            item_list.push(item_map);
+                        }
+                        results.insert(key.into(), item_list.into());
+                    } else {
+                        let dynamic_list = list
+                            .clone()
+                            .into_iter()
+                            .map(|v| Dynamic::from(v))
+                            .collect::<Vec<Dynamic>>();
+                        results.insert(key.into(), dynamic_list.into());
+                    }
                     Ok(results.into())
                 }
             }
@@ -246,13 +255,22 @@ fn prompt_to_map<'a, K: AsRef<str>>(
                     Ok(results.into())
                 }
                 Some(list) => {
-                    let dynamic_list = list
-                        .clone()
-                        .into_iter()
-                        .map(|v| Dynamic::from(v))
-                        .collect::<Vec<Dynamic>>();
-                    results.insert(key.into(), dynamic_list.into());
-                    expand_key_value_cases(&case_strategies, &mut results, key, Caseable::List(list));
+                    if case_strategies.len() > 0 {
+                        let mut item_list = vec![];
+                        for item in list {
+                            let mut item_map = Map::new();
+                            expand_key_value_cases(&case_strategies, &mut item_map, "item_name", Caseable::String(item));
+                            item_list.push(item_map);
+                        }
+                        results.insert(key.into(), item_list.into());
+                    } else {
+                        let dynamic_list = list
+                            .clone()
+                            .into_iter()
+                            .map(|v| Dynamic::from(v))
+                            .collect::<Vec<Dynamic>>();
+                        results.insert(key.into(), dynamic_list.into());
+                    }
                     Ok(results.into())
                 }
             }

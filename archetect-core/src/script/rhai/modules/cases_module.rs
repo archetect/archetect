@@ -187,6 +187,17 @@ pub fn extract_case_strategies(settings: &Map) -> Result<Vec<CaseStrategy>, Stri
 }
 
 pub fn expand_key_value_cases(strategies: &[CaseStrategy], results: &mut Map, key: &str, value: Caseable) {
+    match &value {
+        Caseable::String(value) => {
+            results.insert(key.into(), value.into());
+        }
+        Caseable::List(_) => {
+            ();
+        }
+        Caseable::Opaque(value) => {
+            results.insert(key.into(), value.clone());
+        }
+    }
     for strategy in strategies {
         match strategy {
             CasedIdentityCasedValue { styles } => {
