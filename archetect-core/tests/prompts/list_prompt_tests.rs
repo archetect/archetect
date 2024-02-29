@@ -135,11 +135,12 @@ fn test_simple_cased_results() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_map_cased_results() -> anyhow::Result<()> {
+#[named]
+fn test_map_cased_with_array_of_strategies() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
     let answers = Map::new();
-    let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch("test_map_cased");
+    let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch(function_name!());
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
@@ -153,12 +154,12 @@ fn test_map_cased_results() -> anyhow::Result<()> {
     assert_matches!(harness.receive(), CommandRequest::Print(message) => {
         assert_eq!(message, indoc! {"
             services:
-            - item-name: cart
-              item_name: Cart
-            - item-name: customer
-              item_name: customer
-            - item-name: transaction-processing
-              item_name: transactionProcessing
+            - service-name: cart
+              service-title: Cart
+            - service-name: customer
+              service-title: Customer
+            - service-name: transaction-processing
+              service-title: Transaction Processing
         "
     })});
 
@@ -169,7 +170,7 @@ fn test_map_cased_results() -> anyhow::Result<()> {
 
 #[test]
 #[named]
-fn  test_map_cased_as_with_single_strategy() -> anyhow::Result<()> {
+fn  test_map_cased_with_single_strategy() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
     let answers = Map::new();
@@ -186,12 +187,9 @@ fn  test_map_cased_as_with_single_strategy() -> anyhow::Result<()> {
     assert_matches!(harness.receive(), CommandRequest::Print(message) => {
         assert_eq!(message, indoc! {"
             services:
-            - item-name: cart
-              item_name: Cart
-            - item-name: customer
-              item_name: customer
-            - item-name: transaction-processing
-              item_name: transactionProcessing
+            - ItemName: Cart
+            - ItemName: Customer
+            - ItemName: TransactionProcessing
         "
     })});
 
@@ -243,7 +241,7 @@ fn  test_map_cased_as_with_string_strategy() -> anyhow::Result<()> {
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Invalid Setting: For the 'Services:' prompt (key: 'services'), the 'cased_as' setting must \
         be an array of CaseStrategy elements, but contains \"CamelCase\" (string)\nin call to function 'prompt' @ \
-        'tests/prompts/list_prompt_tests/archetype.rhai' (line 52, position 16)");
+        'tests/prompts/list_prompt_tests/archetype.rhai' (line 53, position 16)");
     });
 
     assert!(!harness.render_succeeded());

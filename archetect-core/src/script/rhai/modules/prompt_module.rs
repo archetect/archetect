@@ -72,7 +72,7 @@ fn prompt_to_map<'a, K: AsRef<str>>(
     let answers = &get_answers(call, message, &settings, Some(key), &render_context)?;
     let answer = answers.get(key);
 
-    let case_strategies = extract_case_strategies(&settings).map_err(|err| {
+    let casing = extract_case_strategies(&settings).map_err(|err| {
         ArchetypeScriptErrorWrapper(
             call,
             ArchetypeScriptError::invalid_prompt_setting(message, Some(key), "cased_as", err),
@@ -84,18 +84,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             let value = text::prompt(call, message, &settings, &archetect, &render_context, Some(key), answer)?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(value) => {
-                    results.insert(key.into(), value.clone().into());
-                    expand_key_value_cases(&case_strategies, &mut results, key.as_ref(), Caseable::String(value));
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::String(value));
                     Ok(results.into())
                 }
             }
@@ -104,23 +97,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             let value = bool::prompt(call, message, &archetect, &render_context, &settings, Some(key), answer)?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(value) => {
-                    results.insert(key.into(), value.into());
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(value.into()),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(value.into()));
                     Ok(results.into())
                 }
             }
@@ -129,23 +110,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             let value = int::prompt_int(call, message, &archetect, &render_context, &settings, Some(key), answer)?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(value) => {
-                    results.insert(key.into(), value.into());
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(value.into()),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(value.into()));
                     Ok(results.into())
                 }
             }
@@ -163,18 +132,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             )?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(value) => {
-                    results.insert(key.into(), value.clone().into());
-                    expand_key_value_cases(&case_strategies, &mut results, key.as_ref(), Caseable::String(value));
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::String(value));
                     Ok(results.into())
                 }
             }
@@ -192,32 +154,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             )?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(list) => {
-                    if case_strategies.len() > 0 {
-                        let mut item_list = vec![];
-                        for item in list {
-                            let mut item_map = Map::new();
-                            expand_key_value_cases(&case_strategies, &mut item_map, "item_name", Caseable::String(item));
-                            item_list.push(item_map);
-                        }
-                        results.insert(key.into(), item_list.into());
-                    } else {
-                        let dynamic_list = list
-                            .clone()
-                            .into_iter()
-                            .map(|v| Dynamic::from(v))
-                            .collect::<Vec<Dynamic>>();
-                        results.insert(key.into(), dynamic_list.into());
-                    }
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::List(list));
                     Ok(results.into())
                 }
             }
@@ -226,18 +167,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
             let value = editor::prompt(call, message, &settings, &archetect, &render_context, Some(key), answer)?;
             match value {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(value) => {
-                    results.insert(key.into(), value.clone().into());
-                    expand_key_value_cases(&case_strategies, &mut results, key.as_ref(), Caseable::String(value));
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::String(value));
                     Ok(results.into())
                 }
             }
@@ -245,32 +179,11 @@ fn prompt_to_map<'a, K: AsRef<str>>(
         PromptType::List => {
             match list::prompt(call, message, &archetect, &render_context, &settings, Some(key), answer)? {
                 None => {
-                    results.insert(key.into(), Dynamic::UNIT);
-                    expand_key_value_cases(
-                        &case_strategies,
-                        &mut results,
-                        key.as_ref(),
-                        Caseable::Opaque(Dynamic::UNIT),
-                    );
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::Opaque(Dynamic::UNIT));
                     Ok(results.into())
                 }
                 Some(list) => {
-                    if case_strategies.len() > 0 {
-                        let mut item_list = vec![];
-                        for item in list {
-                            let mut item_map = Map::new();
-                            expand_key_value_cases(&case_strategies, &mut item_map, "item_name", Caseable::String(item));
-                            item_list.push(item_map);
-                        }
-                        results.insert(key.into(), item_list.into());
-                    } else {
-                        let dynamic_list = list
-                            .clone()
-                            .into_iter()
-                            .map(|v| Dynamic::from(v))
-                            .collect::<Vec<Dynamic>>();
-                        results.insert(key.into(), dynamic_list.into());
-                    }
+                    expand_key_value_cases(&casing, &mut results, key, Caseable::List(list));
                     Ok(results.into())
                 }
             }
