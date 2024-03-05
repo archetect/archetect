@@ -420,6 +420,8 @@ where
         Some(value) => {
             if let Some(value) = value.clone().try_cast::<T>() {
                 return Ok(Some(value));
+            } else if value.is_unit() {
+                return Ok(None);
             }
             Err(ArchetypeScriptError::invalid_prompt_setting(
                 prompt.as_ref(),
