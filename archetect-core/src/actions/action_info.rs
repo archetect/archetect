@@ -52,7 +52,7 @@ pub struct RenderArchetypeInfo {
     pub switches: Option<HashSet<String>>,
     #[serde(rename = "use_defaults",skip_serializing_if = "Option::is_none")]
     pub use_defaults: Option<HashSet<String>>,
-    #[serde(rename = "use_defaults_all", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "use_defaults_all", skip_serializing_if = "Option::is_none", alias = "use_defaults_unanswered")]
     pub use_defaults_all: Option<bool>,
 }
 

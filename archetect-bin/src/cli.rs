@@ -199,6 +199,7 @@ fn render_args(global: bool) -> Vec<Arg> {
             .help("Use the configured default values for all prompts without explicit answers")
             .long("use-defaults-all")
             .short('D')
+            .alias("use-defaults-unanswered")
             .action(ArgAction::SetTrue)
             .global(global),
     );
