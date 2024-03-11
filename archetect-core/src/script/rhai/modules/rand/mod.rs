@@ -42,32 +42,6 @@
 //! // Or sample multiple values
 //! print(a.sample(3));
 //! ```
-//!
-//! ### Rust source
-//!
-//! ```rust
-//! # fn main() -> Result<(), Box<rhai::EvalAltResult>> {
-//! use rhai::Engine;
-//! use rhai::packages::Package;
-//!
-//! use archetect_core::script::rhai::RandomPackage;
-//!
-//! // Create Rhai scripting engine
-//! let mut engine = Engine::new();
-//!
-//! // Create random number package and add the package into the engine
-//! engine.register_global_module(RandomPackage::new().as_shared_module());
-//!
-//! // Print 10 random numbers, each of which between 0-100!
-//! for _ in 0..10 {
-//!     let value = engine.eval::<i64>("rand(0..=100)")?;
-//!
-//!     println!("Random number = {}", value);
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
 //! ## Features
 //!
 #![cfg_attr(feature = "document-features", doc = document_features::document_features!(feature_label = "<span id=\"feature-{feature}\">**`{feature}`**</span>"))]
