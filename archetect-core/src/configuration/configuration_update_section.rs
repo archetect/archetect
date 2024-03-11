@@ -1,4 +1,4 @@
-use chrono::Duration;
+use chrono::TimeDelta;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -13,8 +13,8 @@ impl ConfigurationUpdateSection {
         self.force.unwrap_or_default()
     }
 
-    pub fn interval(&self) -> Duration {
-        Duration::seconds(self.interval)
+    pub fn interval(&self) -> TimeDelta {
+        TimeDelta::try_seconds(self.interval).expect("Invalid Update Interval")
     }
 }
 

@@ -87,6 +87,10 @@ pub enum ArchetypeScriptError {
     },
     #[error("{0}")]
     PromptError(String),
+    #[error("When supplying a destination to a 'render', the destination must be either a String or a Path, but '{actual}' was provided")]
+    RenderDestinationTypeError {
+        actual: String,
+    },
     #[error("The '{prompt}' prompt expects {expected}, but received {actual}")]
     UnexpectedPromptResponse {
         prompt: String,
@@ -100,6 +104,10 @@ pub enum ArchetypeScriptError {
         actual: String,
         key: String,
     },
+    #[error("The path '{path}' contains path manipulation patterns, which are not allowed. Rendering and other file operations are restricted to the destination directory")]
+    PathManipulationError {
+        path: String,
+    }
 }
 
 impl ArchetypeScriptError {
@@ -115,6 +123,8 @@ impl ArchetypeScriptError {
             DefaultTypeError { .. } | KeyedDefaultTypeError { .. } => "Default Type",
             PromptError(_) => "Prompt Error",
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => "Unexpected Response",
+            ArchetypeScriptError::RenderDestinationTypeError { .. } => "Invalid Destination",
+            ArchetypeScriptError::PathManipulationError { .. } => "Path Error",
         }
     }
 
@@ -130,6 +140,8 @@ impl ArchetypeScriptError {
             PromptError(_) => ErrorType::System,
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => ErrorType::Function,
             KeyedInvalidSetSetting { .. } => ErrorType::Function,
+            ArchetypeScriptError::RenderDestinationTypeError { .. } => ErrorType::Function,
+            ArchetypeScriptError::PathManipulationError { .. } => ErrorType::Function,
         }
     }
 

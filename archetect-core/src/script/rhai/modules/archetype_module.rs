@@ -1,9 +1,10 @@
-use rhai::{Dynamic, Engine, EvalAltResult, Map, Module};
+use rhai::{Dynamic, Engine, EvalAltResult, Map, Module, NativeCallContext};
 
 use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetypeError;
+use crate::script::rhai::modules::path_module::Path;
 use crate::utils::restrict_path_manipulation;
 
 pub(crate) fn register(
@@ -24,10 +25,13 @@ pub(crate) fn register(
 
     engine
         .register_type_with_name::<ArchetypeFacade>("Archetype")
-        .register_fn("render", ArchetypeFacade::render)
-        .register_fn("render", ArchetypeFacade::render_with_settings)
-        .register_fn("render", ArchetypeFacade::render_with_destination)
-        .register_fn("render", ArchetypeFacade::render_with_destination_and_settings);
+        .register_fn("render", render)
+        .register_fn("render", render_with_settings)
+        .register_fn("render", render_with_destination)
+        .register_fn("render", render_with_path)
+        .register_fn("render", render_with_destination_and_settings)
+        .register_fn("render", render_with_path_and_settings)
+    ;
 }
 
 #[derive(Clone)]
@@ -36,79 +40,124 @@ pub struct ArchetypeFacade {
     render_context: RenderContext,
 }
 
-// TODO: Allow overwrites
 impl ArchetypeFacade {
-    pub fn render(&mut self, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self.render_context.destination().to_path_buf();
-        let render_context = RenderContext::new(destination, answers);
-        let result = self.child
-            .render( render_context)
-            .map_err(|err| {
-                Box::new(EvalAltResult::ErrorSystem(
-                    "Archetype Render Error".to_string(),
-                    Box::new(err),
-                ))
-            })?;
-        Ok(result)
-    }
-
-    pub fn render_with_settings(&mut self, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self.render_context.destination().to_path_buf();
-        let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
-        extract_render_context_settings(&mut render_context, &settings);
-
-        let result = self.child
-            .render(render_context)
-            .map_err(|err| {
-                Box::new(EvalAltResult::ErrorSystem(
-                    "Archetype Render Error".to_string(),
-                    Box::new(err),
-                ))
-            })?;
-        Ok(result)
-    }
-
-    pub fn render_with_destination(&mut self, destination: &str, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self
-            .render_context
-            .destination()
-            .join(restrict_path_manipulation(destination)?);
-        let render_context = RenderContext::new(destination, answers);
-        let result = self.child
-            .render(render_context)
-            .map_err(|err| {
-                Box::new(EvalAltResult::ErrorSystem(
-                    "Archetype Render Error".to_string(),
-                    Box::new(err),
-                ))
-            })?;
-        Ok(result)
-    }
-
-    pub fn render_with_destination_and_settings(
-        &mut self,
-        destination: &str,
-        answers: Map,
-        settings: Map,
-    ) -> Result<Dynamic, Box<EvalAltResult>> {
-        let destination = self
-            .render_context
-            .destination()
-            .join(restrict_path_manipulation(destination)?);
-        let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
-        extract_render_context_settings(&mut render_context, &settings);
-        let result = self.child
-            .render(render_context)
-            .map_err(|err| {
-                Box::new(EvalAltResult::ErrorSystem(
-                    "Archetype Render Error".to_string(),
-                    Box::new(err),
-                ))
-            })?;
-
-        Ok(result)
-    }
 }
+
+pub fn render(archetype: &mut ArchetypeFacade, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype.render_context.destination().to_path_buf();
+    let render_context = RenderContext::new(destination, answers);
+    let result = archetype.child
+        .render( render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+    Ok(result)
+}
+
+pub fn render_with_settings(archetype: &mut ArchetypeFacade, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype.render_context.destination().to_path_buf();
+    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    extract_render_context_settings(&mut render_context, &settings);
+
+    let result = archetype.child
+        .render(render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+    Ok(result)
+}
+
+pub fn render_with_destination(call: NativeCallContext, archetype: &mut ArchetypeFacade, destination: &str, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype
+        .render_context
+        .destination()
+        .join(restrict_path_manipulation(&call, destination)?);
+    let render_context = RenderContext::new(destination, answers);
+    let result = archetype.child
+        .render(render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+    Ok(result)
+}
+
+pub fn render_with_path(call: NativeCallContext, archetype: &mut ArchetypeFacade, mut destination: Path, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype
+        .render_context
+        .destination()
+        .join(restrict_path_manipulation(&call, destination.path())?);
+    let render_context = RenderContext::new(destination, answers);
+    let result = archetype.child
+        .render(render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+    Ok(result)
+}
+
+pub fn render_with_destination_and_settings(
+    call: NativeCallContext,
+    archetype: &mut ArchetypeFacade,
+    destination: &str,
+    answers: Map,
+    settings: Map,
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype
+        .render_context
+        .destination()
+        .join(restrict_path_manipulation(&call, destination)?);
+    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    extract_render_context_settings(&mut render_context, &settings);
+    let result = archetype.child
+        .render(render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+
+    Ok(result)
+}
+
+
+pub fn render_with_path_and_settings(
+    call: NativeCallContext,
+    archetype: &mut ArchetypeFacade,
+    mut destination: Path,
+    answers: Map,
+    settings: Map,
+) -> Result<Dynamic, Box<EvalAltResult>> {
+    let destination = archetype
+        .render_context
+        .destination()
+        .join(restrict_path_manipulation(&call, destination.path())?);
+    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    extract_render_context_settings(&mut render_context, &settings);
+    let result = archetype.child
+        .render(render_context)
+        .map_err(|err| {
+            Box::new(EvalAltResult::ErrorSystem(
+                "Archetype Render Error".to_string(),
+                Box::new(err),
+            ))
+        })?;
+
+    Ok(result)
+}
+
 
 fn extract_render_context_settings(render_context: &mut RenderContext, settings: &Map) {
     if let Some(use_defaults_all) = settings.get("use_defaults_all") {

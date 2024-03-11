@@ -3,7 +3,7 @@ use rhai::{Dynamic, Map};
 use std::collections::HashSet;
 use crate::actions::RenderArchetypeInfo;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RenderContext {
     destination: Utf8PathBuf,
     answers: Map,
