@@ -1,11 +1,13 @@
 use rhai::module_resolvers::FileModuleResolver;
 use rhai::Engine;
+use rhai::packages::Package;
 
 use archetect_minijinja::Environment;
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::Archetect;
+use crate::script::rhai::modules::rand::RandomPackage;
 
 pub(crate) mod modules;
 
@@ -20,6 +22,7 @@ pub(crate) fn create_engine(
         archetype.directory().modules_directory(),
         "rhai",
     ));
+    engine.register_global_module(RandomPackage::new().as_shared_module());
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 

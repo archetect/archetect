@@ -9,3 +9,4 @@ pub(crate) mod render_module;
 pub(crate) mod archetect_module;
 pub(crate) mod set_module;
 pub(crate) mod utils_module;
+pub(crate) mod rand;
