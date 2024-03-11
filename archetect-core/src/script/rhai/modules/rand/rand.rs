@@ -25,7 +25,7 @@ pub mod rand_functions {
     /// }
     /// ```
     pub fn rand_bool() -> bool {
-        rand::random()
+        random()
     }
 
     /// Generate a random boolean value with a probability of being `true`.

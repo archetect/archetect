@@ -50,7 +50,7 @@
 //! use rhai::Engine;
 //! use rhai::packages::Package;
 //!
-//! use rhai_rand::RandomPackage;
+//! use archetect_core::script::rhai::RandomPackage;
 //!
 //! // Create Rhai scripting engine
 //! let mut engine = Engine::new();
