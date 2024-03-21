@@ -69,6 +69,8 @@ impl Archetype {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
         scope.push_constant("SWITCHES", render_context.switches_as_array());
+        scope.push_constant("USE_DEFAULTS", render_context.use_defaults_as_array());
+        scope.push_constant("USE_DEFAULTS_ALL", render_context.use_defaults_all());
 
         let environment = create_environment(self, self.archetect.clone(), &render_context);
         let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);

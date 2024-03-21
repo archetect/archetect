@@ -4,8 +4,9 @@ use rhai::plugin::*;
 
 use crate::Archetect;
 use crate::archetype::archetype::Archetype;
+use crate::archetype::render_context::RenderContext;
 
-pub(crate) fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype) {
+pub(crate) fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype, render_context: RenderContext) {
     let mut module = Module::new();
 
     let archetect_clone = archetect.clone();
@@ -17,8 +18,24 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect, archetype: Arc
     let archetect_clone = archetect.clone();
     module.set_native_fn("version_patch", move || Ok(archetect_clone.version().patch.to_string()));
 
-    let archetype_module = archetype_module(archetype.clone());
+    let mut archetype_module = archetype_module(archetype.clone());
+    let rc_clone = render_context.clone();
+    archetype_module.set_native_fn("settings", move || {
+        let mut settings = rhai::Map::new();
+        settings.insert("use_defaults_all".into(), rc_clone.use_defaults_all().into());
+        settings.insert("use_defaults".into(), rc_clone.use_defaults_as_array().into());
+        settings.insert("switches".into(), rc_clone.switches_as_array().into());
+        Ok(settings)
+    });
+    let rc_clone = render_context.clone();
+    archetype_module.set_native_fn("use_defaults", move || Ok(rc_clone.use_defaults_as_array()));
+    let rc_clone = render_context.clone();
+    archetype_module.set_native_fn("use_defaults_all", move || Ok(rc_clone.use_defaults().clone()));
+    let rc_clone = render_context.clone();
+    archetype_module.set_native_fn("switches", move || Ok(rc_clone.switches().clone()));
+    archetype_module.set_native_fn("answers", move || Ok(render_context.clone().answers().clone()));
     module.set_sub_module("archetype", archetype_module.clone());
+
     let archetect_clone = archetect.clone();
     let runtime_module = runtime_module(archetect_clone.clone());
     module.set_sub_module("runtime", runtime_module.clone());

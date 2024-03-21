@@ -19,6 +19,16 @@ pub fn register(engine: &mut Engine) {
         "PROGRAMMING_CASES",
         vec![
             Dynamic::from(CaseStyle::CamelCase),
+            Dynamic::from(CaseStyle::ConstantCase),
+            Dynamic::from(CaseStyle::KebabCase),
+            Dynamic::from(CaseStyle::PascalCase),
+            Dynamic::from(CaseStyle::SnakeCase),
+        ],
+    );
+    m.set_var(
+        "PROGRAMMING_CASES_ALL",
+        vec![
+            Dynamic::from(CaseStyle::CamelCase),
             Dynamic::from(CaseStyle::CobolCase),
             Dynamic::from(CaseStyle::ConstantCase),
             Dynamic::from(CaseStyle::KebabCase),

@@ -26,7 +26,7 @@ pub(crate) fn create_engine(
     engine.disable_symbol("eval");
     engine.disable_symbol("to_json");
 
-    modules::archetect_module::register(&mut engine, archetect.clone(), archetype.clone());
+    modules::archetect_module::register(&mut engine, archetect.clone(), archetype.clone(), render_context.clone());
     modules::utils_module::register(&mut engine, archetect.clone(), &render_context);
     modules::cases_module::register(&mut engine);
     modules::path_module::register(&mut engine, render_context.clone());

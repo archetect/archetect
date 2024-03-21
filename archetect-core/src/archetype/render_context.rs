@@ -94,6 +94,10 @@ impl RenderContext {
         &self.use_defaults
     }
 
+    pub fn use_defaults_as_array(&self) -> rhai::Array {
+        self.use_defaults.iter().map(|v| v.into()).collect()
+    }
+
     pub fn with_use_default<D: Into<String>>(mut self, default: D) -> Self {
         self.use_defaults.insert(default.into());
         self
