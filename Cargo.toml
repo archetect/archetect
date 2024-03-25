@@ -9,6 +9,7 @@ members = [
   "archetect-templating",
   "archetect-terminal-prompts",
   "archetect-validations",
+  "xtask",
 ]
 
 [workspace.package]
