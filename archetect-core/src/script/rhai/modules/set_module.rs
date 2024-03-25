@@ -44,6 +44,7 @@ fn set(call: &NativeCallContext, render_context: RenderContext, key: &str, mut v
         )
     })?;
     let mut results: Map = Map::new();
+    results.insert(key.into(), value.clone_cast());
 
     if value.is_string() {
         expand_key_value_cases(&case_strategies, &mut results, key, Caseable::String(value.to_string()));
