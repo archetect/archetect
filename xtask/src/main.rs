@@ -1,3 +1,4 @@
+use std::process::Command;
 use clap::ArgMatches;
 
 mod cli;
@@ -19,12 +20,21 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build(_args: &ArgMatches) -> anyhow::Result<()> {
+fn build(args: &ArgMatches) -> anyhow::Result<()> {
     let cargo = std::env::var("CARGO")?;
-    std::process::Command::new(cargo)
-        .env("OPENSSL_STATIC", "1")
-        .args(["install", "--path=archetect-bin"])
+    let mut command = Command::new(cargo);
+    command
+        .arg("install")
+        .arg("--path=archetect-bin")
+        ;
+
+    if args.get_flag("openssl-static") {
+        command.env("OPENSSL_STATIC", "1");
+    }
+
+    command
         .status()
         .expect("Error installing Archetect");
+
     Ok(())
 }
