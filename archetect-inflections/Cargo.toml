@@ -2,13 +2,14 @@
 name = "archetect-inflections"
 version.workspace = true
 authors = [
+    "Jimmie Fulton <jimmiue.fulton@gmail.com>",
     "Josh Teeter<joshteeter@gmail.com>",
     "Chrislearn Young<chris@sonc.ai>",
 ]
 documentation.workspace = true
 edition.workspace = true
 homepage.workspace = true
-license-file = "LICENSE-BSE-CLAUSE-2"
+license-file = "LICENSE-BSD-CLAUSE-2"
 repository.workspace = true
 readme = "CRATE_README.md"
 

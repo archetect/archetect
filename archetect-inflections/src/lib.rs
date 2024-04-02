@@ -8,9 +8,8 @@
 #![cfg_attr(feature = "unstable", feature(test))]
 
 //! Adds String based inflections for Rust. Snake, kebab, train, camel,
-//! sentence, class, and title cases as well as ordinalize,
-//! deordinalize, demodulize, deconstantize, and foreign key are supported as
-//! both traits and pure functions acting on String types.
+//! sentence, class, and title cases as well as ordinalize, and
+//! deordinalize.
 //! ```rust
 //! use archetect_inflections::Inflector;
 //! let camel_case_string: String = "some_string".to_camel_case();
@@ -34,8 +33,6 @@ pub mod case;
 /// - Deordinalize
 pub mod number;
 /// Provides string inflections
-/// - Deconstantize
-/// - Demodulize
 /// - Pluralize
 /// - Singularize
 pub mod string;
@@ -76,14 +73,9 @@ pub use case::package::to_package_case;
 pub use case::title::is_title_case;
 pub use case::title::to_title_case;
 
-pub use case::table::is_table_case;
-pub use case::table::to_table_case;
-
 pub use number::deordinalize::deordinalize;
 pub use number::ordinalize::ordinalize;
 
-pub use string::deconstantize::deconstantize;
-pub use string::demodulize::demodulize;
 pub use string::pluralize::to_plural;
 pub use string::singularize::to_singular;
 
@@ -116,17 +108,9 @@ pub trait Inflector {
     fn ordinalize(&self) -> String;
     fn deordinalize(&self) -> String;
 
-    fn demodulize(&self) -> String;
-
-    fn deconstantize(&self) -> String;
-
     fn to_class_case(&self) -> String;
 
     fn is_class_case(&self) -> bool;
-
-    fn to_table_case(&self) -> String;
-
-    fn is_table_case(&self) -> bool;
 
     fn to_plural(&self) -> String;
 
@@ -199,12 +183,8 @@ macro_rules! implement_string_for {
                 define_gated_implementations![self;
                     to_class_case => String,
                     is_class_case => bool,
-                    to_table_case => String,
-                    is_table_case => bool,
                     to_plural => String,
-                    to_singular => String,
-                    demodulize => String,
-                    deconstantize => String
+                    to_singular => String
                 ];
             }
         )*
@@ -292,19 +272,11 @@ mod benchmarks {
     benchmarks![
         benchmark_str_to_class => to_class_case => "foo",
         benchmark_str_is_class => is_class_case => "Foo",
-        benchmark_str_to_table => to_table_case => "fooBar",
-        benchmark_str_is_table => is_table_case => "foo_bars",
         benchmark_str_pluralize => to_plural => "crate",
         benchmark_str_singular => to_singular => "crates",
         benchmark_string_to_class => to_class_case => "foo".to_string(),
         benchmark_string_is_class => is_class_case => "Foo".to_string(),
-        benchmark_string_to_table => to_table_case => "fooBar".to_string(),
-        benchmark_string_is_table => is_table_case => "foo_bars".to_string(),
         benchmark_string_pluralize => to_plural => "crate".to_string(),
-        benchmark_string_singular => to_singular => "crates".to_string(),
-        benchmark_string_demodulize => demodulize => "Foo::Bar".to_string(),
-        benchmark_string_deconstantize => deconstantize => "Foo::Bar".to_string(),
-        benchmark_str_demodulize => demodulize => "Foo::Bar",
-        benchmark_str_deconstantize => deconstantize => "Foo::Bar"
+        benchmark_string_singular => to_singular => "crates".to_string()
     ];
 }

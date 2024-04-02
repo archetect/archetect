@@ -7,7 +7,7 @@ Archetect based on its specific requirements.
 
 ## Vendoring Justification
 
-`cruet` handles numbers in strings differently based on the case
+`cruet`/`inflector` handles numbers in strings differently based on the case
 output.  If you have a string `example3`, camel casing this string would result in `example3`, treating the '3' as part
 of the entire word, where-as kebab casing this string would result in `example-3`, treating the '3' as the start of a 
 new word.

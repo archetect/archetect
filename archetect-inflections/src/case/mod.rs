@@ -63,13 +63,6 @@ pub mod title;
 pub use title::is_title_case;
 pub use title::to_title_case;
 
-/// Provides conversion to and detection of table case strings.
-///
-/// Example string `table_cases`
-pub mod table;
-pub use table::is_table_case;
-pub use table::to_table_case;
-
 /// Provides conversion to pascal case strings.
 ///
 /// Example string `PascalCase`

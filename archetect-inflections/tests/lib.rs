@@ -94,13 +94,9 @@ gated_str_tests![
     str_to_class_case => to_class_case => "foo" => "Foo".to_string(),
     str_is_class_case => is_class_case => "Foo" => true,
     str_is_not_class_case => is_class_case => "foo" => false,
-    str_to_table => to_table_case => "fooBar" => "foo_bars".to_string(),
-    str_is_table => is_table_case => "foo_bars" => true,
-    str_is_not_table => is_table_case => "fooBars" => false,
     str_pluralize => to_plural => "crate" => "crates".to_string(),
-    str_singular => to_singular => "crates" => "crate".to_string(),
-    str_demodulize => demodulize => "Foo::Bar" => "Bar".to_string(),
-    str_deconstantize => deconstantize => "Foo::Bar" => "Foo".to_string()
+    str_singular => to_singular => "crates" => "crate".to_string()
+
 ];
 
 string_tests![
@@ -136,13 +132,8 @@ gated_string_tests![
     string_to_class_case => to_class_case => "foo".to_string() => "Foo".to_string(),
     string_is_class_case => is_class_case => "Foo".to_string() => true,
     string_is_not_class_case => is_class_case => "ooBar".to_string() => false,
-    string_to_table => to_table_case => "fooBar".to_string() => "foo_bars".to_string(),
-    string_is_table => is_table_case => "foo_bars".to_string() => true,
-    string_is_not_table => is_table_case => "fooBar".to_string() => false,
     string_pluralize => to_plural => "crate".to_string() => "crates".to_string(),
-    string_singular => to_singular => "crates".to_string() => "crate".to_string(),
-    string_demodulize => demodulize => "Foo::Bar".to_string() => "Bar".to_string(),
-    string_deconstantize => deconstantize => "Foo::Bar".to_string() => "Foo".to_string()
+    string_singular => to_singular => "crates".to_string() => "crate".to_string()
 ];
 
 number_tests![
