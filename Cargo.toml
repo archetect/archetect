@@ -5,15 +5,16 @@ members = [
   "archetect-api",
   "archetect-bin",
   "archetect-core",
+  "archetect-inflections",
   "archetect-terminal-io",
   "archetect-templating",
   "archetect-terminal-prompts",
   "archetect-validations",
-  "xtask",
+  "xtask", "archetect-inflections",
 ]
 
 [workspace.package]
-version = "2.0.0-ALPHA.14"
+version = "2.0.0-ALPHA.15"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 documentation = "https:/archetect.github.io"
 edition = "2021"
@@ -32,7 +33,6 @@ clap = { version = "4.4", features = ["cargo", "env", "color"] }
 clap_complete = "4.4"
 config = { version = "0.13", default-features = false, features = ["yaml"] }
 content_inspector = "0.2"
-cruet = "0.14"
 directories = "5.0.1"
 dyn-clone = "1"
 either = "1.9"

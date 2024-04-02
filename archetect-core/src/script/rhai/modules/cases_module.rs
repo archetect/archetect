@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use cruet::case::to_case_snake_like;
 use either::Either;
 use rhai::plugin::*;
 use rhai::{Dynamic, Map};
@@ -39,29 +38,29 @@ pub fn register(engine: &mut Engine) {
     );
     engine.register_global_module(m.into());
     engine.register_global_module(exported_module!(module).into());
-    engine.register_fn("camel_case", cruet::to_camel_case);
-    engine.register_fn("class_case", cruet::to_class_case);
-    engine.register_fn("cobol_case", to_cobol_case);
-    engine.register_fn("constant_case", cruet::to_screaming_snake_case);
-    engine.register_fn("directory_case", to_directory_case);
-    engine.register_fn("kebab_case", cruet::to_kebab_case);
+    engine.register_fn("camel_case", archetect_inflections::to_camel_case);
+    engine.register_fn("class_case", archetect_inflections::to_class_case);
+    engine.register_fn("cobol_case", archetect_inflections::to_cobol_case);
+    engine.register_fn("constant_case", archetect_inflections::to_screaming_snake_case);
+    engine.register_fn("directory_case", archetect_inflections::to_directory_case);
+    engine.register_fn("kebab_case", archetect_inflections::to_kebab_case);
     engine.register_fn("lower_case", str::to_lowercase);
-    engine.register_fn("package_case", to_package_case);
-    engine.register_fn("pascal_case", cruet::to_pascal_case);
-    engine.register_fn("snake_case", cruet::to_snake_case);
-    engine.register_fn("sentence_case", cruet::to_sentence_case);
-    engine.register_fn("title_case", cruet::to_title_case);
-    engine.register_fn("train_case", cruet::to_train_case);
+    engine.register_fn("package_case", archetect_inflections::to_package_case);
+    engine.register_fn("pascal_case", archetect_inflections::to_pascal_case);
+    engine.register_fn("snake_case", archetect_inflections::to_snake_case);
+    engine.register_fn("sentence_case", archetect_inflections::to_sentence_case);
+    engine.register_fn("title_case", archetect_inflections::to_title_case);
+    engine.register_fn("train_case", archetect_inflections::to_train_case);
     engine.register_fn("upper_case", str::to_uppercase);
 
-    engine.register_fn("pluralize", cruet::to_plural);
-    engine.register_fn("plural", cruet::to_plural);
-    engine.register_fn("singularize", cruet::to_singular);
-    engine.register_fn("singular", cruet::to_singular);
+    engine.register_fn("pluralize", archetect_inflections::to_plural);
+    engine.register_fn("plural", archetect_inflections::to_plural);
+    engine.register_fn("singularize", archetect_inflections::to_singular);
+    engine.register_fn("singular", archetect_inflections::to_singular);
 
-    engine.register_fn("ordinalize", cruet::ordinalize);
-    engine.register_fn("ordinalize", |value: i64| cruet::ordinalize(value.to_string().as_str()));
-    engine.register_fn("deordinalize", cruet::deordinalize);
+    engine.register_fn("ordinalize", archetect_inflections::ordinalize);
+    engine.register_fn("ordinalize", |value: i64| archetect_inflections::ordinalize(value.to_string().as_str()));
+    engine.register_fn("deordinalize", archetect_inflections::deordinalize);
 }
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -135,19 +134,19 @@ impl Display for CaseStyle {
 impl CaseStyle {
     pub fn to_case(&self, input: &str) -> String {
         match self {
-            CaseStyle::CamelCase => cruet::to_camel_case(input),
-            CaseStyle::ClassCase => cruet::to_class_case(input),
-            CaseStyle::CobolCase => to_cobol_case(input),
-            CaseStyle::ConstantCase => cruet::to_screaming_snake_case(input),
-            CaseStyle::DirectoryCase => to_directory_case(input),
-            CaseStyle::KebabCase => cruet::to_kebab_case(input),
+            CaseStyle::CamelCase => archetect_inflections::to_camel_case(input),
+            CaseStyle::ClassCase => archetect_inflections::to_class_case(input),
+            CaseStyle::CobolCase => archetect_inflections::to_cobol_case(input),
+            CaseStyle::ConstantCase => archetect_inflections::to_screaming_snake_case(input),
+            CaseStyle::DirectoryCase => archetect_inflections::to_directory_case(input),
+            CaseStyle::KebabCase => archetect_inflections::to_kebab_case(input),
             CaseStyle::LowerCase => str::to_lowercase(input),
-            CaseStyle::PascalCase => cruet::to_pascal_case(input),
-            CaseStyle::PackageCase => to_package_case(input),
-            CaseStyle::SnakeCase => cruet::to_snake_case(input),
-            CaseStyle::SentenceCase => cruet::to_sentence_case(input),
-            CaseStyle::TitleCase => cruet::to_title_case(input),
-            CaseStyle::TrainCase => cruet::to_train_case(input),
+            CaseStyle::PascalCase => archetect_inflections::to_pascal_case(input),
+            CaseStyle::PackageCase =>  archetect_inflections::to_package_case(input),
+            CaseStyle::SnakeCase => archetect_inflections::to_snake_case(input),
+            CaseStyle::SentenceCase => archetect_inflections::to_sentence_case(input),
+            CaseStyle::TitleCase => archetect_inflections::to_title_case(input),
+            CaseStyle::TrainCase => archetect_inflections::to_train_case(input),
             CaseStyle::UpperCase => str::to_uppercase(input),
         }
     }
@@ -161,17 +160,9 @@ pub enum CaseStrategy {
     FixedKeyCasedValue { key: String, style: CaseStyle },
 }
 
-pub fn to_cobol_case(non_snake_case_string: &str) -> String {
-    to_case_snake_like(non_snake_case_string, "-", "upper")
-}
 
-pub fn to_package_case(non_snake_case_string: &str) -> String {
-    to_case_snake_like(non_snake_case_string, ".", "lower")
-}
 
-pub fn to_directory_case(non_snake_case_string: &str) -> String {
-    to_case_snake_like(non_snake_case_string, "/", "lower")
-}
+
 
 pub fn extract_case_strategies(settings: &Map) -> Result<Either<Vec<CaseStrategy>, CaseStyle>, String> {
     let mut results = vec![];

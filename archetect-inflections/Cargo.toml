@@ -1,0 +1,18 @@
+[package]
+name = "archetect-inflections"
+version.workspace = true
+authors = [
+    "Josh Teeter<joshteeter@gmail.com>",
+    "Chrislearn Young<chris@sonc.ai>",
+]
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file = "LICENSE-BSE-CLAUSE-2"
+repository.workspace = true
+readme = "CRATE_README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+regex = { workspace = true }
