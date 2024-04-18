@@ -72,16 +72,10 @@ impl Archetype {
         scope.push_constant("USE_DEFAULTS", render_context.use_defaults_as_array());
         scope.push_constant("USE_DEFAULTS_ALL", render_context.use_defaults_all());
 
-        if !render_context.destination().exists() {
-            fs::create_dir_all(render_context.destination())
-                .map_err(|err| ArchetypeError::DirectoryError{ path: render_context.destination().to_path_buf(), source: err })?;
-        }
-
         let environment = create_environment(self, self.archetect.clone(), &render_context);
         let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);
 
-        match engine.compile_file_with_scope(&mut scope,self.directory().script()?.into_std_path_buf()) {
-
+        match engine.compile_file_with_scope(&mut scope, self.directory().script()?.into_std_path_buf()) {
             Ok(ast) => {
                 match engine.eval_ast_with_scope(&mut scope, &ast) {
                     Ok(result) => {
@@ -93,7 +87,7 @@ impl Archetype {
                         } else {
                             self.archetect.request(CommandRequest::LogError(format!("{}", error)));
                             Err(ArchetypeError::ScriptAbortError)
-                        }
+                        };
                     }
                 }
             }
@@ -120,14 +114,24 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
 ) -> Result<(), RenderError> {
     let source = source.into();
     let destination = destination.into();
+    if !destination.exists() {
+        fs::create_dir_all(&destination)
+            .map_err(|err| RenderError::CreateDirectoryError { path: destination.to_path_buf(), source: err })
+            ?
+    }
 
-    for entry in fs::read_dir(&source)? {
-        let entry = entry?;
+    for entry in fs::read_dir(&source)
+        .map_err(|err| RenderError::DirectoryListError { path: source.to_path_buf(), source: err })? {
+        let entry = entry
+            .map_err(|err| RenderError::DirectoryReadError { path: source.clone(), source: err })
+            ?;
         let path = Utf8PathBuf::from_path_buf(entry.path()).unwrap();
 
         if path.is_dir() {
             let destination = render_destination(environment, context, &destination, &path)?;
-            fs::create_dir_all(destination.as_path())?;
+            fs::create_dir_all(destination.as_path())
+                .map_err(|err| RenderError::CreateDirectoryError { path: path.clone(), source: err })
+                ?;
             render_directory(
                 environment,
                 archetect,
@@ -138,7 +142,8 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
             )?;
         } else if path.is_file() {
             // TODO: avoid duplication of file read
-            let contents = fs::read(&path)?;
+            let contents = fs::read(&path)
+                .map_err(|err| RenderError::FileReadError { path: path.to_path_buf(), source: err })?;
 
             let action = match content_inspector::inspect(contents.as_slice()) {
                 ContentType::BINARY => RuleAction::COPY,
@@ -149,7 +154,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
             match action {
                 RuleAction::RENDER => {
                     if !destination.exists() {
-                        debug!("Rendering   {:?}", destination);
+                        debug!("Rendering {:?}", destination);
                         let contents = render_contents(environment, context, &path)?;
                         write_contents(destination, &contents)?;
                     } else {
@@ -160,11 +165,11 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                                 write_contents(destination, &contents)?;
                             }
                             OverwritePolicy::Preserve => {
-                                trace!("Preserving  {:?}", destination);
+                                trace!("Preserving {:?}", destination);
                             }
                             OverwritePolicy::Prompt => {
                                 if archetect.is_headless() {
-                                    trace!("Preserving  {:?}", destination);
+                                    trace!("Preserving {:?}", destination);
                                 } else {
                                     if Confirm::new(format!("Overwrite '{}'?", destination).as_str())
                                         .prompt_skippable()
@@ -249,15 +254,21 @@ pub fn render_contents<P: AsRef<Utf8Path>>(
 
 pub fn write_contents<P: AsRef<Utf8Path>>(destination: P, contents: &str) -> Result<(), RenderError> {
     let destination = destination.as_ref();
-    let mut output = File::create(destination)?;
-    let _ = output.write(contents.as_bytes())?;
+    let mut output = File::create(destination)
+        .map_err(|err| RenderError::CreateFileError { path: destination.to_path_buf(), source: err })
+        ?;
+    let _ = output.write(contents.as_bytes())
+        .map_err(|err| RenderError::WriteError { path: destination.to_path_buf(), source: err })
+        ?;
     Ok(())
 }
 
 pub fn copy_contents<S: AsRef<Utf8Path>, D: AsRef<Utf8Path>>(source: S, destination: D) -> Result<(), RenderError> {
     let source = source.as_ref();
     let destination = destination.as_ref();
-    fs::copy(source, destination)?;
+    fs::copy(source, destination)
+        .map_err(|error| RenderError::CopyError { from: source.to_path_buf(), to: destination.to_path_buf(), source: error })
+        ?;
     Ok(())
 }
 

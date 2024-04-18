@@ -1,41 +1,61 @@
-use camino::Utf8PathBuf;
-use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
+
+use camino::Utf8PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
+    #[error("Invalid characters in path template `{path}`")]
     InvalidPathCharacters {
         path: PathBuf,
     },
+    #[error( "Unable to render path `{path}`: {source}")]
     PathRenderError2 {
         path: PathBuf,
         source: archetect_minijinja::Error,
     },
+    #[error("Unable to render file `{path}`: {source}")]
     FileRenderIOError {
         path: Utf8PathBuf,
         source: std::io::Error,
     },
+    #[error("Rendering IO Error: {source}")]
     IOError {
-        #[from]
         source: std::io::Error,
     },
-}
-
-impl Display for RenderError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RenderError::InvalidPathCharacters { path } => {
-                write!(f, "Invalid characters in path template `{:?}`", path)
-            }
-            RenderError::PathRenderError2 { path, source } => {
-                write!(f, "Unable to render path `{:?}`: {}", path, source)
-            }
-            RenderError::FileRenderIOError { path, source } => {
-                write!(f, "Unable to render file `{:?}`: {}", path, source)
-            }
-            RenderError::IOError { source } => {
-                write!(f, "Rendering IO Error: {}", source)
-            }
-        }
-    }
+    #[error("Error copying {from} to {to}: {source}")]
+    CopyError{
+        from: Utf8PathBuf,
+        to: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error writing to `{path}`: {source}")]
+    WriteError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error creating file `{path}`: {source}")]
+    CreateFileError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error creating directory `{path}`: {source}")]
+    CreateDirectoryError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error reading `{path}`: {source}")]
+    FileReadError {
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error reading directory in `{path}`: {source}")]
+    DirectoryReadError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
+    #[error("Error listing directory `{path}`: {source}")]
+    DirectoryListError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
 }
