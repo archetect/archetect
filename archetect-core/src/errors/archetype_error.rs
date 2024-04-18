@@ -23,6 +23,11 @@ pub enum ArchetypeError {
         path: Utf8PathBuf,
         source: serde_yaml::Error,
     },
+    #[error("Error creating directory `{path}`: {source}")]
+    DirectoryError{
+        path: Utf8PathBuf,
+        source: std::io::Error,
+    },
     #[error(transparent)]
     SourceError(#[from] SourceError),
     #[error("Operation was interrupted")]

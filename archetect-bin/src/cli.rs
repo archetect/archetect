@@ -286,7 +286,6 @@ pub fn configure(matches: &ArgMatches) {
 pub fn completions(matches: &ArgMatches) -> Result<(), ArchetectError> {
     if let Some(generator) = matches.get_one::<Shell>("generator") {
         let mut command = cli::command();
-        eprintln!("Generating completions for {generator}");
         generate(*generator, &mut command, "archetect", &mut io::stdout());
     } else {
         return Err(ArchetectError::GeneralError("Invalid completions shell".to_owned()));

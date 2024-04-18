@@ -47,7 +47,7 @@ pub fn render(archetype: &mut ArchetypeFacade, answers: Map) -> Result<Dynamic, 
     let destination = archetype.render_context.destination().to_path_buf();
     let render_context = RenderContext::new(destination, answers);
     let result = archetype.child
-        .render( render_context)
+        .render(render_context)
         .map_err(|err| {
             Box::new(EvalAltResult::ErrorSystem(
                 "Archetype Render Error".to_string(),

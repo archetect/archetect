@@ -72,6 +72,11 @@ impl Archetype {
         scope.push_constant("USE_DEFAULTS", render_context.use_defaults_as_array());
         scope.push_constant("USE_DEFAULTS_ALL", render_context.use_defaults_all());
 
+        if !render_context.destination().exists() {
+            fs::create_dir_all(render_context.destination())
+                .map_err(|err| ArchetypeError::DirectoryError{ path: render_context.destination().to_path_buf(), source: err })?;
+        }
+
         let environment = create_environment(self, self.archetect.clone(), &render_context);
         let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);
 
