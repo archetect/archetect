@@ -2,11 +2,11 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-use archetect_minijinja::{Environment, Source, UndefinedBehavior};
+use archetect_minijinja::{Environment, Source};
 
+use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
-use crate::Archetect;
 
 pub mod rhai;
 
@@ -16,7 +16,7 @@ pub(crate) fn create_environment(
     render_context: &RenderContext,
 ) -> Environment<'static> {
     let mut environment = Environment::new();
-    environment.set_undefined_behavior(UndefinedBehavior::Strict);
+    environment.set_undefined_behavior(archetype.manifest().templating().undefined_behavior().to_minijinja());
     environment.add_filter("camel_case", |value: Cow<'_, str>| archetect_inflections::to_camel_case(value.as_ref()));
     environment.add_filter("class_case", |value: Cow<'_, str>| archetect_inflections::to_class_case(value.as_ref()));
     environment.add_filter("cobol_case", |value: Cow<'_, str>| archetect_inflections::to_cobol_case(value.as_ref()));

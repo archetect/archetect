@@ -11,12 +11,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.16" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.16" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.16", features = ["editor"] }
-archetect-inflections = { path = "../archetect-inflections", version = "2.0.0-ALPHA.16" }
-archetect-minijinja = { path = "../archetect-templating", version= "2.0.0-ALPHA.16", features = ["source", "urlencode", "json"] }
-archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.16" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.17" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.17" }
+archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.17", features = ["editor"] }
+archetect-inflections = { path = "../archetect-inflections", version = "2.0.0-ALPHA.17" }
+archetect-minijinja = { path = "../archetect-templating", version= "2.0.0-ALPHA.17", features = ["source", "urlencode", "json"] }
+archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.17" }
 
 camino = { workspace = true }
 chrono = { workspace = true }

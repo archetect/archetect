@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.0.0-ALPHA.16"
+version = "2.0.0-ALPHA.17"
 authors = ["Jimmie Fulton <jimmie.fulton@gmail.com>"]
 documentation = "https:/archetect.github.io"
 edition = "2021"

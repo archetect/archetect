@@ -1,6 +1,6 @@
 [package]
 name = "archetect-minijinja"
-version = "2.0.0-ALPHA.16"
+version = "2.0.0-ALPHA.17"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Armin Ronacher <armin.ronacher@active-4.com>"]
