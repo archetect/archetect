@@ -10,9 +10,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.17" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.17", features = ["editor"] }
-archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.17" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.18" }
+archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.18", features = ["editor"] }
+archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.18" }
 
 dyn-clone = { workspace = true }
 log = { workspace = true }

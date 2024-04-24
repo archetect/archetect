@@ -7,16 +7,16 @@ fn patterns() -> &'static Vec<(Regex, &'static str)> {
     static REGEX: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
     REGEX.get_or_init(||vec![(r"(\w*)s$", "s"),
                              (r"(\w*([^aeiou]ese))$", ""),
-                             (r"(\w*(ax|test))is$", "es"),
-                             (r"(\w*(alias|[^aou]us|tlas|gas|ris))$", "es"),
+                             (r"(\w*(Ax|ax|Test|test))is$", "es"),
+                             (r"(\w*(Alias|alias|[^aou]us|tlas|gas|ris))$", "es"),
                              (r"(\w*(e[mn]u))s?$", "s"),
                              (r"(\w*([^l]ias|[aeiou]las|[emjzr]as|[iu]am))$", ""),
-                             (r"(\w*(alumn|syllab|octop|vir|radi|nucle|fung|cact|stimul|termin|bacill|foc|uter|loc|strat))(?:us|i)$", "i"),
-                             (r"(\w*(alumn|alg|vertebr))(?:a|ae)$", "ae"),
+                             (r"(\w*(Alumn|alumn|Syllab|syllab|Octop|octop|Vir|vir|Radi|radi|Nucle|nucle|Fung|fung|Cact|cact|Stimul|stimul|Termin|termin|Bacill|bacill|foc|Foc|uter|Uter|loc|Loc|strat|Strat))(?:us|i)$", "i"),
+                             (r"(\w*(alumn|Alumn|alg|Alg|vertebr|Vertebr))(?:a|ae)$", "ae"),
                              (r"(\w*(seraph|cherub))(?:im)?$", "im"),
-                             (r"(\w*(her|at|gr))o$", "oes"),
-                             (r"(\w*(agend|addend|millenni|dat|extrem|bacteri|desiderat|strat|candelabr|errat|ov|symposi|curricul|automat|quor))(?:a|um)$", "a"),
-                             (r"(\w*(apheli|hyperbat|periheli|asyndet|noumen|phenomen|criteri|organ|prolegomen|hedr|automat))(?:a|on)$", "a"),
+                             (r"(\w*(Her|her|at|gr))o$", "oes"),
+                             (r"(\w*(Agend|agend|Addend|addend|Millenni|millenni|Dat|dat|Extrem|extrem|Bacteri|bacteri|desiderat|strat|candelabr|Candelabr|errat|Errat|ov|symposi|Symposi|curricul|Curricul|automat|Automat|quor|Quor))(?:a|um)$", "a"),
+                             (r"(\w*(apheli|hyperbat|periheli|asyndet|noumen|phenomen|Phenomen|criteri|Criteri|organ|prolegomen|hedr|automat|Automat))(?:a|on)$", "a"),
                              (r"(\w*)sis$", "ses"),
                              (r"(\w*(kni|wi|li))fe$", "ves"),
                              (r"(\w*(ar|l|ea|eo|oa|hoo))f$", "ves"),
@@ -24,10 +24,10 @@ fn patterns() -> &'static Vec<(Regex, &'static str)> {
                              (r"(\w*([^ch][ieo][ln]))ey$", "ies"),
                              (r"(\w*(x|ch|ss|sh|zz)es)$", ""),
                              (r"(\w*(x|ch|ss|sh|zz))$", "es"),
-                             (r"(\w*(matr|cod|mur|sil|vert|ind|append))(?:ix|ex)$", "ices"),
-                             (r"(\w*(m|l))(?:ice|ouse)$", "ice"),
-                             (r"(\w*(pe))(?:rson|ople)$", "ople"),
-                             (r"(\w*(child))(?:ren)?$", "ren"),
+                             (r"(\w*(matr|Matr|cod|mur|sil|vert|Vert|ind|Ind|append|Append))(?:ix|ex)$", "ices"),
+                             (r"(\w*(M|m|L|l))(?:ice|ouse)$", "ice"),
+                             (r"(\w*(Pe|pe))(?:rson|ople)$", "ople"),
+                             (r"(\w*(Child|child))(?:ren)?$", "ren"),
                              (r"(\w*eaux)$", "")].into_iter().map(|(rule, replace)| {(Regex::new(rule).unwrap(), replace)}).collect())
 }
 
@@ -133,6 +133,28 @@ pub fn to_plural(non_plural_string: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::to_plural;
+
+    #[test]
+    fn test_person() {
+        let input = "person";
+        let expected = "people";
+        assert_eq!(to_plural(input), expected);
+    }
+
+    #[test]
+    fn test_pascal_person() {
+        let input = "Person";
+        let expected = "People";
+        assert_eq!(to_plural(input), expected);
+    }
+
+    #[test]
+    fn test_pascal_grand_person() {
+        let input = "GrandPerson";
+        let expected = "GrandPeople";
+        assert_eq!(to_plural(input), expected);
+    }
 
     macro_rules! as_item {
         ($i:item) => {
