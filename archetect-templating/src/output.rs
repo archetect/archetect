@@ -113,6 +113,7 @@ impl NullWriter {
     pub fn get_mut() -> &'static mut NullWriter {
         static mut NULL_WRITER: NullWriter = NullWriter;
         // SAFETY: this is safe as the null writer is a ZST
+        #[allow(static_mut_refs)]
         unsafe { &mut NULL_WRITER }
     }
 }

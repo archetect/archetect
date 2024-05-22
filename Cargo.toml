@@ -10,7 +10,7 @@ members = [
   "archetect-templating",
   "archetect-terminal-prompts",
   "archetect-validations",
-  "xtask", "archetect-inflections",
+  "xtask", "archetect-inflections", "archetect-grpc",
 ]
 
 [workspace.package]
@@ -54,6 +54,8 @@ serde_yaml = "0.9"
 shellexpand = "3.1.0"
 tempfile = "3.4.0"
 thiserror = "1.0.26"
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros", "signal"] }
+tokio-stream = "0.1.15"
 unicode-segmentation = "1.2.0"
 url = "2"
 uuid = { version = "1.6", features = ["serde", "v4"] }

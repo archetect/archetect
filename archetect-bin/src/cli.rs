@@ -78,6 +78,18 @@ pub fn command() -> Command {
             Command::new("actions")
                 .about("List configured actions")
         )
+        .subcommand(
+            Command::new("server")
+                .about("Start Archetect Server")
+                .arg(
+                    Arg::new("server-port")
+                        .long("port")
+                        .short('p')
+                        .action(ArgAction::Set)
+                        .value_parser(value_parser!(i64).range(1024..65535))
+                        .env("ARCHETECT_SERVER_PORT")
+                )
+        )
         .arg(
             Arg::new("verbosity")
                 .help("Increase verbosity level")
