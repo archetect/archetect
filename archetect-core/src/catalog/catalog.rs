@@ -2,11 +2,11 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use archetect_inquire::{InquireError, Select};
-use crate::actions::ArchetectAction;
 
+use crate::actions::ArchetectAction;
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
-use crate::catalog::{CatalogManifest};
+use crate::catalog::CatalogManifest;
 use crate::errors::{ArchetectError, CatalogError};
 use crate::source::Source;
 
@@ -67,10 +67,7 @@ impl Catalog {
                 ArchetectAction::RenderCatalog { description: _, info } => {
                     catalog = self.archetect.new_catalog(info.source())?;
                 }
-                ArchetectAction::RenderArchetype {
-                    description: _,
-                    info,
-                } => {
+                ArchetectAction::RenderArchetype { description: _, info } => {
                     let archetype = self.archetect.new_archetype(info.source())?;
                     render_context = render_context.with_archetype_info(&info);
 

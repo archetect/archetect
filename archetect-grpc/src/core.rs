@@ -2,14 +2,18 @@ use std::error::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
 
-use anyhow::Result;
+use rhai::Map;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 
+use archetect_api::{ScriptMessage, TextPromptInfo};
 use archetect_core::Archetect;
+use archetect_core::archetype::render_context::RenderContext;
+use archetect_core::errors::ArchetectError;
 
+use crate::io::AsyncScriptIoHandle;
 use crate::proto;
 use crate::proto::archetect_service_server::ArchetectService;
 use crate::proto::ClientMessage;
@@ -30,7 +34,7 @@ impl Builder {
         Self {}
     }
 
-    pub async fn build(self) -> Result<ArchetectServiceCore> {
+    pub async fn build(self) -> Result<ArchetectServiceCore, ArchetectError> {
         Ok(ArchetectServiceCore {})
     }
 }
@@ -39,7 +43,10 @@ impl Builder {
 impl ArchetectService for ArchetectServiceCore {
     type StreamingApiStream = ResponseStream;
 
-    async fn streaming_api(&self, request: Request<Streaming<ClientMessage>>) -> std::result::Result<Response<Self::StreamingApiStream>, Status> {
+    async fn streaming_api(
+        &self,
+        request: Request<Streaming<ClientMessage>>,
+    ) -> Result<Response<Self::StreamingApiStream>, Status> {
         println!("Archetect Bidirectional Streaming API Initiating");
 
         let mut in_stream = request.into_inner();
@@ -49,50 +56,68 @@ impl ArchetectService for ArchetectServiceCore {
         // will be drooped when connection error occurs and error will never be propagated
         // to mapped version of `in_stream`.
 
-        // let (client_message_tx, client_message_rx) = mpsc::channel(1);
-        let (script_message_tx, script_message_rx) = mpsc::channel(128);
-        // let client_message_rx = Arc::new(Mutex::new(client_message_rx));
+        let (client_tx, client_rx) = mpsc::channel(10);
+        let (script_tx, script_rx) = mpsc::channel(10);
 
-        let archetect = Archetect::builder().build().expect("Unable to bootstrap Archetect :(");
+        let script_handle = AsyncScriptIoHandle::from_channels(script_tx, client_rx);
+        let archetect = Archetect::builder()
+            .with_driver(script_handle)
+            .build()
+            .expect("Unable to bootstrap Archetect :(");
+
         let mut archetect_handle = None;
         let mut initialized = false;
         tokio::spawn(async move {
             while let Some(message) = in_stream.next().await {
-                let script_message_tx_clone = script_message_tx.clone();
-                // let client_message_rx_clone = client_message_rx.clone();
                 match message {
-                    Ok(_message) => {
-                        script_message_tx_clone.send(Ok(proto::ScriptMessage::default()))
-                            .await.expect("Failure to send message :(");
-
+                    Ok(message) => {
                         if !initialized {
+                            // TODO: Verify and Use Initialize Message
                             let clone = archetect.clone();
-                            archetect_handle = Some(
-                                tokio::task::spawn_blocking(move || {
-                                    let clone = clone.clone();
-                                }));
+                            archetect_handle = Some(tokio::task::spawn_blocking(move || {
+                                let archetect_clone = clone.clone();
+
+                                let render_context = RenderContext::new(".".to_owned(), Map::new());
+                                let result = archetect_clone.execute_action("default", render_context);
+
+                                archetect_clone.request(ScriptMessage::Display(
+                                    "Hello, World from \
+                                    Script!"
+                                        .to_string(),
+                                ));
+
+                                archetect_clone.request(ScriptMessage::PromptForText(TextPromptInfo::new(
+                                    "First Name:",
+                                    None::<String>,
+                                )));
+
+                                let response = archetect_clone.receive();
+                                println!("{response:?}");
+
+                                archetect_clone.request(ScriptMessage::PromptForText(TextPromptInfo::new(
+                                    "Last Name:",
+                                    None::<String>,
+                                )));
+
+                                let response = archetect_clone.receive();
+                                println!("{response:?}");
+
+                                archetect_clone.request(ScriptMessage::LogInfo(
+                                    "This is bad \
+                                    ass!"
+                                        .into(),
+                                ));
+                                archetect_clone.request(ScriptMessage::LogWarn(
+                                    "This is bad \
+                                    ass!"
+                                        .into(),
+                                ));
+                            }));
 
                             initialized = true;
+                        } else {
+                            let _unhandled = client_tx.send(message).await;
                         }
-
-                        // if !bootstrapped {
-                        //     println!("Initializing Archetect for this client");
-                        //     let handle = tokio::task::spawn_blocking(move || {
-                        //         let archetect = Archetect {
-                        //             driver: GrpcScriptIoDriver {
-                        //                 // ScriptMessage protobufs
-                        //                 script_message_tx: script_message_tx_clone,
-                        //                 // ClientMessage protobufs
-                        //                 client_message_rx: client_message_rx_clone,
-                        //             }.into(),
-                        //         };
-                        //         archetect.execute();
-                        //     });
-                        //     bootstrapped = true;
-                        // } else {
-                        //     client_message_tx.send(message).await.expect("Error \
-                        //     Sending Client Message");
-                        // }
                     }
                     Err(err) => {
                         if let Some(io_err) = match_for_io_error(&err) {
@@ -110,16 +135,13 @@ impl ArchetectService for ArchetectServiceCore {
         });
 
         // echo just write the same data that was received
-        let out_stream = ReceiverStream::new(script_message_rx);
+        let out_stream = ReceiverStream::new(script_rx).map(|message| Ok(message));
 
-        Ok(Response::new(
-            Box::pin(out_stream) as Self::StreamingApiStream
-        ))
+        Ok(Response::new(Box::pin(out_stream) as Self::StreamingApiStream))
     }
 }
 
-type ResponseStream = Pin<Box<dyn Stream<Item=std::result::Result<proto::ScriptMessage, Status>> +
-Send>>;
+type ResponseStream = Pin<Box<dyn Stream<Item = Result<proto::ScriptMessage, Status>> + Send>>;
 
 fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
     let mut err: &(dyn Error + 'static) = err_status;

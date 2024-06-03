@@ -23,7 +23,7 @@ mod select_prompt_info;
 mod text_prompt_info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CommandRequest {
+pub enum ScriptMessage {
     /// Prompt for Text
     PromptForText(TextPromptInfo),
     /// Prompt for a Signed Integer
@@ -55,7 +55,7 @@ pub enum CommandRequest {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CommandResponse {
+pub enum ClientMessage {
     String(String),
     Integer(i64),
     Boolean(bool),
@@ -63,4 +63,7 @@ pub enum CommandResponse {
     None,
     Error(String),
     Abort,
+    Initialize {
+        answers: String,
+    }
 }

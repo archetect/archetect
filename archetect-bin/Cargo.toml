@@ -17,11 +17,11 @@ name = "archetect"
 path = "src/main.rs"
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.18" }
-archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.18" }
-archetect-grpc = { path = "../archetect-grpc", version = "2.0.0-ALPHA.18" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.18" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.18" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.19" }
+archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.19" }
+archetect-grpc = { path = "../archetect-grpc", version = "2.0.0-ALPHA.19" }
+archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.19" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.19" }
 
 ansi_term = { workspace = true }
 anyhow = { workspace = true }
@@ -31,12 +31,13 @@ clap = { workspace = true }
 clap_complete = { workspace = true }
 config = { workspace = true }
 linked-hash-map = { workspace = true }
-log= { workspace = true }
+log = { workspace = true }
 pest = { workspace = true }
 pest_derive = { workspace = true }
 rhai = { workspace = true }
-serde= { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml= { workspace = true }
+serde_yaml = { workspace = true }
 shellexpand = { workspace = true }
 tokio = { workspace = true }
+url = "2.5.0"

@@ -1,6 +1,8 @@
-use crate::commands::prompt_info::PromptInfo;
-use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+
+use serde::{Deserialize, Serialize};
+
+use crate::commands::prompt_info::PromptInfo;
 use crate::PromptInfoPageable;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -64,7 +66,7 @@ impl SelectPromptInfo {
     pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>, options: Vec<String>) -> Self {
         SelectPromptInfo {
             message: message.into(),
-            key: key.map(|v|v.as_ref().to_string()),
+            key: key.map(|v| v.as_ref().to_string()),
             options,
             default: Default::default(),
             help: Default::default(),

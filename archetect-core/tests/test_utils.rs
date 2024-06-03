@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use camino::Utf8PathBuf;
 
-use archetect_api::{api_driver_and_handle, ApiIoHandle, CommandRequest, CommandResponse};
+use archetect_api::{SyncClientIoHandle, ScriptMessage, ClientMessage, SyncIoDriver, ClientIoHandle};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
@@ -21,12 +21,12 @@ pub fn get_archetype_path(rs_file: &str) -> Utf8PathBuf {
 }
 
 pub struct TestHarness {
-    handle: ApiIoHandle,
+    client_handle: SyncClientIoHandle,
     status_rx: Receiver<bool>,
 }
 
 impl TestHarness {
-    pub fn new(
+    pub fn execute(
         test_file: &str,
         configuration: Configuration,
         render_context: RenderContext,
@@ -34,9 +34,10 @@ impl TestHarness {
     ) -> Result<TestHarness, ArchetectError> {
         let archetype_dir = get_archetype_path(test_file);
 
-        let (driver, handle) = api_driver_and_handle();
+        let (script_handle, client_handle) = SyncIoDriver::new().split();
+
         let archetect = Archetect::builder()
-            .with_driver(driver)
+            .with_driver(script_handle)
             .with_configuration(configuration)
             .with_temp_layout()?
             .build()?;
@@ -52,15 +53,15 @@ impl TestHarness {
             }
         });
 
-        Ok(TestHarness { handle, status_rx })
+        Ok(TestHarness { client_handle, status_rx })
     }
 
-    pub fn respond(&self, response: CommandResponse) {
-        self.handle.respond(response);
+    pub fn respond(&self, response: ClientMessage) {
+        self.client_handle.send(response);
     }
 
-    pub fn receive(&self) -> CommandRequest {
-        self.handle.receive()
+    pub fn receive(&self) -> ScriptMessage {
+        self.client_handle.receive().expect("Expected Message")
     }
 
     pub fn render_succeeded(&self) -> bool {

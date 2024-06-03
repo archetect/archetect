@@ -1,13 +1,12 @@
-use std::sync::mpsc::SyncSender;
 
 use log::warn;
 
-use archetect_api::{CommandResponse, PromptInfo, PromptInfoPageable, SelectPromptInfo};
+use archetect_api::{ClientIoHandle, ClientMessage, PromptInfo, PromptInfoPageable, SelectPromptInfo};
 use archetect_inquire::{InquireError, Select};
 
 use crate::get_render_config;
 
-pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_select_prompt<CIO: ClientIoHandle>(prompt_info: SelectPromptInfo, client_handle: CIO) {
     let mut prompt =
         Select::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -34,23 +33,20 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &SyncSende
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::String(answer))
-                    .expect("Channel Send Error");
+                client_handle
+                    .send(ClientMessage::String(answer));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                client_handle.send(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.send(CommandResponse::Abort)
-                        .expect("Channel Send Error");
+                    client_handle.send(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    client_handle
+                        .send(ClientMessage::Error(error.to_string()));
                 }
             }
         }

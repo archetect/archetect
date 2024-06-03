@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
-use clap::ArgMatches;
+use clap::{Arg, ArgMatches};
 use log::warn;
 use rhai::Map;
 
-use archetect_api::{CommandRequest, IoDriver};
+use archetect_api::{ScriptIoHandle, ScriptMessage};
 use archetect_core::{self};
 use archetect_core::actions::ArchetectAction;
 use archetect_core::Archetect;
@@ -29,8 +29,7 @@ mod subcommands;
 pub mod vendor;
 
 fn main() {
-    let matches = cli::command()
-        .get_matches();
+    let matches = cli::command().get_matches();
     cli::configure(&matches);
 
     let driver = TerminalIoDriver::default();
@@ -44,7 +43,7 @@ fn main() {
                 ArchetectError::ArchetypeError(ScriptAbortError) => {}
                 ArchetectError::CatalogError(CatalogError::SelectionCancelled) => {}
                 _ => {
-                    driver.send(CommandRequest::LogError(format!("{}", error)));
+                    driver.send(ScriptMessage::LogError(format!("{}", error)));
                 }
             }
 
@@ -53,7 +52,11 @@ fn main() {
     }
 }
 
-fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout: L) -> Result<(), ArchetectError> {
+fn execute<D: ScriptIoHandle, L: SystemLayout>(
+    matches: ArgMatches,
+    driver: D,
+    layout: L,
+) -> Result<(), ArchetectError> {
     let configuration = configuration::load_user_config(&layout, &matches)
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
@@ -98,63 +101,71 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         Some(("catalog", args)) => catalog(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
-        Some(("server", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
+        Some(("server", args)) => subcommands::handle_server_subcommand(args)?,
+        Some(("connect", args)) => subcommands::handle_connect_subcommand(args)?,
         Some((_, _args)) => {
-            execute_action(&matches, archetect, answers)?;
-        },
+            let action = matches.get_one::<String>("action").expect("Expected an action");
+            let render_context = create_render_context(&matches, &archetect, answers);
+            archetect.execute_action(action, render_context)?;
+        }
         None => {
-            execute_action(&matches, archetect, answers)?;
+            let action = matches.get_one::<String>("action").expect("Expected an action");
+            let render_context = create_render_context(&matches, &archetect, answers);
+            archetect.execute_action(action, render_context)?;
         }
     }
 
     Ok(())
 }
 
-fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
-    let action = matches.get_one::<String>("action").expect("Expected an action");
-    match archetect.configuration().action(&action) {
-        None => {
-            return Err(ArchetectError::MissingAction(
-                action.to_owned(),
-                archetect
-                    .configuration()
-                    .actions()
-                    .keys()
-                    .map(|v| v.to_string())
-                    .collect::<Vec<String>>(),
-            ));
-
-        }
-        Some(command) => {
-            match command {
-                ArchetectAction::RenderGroup{info, ..} => {
-                    let catalog = Catalog::new(archetect.clone(), CatalogManifest::new().with_entries(info.actions().clone()));
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
-                    catalog.render(render_context)?;
-                }
-                ArchetectAction::RenderCatalog{info, ..} => {
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
-                    let catalog = archetect.new_catalog(info.source())?;
-                    catalog.check_requirements()?;
-                    catalog.render(render_context)?;
-                }
-                ArchetectAction::RenderArchetype{info, ..} => {
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
-                    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches)
-                        .with_archetype_info(&info)
-                        ;
-                    let archetype = archetect.new_archetype(info.source())?;
-                    archetype.check_requirements()?;
-                    let _ = archetype.render(render_context)?;
-
-                }
-            }
-            Ok(())
-        }
-    }
-}
+// fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
+//     let action = matches.get_one::<String>("action").expect("Expected an action");
+//     match archetect.configuration().action(&action) {
+//         None => {
+//             return Err(ArchetectError::MissingAction(
+//                 action.to_owned(),
+//                 archetect
+//                     .configuration()
+//                     .actions()
+//                     .keys()
+//                     .map(|v| v.to_string())
+//                     .collect::<Vec<String>>(),
+//             ));
+//         }
+//         Some(command) => {
+//             match command {
+//                 ArchetectAction::RenderGroup { info, .. } => {
+//                     let catalog = Catalog::new(
+//                         archetect.clone(),
+//                         CatalogManifest::new().with_entries(info.actions().clone()),
+//                     );
+//                     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+//                     let render_context =
+//                         configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+//                     catalog.render(render_context)?;
+//                 }
+//                 ArchetectAction::RenderCatalog { info, .. } => {
+//                     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+//                     let render_context =
+//                         configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+//                     let catalog = archetect.new_catalog(info.source())?;
+//                     catalog.check_requirements()?;
+//                     catalog.render(render_context)?;
+//                 }
+//                 ArchetectAction::RenderArchetype { info, .. } => {
+//                     let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+//                     let render_context =
+//                         configure_render_context(RenderContext::new(destination, answers), &archetect, matches)
+//                             .with_archetype_info(&info);
+//                     let archetype = archetect.new_archetype(info.source())?;
+//                     archetype.check_requirements()?;
+//                     let _ = archetype.render(render_context)?;
+//                 }
+//             }
+//             Ok(())
+//         }
+//     }
+// }
 
 fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     warn!("'archetect catalog' is deprecated.  Use 'archetect render', instead");
@@ -173,14 +184,11 @@ pub fn render(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Resul
             Ok(archetype.render(render_context).map(|_| ())?)
         }
         SourceContents::Catalog => {
-           let catalog = Catalog::load(archetect, source)?;
+            let catalog = Catalog::load(archetect, source)?;
             catalog.check_requirements()?;
             Ok(catalog.render(render_context)?)
         }
-        SourceContents::Unknown => {
-            Err(SourceError::UnknownSourceContent.into())
-        }
-
+        SourceContents::Unknown => Err(SourceError::UnknownSourceContent.into()),
     }
 }
 
@@ -190,6 +198,15 @@ fn configure_render_context(
     matches: &ArgMatches,
 ) -> RenderContext {
     render_context
+        .with_switches(get_switches(matches, archetect.configuration()))
+        .with_use_defaults_all(matches.get_flag("use-defaults-all"))
+        .with_use_defaults(get_defaults(matches))
+}
+
+fn create_render_context(matches: &ArgMatches, archetect: &Archetect, answers: Map) -> RenderContext {
+    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").expect("Required by Clap"));
+
+    RenderContext::new(destination, answers)
         .with_switches(get_switches(matches, archetect.configuration()))
         .with_use_defaults_all(matches.get_flag("use-defaults-all"))
         .with_use_defaults(get_defaults(matches))

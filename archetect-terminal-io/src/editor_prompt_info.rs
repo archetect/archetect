@@ -1,13 +1,11 @@
-use std::sync::mpsc::SyncSender;
-
-use archetect_api::{CommandResponse, PromptInfo, PromptInfoLengthRestrictions, EditorPromptInfo};
-use archetect_validations::{validate_text_length};
+use archetect_api::{ClientIoHandle, ClientMessage, EditorPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_inquire::{Editor, InquireError};
 use archetect_inquire::validator::Validation;
+use archetect_validations::validate_text_length;
 
 use crate::get_render_config;
 
-pub fn handle_editor_prompt(prompt_info: EditorPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_editor_prompt<CIO: ClientIoHandle>(prompt_info: EditorPromptInfo, client_handle: CIO) {
     let mut prompt = Editor::new(prompt_info.message()).with_render_config(get_render_config());
     let text = prompt_info.default();
     prompt.predefined_text = text.as_deref();
@@ -27,23 +25,20 @@ pub fn handle_editor_prompt(prompt_info: EditorPromptInfo, responses: &SyncSende
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::String(answer))
-                    .expect("Channel Send Error");
+                client_handle
+                    .send(ClientMessage::String(answer));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                client_handle.send(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.send(CommandResponse::Abort)
-                        .expect("Channel Send Error");
+                    client_handle.send(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    client_handle
+                        .send(ClientMessage::Error(error.to_string()));
                 }
             }
         }

@@ -1,11 +1,10 @@
-use std::sync::mpsc::SyncSender;
-
-use archetect_api::{CommandResponse, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
+use archetect_api::{ClientIoHandle, ClientMessage, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
 use archetect_inquire::{InquireError, MultiSelect};
 
 use crate::get_render_config;
 
-pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_multiselect_prompt<CIO: ClientIoHandle>(prompt_info: MultiSelectPromptInfo,
+                                                      client_handle: CIO) {
     let mut prompt =
         MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -34,23 +33,20 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::Array(answer))
-                    .expect("Channel Send Error");
+                client_handle
+                    .send(ClientMessage::Array(answer));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                client_handle.send(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.send(CommandResponse::Abort)
-                        .expect("Channel Send Error");
+                    client_handle.send(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    client_handle
+                        .send(ClientMessage::Error(error.to_string()));
                 }
             }
         }

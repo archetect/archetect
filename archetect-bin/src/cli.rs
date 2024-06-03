@@ -6,6 +6,7 @@ use clap_complete::{generate, Shell};
 use log::Level;
 
 use archetect_core::errors::ArchetectError;
+use url::Url;
 
 use crate::cli;
 use crate::vendor::loggerv;
@@ -52,6 +53,23 @@ pub fn command() -> Command {
                 .args(render_args(true)),
         )
         .subcommand(
+            Command::new("connect")
+                .about("Connect to an Archetect Server")
+                .arg(
+                    Arg::new("endpoint")
+                        .help("The Archetect Server Endpoint to connect to")
+                        .action(ArgAction::Set)
+                        .required(true)
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render teh Archetype in to")
+                        .default_value(".")
+                        .action(ArgAction::Set)
+                )
+                .args(render_args(true))
+        )
+        .subcommand(
             Command::new("config")
                 .arg_required_else_help(true)
                 .about("Manage Archetect's configuration")
@@ -83,11 +101,24 @@ pub fn command() -> Command {
                 .about("Start Archetect Server")
                 .arg(
                     Arg::new("server-port")
+                        .help("The port to start Archetect Server on")
                         .long("port")
                         .short('p')
                         .action(ArgAction::Set)
                         .value_parser(value_parser!(i64).range(1024..65535))
                         .env("ARCHETECT_SERVER_PORT")
+                )
+        )
+        .subcommand(
+            Command::new("connect")
+                .about("Connect to an Archetect Server")
+                .arg(
+                    Arg::new("endpoint")
+                        .help("Archetect Server Endpoint")
+                        .action(ArgAction::Set)
+                        .required(true)
+                        .value_parser(value_parser!(Url))
+                        .env("ARCHETECT_ENDPOINT")
                 )
         )
         .arg(
@@ -250,13 +281,13 @@ fn render_args(global: bool) -> Vec<Arg> {
             .global(global),
     );
     args.push(
-            Arg::new("headless")
-                .help("Expect all inputs to be resolved by answers, defaults, and optional values, never waiting on interactive user input.")
-                .long("headless")
-                .env("ARCHETECT_HEADLESS")
-                .action(ArgAction::SetTrue)
-                .global(global)
-        );
+        Arg::new("headless")
+            .help("Expect all inputs to be resolved by answers, defaults, and optional values, never waiting on interactive user input.")
+            .long("headless")
+            .env("ARCHETECT_HEADLESS")
+            .action(ArgAction::SetTrue)
+            .global(global)
+    );
     args.push(
         Arg::new("local")
             .help("Use local development checkouts where available and configured")

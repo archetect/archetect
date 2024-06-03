@@ -8,7 +8,7 @@ use content_inspector::ContentType;
 use log::{debug, trace};
 use rhai::{Dynamic, EvalAltResult, Map, Scope};
 
-use archetect_api::CommandRequest;
+use archetect_api::ScriptMessage;
 use archetect_inquire::Confirm;
 use archetect_minijinja::Environment;
 
@@ -85,14 +85,14 @@ impl Archetype {
                         return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {
                             Err(ArchetypeError::ScriptAbortError)
                         } else {
-                            self.archetect.request(CommandRequest::LogError(format!("{}", error)));
+                            self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
                             Err(ArchetypeError::ScriptAbortError)
                         };
                     }
                 }
             }
             Err(error) => {
-                self.archetect.request(CommandRequest::LogError(format!("{}", error)));
+                self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
                 return Err(ArchetypeError::ScriptAbortError);
             }
         }

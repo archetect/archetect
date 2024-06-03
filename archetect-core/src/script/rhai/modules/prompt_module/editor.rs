@@ -1,6 +1,6 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, EditorPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ScriptMessage, ClientMessage, EditorPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_validations::validate_text_length;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
@@ -57,10 +57,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     }
 
-    archetect.request(CommandRequest::PromptForEditor(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForEditor(prompt_info.clone()));
 
-    match archetect.response() {
-        CommandResponse::String(answer) => {
+    match archetect.receive() {
+        ClientMessage::String(answer) => {
             match validate_text_length(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
                 Ok(_) => Ok(answer.into()),
                 Err(error_message) => {
@@ -69,7 +69,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 }
             }
         }
-        CommandResponse::None => {
+        ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
@@ -77,10 +77,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 return Ok(None);
             }
         }
-        CommandResponse::Error(error) => {
+        ClientMessage::Error(error) => {
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
-        CommandResponse::Abort => {
+        ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {

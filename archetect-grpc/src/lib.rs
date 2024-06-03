@@ -1,10 +1,13 @@
 mod server;
 mod settings;
 mod core;
+pub mod client;
+pub mod io;
+mod conversion;
 
 pub use settings::*;
 pub use server::*;
-pub use core::*;
+pub use core::ArchetectServiceCore;
 
 mod proto {
     tonic::include_proto!("archetect");

@@ -1,6 +1,6 @@
 use rhai::{EvalAltResult, NativeCallContext};
 
-use archetect_api::{CommandResponse, PromptInfo};
+use archetect_api::{ClientMessage, PromptInfo};
 use ArchetypeScriptError::{AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError, HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError, KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting, KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse};
 use crate::errors::ArchetypeScriptError::KeyedInvalidSetSetting;
 
@@ -305,7 +305,7 @@ impl ArchetypeScriptError {
     pub fn unexpected_prompt_response<'a, P, E>(
         prompt: &P,
         expected: E,
-        actual: CommandResponse,
+        actual: ClientMessage,
     ) -> ArchetypeScriptError
     where
         P: PromptInfo,

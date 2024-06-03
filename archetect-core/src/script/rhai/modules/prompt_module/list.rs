@@ -1,6 +1,6 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, ListPromptInfo, PromptInfo};
+use archetect_api::{ScriptMessage, ClientMessage, ListPromptInfo, PromptInfo};
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
@@ -63,13 +63,13 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    archetect.request(CommandRequest::PromptForList(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForList(prompt_info.clone()));
 
-    match archetect.response() {
-        CommandResponse::Array(answer) => {
+    match archetect.receive() {
+        ClientMessage::Array(answer) => {
             return Ok(Some(answer.into()));
         }
-        CommandResponse::None => {
+        ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
@@ -77,10 +77,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 return Ok(None);
             }
         }
-        CommandResponse::Error(error) => {
+        ClientMessage::Error(error) => {
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
-        CommandResponse::Abort => {
+        ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {

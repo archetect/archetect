@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use semver::Version;
 
-use archetect_api::{CommandRequest, CommandResponse, IoDriver};
+use archetect_api::{ClientMessage, ScriptIoHandle, ScriptMessage};
 use archetect_terminal_io::TerminalIoDriver;
 
+use crate::actions::ArchetectAction;
 use crate::archetype::archetype::Archetype;
-use crate::catalog::{Catalog};
+use crate::archetype::render_context::RenderContext;
+use crate::catalog::{Catalog, CatalogManifest};
 use crate::configuration::Configuration;
 use crate::errors::ArchetectError;
 use crate::source::Source;
@@ -20,7 +22,7 @@ pub struct Archetect {
 #[derive(Debug)]
 struct Inner {
     version: Version,
-    io_driver: Box<dyn IoDriver>,
+    script_io_handle: Box<dyn ScriptIoHandle>,
     layout: Box<dyn SystemLayout>,
     configuration: Configuration,
 }
@@ -28,7 +30,7 @@ struct Inner {
 pub struct ArchetectBuilder {
     configuration: Option<Configuration>,
     layout: Option<Box<dyn SystemLayout>>,
-    driver: Option<Box<dyn IoDriver>>,
+    driver: Option<Box<dyn ScriptIoHandle>>,
 }
 
 impl ArchetectBuilder {
@@ -42,7 +44,7 @@ impl ArchetectBuilder {
         Ok(self)
     }
 
-    pub fn with_driver<D: Into<Box<dyn IoDriver>>>(mut self, driver: D) -> Self {
+    pub fn with_driver<D: Into<Box<dyn ScriptIoHandle>>>(mut self, driver: D) -> Self {
         self.driver = Some(driver.into());
         self
     }
@@ -72,7 +74,7 @@ impl Default for ArchetectBuilder {
 }
 
 impl Archetect {
-    pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(
+    pub fn new<T: Into<Box<dyn ScriptIoHandle>>, L: Into<Box<dyn SystemLayout>>>(
         configuration: Configuration,
         driver: T,
         layout: L,
@@ -80,7 +82,7 @@ impl Archetect {
         Archetect {
             inner: Arc::new(Inner {
                 version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-                io_driver: driver.into(),
+                script_io_handle: driver.into(),
                 layout: layout.into(),
                 configuration,
             }),
@@ -107,20 +109,16 @@ impl Archetect {
         &self.inner.layout
     }
 
-    pub fn request(&self, command: CommandRequest) {
-        self.inner.io_driver.send(command)
+    pub fn request(&self, command: ScriptMessage) {
+        self.inner.script_io_handle.send(command)
     }
 
     pub fn configuration(&self) -> &Configuration {
         &self.inner.configuration
     }
 
-    pub fn response(&self) -> CommandResponse {
-        self.inner.io_driver.responses()
-            .lock()
-            .expect("Lock Error")
-            .recv()
-            .expect("Receive Error")
+    pub fn receive(&self) -> ClientMessage {
+        self.inner.script_io_handle.receive().expect("Received Message")
     }
 
     pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {
@@ -138,5 +136,47 @@ impl Archetect {
     pub fn new_source(&self, path: &str) -> Result<Source, ArchetectError> {
         let source = Source::new(self.clone(), path)?;
         Ok(source)
+    }
+
+    pub fn execute_action<A: Into<String>>(
+        &self,
+        action: A,
+        render_context: RenderContext,
+    ) -> Result<(), ArchetectError> {
+        let action = action.into();
+        match self.configuration().action(&action) {
+            None => {
+                return Err(ArchetectError::MissingAction(
+                    action.to_owned(),
+                    self.configuration()
+                        .actions()
+                        .keys()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<String>>(),
+                ));
+            }
+            Some(command) => {
+                match command {
+                    ArchetectAction::RenderGroup { info, .. } => {
+                        let catalog = Catalog::new(
+                            self.clone(),
+                            CatalogManifest::new().with_entries(info.actions().clone()),
+                        );
+                        catalog.render(render_context)?;
+                    }
+                    ArchetectAction::RenderCatalog { info, .. } => {
+                        let catalog = self.new_catalog(info.source())?;
+                        catalog.check_requirements()?;
+                        catalog.render(render_context)?;
+                    }
+                    ArchetectAction::RenderArchetype { info, .. } => {
+                        let archetype = self.new_archetype(info.source())?;
+                        archetype.check_requirements()?;
+                        let _ = archetype.render(render_context.with_archetype_info(&info))?;
+                    }
+                }
+                return Ok(());
+            }
+        }
     }
 }

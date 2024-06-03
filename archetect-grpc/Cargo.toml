@@ -11,11 +11,14 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.18"}
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.19" }
+archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.19" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.19" }
 
 anyhow = { workspace = true }
 prost = "0.12.4"
-serde = {version = "1.0", features = ["serde_derive"] }
+rhai = { workspace = true }
+serde = { version = "1.0", features = ["serde_derive"] }
 tonic = "0.11.0"
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1.15"
@@ -24,6 +27,7 @@ tracing-attributes = "0.1"
 h2 = "0.4.4"
 tonic-health = "0.11.0"
 tonic-reflection = "0.11.0"
+futures = "0.3.30"
 
 [dev-dependencies]
 tokio = { workspace = true }

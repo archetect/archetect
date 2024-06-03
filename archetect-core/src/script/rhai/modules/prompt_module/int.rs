@@ -1,6 +1,6 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ScriptMessage, ClientMessage, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_validations::validate_int_size;
 
 use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
@@ -58,10 +58,10 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
 
     }
 
-    archetect.request(CommandRequest::PromptForInt(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForInt(prompt_info.clone()));
 
-    match archetect.response() {
-        CommandResponse::Integer(answer) => match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
+    match archetect.receive() {
+        ClientMessage::Integer(answer) => match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
             Ok(_) => Ok(Some(answer)),
             Err(error_message) => {
                 let error =
@@ -69,7 +69,7 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
             }
         },
-        CommandResponse::None => {
+        ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
@@ -77,10 +77,10 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
                 return Ok(None);
             }
         }
-        CommandResponse::Error(error) => {
+        ClientMessage::Error(error) => {
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
-        CommandResponse::Abort => {
+        ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {

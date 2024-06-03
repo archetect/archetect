@@ -2,35 +2,60 @@ syntax = "proto3";
 
 package archetect;
 
+import "google/protobuf/empty.proto";
+
 service ArchetectService {
     rpc StreamingApi(stream ClientMessage) returns (stream ScriptMessage);
 }
 
-message PromptForString {
-    string prompt = 1;
+message PromptForText {
+    string message = 1;
+    optional string key = 2;
 }
 
 message PromptForInt {
-    string prompt = 1;
+    string message = 1;
+    optional string key = 2;
+}
+ message PromptForBool {
+     string message = 1;
+     optional string key = 2;
+ }
+
+
+message Initialize {
+    string answers = 1;
 }
 
-message WriteFile {
-    string path = 1;
-    string contents = 2;
+message Array {
+    repeated string values = 1;
 }
+
 
 message ScriptMessage {
     oneof message {
-        PromptForString prompt_for_string = 1;
+        PromptForText prompt_for_text = 1;
         PromptForInt prompt_for_int = 2;
-        WriteFile write_file = 3;
+        string log_trace = 3;
+        string log_debug = 4;
+        string log_info = 5;
+        string log_warn = 6;
+        string log_error = 7;
+        string print = 8;
+        string display = 9;
     }
 }
 
+
 message ClientMessage {
     oneof message {
-        string initiate = 1;
+        Initialize initialize = 1;
         string string = 2;
         int64 integer = 3;
+        bool boolean = 4;
+        string error = 5;
+        Array array = 6;
+        google.protobuf.Empty none = 7;
+        google.protobuf.Empty abort = 8;
     }
 }
