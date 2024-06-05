@@ -1,14 +1,16 @@
+use std::arch::aarch64::vrecpe_f32;
 use std::error::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
 
+use log::info;
 use rhai::Map;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 
-use archetect_api::{ScriptMessage, TextPromptInfo};
+use archetect_api::ScriptMessage;
 use archetect_core::Archetect;
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::errors::ArchetectError;
@@ -16,26 +18,33 @@ use archetect_core::errors::ArchetectError;
 use crate::io::AsyncScriptIoHandle;
 use crate::proto;
 use crate::proto::archetect_service_server::ArchetectService;
+use crate::proto::client_message::Message;
 use crate::proto::ClientMessage;
 
 #[derive(Clone, Debug)]
-pub struct ArchetectServiceCore {}
+pub struct ArchetectServiceCore {
+    prototype: Archetect,
+}
 
 impl ArchetectServiceCore {
-    pub fn builder() -> Builder {
-        Builder::new()
+    pub fn builder(prototype: Archetect) -> Builder {
+        Builder::new(prototype)
     }
 }
 
-pub struct Builder {}
+pub struct Builder {
+    prototype: Archetect,
+}
 
 impl Builder {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(prototype: Archetect) -> Self {
+        Self { prototype }
     }
 
     pub async fn build(self) -> Result<ArchetectServiceCore, ArchetectError> {
-        Ok(ArchetectServiceCore {})
+        Ok(ArchetectServiceCore {
+            prototype: self.prototype,
+        })
     }
 }
 
@@ -61,6 +70,7 @@ impl ArchetectService for ArchetectServiceCore {
 
         let script_handle = AsyncScriptIoHandle::from_channels(script_tx, client_rx);
         let archetect = Archetect::builder()
+            .with_configuration(self.prototype.configuration().clone())
             .with_driver(script_handle)
             .build()
             .expect("Unable to bootstrap Archetect :(");
@@ -73,45 +83,28 @@ impl ArchetectService for ArchetectServiceCore {
                     Ok(message) => {
                         if !initialized {
                             // TODO: Verify and Use Initialize Message
-                            let clone = archetect.clone();
+                            let archetect = archetect.clone();
                             archetect_handle = Some(tokio::task::spawn_blocking(move || {
-                                let archetect_clone = clone.clone();
-
-                                let render_context = RenderContext::new(".".to_owned(), Map::new());
-                                let result = archetect_clone.execute_action("default", render_context);
-
-                                archetect_clone.request(ScriptMessage::Display(
-                                    "Hello, World from \
-                                    Script!"
-                                        .to_string(),
-                                ));
-
-                                archetect_clone.request(ScriptMessage::PromptForText(TextPromptInfo::new(
-                                    "First Name:",
-                                    None::<String>,
-                                )));
-
-                                let response = archetect_clone.receive();
-                                println!("{response:?}");
-
-                                archetect_clone.request(ScriptMessage::PromptForText(TextPromptInfo::new(
-                                    "Last Name:",
-                                    None::<String>,
-                                )));
-
-                                let response = archetect_clone.receive();
-                                println!("{response:?}");
-
-                                archetect_clone.request(ScriptMessage::LogInfo(
-                                    "This is bad \
-                                    ass!"
-                                        .into(),
-                                ));
-                                archetect_clone.request(ScriptMessage::LogWarn(
-                                    "This is bad \
-                                    ass!"
-                                        .into(),
-                                ));
+                                archetect.request(ScriptMessage::Display("Connected to Archetect Server".to_string()));
+                                println!("{message:?}");
+                                if let ClientMessage {
+                                    message: Some(Message::Initialize(initialize)),
+                                } = message
+                                {
+                                    let answers = serde_yaml::from_str::<Map>(&initialize.answers_yaml).unwrap();
+                                    let render_context = RenderContext::new(initialize.destination, answers)
+                                        .with_switches(initialize.switches.iter().map(|v| v.to_string()).collect())
+                                        .with_use_defaults(
+                                            initialize.use_defaults.iter().map(|v| v.to_string()).collect(),
+                                        )
+                                        .with_use_defaults_all(initialize.use_defaults_all);
+                                    let _result = archetect.execute_action("default", render_context);
+                                } else {
+                                    archetect.request(ScriptMessage::LogError(
+                                        "Improper Initialization Message".to_string(),
+                                    ));
+                                    return;
+                                }
                             }));
 
                             initialized = true;
@@ -131,7 +124,7 @@ impl ArchetectService for ArchetectServiceCore {
                     }
                 }
             }
-            println!("\tstream ended");
+            info!("Client Disconnected");
         });
 
         // echo just write the same data that was received

@@ -1,20 +1,22 @@
-use crate::commands::prompt_info::{PromptInfo, PromptInfoPageable};
-use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+
+use serde::{Deserialize, Serialize};
+
+use crate::commands::prompt_info::{PromptInfo, PromptInfoPageable};
 use crate::PromptInfoItemsRestrictions;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MultiSelectPromptInfo {
-    message: String,
-    key: Option<String>,
-    options: Vec<String>,
-    defaults: Option<Vec<String>>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
-    min_items: Option<usize>,
-    max_items: Option<usize>,
-    page_size: Option<usize>,
+    pub message: String,
+    pub key: Option<String>,
+    pub options: Vec<String>,
+    pub defaults: Option<Vec<String>>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
+    pub min_items: Option<usize>,
+    pub max_items: Option<usize>,
+    pub page_size: Option<usize>,
 }
 
 impl PromptInfo for MultiSelectPromptInfo {
@@ -84,7 +86,7 @@ impl MultiSelectPromptInfo {
     pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>, options: Vec<String>) -> Self {
         MultiSelectPromptInfo {
             message: message.into(),
-            key: key.map(|v|v.as_ref().to_string()),
+            key: key.map(|v| v.as_ref().to_string()),
             options,
             defaults: Default::default(),
             help: Default::default(),
@@ -106,5 +108,39 @@ impl MultiSelectPromptInfo {
 
     pub fn set_defaults(&mut self, defaults: Option<Vec<String>>) {
         self.defaults = defaults;
+    }
+    pub fn with_defaults(mut self, defaults: Option<Vec<String>>) -> Self {
+        self.set_defaults(defaults);
+        self
+    }
+
+    pub fn with_help(mut self, value: Option<String>) -> Self {
+        self.help = value;
+        self
+    }
+
+    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
+        self.placeholder = value;
+        self
+    }
+
+    pub fn with_optional(mut self, optional: bool) -> Self {
+        self.optional = optional;
+        self
+    }
+
+    pub fn with_min_items(mut self, min_items: Option<usize>) -> Self {
+        self.min_items = min_items;
+        self
+    }
+
+    pub fn with_max_items(mut self, max_items: Option<usize>) -> Self {
+        self.max_items = max_items;
+        self
+    }
+
+    pub fn with_page_size(mut self, page_size: Option<usize>) -> Self {
+        self.page_size = page_size;
+        self
     }
 }

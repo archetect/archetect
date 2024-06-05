@@ -1,7 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-use archetect_inquire::{InquireError, Select};
+use linked_hash_map::LinkedHashMap;
+
+use archetect_api::{ClientMessage, ScriptMessage, SelectPromptInfo};
 
 use crate::actions::ArchetectAction;
 use crate::Archetect;
@@ -89,49 +91,67 @@ impl Catalog {
         }
 
         loop {
-            let choices = entry_items
-                .iter()
-                .enumerate()
-                .map(|(id, entry)| create_item(entry_items.len(), id, entry))
-                .collect::<Vec<_>>();
+            let options_map = create_options_map(entry_items);
 
-            let prompt = Select::new("Catalog Selection:", choices).with_page_size(30);
+            let options = options_map.iter().map(|(k, _v)| k.to_owned()).collect::<Vec<_>>();
+            let default = options.get(0).map(|v| v.to_owned());
 
-            match prompt.prompt() {
-                Ok(item) => match item.entry {
-                    ArchetectAction::RenderGroup { description: _, info } => {
-                        entry_items = info.actions_owned();
+            let key: Option<String> = None;
+
+            // TODO: handle page size
+            let prompt_info = SelectPromptInfo::new("Catalog Selection:", key, options).with_default(default);
+
+            self.archetect.request(ScriptMessage::PromptForSelect(prompt_info));
+
+            match self.archetect.receive() {
+                ClientMessage::String(answer) => {
+                    // TODO: Handle item missing error
+                    let action = options_map.get(&answer).expect("Required Catalog Item").clone();
+                    match action {
+                        ArchetectAction::RenderGroup { description: _, info } => {
+                            entry_items = info.actions_owned();
+                        }
+                        ArchetectAction::RenderCatalog { .. } => return Ok(action),
+                        ArchetectAction::RenderArchetype { .. } => return Ok(action),
                     }
-                    ArchetectAction::RenderCatalog { .. } => return Ok(item.entry()),
-                    ArchetectAction::RenderArchetype { .. } => return Ok(item.entry()),
-                },
-                Err(err) => {
-                    return match err {
-                        InquireError::OperationCanceled => Err(CatalogError::SelectionCancelled),
-                        InquireError::OperationInterrupted => Err(CatalogError::SelectionCancelled),
-                        err => Err(CatalogError::General(err.to_string())),
-                    }
+                }
+                ClientMessage::None => {
+                    return Err(CatalogError::SelectionCancelled);
+                }
+                ClientMessage::Abort => {
+                    return Err(CatalogError::SelectionCancelled);
+                }
+                _response => {
+                    // TODO: Better error handling
+                    return Err(CatalogError::SelectionCancelled);
                 }
             }
         }
     }
 }
 
-fn create_item(item_count: usize, id: usize, entry: &ArchetectAction) -> CatalogItem {
-    match item_count {
-        1..=99 => CatalogItem::new(
-            format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description()),
-            entry.clone(),
-        ),
-        100..=999 => CatalogItem::new(
-            format!("{:>003}: {} {}", id + 1, item_icon(&entry), entry.description()),
-            entry.clone(),
-        ),
-        _ => CatalogItem::new(
-            format!("{:>0004}: {} {}", id + 1, item_icon(&entry), entry.description()),
-            entry.clone(),
-        ),
+fn create_options_map(entry_items: Vec<ArchetectAction>) -> LinkedHashMap<String, ArchetectAction> {
+    let mut map = LinkedHashMap::new();
+
+    let item_count = entry_items.len();
+
+    for (id, entry) in entry_items.into_iter().enumerate() {
+        match item_count {
+            1..=99 => {
+                let display = format!("{:>02}: {} {}", id + 1, item_icon(&entry), entry.description());
+                map.insert(display, entry);
+            }
+            100..=999 => {
+                let display = format!("{:>003}: {} {}", id + 1, item_icon(&entry), entry.description());
+                map.insert(display, entry);
+            }
+            _ => {
+                let display = format!("{:>0004}: {} {}", id + 1, item_icon(&entry), entry.description());
+                map.insert(display, entry);
+            }
+        }
     }
+    map
 }
 
 fn item_icon(entry: &ArchetectAction) -> &'static str {

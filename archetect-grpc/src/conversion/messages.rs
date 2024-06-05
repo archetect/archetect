@@ -1,35 +1,28 @@
-use archetect_api::{ClientMessage, IntPromptInfo, ScriptMessage, TextPromptInfo};
+use archetect_api::{
+    BoolPromptInfo, ClientMessage, EditorPromptInfo, IntPromptInfo, ListPromptInfo, MultiSelectPromptInfo, PromptInfo,
+    PromptInfoPageable, ScriptMessage, SelectPromptInfo, TextPromptInfo,
+};
+
 use crate::proto;
+use crate::proto::script_message::Message;
 
 impl From<proto::ClientMessage> for ClientMessage {
     fn from(value: proto::ClientMessage) -> Self {
         match value.message.expect("Valid Message") {
-            proto::client_message::Message::Initialize(value) => {
-                ClientMessage::Initialize {
-                    answers: value.answers,
-                }
-            }
-            proto::client_message::Message::String(value) => {
-                ClientMessage::String(value)
-            }
-            proto::client_message::Message::Integer(value) => {
-                ClientMessage::Integer(value)
-            }
-            proto::client_message::Message::Boolean(value) => {
-                ClientMessage::Boolean(value)
-            }
-            proto::client_message::Message::Error(message) => {
-                ClientMessage::Error(message)
-            }
-            proto::client_message::Message::Array(array) => {
-                ClientMessage::Array(array.values)
-            }
-            proto::client_message::Message::None(_unit) => {
-                ClientMessage::None
-            }
-            proto::client_message::Message::Abort(_unit) => {
-                ClientMessage::Abort
-            }
+            proto::client_message::Message::Initialize(message) => ClientMessage::Initialize {
+                answers_yaml: message.answers_yaml,
+                switches: message.switches,
+                use_defaults: message.use_defaults,
+                use_defaults_all: message.use_defaults_all,
+                destination: message.destination,
+            },
+            proto::client_message::Message::String(value) => ClientMessage::String(value),
+            proto::client_message::Message::Integer(value) => ClientMessage::Integer(value),
+            proto::client_message::Message::Boolean(value) => ClientMessage::Boolean(value),
+            proto::client_message::Message::Error(message) => ClientMessage::Error(message),
+            proto::client_message::Message::Array(array) => ClientMessage::Array(array.values),
+            proto::client_message::Message::None(_unit) => ClientMessage::None,
+            proto::client_message::Message::Abort(_unit) => ClientMessage::Abort,
         }
     }
 }
@@ -37,70 +30,42 @@ impl From<proto::ClientMessage> for ClientMessage {
 impl From<ClientMessage> for proto::ClientMessage {
     fn from(value: ClientMessage) -> Self {
         match value {
-            ClientMessage::String(value) => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::String(value)
-                    )
-                }
-            }
-            ClientMessage::Integer(value) => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Integer(value)
-                    )
-                }
-            }
-            ClientMessage::Boolean(value) => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Boolean(value)
-                    )
-                }
-            }
-            ClientMessage::Array(values) => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Array(
-                            proto::Array {
-                                values
-                            }
-                        )
-                    )
-                }
-            }
-            ClientMessage::None => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::None(())
-                    )
-                }
-            }
-            ClientMessage::Error(message) => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Error(message)
-                    )
-                }
-            }
-            ClientMessage::Abort => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Abort(())
-                    )
-                }
-            }
-            ClientMessage::Initialize { answers } => {
-                proto::ClientMessage {
-                    message: Some(
-                        proto::client_message::Message::Initialize(
-                            proto::Initialize {
-                                answers,
-                            }
-                        )
-                    ),
-                }
-            }
+            ClientMessage::String(value) => proto::ClientMessage {
+                message: Some(proto::client_message::Message::String(value)),
+            },
+            ClientMessage::Integer(value) => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Integer(value)),
+            },
+            ClientMessage::Boolean(value) => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Boolean(value)),
+            },
+            ClientMessage::Array(values) => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Array(proto::Array { values })),
+            },
+            ClientMessage::None => proto::ClientMessage {
+                message: Some(proto::client_message::Message::None(())),
+            },
+            ClientMessage::Error(message) => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Error(message)),
+            },
+            ClientMessage::Abort => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Abort(())),
+            },
+            ClientMessage::Initialize {
+                answers_yaml,
+                switches,
+                use_defaults,
+                use_defaults_all,
+                destination,
+            } => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Initialize(proto::Initialize {
+                    answers_yaml,
+                    switches,
+                    use_defaults,
+                    use_defaults_all,
+                    destination,
+                })),
+            },
         }
     }
 }
@@ -108,36 +73,81 @@ impl From<ClientMessage> for proto::ClientMessage {
 impl From<proto::ScriptMessage> for ScriptMessage {
     fn from(value: proto::ScriptMessage) -> Self {
         match value.message.expect("Valid Message Required") {
-            proto::script_message::Message::PromptForText(prompt) => {
-                ScriptMessage::PromptForText(
-                    TextPromptInfo::new(prompt.message, prompt.key)
-                )
+            Message::LogTrace(message) => ScriptMessage::LogTrace(message),
+            Message::LogDebug(message) => ScriptMessage::LogDebug(message),
+            Message::LogInfo(message) => ScriptMessage::LogInfo(message),
+            Message::LogWarn(message) => ScriptMessage::LogWarn(message),
+            Message::LogError(message) => ScriptMessage::LogError(message),
+            Message::Print(message) => ScriptMessage::Print(message),
+            Message::Display(message) => ScriptMessage::Display(message),
+            Message::PromptForText(prompt) => {
+                let info = TextPromptInfo {
+                    message: prompt.message,
+                    key: prompt.key,
+                    default: prompt.default,
+                    min: prompt.min.map(|v| v as i64),
+                    max: prompt.max.map(|v| v as i64),
+                    help: prompt.help,
+                    placeholder: prompt.placeholder,
+                    optional: prompt.optional,
+                };
+                ScriptMessage::PromptForText(info)
             }
-            proto::script_message::Message::PromptForInt(prompt) => {
-                ScriptMessage::PromptForInt(
-                    IntPromptInfo::new(prompt.message, prompt.key)
-                )
+            Message::PromptForInt(prompt) => ScriptMessage::PromptForInt(IntPromptInfo {
+                message: prompt.message,
+                key: prompt.key,
+                default: prompt.default,
+                min: prompt.min,
+                max: prompt.max,
+                help: prompt.help,
+                placeholder: prompt.placeholder,
+                optional: prompt.optional,
+            }),
+            Message::PromptForSelect(prompt) => {
+                let info = SelectPromptInfo::new(prompt.message, prompt.key, prompt.options)
+                    .with_default(prompt.default)
+                    .with_help(prompt.help)
+                    .with_placeholder(prompt.placeholder)
+                    .with_optional(prompt.optional);
+                ScriptMessage::PromptForSelect(info)
             }
-            proto::script_message::Message::LogTrace(message) => {
-                ScriptMessage::LogTrace(message)
+            Message::PromptForMultiSelect(prompt) => {
+                let info = MultiSelectPromptInfo::new(prompt.message, prompt.key, prompt.options)
+                    .with_defaults(prompt.defaults.map(|v| v.values))
+                    .with_help(prompt.help)
+                    .with_placeholder(prompt.placeholder)
+                    .with_min_items(prompt.min_items.map(|v| v as usize))
+                    .with_max_items(prompt.max_items.map(|v| v as usize))
+                    .with_page_size(prompt.page_size.map(|v| v as usize))
+                    .with_optional(prompt.optional);
+                ScriptMessage::PromptForMultiSelect(info)
             }
-            proto::script_message::Message::LogDebug(message) => {
-                ScriptMessage::LogDebug(message)
+            Message::PromptForBool(prompt) => {
+                let info = BoolPromptInfo::new(prompt.message, prompt.key)
+                    .with_default(prompt.default)
+                    .with_help(prompt.help)
+                    .with_placeholder(prompt.placeholder)
+                    .with_optional(prompt.optional);
+                ScriptMessage::PromptForBool(info)
             }
-            proto::script_message::Message::LogInfo(message) => {
-                ScriptMessage::LogInfo(message)
+            Message::PromptForList(prompt) => {
+                let info = ListPromptInfo::new(prompt.message, prompt.key)
+                    .with_defaults(prompt.defaults.map(|v| v.values))
+                    .with_help(prompt.help)
+                    .with_placeholder(prompt.placeholder)
+                    .with_min_items(prompt.min_items.map(|v| v as usize))
+                    .with_max_items(prompt.max_items.map(|v| v as usize))
+                    .with_optional(prompt.optional);
+                ScriptMessage::PromptForList(info)
             }
-            proto::script_message::Message::LogWarn(message) => {
-                ScriptMessage::LogWarn(message)
-            }
-            proto::script_message::Message::LogError(message) => {
-                ScriptMessage::LogError(message)
-            }
-            proto::script_message::Message::Print(message) => {
-                ScriptMessage::Print(message)
-            }
-            proto::script_message::Message::Display(message) => {
-                ScriptMessage::Display(message)
+            Message::PromptForEditor(prompt) => {
+                let info = EditorPromptInfo::new(prompt.message, prompt.key)
+                    .with_default(prompt.default)
+                    .with_help(prompt.help)
+                    .with_placeholder(prompt.placeholder)
+                    .with_min(prompt.min.map(|v| v as usize))
+                    .with_max(prompt.max.map(|v| v as usize));
+                ScriptMessage::PromptForEditor(info)
             }
         }
     }
@@ -146,85 +156,119 @@ impl From<proto::ScriptMessage> for ScriptMessage {
 impl From<ScriptMessage> for proto::ScriptMessage {
     fn from(value: ScriptMessage) -> Self {
         match value {
-            ScriptMessage::PromptForText(info) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::PromptForText(
-                            proto::PromptForText {
-                                message: info.message,
-                                key: info.key,
-                            }
-                        )
-                    )
-                }
-            }
-            ScriptMessage::PromptForInt(_) => {
-                todo!()
-            }
-            ScriptMessage::PromptForBool(_) => {
-                todo!()
-            }
-            ScriptMessage::PromptForList(_) => {
-                todo!()
-            }
-            ScriptMessage::PromptForSelect(_) => {
-                todo!()
-            }
-            ScriptMessage::PromptForMultiSelect(_) => {
-                todo!()
-            }
-            ScriptMessage::PromptForEditor(_) => {
-                todo!()
-            }
-            ScriptMessage::LogTrace(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::LogTrace(message)
-                    ),
-                }
-            }
-            ScriptMessage::LogDebug(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::LogDebug(message)
-                    )
-                }
-            }
-            ScriptMessage::LogInfo(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::LogInfo(message)
-                    )
-                }
-            }
-            ScriptMessage::LogWarn(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::LogWarn(message)
-                    )
-                }
-            }
-            ScriptMessage::LogError(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::LogError(message)
-                    )
-                }
-            }
-            ScriptMessage::Print(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::Print(message)
-                    )
-                }
-            }
-            ScriptMessage::Display(message) => {
-                proto::ScriptMessage {
-                    message: Some(
-                        proto::script_message::Message::Display(message)
-                    )
-                }
-            }
+            ScriptMessage::PromptForText(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForText(proto::PromptForText {
+                    message: info.message,
+                    key: info.key,
+                    default: info.default,
+                    min: info.min.map(|v| v as u32),
+                    max: info.max.map(|v| v as u32),
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::PromptForInt(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForInt(proto::PromptForInt {
+                    message: info.message,
+                    key: info.key,
+                    default: info.default,
+                    min: info.min,
+                    max: info.max,
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::PromptForBool(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForBool(proto::PromptForBool {
+                    message: info.message,
+                    key: info.key,
+                    default: info.default,
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::PromptForList(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForList(proto::PromptForList {
+                    message: info.message,
+                    key: info.key,
+                    defaults: to_array(info.defaults),
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    min_items: info.min_items.map(|v| v as u32),
+                    max_items: info.max_items.map(|v| v as u32),
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::PromptForSelect(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForSelect(proto::PromptForSelect {
+                    message: info.message().to_string(),
+                    key: info.key().map(|k| k.to_string()),
+                    options: info.options().iter().map(|v| v.to_string()).collect(),
+                    default: info.default(),
+                    help: info.help().map(|v| v.to_string()),
+                    placeholder: info.placeholder().map(|v| v.to_string()),
+                    optional: info.optional(),
+                    page_size: info.page_size().map(|v| v as u32),
+                })),
+            },
+            ScriptMessage::PromptForMultiSelect(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForMultiSelect(proto::PromptForMultiSelect {
+                    message: info.message,
+                    key: info.key,
+                    options: info.options,
+                    defaults: to_array(info.defaults),
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    min_items: info.min_items.map(|v| v as u32),
+                    max_items: info.max_items.map(|v| v as u32),
+                    page_size: info.page_size.map(|v| v as u32),
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::PromptForEditor(info) => proto::ScriptMessage {
+                message: Some(Message::PromptForEditor(proto::PromptForEditor {
+                    message: info.message,
+                    key: info.key,
+                    default: info.default,
+                    min: info.min.map(|v| v as u64), // TODO: Fix type
+                    max: info.max.map(|v| v as u64), // TODO: Fix type
+                    help: info.help,
+                    placeholder: info.placeholder,
+                    optional: info.optional,
+                })),
+            },
+            ScriptMessage::LogTrace(message) => proto::ScriptMessage {
+                message: Some(Message::LogTrace(message)),
+            },
+            ScriptMessage::LogDebug(message) => proto::ScriptMessage {
+                message: Some(Message::LogDebug(message)),
+            },
+            ScriptMessage::LogInfo(message) => proto::ScriptMessage {
+                message: Some(Message::LogInfo(message)),
+            },
+            ScriptMessage::LogWarn(message) => proto::ScriptMessage {
+                message: Some(Message::LogWarn(message)),
+            },
+            ScriptMessage::LogError(message) => proto::ScriptMessage {
+                message: Some(Message::LogError(message)),
+            },
+            ScriptMessage::Print(message) => proto::ScriptMessage {
+                message: Some(Message::Print(message)),
+            },
+            ScriptMessage::Display(message) => proto::ScriptMessage {
+                message: Some(Message::Display(message)),
+            },
         }
+    }
+}
+
+fn to_array(values: Option<Vec<String>>) -> Option<proto::Array> {
+    if let Some(values) = values {
+        Some(proto::Array { values })
+    } else {
+        None
     }
 }

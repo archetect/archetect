@@ -5,26 +5,93 @@ package archetect;
 import "google/protobuf/empty.proto";
 
 service ArchetectService {
-    rpc StreamingApi(stream ClientMessage) returns (stream ScriptMessage);
+    rpc StreamingApi (stream ClientMessage) returns (stream ScriptMessage);
 }
 
 message PromptForText {
     string message = 1;
     optional string key = 2;
+    optional string default = 3;
+    optional uint32 min = 4;
+    optional uint32 max = 5;
+    optional string help = 6;
+    optional string placeholder = 7;
+    bool optional = 8;
 }
+
+
 
 message PromptForInt {
     string message = 1;
     optional string key = 2;
+    optional int64 default = 3;
+    optional int64 min = 4;
+    optional int64 max = 5;
+    optional string help = 6;
+    optional string placeholder = 7;
+    bool optional = 8;
 }
- message PromptForBool {
-     string message = 1;
-     optional string key = 2;
- }
+message PromptForBool {
+    string message = 1;
+    optional string key = 2;
+    optional bool default = 3;
+    optional string help = 4;
+    optional string placeholder = 5;
+    bool optional = 6;
+}
 
+message PromptForList {
+    string message = 1;
+    optional string key = 2;
+    optional Array defaults = 3;
+    optional string help = 4;
+    optional string placeholder = 5;
+    optional uint32 min_items = 6;
+    optional uint32 max_items = 7;
+    bool optional = 8;
+}
+
+message PromptForSelect {
+    string message = 1;
+    optional string key = 2;
+    repeated string options = 3;
+    optional string default = 4;
+    optional string help = 5;
+    optional string placeholder = 6;
+    optional uint32 page_size = 7;
+    bool optional = 8;
+}
+
+message PromptForMultiSelect {
+    string message = 1;
+    optional string key = 2;
+    repeated string options = 3;
+    optional Array defaults = 4;
+    optional string help = 5;
+    optional string placeholder = 6;
+    optional uint32 min_items = 7;
+    optional uint32 max_items = 8;
+    optional uint32 page_size = 9;
+    bool optional = 10;
+}
+
+message PromptForEditor {
+    string message = 1;
+    optional string key = 2;
+    optional string default = 3;
+    optional uint64 min = 4;
+    optional uint64 max = 5;
+    optional string help = 6;
+    optional string placeholder = 7;
+    bool optional = 8;
+}
 
 message Initialize {
-    string answers = 1;
+    string answers_yaml = 1;
+    repeated string switches = 2;
+    repeated string use_defaults = 3;
+    bool use_defaults_all = 4;
+    string destination = 5;
 }
 
 message Array {
@@ -34,15 +101,20 @@ message Array {
 
 message ScriptMessage {
     oneof message {
-        PromptForText prompt_for_text = 1;
-        PromptForInt prompt_for_int = 2;
-        string log_trace = 3;
-        string log_debug = 4;
-        string log_info = 5;
-        string log_warn = 6;
-        string log_error = 7;
-        string print = 8;
-        string display = 9;
+        string log_trace = 1;
+        string log_debug = 2;
+        string log_info = 3;
+        string log_warn = 4;
+        string log_error = 6;
+        string print = 7;
+        string display = 8;
+        PromptForText prompt_for_text = 9;
+        PromptForInt prompt_for_int = 10;
+        PromptForSelect prompt_for_select = 11;
+        PromptForMultiSelect prompt_for_multi_select = 12;
+        PromptForBool prompt_for_bool = 13;
+        PromptForList prompt_for_list = 14;
+        PromptForEditor prompt_for_editor = 15;
     }
 }
 

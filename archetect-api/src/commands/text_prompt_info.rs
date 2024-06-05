@@ -1,5 +1,6 @@
-use crate::commands::prompt_info::{PromptInfo, PromptInfoLengthRestrictions};
 use serde::{Deserialize, Serialize};
+
+use crate::commands::prompt_info::{PromptInfo, PromptInfoLengthRestrictions};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TextPromptInfo {
@@ -70,7 +71,7 @@ impl TextPromptInfo {
     pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>) -> Self {
         TextPromptInfo {
             message: message.into(),
-            key: key.map(|v|v.as_ref().to_string()),
+            key: key.map(|v| v.as_ref().to_string()),
             default: Default::default(),
             min: Some(1),
             max: Default::default(),
@@ -85,6 +86,21 @@ impl TextPromptInfo {
 
     pub fn with_default(mut self, value: Option<String>) -> Self {
         self.default = value;
+        self
+    }
+
+    pub fn with_help(mut self, value: Option<String>) -> Self {
+        self.help = value;
+        self
+    }
+
+    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
+        self.placeholder = value;
+        self
+    }
+
+    pub fn with_optional(mut self, value: bool) -> Self {
+        self.optional = value;
         self
     }
 }

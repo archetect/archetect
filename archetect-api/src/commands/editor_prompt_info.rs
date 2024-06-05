@@ -1,17 +1,18 @@
-use crate::commands::prompt_info::PromptInfo;
 use serde::{Deserialize, Serialize};
+
+use crate::commands::prompt_info::PromptInfo;
 use crate::PromptInfoLengthRestrictions;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EditorPromptInfo {
-    message: String,
-    key: Option<String>,
-    default: Option<String>,
-    min: Option<i64>,
-    max: Option<i64>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
+    pub message: String,
+    pub key: Option<String>,
+    pub default: Option<String>,
+    pub min: Option<i64>,
+    pub max: Option<i64>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
 }
 
 impl PromptInfo for EditorPromptInfo {
@@ -19,32 +20,32 @@ impl PromptInfo for EditorPromptInfo {
         self.message.as_ref()
     }
 
+    fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+
     fn optional(&self) -> bool {
         self.optional
-    }
-
-    fn help(&self) -> Option<&str> {
-        self.help.as_deref()
-    }
-
-    fn placeholder(&self) -> Option<&str> {
-        self.placeholder.as_deref()
     }
 
     fn set_optional(&mut self, value: bool) {
         self.optional = value;
     }
 
+    fn help(&self) -> Option<&str> {
+        self.help.as_deref()
+    }
+
     fn set_help(&mut self, value: Option<String>) {
         self.help = value;
     }
 
-    fn set_placeholder(&mut self, value: Option<String>) {
-        self.placeholder = value;
+    fn placeholder(&self) -> Option<&str> {
+        self.placeholder.as_deref()
     }
 
-    fn key(&self) -> Option<&str> {
-        self.key.as_deref()
+    fn set_placeholder(&mut self, value: Option<String>) {
+        self.placeholder = value;
     }
 }
 
@@ -71,7 +72,7 @@ impl EditorPromptInfo {
     pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>) -> Self {
         EditorPromptInfo {
             message: message.into(),
-            key: key.map(|v|v.as_ref().to_string()),
+            key: key.map(|v| v.as_ref().to_string()),
             default: Default::default(),
             min: Some(1),
             max: Default::default(),
@@ -86,6 +87,33 @@ impl EditorPromptInfo {
 
     pub fn with_default(mut self, value: Option<String>) -> Self {
         self.default = value;
+        self
+    }
+
+    pub fn with_help(mut self, value: Option<String>) -> Self {
+        self.help = value;
+        self
+    }
+
+    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
+        self.placeholder = value;
+        self
+    }
+
+    pub fn with_optional(mut self, optional: bool) -> Self {
+        self.optional = optional;
+        self
+    }
+
+    pub fn with_min(mut self, min: Option<usize>) -> Self {
+        // TODO: consolidate on integer type
+        self.min = min.map(|v| v as i64);
+        self
+    }
+
+    pub fn with_max(mut self, max: Option<usize>) -> Self {
+        // TODO: consolidate on integer type
+        self.max = max.map(|v| v as i64);
         self
     }
 }

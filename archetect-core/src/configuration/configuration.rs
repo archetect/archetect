@@ -8,7 +8,7 @@ use crate::configuration::configuration_local_section::ConfigurationLocalsSectio
 use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Configuration {
     #[serde(with = "serde_yaml::with::singleton_map_recursive")]
     actions: LinkedHashMap<String, ArchetectAction>,
@@ -119,7 +119,13 @@ fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
 
     let command = RenderGroupInfo::new(entries);
 
-    commands.insert("default".to_string(), ArchetectAction::RenderGroup{description: "Archetect".to_string(), info: command });
+    commands.insert(
+        "default".to_string(),
+        ArchetectAction::RenderGroup {
+            description: "Archetect".to_string(),
+            info: command,
+        },
+    );
     commands
 }
 

@@ -1,21 +1,20 @@
 use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
-use clap::{Arg, ArgMatches};
+use clap::ArgMatches;
 use log::warn;
 use rhai::Map;
 
 use archetect_api::{ScriptIoHandle, ScriptMessage};
-use archetect_core::{self};
-use archetect_core::actions::ArchetectAction;
-use archetect_core::Archetect;
 use archetect_core::archetype::archetype::Archetype;
 use archetect_core::archetype::render_context::RenderContext;
-use archetect_core::catalog::{Catalog, CatalogManifest};
+use archetect_core::catalog::Catalog;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError, SourceError};
 use archetect_core::source::SourceContents;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
+use archetect_core::Archetect;
+use archetect_core::{self};
 use archetect_terminal_io::TerminalIoDriver;
 use ArchetypeError::ScriptAbortError;
 
@@ -101,8 +100,11 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(
         Some(("catalog", args)) => catalog(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
-        Some(("server", args)) => subcommands::handle_server_subcommand(args)?,
-        Some(("connect", args)) => subcommands::handle_connect_subcommand(args)?,
+        Some(("server", _args)) => subcommands::handle_server_subcommand(archetect)?,
+        Some(("connect", args)) => {
+            let render_context = create_render_context(&args, &archetect, answers);
+            subcommands::handle_connect_subcommand(render_context)?
+        }
         Some((_, _args)) => {
             let action = matches.get_one::<String>("action").expect("Expected an action");
             let render_context = create_render_context(&matches, &archetect, answers);

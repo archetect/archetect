@@ -1,16 +1,17 @@
-use crate::commands::prompt_info::{PromptInfo, PromptInfoItemsRestrictions};
 use serde::{Deserialize, Serialize};
+
+use crate::commands::prompt_info::{PromptInfo, PromptInfoItemsRestrictions};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListPromptInfo {
-    message: String,
-    key: Option<String>,
-    defaults: Option<Vec<String>>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
-    min_items: Option<usize>,
-    max_items: Option<usize>,
+    pub message: String,
+    pub key: Option<String>,
+    pub defaults: Option<Vec<String>>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
+    pub min_items: Option<usize>,
+    pub max_items: Option<usize>,
 }
 
 impl PromptInfo for ListPromptInfo {
@@ -86,5 +87,35 @@ impl ListPromptInfo {
 
     pub fn set_default(&mut self, value: Option<Vec<String>>) {
         self.defaults = value;
+    }
+
+    pub fn with_help(mut self, value: Option<String>) -> Self {
+        self.help = value;
+        self
+    }
+
+    pub fn with_placeholder(mut self, value: Option<String>) -> Self {
+        self.placeholder = value;
+        self
+    }
+
+    pub fn with_optional(mut self, optional: bool) -> Self {
+        self.optional = optional;
+        self
+    }
+
+    pub fn with_defaults(mut self, defaults: Option<Vec<String>>) -> Self {
+        self.defaults = defaults;
+        self
+    }
+
+    pub fn with_min_items(mut self, min_items: Option<usize>) -> Self {
+        self.min_items = min_items;
+        self
+    }
+
+    pub fn with_max_items(mut self, max_items: Option<usize>) -> Self {
+        self.max_items = max_items;
+        self
     }
 }

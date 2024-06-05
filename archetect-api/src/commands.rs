@@ -21,6 +21,7 @@ mod multiselect_prompt_info;
 mod prompt_info;
 mod select_prompt_info;
 mod text_prompt_info;
+mod write_file_info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ScriptMessage {
@@ -52,6 +53,7 @@ pub enum ScriptMessage {
     Print(String),
     /// Print a String that show not be captured as output, such as on STDERR
     Display(String),
+    // WriteFile(WriteFileInfo),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -64,6 +66,10 @@ pub enum ClientMessage {
     Error(String),
     Abort,
     Initialize {
-        answers: String,
-    }
+        answers_yaml: String,
+        switches: Vec<String>,
+        use_defaults: Vec<String>,
+        use_defaults_all: bool,
+        destination: String,
+    },
 }

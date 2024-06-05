@@ -1,12 +1,12 @@
 use std::io;
 
+use clap::{Arg, ArgAction, ArgMatches, command, Command, value_parser};
 use clap::builder::BoolishValueParser;
-use clap::{command, value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use log::Level;
+use url::Url;
 
 use archetect_core::errors::ArchetectError;
-use url::Url;
 
 use crate::cli;
 use crate::vendor::loggerv;
@@ -59,15 +59,16 @@ pub fn command() -> Command {
                     Arg::new("endpoint")
                         .help("The Archetect Server Endpoint to connect to")
                         .action(ArgAction::Set)
-                        .required(true)
+                        .required(true),
                 )
                 .arg(
                     Arg::new("destination")
-                        .help("The directory to render teh Archetype in to")
+                        .help("The directory to render the Archetype in to")
+                        .long("destination")
                         .default_value(".")
-                        .action(ArgAction::Set)
+                        .action(ArgAction::Set),
                 )
-                .args(render_args(true))
+                .args(render_args(true)),
         )
         .subcommand(
             Command::new("config")
@@ -90,36 +91,29 @@ pub fn command() -> Command {
                 .long_help("Execute a configured action defined within an archetect.yaml file")
                 .default_value("default")
                 .action(ArgAction::Set)
-                .global(true)
+                .global(true),
+        )
+        .subcommand(Command::new("actions").about("List configured actions"))
+        .subcommand(
+            Command::new("server").about("Start Archetect Server").arg(
+                Arg::new("server-port")
+                    .help("The port to start Archetect Server on")
+                    .long("port")
+                    .short('p')
+                    .action(ArgAction::Set)
+                    .value_parser(value_parser!(i64).range(1024..65535))
+                    .env("ARCHETECT_SERVER_PORT"),
+            ),
         )
         .subcommand(
-            Command::new("actions")
-                .about("List configured actions")
-        )
-        .subcommand(
-            Command::new("server")
-                .about("Start Archetect Server")
-                .arg(
-                    Arg::new("server-port")
-                        .help("The port to start Archetect Server on")
-                        .long("port")
-                        .short('p')
-                        .action(ArgAction::Set)
-                        .value_parser(value_parser!(i64).range(1024..65535))
-                        .env("ARCHETECT_SERVER_PORT")
-                )
-        )
-        .subcommand(
-            Command::new("connect")
-                .about("Connect to an Archetect Server")
-                .arg(
-                    Arg::new("endpoint")
-                        .help("Archetect Server Endpoint")
-                        .action(ArgAction::Set)
-                        .required(true)
-                        .value_parser(value_parser!(Url))
-                        .env("ARCHETECT_ENDPOINT")
-                )
+            Command::new("connect").about("Connect to an Archetect Server").arg(
+                Arg::new("endpoint")
+                    .help("Archetect Server Endpoint")
+                    .action(ArgAction::Set)
+                    .required(true)
+                    .value_parser(value_parser!(Url))
+                    .env("ARCHETECT_ENDPOINT"),
+            ),
         )
         .arg(
             Arg::new("verbosity")
@@ -183,14 +177,16 @@ pub fn command() -> Command {
         .subcommand(
             Command::new("cache")
                 .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(Command::new("manage").about("Manage Archetect's cache for entries defined within actions")
-                    .arg(
-                        Arg::new("action")
-                            .help("The action to managed")
-                            .long_help("The action to managed, as defined within an archetype.yaml")
-                            .default_value("default")
-                            .action(ArgAction::Set)
-                    )
+                .subcommand(
+                    Command::new("manage")
+                        .about("Manage Archetect's cache for entries defined within actions")
+                        .arg(
+                            Arg::new("action")
+                                .help("The action to managed")
+                                .long_help("The action to managed, as defined within an archetype.yaml")
+                                .default_value("default")
+                                .action(ArgAction::Set),
+                        ),
                 )
                 .subcommand(Command::new("clear").about("Removes Archetect's entire Repository Cache"))
                 .subcommand(Command::new("pull").about("Pull all Archetypes and Catalogs in Archetect's Catalog")),
