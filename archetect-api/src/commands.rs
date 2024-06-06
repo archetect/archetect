@@ -54,6 +54,10 @@ pub enum ScriptMessage {
     /// Print a String that show not be captured as output, such as on STDERR
     Display(String),
     // WriteFile(WriteFileInfo),
+    CompleteSuccess,
+    CompleteError {
+        message: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

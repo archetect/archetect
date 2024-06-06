@@ -9,14 +9,15 @@ pub fn handle_connect_subcommand(render_context: RenderContext) -> Result<(), Ar
 
     runtime
         .block_on(async move {
-            tokio::select! {
-                result = archetect_grpc::client::start(render_context) => {
-                  return result;
-                },
-                _ = tokio::signal::ctrl_c() => {
-                    return Ok(());
-                },
-            }
+            return archetect_grpc::client::start(render_context).await;
+            // tokio::select! {
+            //     result = archetect_grpc::client::start(render_context) => {
+            //       return result;
+            //     },
+            //     _ = tokio::signal::ctrl_c() => {
+            //         return Ok(());
+            //     },
+            // }
         })
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?; //TODO: Create a better error
 

@@ -1,6 +1,6 @@
 use std::thread;
-use dyn_clone::DynClone;
 
+use dyn_clone::DynClone;
 use log::{debug, error, info, trace, warn};
 
 use archetect_api::{ClientIoHandle, ScriptMessage};
@@ -19,12 +19,11 @@ pub struct TerminalClient<IO> {
 }
 
 impl<IO> TerminalClient<IO>
-    where IO: ClientIoHandle + Clone + DynClone + Send + Sync + 'static,
+where
+    IO: ClientIoHandle + Clone + DynClone + Send + Sync + 'static,
 {
     pub fn new(client_handle: IO) -> Self {
-        Self {
-            client_handle,
-        }
+        Self { client_handle }
     }
 
     pub fn receive_script_message(&self) -> Result<(), ()> {
@@ -72,68 +71,16 @@ impl<IO> TerminalClient<IO>
                 ScriptMessage::Display(message) => {
                     eprintln!("{}", message)
                 }
+                ScriptMessage::CompleteSuccess => return Err(()),
+                ScriptMessage::CompleteError { message } => {
+                    log::error!("{}", message);
+                    return Err(());
+                }
             }
             Ok(())
         } else {
             warn!("No Script Message Available!");
             Err(())
-        }
-    }
-
-    pub fn start(self) {
-        let client_handle = self.client_handle;
-        thread::spawn(move || {
-            while let Some(script_message) = client_handle.receive() {
-                process_script_message(script_message, client_handle.clone())
-            }
-            warn!("Script Engine Disconnected");
-        });
-    }
-}
-
-fn process_script_message<T: ClientIoHandle>(message: ScriptMessage, client_handle: T) {
-    match message {
-        ScriptMessage::PromptForText(prompt_info) => {
-            handle_prompt_text(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForInt(prompt_info) => {
-            handle_prompt_int(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForBool(prompt_info) => {
-            handle_prompt_bool(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForList(prompt_info) => {
-            handle_list_prompt(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForSelect(prompt_info) => {
-            handle_select_prompt(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForMultiSelect(prompt_info) => {
-            handle_multiselect_prompt(prompt_info, client_handle);
-        }
-        ScriptMessage::PromptForEditor(prompt_info) => {
-            handle_editor_prompt(prompt_info, client_handle);
-        }
-        ScriptMessage::LogInfo(message) => {
-            info!("{}", message)
-        }
-        ScriptMessage::LogWarn(message) => {
-            warn!("{}", message)
-        }
-        ScriptMessage::LogDebug(message) => {
-            debug!("{}", message)
-        }
-        ScriptMessage::LogTrace(message) => {
-            trace!("{}", message)
-        }
-        ScriptMessage::LogError(message) => {
-            error!("{}", message)
-        }
-        ScriptMessage::Print(message) => {
-            println!("{}", message)
-        }
-        ScriptMessage::Display(message) => {
-            eprintln!("{}", message)
         }
     }
 }

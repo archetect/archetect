@@ -98,7 +98,18 @@ impl ArchetectService for ArchetectServiceCore {
                                             initialize.use_defaults.iter().map(|v| v.to_string()).collect(),
                                         )
                                         .with_use_defaults_all(initialize.use_defaults_all);
-                                    let _result = archetect.execute_action("default", render_context);
+                                    match archetect.execute_action("default", render_context) {
+                                        Ok(_success) => {
+                                            println!("Exited Successfully... send message");
+                                            archetect.request(ScriptMessage::CompleteSuccess);
+                                        }
+                                        Err(error) => {
+                                            println!("Exited with Error: \n{:?}", error);
+                                            archetect.request(ScriptMessage::CompleteError {
+                                                message: error.to_string(),
+                                            })
+                                        }
+                                    }
                                 } else {
                                     archetect.request(ScriptMessage::LogError(
                                         "Improper Initialization Message".to_string(),

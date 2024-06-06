@@ -149,6 +149,8 @@ impl From<proto::ScriptMessage> for ScriptMessage {
                     .with_max(prompt.max.map(|v| v as usize));
                 ScriptMessage::PromptForEditor(info)
             }
+            Message::CompleteSuccess(_message) => ScriptMessage::CompleteSuccess,
+            Message::CompleteError(error) => ScriptMessage::CompleteError { message: error.message },
         }
     }
 }
@@ -260,6 +262,12 @@ impl From<ScriptMessage> for proto::ScriptMessage {
             },
             ScriptMessage::Display(message) => proto::ScriptMessage {
                 message: Some(Message::Display(message)),
+            },
+            ScriptMessage::CompleteSuccess => proto::ScriptMessage {
+                message: Some(Message::CompleteSuccess(proto::CompleteSuccess::default())),
+            },
+            ScriptMessage::CompleteError { message } => proto::ScriptMessage {
+                message: Some(Message::CompleteError(proto::CompleteError { message })),
             },
         }
     }

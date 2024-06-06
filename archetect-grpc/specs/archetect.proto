@@ -98,6 +98,12 @@ message Array {
     repeated string values = 1;
 }
 
+message CompleteSuccess {}
+
+message CompleteError {
+    string message = 1;
+}
+
 
 message ScriptMessage {
     oneof message {
@@ -115,9 +121,10 @@ message ScriptMessage {
         PromptForBool prompt_for_bool = 13;
         PromptForList prompt_for_list = 14;
         PromptForEditor prompt_for_editor = 15;
+        CompleteSuccess complete_success = 16;
+        CompleteError complete_error = 17;
     }
 }
-
 
 message ClientMessage {
     oneof message {

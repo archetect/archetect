@@ -1,11 +1,15 @@
-use tracing::{info, warn};
+use futures::future::err;
+use log::{debug, info};
 
 use archetect_api::ClientMessage;
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_terminal_io::TerminalClient;
 
 use crate::io::AsyncClientIoHandle;
+use crate::proto;
 use crate::proto::archetect_service_client::ArchetectServiceClient;
+use crate::proto::script_message::Message;
+use crate::proto::ScriptMessage;
 
 pub async fn start(render_context: RenderContext) -> anyhow::Result<()> {
     let mut client = ArchetectServiceClient::connect("http://localhost:8080").await?;
@@ -20,14 +24,12 @@ pub async fn start(render_context: RenderContext) -> anyhow::Result<()> {
 
     let mut response_stream = client.streaming_api(request_stream).await?.into_inner();
 
-    let _handle = tokio::task::spawn_blocking(move || {
+    let handle = tokio::task::spawn_blocking(move || {
         while let Ok(()) = terminal_client.receive_script_message() {
             // Working as expected
         }
-        warn!("Server Closed Connection");
+        debug!("Disconnecting from Server");
     });
-
-    println!("{render_context:?}");
 
     // Initialize
     let initialize = create_initialize_message(render_context);
@@ -35,8 +37,35 @@ pub async fn start(render_context: RenderContext) -> anyhow::Result<()> {
 
     // Process each ScriptMessage by sending it into the Terminal Client
     while let Some(script_message) = response_stream.message().await? {
-        script_tx.send(script_message).await?;
+        match script_message {
+            // If we receive a CompleteSuccess from the server, pass it on to the TerminalClient so that it will stop
+            // the client loop, and then exit the client interaction
+            ScriptMessage {
+                message: Some(Message::CompleteSuccess(_success)),
+            } => {
+                script_tx
+                    .send(ScriptMessage {
+                        message: Some(Message::CompleteSuccess(proto::CompleteSuccess {})),
+                    })
+                    .await?;
+                break;
+            }
+            // If we receive a CompleteError from the server, pass it on to the TerminalClient so that it will
+            // output the error message and stop the client loop
+            ScriptMessage {
+                message: Some(Message::CompleteError(error)),
+            } => {
+                script_tx
+                    .send(ScriptMessage {
+                        message: Some(Message::CompleteError(proto::CompleteError { message: error.message })),
+                    })
+                    .await?;
+                break;
+            }
+            script_message => script_tx.send(script_message).await?,
+        }
     }
+    handle.await?;
     Ok(())
 }
 
@@ -47,15 +76,5 @@ fn create_initialize_message(value: RenderContext) -> ClientMessage {
         use_defaults: value.use_defaults().iter().map(|v| v.to_string()).collect(),
         use_defaults_all: value.use_defaults_all(),
         destination: value.destination().to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::start;
-
-    #[tokio::test]
-    async fn test_client() -> anyhow::Result<()> {
-        start().await
     }
 }
