@@ -71,7 +71,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Protoc
-        run: apt install -y protobuf-compiler
+        run: sudo apt install -y protobuf-compiler
 
       - name: Build release binary
         shell: bash
