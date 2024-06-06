@@ -14,6 +14,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Update Ubuntu
+        run: sudo apt update -y
+
       - name: Install Protoc
         run: sudo apt install -y protobuf-compiler
 
