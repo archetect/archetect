@@ -12,7 +12,7 @@ jobs:
   # Create a draft release placeholder for each build to publish to
   create-release:
     name: create-release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Get the release version from the tag
@@ -74,7 +74,7 @@ jobs:
         run: sudo apt update -y
 
       - name: Install Protoc
-        run: sudo apt install -y protobuf-compiler=3.21.12-8.2build1
+        run: sudo apt install -y protobuf-compiler
 
       - name: Build release binary
         shell: bash
