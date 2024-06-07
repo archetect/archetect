@@ -79,7 +79,7 @@ jobs:
       - name: Build release binary
         shell: bash
         run: |
-          cargo build --verbose --release
+          cargo xtask install
           if [ "${{ matrix.platform }}" = "windows" ]; then
             bin="target/release/${{ env.BINARY}}.exe"
           else
