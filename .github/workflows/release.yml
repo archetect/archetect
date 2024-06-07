@@ -74,7 +74,7 @@ jobs:
         run: sudo apt update -y
 
       - name: Install Protoc
-        run: sudo apt install -y protobuf-compiler
+        run: sudo apt install -y protobuf-compiler=3.21.12-8.2build1
 
       - name: Build release binary
         shell: bash
