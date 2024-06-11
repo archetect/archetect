@@ -17,32 +17,32 @@ impl PromptInfo for BoolPromptInfo {
         return self.message.as_ref();
     }
 
+    fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+
     fn optional(&self) -> bool {
         self.optional
-    }
-
-    fn help(&self) -> Option<&str> {
-        self.help.as_deref()
-    }
-
-    fn placeholder(&self) -> Option<&str> {
-        self.placeholder.as_deref()
     }
 
     fn set_optional(&mut self, value: bool) {
         self.optional = value;
     }
 
+    fn help(&self) -> Option<&str> {
+        self.help.as_deref()
+    }
+
     fn set_help(&mut self, value: Option<String>) {
         self.help = value;
     }
 
-    fn set_placeholder(&mut self, value: Option<String>) {
-        self.placeholder = value;
+    fn placeholder(&self) -> Option<&str> {
+        self.placeholder.as_deref()
     }
 
-    fn key(&self) -> Option<&str> {
-        self.key.as_deref()
+    fn set_placeholder(&mut self, value: Option<String>) {
+        self.placeholder = value;
     }
 }
 

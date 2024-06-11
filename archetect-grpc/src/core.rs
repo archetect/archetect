@@ -85,7 +85,6 @@ impl ArchetectService for ArchetectServiceCore {
                             let archetect = archetect.clone();
                             archetect_handle = Some(tokio::task::spawn_blocking(move || {
                                 archetect.request(ScriptMessage::Display("Connected to Archetect Server".to_string()));
-                                println!("{message:?}");
                                 if let ClientMessage {
                                     message: Some(Message::Initialize(initialize)),
                                 } = message

@@ -1,10 +1,12 @@
 use archetect_api::{
-    BoolPromptInfo, ClientMessage, EditorPromptInfo, IntPromptInfo, ListPromptInfo, MultiSelectPromptInfo, PromptInfo,
-    PromptInfoPageable, ScriptMessage, SelectPromptInfo, TextPromptInfo,
+    BoolPromptInfo, ClientMessage, EditorPromptInfo, ExistingFilePolicy, IntPromptInfo, ListPromptInfo,
+    MultiSelectPromptInfo, PromptInfo, PromptInfoPageable, ScriptMessage, SelectPromptInfo, TextPromptInfo,
+    WriteDirectoryInfo, WriteFileInfo,
 };
 
 use crate::proto;
 use crate::proto::script_message::Message;
+use crate::proto::WriteDirectory;
 
 impl From<proto::ClientMessage> for ClientMessage {
     fn from(value: proto::ClientMessage) -> Self {
@@ -23,6 +25,7 @@ impl From<proto::ClientMessage> for ClientMessage {
             proto::client_message::Message::Array(array) => ClientMessage::Array(array.values),
             proto::client_message::Message::None(_unit) => ClientMessage::None,
             proto::client_message::Message::Abort(_unit) => ClientMessage::Abort,
+            proto::client_message::Message::Ack(_unit) => ClientMessage::Ack,
         }
     }
 }
@@ -65,6 +68,9 @@ impl From<ClientMessage> for proto::ClientMessage {
                     use_defaults_all,
                     destination,
                 })),
+            },
+            ClientMessage::Ack => proto::ClientMessage {
+                message: Some(proto::client_message::Message::Ack(())),
             },
         }
     }
@@ -151,6 +157,41 @@ impl From<proto::ScriptMessage> for ScriptMessage {
             }
             Message::CompleteSuccess(_message) => ScriptMessage::CompleteSuccess,
             Message::CompleteError(error) => ScriptMessage::CompleteError { message: error.message },
+            Message::WriteFile(prompt_info) => {
+                let info = WriteFileInfo {
+                    destination: prompt_info.destination,
+                    contents: prompt_info.contents,
+                    existing_file_policy: proto::ExistingFilePolicy::try_from(prompt_info.existing_files)
+                        .unwrap_or(proto::ExistingFilePolicy::Preserve)
+                        .into(),
+                };
+                ScriptMessage::WriteFile(info)
+            }
+            Message::WriteDirectory(prompt_info) => {
+                let info = WriteDirectoryInfo { path: prompt_info.path };
+                ScriptMessage::WriteDirectory(info)
+            }
+        }
+    }
+}
+
+impl From<proto::ExistingFilePolicy> for ExistingFilePolicy {
+    fn from(value: proto::ExistingFilePolicy) -> Self {
+        match value {
+            proto::ExistingFilePolicy::Unspecified => ExistingFilePolicy::Preserve,
+            proto::ExistingFilePolicy::Preserve => ExistingFilePolicy::Preserve,
+            proto::ExistingFilePolicy::Overwrite => ExistingFilePolicy::Overwrite,
+            proto::ExistingFilePolicy::Prompt => ExistingFilePolicy::Prompt,
+        }
+    }
+}
+
+impl From<ExistingFilePolicy> for proto::ExistingFilePolicy {
+    fn from(value: ExistingFilePolicy) -> Self {
+        match value {
+            ExistingFilePolicy::Overwrite => proto::ExistingFilePolicy::Overwrite,
+            ExistingFilePolicy::Preserve => proto::ExistingFilePolicy::Preserve,
+            ExistingFilePolicy::Prompt => proto::ExistingFilePolicy::Prompt,
         }
     }
 }
@@ -268,6 +309,16 @@ impl From<ScriptMessage> for proto::ScriptMessage {
             },
             ScriptMessage::CompleteError { message } => proto::ScriptMessage {
                 message: Some(Message::CompleteError(proto::CompleteError { message })),
+            },
+            ScriptMessage::WriteFile(info) => proto::ScriptMessage {
+                message: Some(Message::WriteFile(proto::WriteFile {
+                    destination: info.destination,
+                    contents: info.contents,
+                    existing_files: proto::ExistingFilePolicy::from(info.existing_file_policy).into(),
+                })),
+            },
+            ScriptMessage::WriteDirectory(info) => proto::ScriptMessage {
+                message: Some(Message::WriteDirectory(WriteDirectory { path: info.path })),
             },
         }
     }

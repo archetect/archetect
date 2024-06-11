@@ -1,5 +1,3 @@
-use std::thread;
-
 use dyn_clone::DynClone;
 use log::{debug, error, info, trace, warn};
 
@@ -12,6 +10,8 @@ use crate::list_prompt_handler::handle_list_prompt;
 use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 use crate::select_prompt_handler::handle_select_prompt;
 use crate::text_prompt_handler::handle_prompt_text;
+use crate::write_directory_handler::handle_write_directory;
+use crate::write_file_handler::handle_write_file;
 
 #[derive(Clone, Debug)]
 pub struct TerminalClient<IO> {
@@ -75,6 +75,10 @@ where
                 ScriptMessage::CompleteError { message } => {
                     log::error!("{}", message);
                     return Err(());
+                }
+                ScriptMessage::WriteFile(write_info) => handle_write_file(write_info, self.client_handle.clone()),
+                ScriptMessage::WriteDirectory(write_info) => {
+                    handle_write_directory(write_info, self.client_handle.clone());
                 }
             }
             Ok(())

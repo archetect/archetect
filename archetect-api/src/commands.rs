@@ -12,6 +12,8 @@ pub use crate::commands::prompt_info::{
 };
 pub use crate::commands::select_prompt_info::SelectPromptInfo;
 pub use crate::commands::text_prompt_info::TextPromptInfo;
+pub use crate::commands::write_directory_info::WriteDirectoryInfo;
+pub use crate::commands::write_file_info::{ExistingFilePolicy, WriteFileInfo};
 
 mod bool_prompt_info;
 mod editor_prompt_info;
@@ -21,6 +23,7 @@ mod multiselect_prompt_info;
 mod prompt_info;
 mod select_prompt_info;
 mod text_prompt_info;
+mod write_directory_info;
 mod write_file_info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -58,6 +61,8 @@ pub enum ScriptMessage {
     CompleteError {
         message: String,
     },
+    WriteFile(WriteFileInfo),
+    WriteDirectory(WriteDirectoryInfo),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -69,6 +74,7 @@ pub enum ClientMessage {
     None,
     Error(String),
     Abort,
+    Ack,
     Initialize {
         answers_yaml: String,
         switches: Vec<String>,

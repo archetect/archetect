@@ -5,11 +5,9 @@ use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
-use log::{debug, trace};
 use rhai::{Dynamic, EvalAltResult, Map, Scope};
 
-use archetect_api::ScriptMessage;
-use archetect_inquire::Confirm;
+use archetect_api::{ExistingFilePolicy, ScriptMessage, WriteDirectoryInfo, WriteFileInfo};
 use archetect_minijinja::Environment;
 
 use crate::Archetect;
@@ -35,7 +33,10 @@ pub(crate) struct Inner {
 impl Archetype {
     pub fn new(archetect: Archetect, source: Source) -> Result<Archetype, ArchetypeError> {
         let directory = ArchetypeDirectory::new(source.path()?)?;
-        let inner = Arc::new(Inner { directory, source: Some(source) });
+        let inner = Arc::new(Inner {
+            directory,
+            source: Some(source),
+        });
         let archetype = Archetype { archetect, inner };
 
         Ok(archetype)
@@ -76,21 +77,17 @@ impl Archetype {
         let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);
 
         match engine.compile_file_with_scope(&mut scope, self.directory().script()?.into_std_path_buf()) {
-            Ok(ast) => {
-                match engine.eval_ast_with_scope(&mut scope, &ast) {
-                    Ok(result) => {
-                        Ok(result)
-                    }
-                    Err(error) => {
-                        return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {
-                            Err(ArchetypeError::ScriptAbortError)
-                        } else {
-                            self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
-                            Err(ArchetypeError::ScriptAbortError)
-                        };
-                    }
+            Ok(ast) => match engine.eval_ast_with_scope(&mut scope, &ast) {
+                Ok(result) => Ok(result),
+                Err(error) => {
+                    return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {
+                        Err(ArchetypeError::ScriptAbortError)
+                    } else {
+                        self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
+                        Err(ArchetypeError::ScriptAbortError)
+                    };
                 }
-            }
+            },
             Err(error) => {
                 self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
                 return Err(ArchetypeError::ScriptAbortError);
@@ -114,36 +111,33 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
 ) -> Result<(), RenderError> {
     let source = source.into();
     let destination = destination.into();
-    if !destination.exists() {
-        fs::create_dir_all(&destination)
-            .map_err(|err| RenderError::CreateDirectoryError { path: destination.to_path_buf(), source: err })
-            ?
-    }
+    archetect.request(ScriptMessage::WriteDirectory(WriteDirectoryInfo {
+        path: destination.to_string(),
+    }));
+    let _response = archetect.receive();
 
-    for entry in fs::read_dir(&source)
-        .map_err(|err| RenderError::DirectoryListError { path: source.to_path_buf(), source: err })? {
-        let entry = entry
-            .map_err(|err| RenderError::DirectoryReadError { path: source.clone(), source: err })
-            ?;
+    for entry in fs::read_dir(&source).map_err(|err| RenderError::DirectoryListError {
+        path: source.to_path_buf(),
+        source: err,
+    })? {
+        let entry = entry.map_err(|err| RenderError::DirectoryReadError {
+            path: source.clone(),
+            source: err,
+        })?;
         let path = Utf8PathBuf::from_path_buf(entry.path()).unwrap();
 
         if path.is_dir() {
             let destination = render_destination(environment, context, &destination, &path)?;
-            fs::create_dir_all(destination.as_path())
-                .map_err(|err| RenderError::CreateDirectoryError { path: path.clone(), source: err })
-                ?;
-            render_directory(
-                environment,
-                archetect,
-                context,
-                path,
-                destination,
-                overwrite_policy,
-            )?;
+            archetect.request(ScriptMessage::WriteDirectory(WriteDirectoryInfo {
+                path: destination.to_string(),
+            }));
+            let _response = archetect.receive();
+            render_directory(environment, archetect, context, path, destination, overwrite_policy)?;
         } else if path.is_file() {
-            // TODO: avoid duplication of file read
-            let contents = fs::read(&path)
-                .map_err(|err| RenderError::FileReadError { path: path.to_path_buf(), source: err })?;
+            let contents = fs::read(&path).map_err(|err| RenderError::FileReadError {
+                path: path.to_path_buf(),
+                source: err,
+            })?;
 
             let action = match content_inspector::inspect(contents.as_slice()) {
                 ContentType::BINARY => RuleAction::COPY,
@@ -153,45 +147,23 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
             let destination = render_destination(environment, context, &destination, &path)?;
             match action {
                 RuleAction::RENDER => {
-                    if !destination.exists() {
-                        debug!("Rendering {:?}", destination);
-                        let contents = render_contents(environment, context, &path)?;
-                        write_contents(destination, &contents)?;
-                    } else {
-                        match overwrite_policy {
-                            OverwritePolicy::Overwrite => {
-                                debug!("Overwriting {:?}", destination);
-                                let contents = render_contents(environment, context, &path)?;
-                                write_contents(destination, &contents)?;
-                            }
-                            OverwritePolicy::Preserve => {
-                                trace!("Preserving {:?}", destination);
-                            }
-                            OverwritePolicy::Prompt => {
-                                if archetect.is_headless() {
-                                    trace!("Preserving {:?}", destination);
-                                } else {
-                                    if Confirm::new(format!("Overwrite '{}'?", destination).as_str())
-                                        .prompt_skippable()
-                                        .unwrap_or_default()
-                                        .unwrap_or_default()
-                                    {
-                                        debug!("Overwriting {:?}", destination);
-                                        let contents = render_contents(environment, context, &path)?;
-                                        write_contents(destination, &contents)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let contents = render_contents(environment, context, &path, contents)?;
+                    archetect.request(ScriptMessage::WriteFile(WriteFileInfo {
+                        destination: destination.to_string(),
+                        contents: contents.into_bytes(),
+                        existing_file_policy: overwrite_policy.into(),
+                    }));
+                    let _response = archetect.receive();
                 }
                 RuleAction::COPY => {
-                    debug!("Copying     {:?}", destination);
-                    copy_contents(&path, &destination)?;
+                    archetect.request(ScriptMessage::WriteFile(WriteFileInfo {
+                        destination: destination.to_string(),
+                        contents,
+                        existing_file_policy: overwrite_policy.into(),
+                    }));
+                    let _response = archetect.receive();
                 }
-                RuleAction::SKIP => {
-                    trace!("Skipping    {:?}", destination);
-                }
+                RuleAction::SKIP => {}
             }
         }
     }
@@ -232,43 +204,39 @@ pub fn render_contents<P: AsRef<Utf8Path>>(
     environment: &Environment<'static>,
     context: &Map,
     path: P,
+    contents: Vec<u8>,
 ) -> Result<String, RenderError> {
-    let path = path.as_ref();
-    let template = match fs::read_to_string(path) {
-        Ok(template) => template,
-        Err(error) => {
-            return Err(RenderError::FileRenderIOError {
-                path: path.to_owned(),
-                source: error,
-            });
-        }
-    };
+    let path: Utf8PathBuf = path.as_ref().to_path_buf();
+    let template = String::from_utf8(contents).map_err(|error| RenderError::Utf8ReadError { path: path.clone() })?;
     match environment.render_str(&template, context) {
         Ok(result) => Ok(result),
-        Err(error) => Err(RenderError::PathRenderError2 {
-            path: path.into(),
-            source: error,
-        }),
+        Err(error) => Err(RenderError::PathRenderError2 { path, source: error }).into(),
     }
 }
 
 pub fn write_contents<P: AsRef<Utf8Path>>(destination: P, contents: &str) -> Result<(), RenderError> {
     let destination = destination.as_ref();
-    let mut output = File::create(destination)
-        .map_err(|err| RenderError::CreateFileError { path: destination.to_path_buf(), source: err })
-        ?;
-    let _ = output.write(contents.as_bytes())
-        .map_err(|err| RenderError::WriteError { path: destination.to_path_buf(), source: err })
-        ?;
+    let mut output = File::create(destination).map_err(|err| RenderError::CreateFileError {
+        path: destination.to_path_buf(),
+        source: err,
+    })?;
+    let _ = output
+        .write(contents.as_bytes())
+        .map_err(|err| RenderError::WriteError {
+            path: destination.to_path_buf(),
+            source: err,
+        })?;
     Ok(())
 }
 
 pub fn copy_contents<S: AsRef<Utf8Path>, D: AsRef<Utf8Path>>(source: S, destination: D) -> Result<(), RenderError> {
     let source = source.as_ref();
     let destination = destination.as_ref();
-    fs::copy(source, destination)
-        .map_err(|error| RenderError::CopyError { from: source.to_path_buf(), to: destination.to_path_buf(), source: error })
-        ?;
+    fs::copy(source, destination).map_err(|error| RenderError::CopyError {
+        from: source.to_path_buf(),
+        to: destination.to_path_buf(),
+        source: error,
+    })?;
     Ok(())
 }
 
@@ -288,6 +256,16 @@ pub enum OverwritePolicy {
 impl Default for OverwritePolicy {
     fn default() -> Self {
         OverwritePolicy::Preserve
+    }
+}
+
+impl From<OverwritePolicy> for ExistingFilePolicy {
+    fn from(value: OverwritePolicy) -> Self {
+        match value {
+            OverwritePolicy::Overwrite => ExistingFilePolicy::Overwrite,
+            OverwritePolicy::Preserve => ExistingFilePolicy::Preserve,
+            OverwritePolicy::Prompt => ExistingFilePolicy::Prompt,
+        }
     }
 }
 
