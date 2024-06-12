@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ConfigurationSecuritySection {
     #[serde(skip_serializing_if = "Option::is_none")]
     allow_exec: Option<bool>,
@@ -8,14 +8,16 @@ pub struct ConfigurationSecuritySection {
 
 impl ConfigurationSecuritySection {
     pub fn allow_exec(&self) -> Option<bool> {
-       self.allow_exec.clone()
+        self.allow_exec.clone()
+    }
+
+    pub fn is_default(&self) -> bool {
+        self == &ConfigurationSecuritySection::default()
     }
 }
 
 impl Default for ConfigurationSecuritySection {
     fn default() -> Self {
-        ConfigurationSecuritySection {
-            allow_exec: None
-        }
+        ConfigurationSecuritySection { allow_exec: None }
     }
 }

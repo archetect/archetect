@@ -1,5 +1,4 @@
-use futures::future::err;
-use log::{debug, info};
+use log::debug;
 
 use archetect_api::ClientMessage;
 use archetect_core::archetype::render_context::RenderContext;
@@ -11,8 +10,8 @@ use crate::proto::archetect_service_client::ArchetectServiceClient;
 use crate::proto::script_message::Message;
 use crate::proto::ScriptMessage;
 
-pub async fn start(render_context: RenderContext) -> anyhow::Result<()> {
-    let mut client = ArchetectServiceClient::connect("http://localhost:8080").await?;
+pub async fn start(render_context: RenderContext, endpoint: String) -> anyhow::Result<()> {
+    let mut client = ArchetectServiceClient::connect(endpoint).await?;
 
     let (client_tx, client_rx) = tokio::sync::mpsc::channel(10);
     let (script_tx, script_rx) = tokio::sync::mpsc::channel(10);

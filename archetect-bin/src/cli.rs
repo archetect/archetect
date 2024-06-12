@@ -94,17 +94,7 @@ pub fn command() -> Command {
                 .global(true),
         )
         .subcommand(Command::new("actions").about("List configured actions"))
-        .subcommand(
-            Command::new("server").about("Start Archetect Server").arg(
-                Arg::new("server-port")
-                    .help("The port to start Archetect Server on")
-                    .long("port")
-                    .short('p')
-                    .action(ArgAction::Set)
-                    .value_parser(value_parser!(i64).range(1024..65535))
-                    .env("ARCHETECT_SERVER_PORT"),
-            ),
-        )
+        .subcommand(Command::new("server").about("Start Archetect Server"))
         .subcommand(
             Command::new("connect").about("Connect to an Archetect Server").arg(
                 Arg::new("endpoint")
@@ -143,6 +133,27 @@ pub fn command() -> Command {
                 .visible_alias("dest")
                 .default_value(".")
                 .action(ArgAction::Set),
+        )
+        .arg(
+            Arg::new("port")
+                .help("The port to use when starting an Archetect Server")
+                .long("port")
+                .short('p')
+                .action(ArgAction::Set)
+                .global(true)
+                .default_value("8080")
+                .value_parser(value_parser!(u16).range(0..65535))
+                .env("ARCHETECT_SERVER_PORT"),
+        )
+        .arg(
+            Arg::new("host")
+                .help("The interface to use when starting an Archetect Server")
+                .long("host")
+                .short('h')
+                .action(ArgAction::Set)
+                .global(true)
+                .default_value("0.0.0.0")
+                .env("ARCHETECT_SERVER_HOST"),
         )
         .subcommand(
             Command::new("completions")

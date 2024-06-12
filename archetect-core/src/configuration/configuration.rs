@@ -4,9 +4,10 @@ use rhai::{Dynamic, Identifier, Map};
 use serde::{Deserialize, Serialize};
 
 use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
-use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
-use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
-use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
+use crate::configuration::ConfigurationLocalsSection;
+use crate::configuration::ConfigurationSecuritySection;
+use crate::configuration::ConfigurationUpdateSection;
+use crate::configuration::ServerConfiguration;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Configuration {
@@ -22,6 +23,7 @@ pub struct Configuration {
     security: ConfigurationSecuritySection,
     #[serde(skip_serializing_if = "Option::is_none")]
     switches: Option<Vec<String>>,
+    server: ServerConfiguration,
 }
 
 impl Configuration {
@@ -52,6 +54,10 @@ impl Configuration {
 
     pub fn security(&self) -> &ConfigurationSecuritySection {
         &self.security
+    }
+
+    pub fn server(&self) -> &ServerConfiguration {
+        &self.server
     }
 
     pub fn actions(&self) -> &LinkedHashMap<String, ArchetectAction> {
@@ -102,6 +108,7 @@ impl Default for Configuration {
             answers: default_answers(),
             locals: Default::default(),
             switches: Default::default(),
+            server: Default::default(),
         }
     }
 }
@@ -155,7 +162,9 @@ fn default_answers() -> Map {
     results
 }
 
-impl Configuration {}
+pub(crate) fn is_default<T: Default + PartialEq>(instance: &T) -> bool {
+    *instance == Default::default()
+}
 
 #[cfg(test)]
 mod tests {
@@ -163,8 +172,41 @@ mod tests {
 
     #[test]
     fn test_defaults() -> anyhow::Result<()> {
-        let configuration = Configuration::default();
+        let mut configuration = Configuration::default();
+        configuration.actions.insert(
+            "default".into(),
+            ArchetectAction::RenderCatalog {
+                description: "NAX".to_string(),
+                info: RenderCatalogInfo::new("~/project/catalogs"),
+            },
+        );
         println!("{}", serde_yaml::to_string(&configuration)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_config() -> anyhow::Result<()> {
+        let yaml = r#"actions:
+  default:
+    catalog:
+      description: NAX
+      source: ~/project/catalogs
+answers:
+  author_email: jimmie.fulton@naxgrp.com
+  author_full: Jimmie Fulton <jimmie.fulton@naxgrp.com>
+  author_name: Jimmie Fulton
+updates:
+  interval: 604800
+locals:
+  paths:
+  - ~/projects/archetypes/
+security: {}
+server:
+  host: 0.0.0.0
+  port: 8080"#;
+
+        let configuration = serde_yaml::from_str::<Configuration>(yaml).unwrap();
+        println!("{:?}", configuration);
         Ok(())
     }
 }

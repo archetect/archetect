@@ -1,7 +1,7 @@
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::errors::ArchetectError;
 
-pub fn handle_connect_subcommand(render_context: RenderContext) -> Result<(), ArchetectError> {
+pub fn handle_connect_subcommand(render_context: RenderContext, endpoint: String) -> Result<(), ArchetectError> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -9,7 +9,7 @@ pub fn handle_connect_subcommand(render_context: RenderContext) -> Result<(), Ar
 
     runtime
         .block_on(async move {
-            return archetect_grpc::client::start(render_context).await;
+            return archetect_grpc::client::start(render_context, endpoint).await;
             // tokio::select! {
             //     result = archetect_grpc::client::start(render_context) => {
             //       return result;

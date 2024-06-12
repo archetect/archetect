@@ -40,4 +40,6 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 shellexpand = { workspace = true }
 tokio = { workspace = true }
+tracing = { worksapce = true }
+tracing-subscriber = { workspace = true }
 url = "2.5.0"

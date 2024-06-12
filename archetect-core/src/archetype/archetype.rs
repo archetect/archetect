@@ -207,7 +207,7 @@ pub fn render_contents<P: AsRef<Utf8Path>>(
     contents: Vec<u8>,
 ) -> Result<String, RenderError> {
     let path: Utf8PathBuf = path.as_ref().to_path_buf();
-    let template = String::from_utf8(contents).map_err(|error| RenderError::Utf8ReadError { path: path.clone() })?;
+    let template = String::from_utf8(contents).map_err(|_error| RenderError::Utf8ReadError { path: path.clone() })?;
     match environment.render_str(&template, context) {
         Ok(result) => Ok(result),
         Err(error) => Err(RenderError::PathRenderError2 { path, source: error }).into(),

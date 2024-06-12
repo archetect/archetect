@@ -2,12 +2,12 @@ use std::error::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
 
-use log::info;
 use rhai::Map;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
+use tracing::{error, info, warn};
 
 use archetect_api::ScriptMessage;
 use archetect_core::Archetect;
@@ -28,6 +28,10 @@ pub struct ArchetectServiceCore {
 impl ArchetectServiceCore {
     pub fn builder(prototype: Archetect) -> Builder {
         Builder::new(prototype)
+    }
+
+    pub fn prototype(&self) -> &Archetect {
+        &self.prototype
     }
 }
 
@@ -55,7 +59,7 @@ impl ArchetectService for ArchetectServiceCore {
         &self,
         request: Request<Streaming<ClientMessage>>,
     ) -> Result<Response<Self::StreamingApiStream>, Status> {
-        println!("Archetect Bidirectional Streaming API Initiating");
+        info!("Archetect Bidirectional Streaming API Initiating");
 
         let mut in_stream = request.into_inner();
 
@@ -69,7 +73,7 @@ impl ArchetectService for ArchetectServiceCore {
 
         let script_handle = AsyncScriptIoHandle::from_channels(script_tx, client_rx);
         let archetect = Archetect::builder()
-            .with_configuration(self.prototype.configuration().clone())
+            .with_configuration(self.prototype().configuration().clone())
             .with_driver(script_handle)
             .build()
             .expect("Unable to bootstrap Archetect :(");
@@ -81,10 +85,11 @@ impl ArchetectService for ArchetectServiceCore {
                 match message {
                     Ok(message) => {
                         if !initialized {
-                            // TODO: Verify and Use Initialize Message
                             let archetect = archetect.clone();
                             archetect_handle = Some(tokio::task::spawn_blocking(move || {
-                                archetect.request(ScriptMessage::Display("Connected to Archetect Server".to_string()));
+                                if let Some(banner) = archetect.configuration().server().banner() {
+                                    archetect.request(ScriptMessage::Display(banner.to_string()));
+                                }
                                 if let ClientMessage {
                                     message: Some(Message::Initialize(initialize)),
                                 } = message
@@ -98,11 +103,11 @@ impl ArchetectService for ArchetectServiceCore {
                                         .with_use_defaults_all(initialize.use_defaults_all);
                                     match archetect.execute_action("default", render_context) {
                                         Ok(_success) => {
-                                            println!("Exited Successfully... send message");
+                                            info!("Successfully Rendered... Sending Disconnect");
                                             archetect.request(ScriptMessage::CompleteSuccess);
                                         }
                                         Err(error) => {
-                                            println!("Exited with Error: \n{:?}", error);
+                                            error!("Exited with Error: \n{:?}", error);
                                             archetect.request(ScriptMessage::CompleteError {
                                                 message: error.to_string(),
                                             })
@@ -126,7 +131,7 @@ impl ArchetectService for ArchetectServiceCore {
                             if io_err.kind() == ErrorKind::BrokenPipe {
                                 // here you can handle special case when client
                                 // disconnected in unexpected way
-                                eprintln!("\tclient disconnected: broken pipe");
+                                warn!("\tclient disconnected: broken pipe");
                                 break;
                             }
                         }

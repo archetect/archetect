@@ -4,11 +4,11 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server;
+
 use archetect_core::errors::ArchetectError;
 
 use crate::core::ArchetectServiceCore;
 use crate::proto::archetect_service_server::ArchetectServiceServer as ArchetectServiceGrpcServer;
-use crate::settings::ServerSettings;
 
 #[derive(Clone)]
 pub struct ArchetectServer {
@@ -18,31 +18,19 @@ pub struct ArchetectServer {
 }
 
 pub struct Builder {
-    settings: ServerSettings,
     core: ArchetectServiceCore,
 }
 
 impl Builder {
     pub fn new(core: ArchetectServiceCore) -> Builder {
-        Builder {
-            settings: ServerSettings::default(),
-            core,
-        }
-    }
-
-    pub fn with_settings(mut self, settings: &ServerSettings) -> Builder {
-        self.settings = settings.clone();
-        self
-    }
-
-    pub fn with_random_port(mut self) -> Builder {
-        self.settings.service_mut().set_port(0);
-        self
+        Builder { core }
     }
 
     pub async fn build(self) -> Result<ArchetectServer, ArchetectError> {
-        let listener = TcpListener::bind((self.settings.host(), self.settings.service().port()))
-            .await.map_err(|err| ArchetectError::IoError(err))?;
+        let configuration = self.core.prototype().configuration();
+        let listener = TcpListener::bind((configuration.server().host(), configuration.server().port()))
+            .await
+            .map_err(|err| ArchetectError::IoError(err))?;
         let addr = listener.local_addr()?;
 
         Ok(ArchetectServer {
@@ -80,11 +68,13 @@ impl ArchetectServer {
             .add_service(reflection_service)
             .add_service(ArchetectServiceGrpcServer::new(self.core.clone()));
 
-        tracing::info!("StreamingService started on {}", listener.local_addr()?);
+        tracing::info!("Archetect Server started on {}", listener.local_addr()?);
 
         // TODO: Create a proper Error for server stuff
-        server.serve_with_incoming(TcpListenerStream::new(listener)).await.map_err(|err|
-                                                                                       ArchetectError::GeneralError(err.to_string()))?;
+        server
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
         Ok(())
     }

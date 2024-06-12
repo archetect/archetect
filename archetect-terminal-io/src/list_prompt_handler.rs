@@ -6,7 +6,7 @@ use archetect_inquire::validator::Validation;
 
 use crate::get_render_config;
 
-pub fn handle_list_prompt<CIO: ClientIoHandle>(prompt_info: ListPromptInfo, client_handle: CIO) {
+pub fn handle_list_prompt<CIO: ClientIoHandle>(prompt_info: ListPromptInfo, client_handle: &CIO) {
     let min_items = prompt_info.min_items();
     let max_items = prompt_info.max_items();
     let list_validator = move |input: &Vec<String>| match validate_list(min_items, max_items, input) {
@@ -15,8 +15,7 @@ pub fn handle_list_prompt<CIO: ClientIoHandle>(prompt_info: ListPromptInfo, clie
     };
     let mut prompt = List::new(prompt_info.message())
         .with_list_validator(list_validator)
-        .with_render_config(get_render_config())
-        ;
+        .with_render_config(get_render_config());
 
     prompt.defaults = prompt_info.defaults();
     prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
@@ -32,17 +31,14 @@ pub fn handle_list_prompt<CIO: ClientIoHandle>(prompt_info: ListPromptInfo, clie
                 client_handle.send(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    client_handle.send(ClientMessage::Abort);
-                }
-                _ => {
-                    client_handle
-                        .send(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                client_handle.send(ClientMessage::Abort);
             }
-        }
+            _ => {
+                client_handle.send(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use clap::parser::ValueSource;
 use clap::ArgMatches;
+use clap::parser::ValueSource;
 use config::{Config, ConfigError, File, FileFormat, Source, Value};
 
 use archetect_core::configuration::Configuration;
@@ -17,7 +17,6 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             FileFormat::Yaml,
         ))
         .add_source(File::with_name(layout.etc_dir().join(CONFIGURATION_FILE).as_str()).required(false));
-
 
     let config = config.add_source(File::with_name(DOT_CONFIGURATION_FILE).required(false));
     let config = config.add_source(File::with_name(CONFIGURATION_FILE).required(false));
@@ -60,10 +59,26 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             path: "security.allow_exec".into(),
         },
     );
+    mappings.insert(
+        "port".into(),
+        ArgExtractor::U16 {
+            path: "server.port".into(),
+        },
+    );
+    mappings.insert(
+        "host".into(),
+        ArgExtractor::String {
+            path: "server.host".into(),
+        },
+    );
     let config = config.add_source(ClapSource::new(args.clone(), mappings));
 
     let config = config.build()?;
-    config.try_deserialize()
+    println!("Made it here!");
+    println!("{config:#?}");
+    let result: Result<Configuration, ConfigError> = config.try_deserialize();
+    println!("{result:#?}");
+    return result;
 }
 
 #[derive(Clone, Debug)]
@@ -103,6 +118,9 @@ enum ArgExtractor {
     String {
         path: String,
     },
+    U16 {
+        path: String,
+    },
     Bool {
         path: String,
     },
@@ -114,13 +132,24 @@ enum ArgExtractor {
 impl ArgExtractor {
     fn extract(&self, key: &str, matches: &ArgMatches) -> Option<Value> {
         match self {
-            ArgExtractor::String { .. } => {
-                if let Some(value) = matches.get_one::<String>(key) {
-                    Some(value.as_str().into())
-                } else {
-                    None
-                }
-            }
+            ArgExtractor::String { .. } => match matches.value_source(key) {
+                None => None,
+                Some(source) => match source {
+                    ValueSource::CommandLine | ValueSource::EnvVariable => {
+                        Some(matches.get_one::<String>(key).map(|v| v.to_string()).into())
+                    }
+                    _ => None,
+                },
+            },
+            ArgExtractor::U16 { .. } => match matches.value_source(key) {
+                None => None,
+                Some(source) => match source {
+                    ValueSource::CommandLine | ValueSource::EnvVariable => {
+                        Some(matches.get_one::<u16>(key).map(|v| *v).into())
+                    }
+                    _ => None,
+                },
+            },
             ArgExtractor::Flag { .. } => match matches.value_source(key) {
                 None => None,
                 Some(source) => match source {
@@ -133,11 +162,12 @@ impl ArgExtractor {
                 None => None,
                 Some(source) => match source {
                     // Only override if explicitly set; don't consider a default as an override
-                    ValueSource::CommandLine | ValueSource::EnvVariable => Some(matches.get_one::<bool>(key).map(|v|*v).into()),
+                    ValueSource::CommandLine | ValueSource::EnvVariable => {
+                        Some(matches.get_one::<bool>(key).map(|v| *v).into())
+                    }
                     _ => None,
                 },
             },
-
         }
     }
 
@@ -146,6 +176,7 @@ impl ArgExtractor {
             ArgExtractor::String { path } => path.as_str(),
             ArgExtractor::Flag { path } => path.as_str(),
             ArgExtractor::Bool { path } => path.as_str(),
+            ArgExtractor::U16 { path } => path.as_str(),
         }
     }
 }

@@ -3,8 +3,7 @@ use archetect_inquire::{InquireError, MultiSelect};
 
 use crate::get_render_config;
 
-pub fn handle_multiselect_prompt<CIO: ClientIoHandle>(prompt_info: MultiSelectPromptInfo,
-                                                      client_handle: CIO) {
+pub fn handle_multiselect_prompt<CIO: ClientIoHandle>(prompt_info: MultiSelectPromptInfo, client_handle: &CIO) {
     let mut prompt =
         MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -33,22 +32,18 @@ pub fn handle_multiselect_prompt<CIO: ClientIoHandle>(prompt_info: MultiSelectPr
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                client_handle
-                    .send(ClientMessage::Array(answer));
+                client_handle.send(ClientMessage::Array(answer));
             } else {
                 client_handle.send(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    client_handle.send(ClientMessage::Abort);
-                }
-                _ => {
-                    client_handle
-                        .send(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                client_handle.send(ClientMessage::Abort);
             }
-        }
+            _ => {
+                client_handle.send(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }

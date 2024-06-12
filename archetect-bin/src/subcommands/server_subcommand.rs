@@ -3,6 +3,7 @@ use archetect_core::errors::ArchetectError;
 use archetect_grpc::{ArchetectServer, ArchetectServiceCore};
 
 pub fn handle_server_subcommand(archetect: Archetect) -> Result<(), ArchetectError> {
+    crate::observability::init_tracing();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

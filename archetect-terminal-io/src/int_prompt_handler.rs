@@ -5,7 +5,7 @@ use archetect_validations::validate_int_size;
 
 use crate::get_render_config;
 
-pub fn handle_prompt_int<CIO: ClientIoHandle>(prompt_info: IntPromptInfo, client_handle: CIO) {
+pub fn handle_prompt_int<CIO: ClientIoHandle>(prompt_info: IntPromptInfo, client_handle: &CIO) {
     let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
     let default = prompt_info.default().map(|v| v.to_string());
     prompt.default = default;
@@ -22,30 +22,25 @@ pub fn handle_prompt_int<CIO: ClientIoHandle>(prompt_info: IntPromptInfo, client
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                client_handle
-                    .send(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
+                client_handle.send(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
             } else {
                 client_handle.send(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    client_handle.send(ClientMessage::Abort);
-                }
-                _ => {
-                    client_handle.send(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                client_handle.send(ClientMessage::Abort);
             }
-        }
+            _ => {
+                client_handle.send(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }
 
 fn validate(min: Option<i64>, max: Option<i64>, input: &str) -> Result<(), String> {
     match input.parse::<i64>() {
-        Ok(value) => {
-            validate_int_size(min, max, value)
-        },
+        Ok(value) => validate_int_size(min, max, value),
         Err(_) => Err(format!("{} is not an 'int'", input)),
     }
 }

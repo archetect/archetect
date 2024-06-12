@@ -3,7 +3,7 @@ use archetect_inquire::{Confirm, InquireError};
 
 use crate::get_render_config;
 
-pub fn handle_prompt_bool<CIO: ClientIoHandle>(prompt_info: BoolPromptInfo, client_handle: CIO) {
+pub fn handle_prompt_bool<CIO: ClientIoHandle>(prompt_info: BoolPromptInfo, client_handle: &CIO) {
     let mut prompt = Confirm::new(prompt_info.message()).with_render_config(get_render_config());
     let default = prompt_info.default();
     prompt.default = default;
@@ -22,23 +22,19 @@ pub fn handle_prompt_bool<CIO: ClientIoHandle>(prompt_info: BoolPromptInfo, clie
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                client_handle
-                    .send(ClientMessage::Boolean(answer));
+                client_handle.send(ClientMessage::Boolean(answer));
             } else {
                 client_handle.send(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                   client_handle.send(ClientMessage::Abort);
-                }
-                _ => {
-                    client_handle
-                        .send(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                client_handle.send(ClientMessage::Abort);
             }
-        }
+            _ => {
+                client_handle.send(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }
 

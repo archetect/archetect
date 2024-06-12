@@ -5,16 +5,16 @@ use camino::Utf8PathBuf;
 use archetect_api::{ClientIoHandle, ClientMessage, ExistingFilePolicy, WriteFileInfo};
 use archetect_inquire::Confirm;
 
-pub fn handle_write_file<CIO: ClientIoHandle>(prompt_info: WriteFileInfo, client_handle: CIO) {
+pub fn handle_write_file<CIO: ClientIoHandle>(prompt_info: WriteFileInfo, client_handle: &CIO) {
     let path = Utf8PathBuf::from(prompt_info.destination);
     match prompt_info.existing_file_policy {
         ExistingFilePolicy::Overwrite => {
-            if !write_file(path, prompt_info.contents, &client_handle) {
+            if !write_file(path, prompt_info.contents, client_handle) {
                 return;
             }
         }
         ExistingFilePolicy::Preserve => {
-            if !write_file(path, prompt_info.contents, &client_handle) {
+            if !write_file(path, prompt_info.contents, client_handle) {
                 return;
             }
         }
@@ -25,7 +25,7 @@ pub fn handle_write_file<CIO: ClientIoHandle>(prompt_info: WriteFileInfo, client
                     .unwrap_or_default()
                     .unwrap_or_default()
                 {
-                    if !write_file(path, prompt_info.contents, &client_handle) {
+                    if !write_file(path, prompt_info.contents, client_handle) {
                         return;
                     }
                 }

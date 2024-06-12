@@ -30,25 +30,25 @@ where
         if let Some(script_message) = self.client_handle.receive() {
             match script_message {
                 ScriptMessage::PromptForText(prompt_info) => {
-                    handle_prompt_text(prompt_info, self.client_handle.clone());
+                    handle_prompt_text(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForInt(prompt_info) => {
-                    handle_prompt_int(prompt_info, self.client_handle.clone());
+                    handle_prompt_int(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForBool(prompt_info) => {
-                    handle_prompt_bool(prompt_info, self.client_handle.clone());
+                    handle_prompt_bool(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForList(prompt_info) => {
-                    handle_list_prompt(prompt_info, self.client_handle.clone());
+                    handle_list_prompt(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForSelect(prompt_info) => {
-                    handle_select_prompt(prompt_info, self.client_handle.clone());
+                    handle_select_prompt(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForMultiSelect(prompt_info) => {
-                    handle_multiselect_prompt(prompt_info, self.client_handle.clone());
+                    handle_multiselect_prompt(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::PromptForEditor(prompt_info) => {
-                    handle_editor_prompt(prompt_info, self.client_handle.clone());
+                    handle_editor_prompt(prompt_info, &self.client_handle);
                 }
                 ScriptMessage::LogInfo(message) => {
                     info!("{}", message)
@@ -76,9 +76,9 @@ where
                     log::error!("{}", message);
                     return Err(());
                 }
-                ScriptMessage::WriteFile(write_info) => handle_write_file(write_info, self.client_handle.clone()),
+                ScriptMessage::WriteFile(write_info) => handle_write_file(write_info, &self.client_handle),
                 ScriptMessage::WriteDirectory(write_info) => {
-                    handle_write_directory(write_info, self.client_handle.clone());
+                    handle_write_directory(write_info, &self.client_handle);
                 }
             }
             Ok(())
