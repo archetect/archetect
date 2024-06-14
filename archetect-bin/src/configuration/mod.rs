@@ -74,10 +74,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     let config = config.add_source(ClapSource::new(args.clone(), mappings));
 
     let config = config.build()?;
-    println!("Made it here!");
-    println!("{config:#?}");
     let result: Result<Configuration, ConfigError> = config.try_deserialize();
-    println!("{result:#?}");
     return result;
 }
 
