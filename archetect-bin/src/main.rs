@@ -58,7 +58,10 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(
     driver: D,
     layout: L,
 ) -> Result<(), ArchetectError> {
-    let configuration = configuration::load_user_config(&layout, &matches)
+    let configuration2 = configuration::load_user_config(&layout, &matches)
+        .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
+
+    let configuration = configuration::figment_config::load_user_config(&layout, &matches)
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
     let mut answers = Map::new();

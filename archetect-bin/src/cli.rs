@@ -4,7 +4,6 @@ use clap::{Arg, ArgAction, ArgMatches, command, Command, value_parser};
 use clap::builder::BoolishValueParser;
 use clap_complete::{generate, Shell};
 use log::Level;
-use url::Url;
 
 use archetect_core::errors::ArchetectError;
 
@@ -65,6 +64,7 @@ pub fn command() -> Command {
                     Arg::new("destination")
                         .help("The directory to render the Archetype in to")
                         .long("destination")
+                        .alias("dest")
                         .default_value(".")
                         .action(ArgAction::Set),
                 )
@@ -95,16 +95,16 @@ pub fn command() -> Command {
         )
         .subcommand(Command::new("actions").about("List configured actions"))
         .subcommand(Command::new("server").about("Start Archetect Server"))
-        .subcommand(
-            Command::new("connect").about("Connect to an Archetect Server").arg(
-                Arg::new("endpoint")
-                    .help("Archetect Server Endpoint")
-                    .action(ArgAction::Set)
-                    .required(true)
-                    .value_parser(value_parser!(Url))
-                    .env("ARCHETECT_ENDPOINT"),
-            ),
-        )
+        // .subcommand(
+        //     Command::new("connect").about("Connect to an Archetect Server").arg(
+        //         Arg::new("endpoint")
+        //             .help("Archetect Server Endpoint")
+        //             .action(ArgAction::Set)
+        //             .required(true)
+        //             .value_parser(value_parser!(Url))
+        //             .env("ARCHETECT_ENDPOINT"),
+        //     ),
+        // )
         .arg(
             Arg::new("verbosity")
                 .help("Increase verbosity level")
@@ -149,7 +149,6 @@ pub fn command() -> Command {
             Arg::new("host")
                 .help("The interface to use when starting an Archetect Server")
                 .long("host")
-                .short('h')
                 .action(ArgAction::Set)
                 .global(true)
                 .default_value("0.0.0.0")

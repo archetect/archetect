@@ -30,6 +30,7 @@ camino = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 config = { workspace = true }
+figment = { workspace = true }
 linked-hash-map = { workspace = true }
 log = { workspace = true }
 pest = { workspace = true }

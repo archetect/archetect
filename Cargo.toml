@@ -32,6 +32,7 @@ chrono = "0.4"
 clap = { version = "4.4", features = ["cargo", "env", "color"] }
 clap_complete = "4.4"
 config = { version = "0.14.0", default-features = false, features = ["yaml"] }
+figment = { version = "0.10.19", features = ["yaml"] }
 content_inspector = "0.2"
 directories = "5.0.1"
 dyn-clone = "1"

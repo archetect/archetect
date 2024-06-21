@@ -7,6 +7,9 @@ use config::{Config, ConfigError, File, FileFormat, Source, Value};
 use archetect_core::configuration::Configuration;
 use archetect_core::system::SystemLayout;
 
+mod figment_clap_provider;
+pub mod figment_config;
+
 pub const CONFIGURATION_FILE: &str = "archetect";
 pub const DOT_CONFIGURATION_FILE: &str = ".archetect";
 
@@ -79,7 +82,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
 }
 
 #[derive(Clone, Debug)]
-struct ClapSource {
+pub struct ClapSource {
     mappings: HashMap<String, ArgExtractor>,
     matches: ArgMatches,
 }
