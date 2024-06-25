@@ -1,9 +1,9 @@
-use log::debug;
+use tracing::debug;
 
 use archetect_api::ClientMessage;
-use archetect_core::archetype::render_context::RenderContext;
 use archetect_terminal_io::TerminalClient;
 
+use crate::archetype::render_context::RenderContext;
 use crate::io::AsyncClientIoHandle;
 use crate::proto;
 use crate::proto::archetect_service_client::ArchetectServiceClient;

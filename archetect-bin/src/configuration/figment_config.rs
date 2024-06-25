@@ -21,7 +21,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     let current_dir_hidden = Figment::new().merge(Yaml::file(CONFIGURATION_FILE));
     let current_dir = Figment::new().merge(Yaml::file(DOT_CONFIGURATION_FILE));
 
-    let mut merged = smart_merge(vec![defaults, user, current_dir_hidden, current_dir])?.merge(
+    let merged = smart_merge(vec![defaults, user, current_dir_hidden, current_dir])?.merge(
         ClapMatches::new(args.clone())
             .extract(ArgExtractor::flag("updates.force", "force-update"))
             .extract(ArgExtractor::flag("offline", "offline"))

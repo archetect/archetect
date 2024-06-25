@@ -6,9 +6,10 @@ use std::sync::{Mutex, OnceLock};
 use camino::{Utf8Path, Utf8PathBuf};
 use chrono::TimeZone;
 use git2::Repository;
-use log::{debug, info, trace, warn};
 use regex::Regex;
 use url::Url;
+
+use tracing::{debug, info, trace, warn};
 
 use crate::Archetect;
 use crate::errors::SourceError;
@@ -66,13 +67,15 @@ impl Source {
     }
 
     pub fn source_contents(&self) -> SourceContents {
-        if self.source_type().directory().join("catalog.yaml").is_file() ||
-            self.source_type().directory().join("catalog.yml").is_file() {
+        if self.source_type().directory().join("catalog.yaml").is_file()
+            || self.source_type().directory().join("catalog.yml").is_file()
+        {
             return SourceContents::Catalog;
         }
 
-        if self.source_type().directory().join("archetype.yaml").is_file() ||
-            self.source_type().directory().join("archetype.yml").is_file() {
+        if self.source_type().directory().join("archetype.yaml").is_file()
+            || self.source_type().directory().join("archetype.yml").is_file()
+        {
             return SourceContents::Archetype;
         }
 
@@ -93,11 +96,7 @@ impl Source {
                 }
             }
             SourceCommand::Invalidate => {
-                if let SourceType::RemoteGit {
-                    cache_path,
-                    ..
-                } = &self.source_type
-                {
+                if let SourceType::RemoteGit { cache_path, .. } = &self.source_type {
                     let repo = Repository::open(cache_path.join(".git"))?;
                     invalidate_timestamp(&repo)?;
                 }
@@ -298,7 +297,6 @@ fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
     config.set_i64(ARCHETECT_PULLED, chrono::Utc::now().timestamp_millis())?;
     Ok(())
 }
-
 
 fn invalidate_timestamp(repo: &Repository) -> Result<(), SourceError> {
     let mut config = repo.config()?;

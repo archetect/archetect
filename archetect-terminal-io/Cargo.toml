@@ -16,4 +16,4 @@ archetect-validations = { path = "../archetect-validations", version = "2.0.0-AL
 
 camino = { workspace = true }
 dyn-clone = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }

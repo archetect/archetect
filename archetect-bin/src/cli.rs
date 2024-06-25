@@ -3,12 +3,10 @@ use std::io;
 use clap::{Arg, ArgAction, ArgMatches, command, Command, value_parser};
 use clap::builder::BoolishValueParser;
 use clap_complete::{generate, Shell};
-use log::Level;
 
 use archetect_core::errors::ArchetectError;
 
 use crate::cli;
-use crate::vendor::loggerv;
 
 pub fn command() -> Command {
     command!()
@@ -313,23 +311,6 @@ fn render_args(global: bool) -> Vec<Arg> {
             .global(global),
     );
     args
-}
-
-pub fn configure(matches: &ArgMatches) {
-    loggerv::Logger::new()
-        .output(&Level::Error, loggerv::Output::Stderr)
-        .output(&Level::Warn, loggerv::Output::Stderr)
-        .output(&Level::Info, loggerv::Output::Stderr)
-        .output(&Level::Debug, loggerv::Output::Stderr)
-        .output(&Level::Trace, loggerv::Output::Stderr)
-        .verbosity(matches.get_count("verbosity") as u64)
-        .level(false)
-        .prefix("archetect")
-        .no_module_path()
-        .module_path(false)
-        .base_level(Level::Info)
-        .init()
-        .unwrap();
 }
 
 pub fn completions(matches: &ArgMatches) -> Result<(), ArchetectError> {

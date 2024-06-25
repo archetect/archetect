@@ -1,13 +1,13 @@
 use std::fmt::{Display, Formatter};
 
 use either::Either;
-use rhai::plugin::*;
 use rhai::{Dynamic, Map};
+use rhai::plugin::*;
 
 use CaseStrategy::{CasedIdentityCasedValue, CasedKeyCasedValue, FixedKeyCasedValue};
 
-use crate::script::rhai::modules::cases_module::module::to_case;
 use crate::script::rhai::modules::cases_module::CaseStrategy::FixedIdentityCasedValue;
+use crate::script::rhai::modules::cases_module::module::to_case;
 use crate::script::rhai::modules::prompt_module::Caseable;
 
 const LIST_DEFAULT_IDENTITY_KEY: &'static str = "item_name";
@@ -59,7 +59,9 @@ pub fn register(engine: &mut Engine) {
     engine.register_fn("singular", archetect_inflections::to_singular);
 
     engine.register_fn("ordinalize", archetect_inflections::ordinalize);
-    engine.register_fn("ordinalize", |value: i64| archetect_inflections::ordinalize(value.to_string().as_str()));
+    engine.register_fn("ordinalize", |value: i64| {
+        archetect_inflections::ordinalize(value.to_string().as_str())
+    });
     engine.register_fn("deordinalize", archetect_inflections::deordinalize);
 }
 
@@ -142,7 +144,7 @@ impl CaseStyle {
             CaseStyle::KebabCase => archetect_inflections::to_kebab_case(input),
             CaseStyle::LowerCase => str::to_lowercase(input),
             CaseStyle::PascalCase => archetect_inflections::to_pascal_case(input),
-            CaseStyle::PackageCase =>  archetect_inflections::to_package_case(input),
+            CaseStyle::PackageCase => archetect_inflections::to_package_case(input),
             CaseStyle::SnakeCase => archetect_inflections::to_snake_case(input),
             CaseStyle::SentenceCase => archetect_inflections::to_sentence_case(input),
             CaseStyle::TitleCase => archetect_inflections::to_title_case(input),
@@ -159,10 +161,6 @@ pub enum CaseStrategy {
     FixedIdentityCasedValue { style: CaseStyle },
     FixedKeyCasedValue { key: String, style: CaseStyle },
 }
-
-
-
-
 
 pub fn extract_case_strategies(settings: &Map) -> Result<Either<Vec<CaseStrategy>, CaseStyle>, String> {
     let mut results = vec![];
@@ -193,7 +191,7 @@ pub fn extract_case_strategies(settings: &Map) -> Result<Either<Vec<CaseStrategy
 
 pub fn extract_case_style(specification: &Dynamic) -> Option<CaseStyle> {
     if specification.is::<CaseStyle>() {
-       return Some(specification.clone_cast());
+        return Some(specification.clone_cast());
     }
     None
 }
@@ -206,7 +204,8 @@ pub fn extract_case_strategy(specification: &Dynamic) -> Option<CaseStrategy> {
 }
 
 fn extract_casing_specification(settings: &Map) -> Option<&Dynamic> {
-    settings.get("cased_as")
+    settings
+        .get("cased_as")
         .or(settings.get("cased_with"))
         .or(settings.get("casing"))
         .or(settings.get("cases"))
@@ -273,7 +272,6 @@ fn expand_keys_and_values_with_case_style(case_style: &CaseStyle, results: &mut 
         }
     }
 }
-
 
 fn expand_keys_and_values_with_case_strategies(
     case_strategies: &Vec<CaseStrategy>,
@@ -393,8 +391,8 @@ fn expand_keys_and_values_with_case_strategies(
 #[allow(non_upper_case_globals)]
 #[export_module]
 pub mod module {
-    use log::warn;
     use rhai::Dynamic;
+    use tracing::warn;
 
     pub type CaseStyle = super::CaseStyle;
     pub type CaseStrategy = super::CaseStrategy;

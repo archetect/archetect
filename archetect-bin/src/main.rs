@@ -2,9 +2,8 @@ use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
-use config::ConfigError;
-use log::warn;
 use rhai::Map;
+use tracing::warn;
 
 use archetect_api::{ScriptIoHandle, ScriptMessage};
 use archetect_core::{self};
@@ -25,13 +24,13 @@ use crate::subcommands::handle_commands_subcommand;
 mod answers;
 mod cli;
 mod configuration;
-mod observability;
 mod subcommands;
-pub mod vendor;
+mod traces;
 
 fn main() {
     let matches = cli::command().get_matches();
-    cli::configure(&matches);
+
+    traces::initialize(&matches);
 
     let driver = TerminalIoDriver::default();
     let layout = RootedSystemLayout::dot_home().unwrap();
@@ -58,10 +57,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(
     driver: D,
     layout: L,
 ) -> Result<(), ArchetectError> {
-    let configuration2 = configuration::load_user_config(&layout, &matches)
-        .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
-
-    let configuration = configuration::figment_config::load_user_config(&layout, &matches)
+    let configuration = configuration::load_user_config(&layout, &matches)
         .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
 
     let mut answers = Map::new();

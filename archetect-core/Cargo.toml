@@ -15,29 +15,39 @@ archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.19" }
 archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.19" }
 archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.19", features = ["editor"] }
 archetect-inflections = { path = "../archetect-inflections", version = "2.0.0-ALPHA.19" }
-archetect-minijinja = { path = "../archetect-templating", version= "2.0.0-ALPHA.19", features = ["source", "urlencode", "json"] }
+archetect-minijinja = { path = "../archetect-templating", version = "2.0.0-ALPHA.19", features = ["source", "urlencode", "json"] }
 archetect-validations = { path = "../archetect-validations", version = "2.0.0-ALPHA.19" }
 
+anyhow = { workspace = true }
 camino = { workspace = true }
 chrono = { workspace = true }
 content_inspector = { workspace = true }
 directories = { workspace = true }
 either = { workspace = true }
 farmhash = { workspace = true }
+futures = "0.3.30"
 git2 = { workspace = true }
+h2 = "0.4.4"
 indoc = { workspace = true }
 linked-hash-map = { workspace = true }
-log = { workspace = true }
 memchr = { workspace = true }
+prost = "0.12.4"
 regex = { workspace = true }
 rhai = { workspace = true }
 semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml= { workspace = true }
-shellexpand  = { workspace = true }
+serde_yaml = { workspace = true }
+shellexpand = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+tonic = "0.11.0"
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
+tokio-stream = "0.1.15"
+tracing = { worksapce = true }
+tracing-attributes = { workspace = true }
+tonic-health = "0.11.0"
+tonic-reflection = "0.11.0"
 unicode-segmentation = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
@@ -49,3 +59,7 @@ anyhow = { workspace = true }
 assert_matches = { workspace = true }
 function_name = { workspace = true }
 indoc = { workspace = true }
+tokio = { workspace = true }
+
+[build-dependencies]
+tonic-build = "0.11.0"

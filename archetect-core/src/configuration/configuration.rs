@@ -162,9 +162,9 @@ fn default_answers() -> Map {
     results
 }
 
-pub(crate) fn is_default<T: Default + PartialEq>(instance: &T) -> bool {
-    *instance == Default::default()
-}
+// pub(crate) fn is_default<T: Default + PartialEq>(instance: &T) -> bool {
+//     *instance == Default::default()
+// }
 
 #[cfg(test)]
 mod tests {

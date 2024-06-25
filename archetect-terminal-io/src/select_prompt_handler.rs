@@ -1,7 +1,6 @@
-use log::warn;
-
 use archetect_api::{ClientIoHandle, ClientMessage, PromptInfo, PromptInfoPageable, SelectPromptInfo};
 use archetect_inquire::{InquireError, Select};
+use tracing::warn;
 
 use crate::get_render_config;
 

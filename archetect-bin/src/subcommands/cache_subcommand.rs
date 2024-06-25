@@ -1,11 +1,11 @@
 use std::fs;
 
 use clap::ArgMatches;
-use log::error;
+use tracing::error;
 
-use archetect_core::{CacheManager};
 use archetect_core::actions::ArchetectAction;
 use archetect_core::Archetect;
+use archetect_core::CacheManager;
 use archetect_core::catalog::{Catalog, CatalogManifest};
 use archetect_core::errors::ArchetectError;
 use archetect_inquire::Confirm;
@@ -30,22 +30,20 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
                             .collect::<Vec<String>>(),
                     ));
                 }
-                Some(action) => {
-                    match action {
-                        ArchetectAction::RenderGroup{info, .. } => {
-                            let manifest = CatalogManifest::new().with_entries(info.actions().to_vec());
-                            let catalog = Catalog::new(archetect.clone(), manifest);
-                            cache_manager.manage(&catalog)?;
-                        }
-                        ArchetectAction::RenderCatalog{info, .. } => {
-                            let catalog = archetect.new_catalog(info.source())?;
-                            cache_manager.manage(&catalog)?;
-                        }
-                        ArchetectAction::RenderArchetype{info, .. } => {
-                            cache_manager.manage_archetype(info)?;
-                        }
+                Some(action) => match action {
+                    ArchetectAction::RenderGroup { info, .. } => {
+                        let manifest = CatalogManifest::new().with_entries(info.actions().to_vec());
+                        let catalog = Catalog::new(archetect.clone(), manifest);
+                        cache_manager.manage(&catalog)?;
                     }
-                }
+                    ArchetectAction::RenderCatalog { info, .. } => {
+                        let catalog = archetect.new_catalog(info.source())?;
+                        cache_manager.manage(&catalog)?;
+                    }
+                    ArchetectAction::RenderArchetype { info, .. } => {
+                        cache_manager.manage_archetype(info)?;
+                    }
+                },
             }
         }
         Some(("clear", _args)) => {

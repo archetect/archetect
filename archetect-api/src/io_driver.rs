@@ -1,10 +1,12 @@
 use std::fmt::Debug;
+use std::sync::{Arc, mpsc, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender};
-use std::sync::{mpsc, Arc, Mutex};
-use dyn_clone::DynClone;
-use log::warn;
 
-use crate::{ScriptMessage, ClientMessage};
+use dyn_clone::DynClone;
+
+use tracing::warn;
+
+use crate::{ClientMessage, ScriptMessage};
 
 pub trait ScriptIoHandle: DynClone + Debug + Send + Sync + 'static {
     fn send(&self, request: ScriptMessage);
@@ -26,7 +28,6 @@ pub trait ClientIoHandle: DynClone + Debug + Send + Sync + 'static {
     fn receive(&self) -> Option<ScriptMessage>;
 }
 
-
 impl<T: ClientIoHandle> From<T> for Box<dyn ClientIoHandle> {
     fn from(value: T) -> Self {
         Box::new(value)
@@ -34,7 +35,6 @@ impl<T: ClientIoHandle> From<T> for Box<dyn ClientIoHandle> {
 }
 
 dyn_clone::clone_trait_object!(ClientIoHandle);
-
 
 pub struct SyncIoDriver {
     script_handle: SyncScriptIoHandle,
@@ -84,9 +84,7 @@ impl ScriptIoHandle for SyncScriptIoHandle {
     }
 
     fn receive(&self) -> Option<ClientMessage> {
-        self.client_rx
-            .lock().expect("Working Mutex")
-            .recv().ok()
+        self.client_rx.lock().expect("Working Mutex").recv().ok()
     }
 }
 
@@ -102,12 +100,8 @@ impl ClientIoHandle for SyncClientIoHandle {
     }
 
     fn receive(&self) -> Option<ScriptMessage> {
-        match self.script_rx
-            .lock().expect("Working Mutex")
-            .recv() {
-            Ok(script_message) => {
-                Some(script_message)
-            }
+        match self.script_rx.lock().expect("Working Mutex").recv() {
+            Ok(script_message) => Some(script_message),
             Err(err) => {
                 warn!("Receive Error: {:?}", err);
                 None

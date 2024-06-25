@@ -10,12 +10,11 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 use archetect_api::ScriptMessage;
-use archetect_core::Archetect;
-use archetect_core::archetype::render_context::RenderContext;
-use archetect_core::errors::ArchetectError;
 
+use crate::{Archetect, proto};
+use crate::archetype::render_context::RenderContext;
+use crate::errors::ArchetectError;
 use crate::io::AsyncScriptIoHandle;
-use crate::proto;
 use crate::proto::archetect_service_server::ArchetectService;
 use crate::proto::client_message::Message;
 use crate::proto::ClientMessage;
@@ -110,7 +109,8 @@ impl ArchetectService for ArchetectServiceCore {
                                             error!("Exited with Error: \n{:?}", error);
                                             archetect.request(ScriptMessage::CompleteError {
                                                 message: error.to_string(),
-                                            })
+                                            });
+                                            return;
                                         }
                                     }
                                 } else {

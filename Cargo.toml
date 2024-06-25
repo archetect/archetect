@@ -10,7 +10,7 @@ members = [
     "archetect-templating",
     "archetect-terminal-prompts",
     "archetect-validations",
-    "xtask", "archetect-inflections", "archetect-grpc",
+    "xtask",
 ]
 
 [workspace.package]
@@ -31,7 +31,6 @@ camino = { version = "1.1", features = ["serde1"] }
 chrono = "0.4"
 clap = { version = "4.4", features = ["cargo", "env", "color"] }
 clap_complete = "4.4"
-config = { version = "0.14.0", default-features = false, features = ["yaml"] }
 figment = { version = "0.10.19", features = ["yaml"] }
 content_inspector = "0.2"
 directories = "5.0.1"
@@ -42,7 +41,6 @@ git2 = "0.18.1"
 function_name = "0.3.0"
 indoc = "2.0"
 linked-hash-map = { version = "0.5.2", features = ["serde_impl"] }
-log = { version = "0.4", features = ["std"] }
 pest = "2"
 pest_derive = "2"
 regex = "1.0"
@@ -59,7 +57,7 @@ tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros", "signal"]
 tokio-stream = "0.1.15"
 tracing = "0.1"
 tracing-attributes = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["std", "fmt", "env-filter"] }
 unicode-segmentation = "1.2.0"
 url = "2"
 uuid = { version = "1.6", features = ["serde", "v4"] }

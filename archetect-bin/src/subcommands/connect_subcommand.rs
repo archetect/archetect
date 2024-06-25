@@ -9,7 +9,7 @@ pub fn handle_connect_subcommand(render_context: RenderContext, endpoint: String
 
     runtime
         .block_on(async move {
-            return archetect_grpc::client::start(render_context, endpoint).await;
+            return archetect_core::client::start(render_context, endpoint).await;
             // tokio::select! {
             //     result = archetect_grpc::client::start(render_context) => {
             //       return result;

@@ -1,5 +1,5 @@
 use dyn_clone::DynClone;
-use log::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use archetect_api::{ClientIoHandle, ScriptMessage};
 
@@ -73,7 +73,7 @@ where
                 }
                 ScriptMessage::CompleteSuccess => return Err(()),
                 ScriptMessage::CompleteError { message } => {
-                    log::error!("{}", message);
+                    error!("{}", message);
                     return Err(());
                 }
                 ScriptMessage::WriteFile(write_info) => handle_write_file(write_info, &self.client_handle),

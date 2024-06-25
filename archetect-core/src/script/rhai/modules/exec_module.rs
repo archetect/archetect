@@ -1,11 +1,12 @@
 use std::process::Command;
 
-use log::warn;
 use rhai::{Dynamic, Engine, EvalAltResult, Map, NativeCallContext};
+use tracing::warn;
+
 use archetect_inquire::{Confirm, InquireError};
 
-use crate::archetype::archetype::Archetype;
 use crate::Archetect;
+use crate::archetype::archetype::Archetype;
 
 pub fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype) {
     let archetect_clone = archetect.clone();
@@ -18,7 +19,13 @@ pub fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype)
     engine.register_fn(
         "execute",
         move |call: NativeCallContext, program: &str, settings: Map| {
-            execute_with_settings(call, archetect_clone.clone(), archetype_clone.clone(), program, settings)
+            execute_with_settings(
+                call,
+                archetect_clone.clone(),
+                archetype_clone.clone(),
+                program,
+                settings,
+            )
         },
     );
     let archetect_clone = archetect.clone();
@@ -31,7 +38,13 @@ pub fn register(engine: &mut Engine, archetect: Archetect, archetype: Archetype)
     engine.register_fn(
         "capture",
         move |call: NativeCallContext, program: &str, settings: Map| {
-            capture_with_settings(call, archetect_clone.clone(), archetype_clone.clone(), program, settings)
+            capture_with_settings(
+                call,
+                archetect_clone.clone(),
+                archetype_clone.clone(),
+                program,
+                settings,
+            )
         },
     );
 }
@@ -101,21 +114,20 @@ fn capture_with_settings(
                         match String::from_utf8(output.stdout) {
                             Ok(result) => {
                                 return Ok(result.into());
-                            },
+                            }
                             Err(err) => {
                                 return Err(Box::new(EvalAltResult::ErrorSystem(
                                     "exec UTF8 Error".into(),
                                     Box::new(err),
                                 )));
-                            },
+                            }
                         }
                     }
                     Err(err) => return Err(Box::new(EvalAltResult::ErrorSystem("exec Error".into(), Box::new(err)))),
                 }
             } else {
-               return Ok(Dynamic::UNIT);
+                return Ok(Dynamic::UNIT);
             }
-
         }
         Err(err) => {
             return Err(err);
@@ -131,21 +143,20 @@ fn allow_exec(archetect: &Archetect, _archetype: &Archetype, command: &Command) 
     }
 
     // TODO: Handle IO Backends
-    let prompt = Confirm::new("This archetype wants to execute a command on this machine.\nAllow?")
-        .with_default(true);
+    let prompt = Confirm::new("This archetype wants to execute a command on this machine.\nAllow?").with_default(true);
 
-    match prompt.prompt(){
+    match prompt.prompt() {
         Ok(value) => return Ok(value),
-        Err(err) => {
-           match err {
-               InquireError::OperationCanceled => {}
-               InquireError::OperationInterrupted => {}
-               _ => {
-
-                   return Err(Box::new(EvalAltResult::ErrorSystem("Exec Error".to_string(), Box::new(err))))
-               }
-           }
-        }
+        Err(err) => match err {
+            InquireError::OperationCanceled => {}
+            InquireError::OperationInterrupted => {}
+            _ => {
+                return Err(Box::new(EvalAltResult::ErrorSystem(
+                    "Exec Error".to_string(),
+                    Box::new(err),
+                )))
+            }
+        },
     }
     Ok(true)
 }

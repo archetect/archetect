@@ -5,10 +5,9 @@ use tokio::sync::Mutex;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server;
 
-use archetect_core::errors::ArchetectError;
-
-use crate::core::ArchetectServiceCore;
+use crate::errors::ArchetectError;
 use crate::proto::archetect_service_server::ArchetectServiceServer as ArchetectServiceGrpcServer;
+use crate::server::ArchetectServiceCore;
 
 #[derive(Clone)]
 pub struct ArchetectServer {

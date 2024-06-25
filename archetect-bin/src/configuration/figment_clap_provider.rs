@@ -52,7 +52,6 @@ pub struct ArgExtractor {
 pub enum ArgType {
     String,
     U16,
-    Bool,
     Flag,
 }
 
@@ -71,10 +70,6 @@ impl ArgExtractor {
 
     pub fn u16<P: Into<String>, K: Into<String>>(path: P, key: K) -> ArgExtractor {
         Self::new(path, key, ArgType::U16)
-    }
-
-    pub fn bool<P: Into<String>, K: Into<String>>(path: P, key: K) -> ArgExtractor {
-        Self::new(path, key, ArgType::Bool)
     }
 
     pub fn flag<P: Into<String>, K: Into<String>>(path: P, key: K) -> ArgExtractor {
@@ -102,18 +97,6 @@ impl ArgExtractor {
                     _ => None,
                 },
             },
-            ArgType::Bool => {
-                match matches.value_source(key) {
-                    None => None,
-                    Some(source) => match source {
-                        // Only override if explicitly set; don't consider a default as an override
-                        ValueSource::CommandLine | ValueSource::EnvVariable => {
-                            Some((self.path.to_owned(), Value::from(matches.get_flag(key))))
-                        }
-                        _ => None,
-                    },
-                }
-            }
             ArgType::Flag => match matches.value_source(key) {
                 None => None,
                 Some(source) => match source {
