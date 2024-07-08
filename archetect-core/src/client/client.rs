@@ -4,13 +4,37 @@ use archetect_api::ClientMessage;
 use archetect_terminal_io::TerminalClient;
 
 use crate::archetype::render_context::RenderContext;
+use crate::errors::ArchetectError;
 use crate::io::AsyncClientIoHandle;
 use crate::proto;
 use crate::proto::archetect_service_client::ArchetectServiceClient;
 use crate::proto::script_message::Message;
 use crate::proto::ScriptMessage;
 
-pub async fn start(render_context: RenderContext, endpoint: String) -> anyhow::Result<()> {
+pub fn start(render_context: RenderContext, endpoint: String) -> Result<(), ArchetectError> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("Viable Tokio Runtime");
+
+    runtime
+        .block_on(async move {
+            return crate::client::start_async(render_context, endpoint).await;
+            // tokio::select! {
+            //     result = archetect_grpc::client::start(render_context) => {
+            //       return result;
+            //     },
+            //     _ = tokio::signal::ctrl_c() => {
+            //         return Ok(());
+            //     },
+            // }
+        })
+        .map_err(|err| ArchetectError::GeneralError(err.to_string()))?; //TODO: Create a better error
+
+    Ok(())
+}
+
+pub async fn start_async(render_context: RenderContext, endpoint: String) -> anyhow::Result<()> {
     let mut client = ArchetectServiceClient::connect(endpoint).await?;
 
     let (client_tx, client_rx) = tokio::sync::mpsc::channel(10);

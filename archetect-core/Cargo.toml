@@ -44,7 +44,7 @@ thiserror = { workspace = true }
 tonic = "0.11.0"
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1.15"
-tracing = { worksapce = true }
+tracing = { workspace = true }
 tracing-attributes = { workspace = true }
 tonic-health = "0.11.0"
 tonic-reflection = "0.11.0"

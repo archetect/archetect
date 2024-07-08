@@ -1,9 +1,9 @@
-use std::error::Error;
-use std::io::ErrorKind;
 use std::pin::Pin;
+use std::time::Duration;
 
 use rhai::Map;
 use tokio::sync::mpsc;
+use tokio::time::sleep;
 use tokio_stream::{Stream, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
@@ -25,8 +25,8 @@ pub struct ArchetectServiceCore {
 }
 
 impl ArchetectServiceCore {
-    pub fn builder(prototype: Archetect) -> Builder {
-        Builder::new(prototype)
+    pub fn builder(prototype: Archetect) -> ArchetectServiceCoreBuilder {
+        ArchetectServiceCoreBuilder::new(prototype)
     }
 
     pub fn prototype(&self) -> &Archetect {
@@ -34,11 +34,11 @@ impl ArchetectServiceCore {
     }
 }
 
-pub struct Builder {
+pub struct ArchetectServiceCoreBuilder {
     prototype: Archetect,
 }
 
-impl Builder {
+impl ArchetectServiceCoreBuilder {
     pub fn new(prototype: Archetect) -> Self {
         Self { prototype }
     }
@@ -69,6 +69,7 @@ impl ArchetectService for ArchetectServiceCore {
 
         let (client_tx, client_rx) = mpsc::channel(10);
         let (script_tx, script_rx) = mpsc::channel(10);
+        let client_failure_tx = client_tx.clone();
 
         let script_handle = AsyncScriptIoHandle::from_channels(script_tx, client_rx);
         let archetect = Archetect::builder()
@@ -86,13 +87,13 @@ impl ArchetectService for ArchetectServiceCore {
                         if !initialized {
                             let archetect = archetect.clone();
                             archetect_handle = Some(tokio::task::spawn_blocking(move || {
-                                if let Some(banner) = archetect.configuration().server().banner() {
-                                    archetect.request(ScriptMessage::Display(banner.to_string()));
-                                }
                                 if let ClientMessage {
                                     message: Some(Message::Initialize(initialize)),
                                 } = message
                                 {
+                                    if let Some(banner) = archetect.configuration().server().banner() {
+                                        let _ = archetect.request(ScriptMessage::Display(banner.to_string()));
+                                    }
                                     let answers = serde_yaml::from_str::<Map>(&initialize.answers_yaml).unwrap();
                                     let render_context = RenderContext::new(initialize.destination, answers)
                                         .with_switches(initialize.switches.iter().map(|v| v.to_string()).collect())
@@ -100,21 +101,22 @@ impl ArchetectService for ArchetectServiceCore {
                                             initialize.use_defaults.iter().map(|v| v.to_string()).collect(),
                                         )
                                         .with_use_defaults_all(initialize.use_defaults_all);
+
                                     match archetect.execute_action("default", render_context) {
                                         Ok(_success) => {
                                             info!("Successfully Rendered... Sending Disconnect");
-                                            archetect.request(ScriptMessage::CompleteSuccess);
+                                            let _ = archetect.request(ScriptMessage::CompleteSuccess);
                                         }
                                         Err(error) => {
                                             error!("Exited with Error: \n{:?}", error);
-                                            archetect.request(ScriptMessage::CompleteError {
+                                            let _ = archetect.request(ScriptMessage::CompleteError {
                                                 message: error.to_string(),
                                             });
                                             return;
                                         }
                                     }
                                 } else {
-                                    archetect.request(ScriptMessage::LogError(
+                                    let _ = archetect.request(ScriptMessage::LogError(
                                         "Improper Initialization Message".to_string(),
                                     ));
                                     return;
@@ -127,16 +129,27 @@ impl ArchetectService for ArchetectServiceCore {
                         }
                     }
                     Err(err) => {
-                        if let Some(io_err) = match_for_io_error(&err) {
-                            if io_err.kind() == ErrorKind::BrokenPipe {
-                                // here you can handle special case when client
-                                // disconnected in unexpected way
-                                warn!("\tclient disconnected: broken pipe");
-                                break;
-                            }
-                        }
+                        warn!("gRPC Error: {}. Sending Abort Message", err);
+                        // Regardless of error, send an Abort message to exit from Script Execution
+                        let _ = client_failure_tx
+                            .send(ClientMessage {
+                                message: Some(Message::Abort(())),
+                            })
+                            .await;
                     }
                 }
+            }
+            if let Some(handle) = archetect_handle {
+                tokio::select! {
+                    _ = handle => {
+                        info!("Archetect Thread Closed Successfully");
+                    },
+                    _ = sleep(Duration::from_secs(5)) => {
+                        error!("Archetect Thread Failed to Close within 5 seconds");
+                    }
+                };
+            } else {
+                warn!("No Archetect Thread allocated")
             }
             info!("Client Disconnected");
         });
@@ -149,26 +162,3 @@ impl ArchetectService for ArchetectServiceCore {
 }
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<proto::ScriptMessage, Status>> + Send>>;
-
-fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
-    let mut err: &(dyn Error + 'static) = err_status;
-
-    loop {
-        if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
-            return Some(io_err);
-        }
-
-        // h2::Error do not expose std::io::Error with `source()`
-        // https://github.com/hyperium/h2/pull/462
-        if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
-            if let Some(io_err) = h2_err.get_io() {
-                return Some(io_err);
-            }
-        }
-
-        err = match err.source() {
-            Some(err) => err,
-            None => return None,
-        };
-    }
-}

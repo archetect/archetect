@@ -16,13 +16,13 @@ pub struct ArchetectServer {
     listener: Arc<Mutex<Option<TcpListener>>>,
 }
 
-pub struct Builder {
+pub struct ArchetectServerBuilder {
     core: ArchetectServiceCore,
 }
 
-impl Builder {
-    pub fn new(core: ArchetectServiceCore) -> Builder {
-        Builder { core }
+impl ArchetectServerBuilder {
+    pub fn new(core: ArchetectServiceCore) -> ArchetectServerBuilder {
+        ArchetectServerBuilder { core }
     }
 
     pub async fn build(self) -> Result<ArchetectServer, ArchetectError> {
@@ -41,8 +41,8 @@ impl Builder {
 }
 
 impl ArchetectServer {
-    pub fn builder(core: ArchetectServiceCore) -> Builder {
-        Builder::new(core)
+    pub fn builder(core: ArchetectServiceCore) -> ArchetectServerBuilder {
+        ArchetectServerBuilder::new(core)
     }
 
     pub fn service_port(&self) -> u16 {

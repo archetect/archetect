@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
-use crate::actions::action_info::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
+
 use crate::{Archetect, CacheCommand};
+use crate::actions::action_info::{RenderArchetypeInfo, RenderCatalogInfo, RenderGroupInfo};
+use crate::actions::ConnectInfo;
 use crate::errors::ArchetectError;
 use crate::source::SourceCommand;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ArchetectAction {
     #[serde(rename = "group")]
-    RenderGroup{
+    RenderGroup {
         description: String,
         #[serde(flatten)]
         info: RenderGroupInfo,
@@ -19,10 +21,16 @@ pub enum ArchetectAction {
         info: RenderCatalogInfo,
     },
     #[serde(rename = "archetype")]
-    RenderArchetype{
+    RenderArchetype {
         description: String,
         #[serde(flatten)]
         info: RenderArchetypeInfo,
+    },
+    #[serde(rename = "connect")]
+    Connect {
+        description: String,
+        #[serde(flatten)]
+        info: ConnectInfo,
     },
 }
 
@@ -31,7 +39,8 @@ impl ArchetectAction {
         match self {
             ArchetectAction::RenderGroup { description, info: _ } => description.as_str(),
             ArchetectAction::RenderCatalog { description, info: _ } => description.as_str(),
-            ArchetectAction::RenderArchetype { description, info: _} => description.as_str(),
+            ArchetectAction::RenderArchetype { description, info: _ } => description.as_str(),
+            ArchetectAction::Connect { description, info: _ } => description.as_str(),
         }
     }
 
@@ -74,6 +83,9 @@ impl ArchetectAction {
                     }
                     CacheCommand::View => unreachable!(),
                 }
+            }
+            ArchetectAction::Connect { .. } => {
+                // Do Nothing
             }
         }
 

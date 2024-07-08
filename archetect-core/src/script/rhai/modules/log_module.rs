@@ -1,15 +1,27 @@
-use crate::Archetect;
-use archetect_api::ScriptMessage;
 use rhai::plugin::*;
+
+use archetect_api::ScriptMessage;
+
+use crate::Archetect;
 
 pub fn register(engine: &mut Engine, archetect: Archetect) {
     engine.register_global_module(exported_module!(module).into());
     engine.register_fn("log", move |level: LogLevel, message: &str| match level {
-        LogLevel::Info => archetect.request(ScriptMessage::LogInfo(message.to_string())),
-        LogLevel::Trace => archetect.request(ScriptMessage::LogTrace(message.to_string())),
-        LogLevel::Debug => archetect.request(ScriptMessage::LogDebug(message.to_string())),
-        LogLevel::Warn => archetect.request(ScriptMessage::LogWarn(message.to_string())),
-        LogLevel::Error => archetect.request(ScriptMessage::LogError(message.to_string())),
+        LogLevel::Info => {
+            let _ = archetect.request(ScriptMessage::LogInfo(message.to_string()));
+        }
+        LogLevel::Trace => {
+            let _ = archetect.request(ScriptMessage::LogTrace(message.to_string()));
+        }
+        LogLevel::Debug => {
+            let _ = archetect.request(ScriptMessage::LogDebug(message.to_string()));
+        }
+        LogLevel::Warn => {
+            let _ = archetect.request(ScriptMessage::LogWarn(message.to_string()));
+        }
+        LogLevel::Error => {
+            let _ = archetect.request(ScriptMessage::LogError(message.to_string()));
+        }
     });
 }
 

@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use rhai::Map;
 use serde::{Deserialize, Serialize};
-use crate::actions::ArchetectAction;
 
+use crate::actions::ArchetectAction;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RenderGroupInfo {
@@ -12,9 +12,7 @@ pub struct RenderGroupInfo {
 
 impl RenderGroupInfo {
     pub fn new(entries: Vec<ArchetectAction>) -> RenderGroupInfo {
-        RenderGroupInfo {
-            entries,
-        }
+        RenderGroupInfo { entries }
     }
 
     pub fn actions(&self) -> &Vec<ArchetectAction> {
@@ -33,9 +31,7 @@ pub struct RenderCatalogInfo {
 
 impl RenderCatalogInfo {
     pub fn new<S: Into<String>>(source: S) -> RenderCatalogInfo {
-        RenderCatalogInfo {
-            source: source.into(),
-        }
+        RenderCatalogInfo { source: source.into() }
     }
 
     pub fn source(&self) -> &str {
@@ -50,9 +46,13 @@ pub struct RenderArchetypeInfo {
     pub answers: Option<Map>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switches: Option<HashSet<String>>,
-    #[serde(rename = "use_defaults",skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "use_defaults", skip_serializing_if = "Option::is_none")]
     pub use_defaults: Option<HashSet<String>>,
-    #[serde(rename = "use_defaults_all", skip_serializing_if = "Option::is_none", alias = "use_defaults_unanswered")]
+    #[serde(
+        rename = "use_defaults_all",
+        skip_serializing_if = "Option::is_none",
+        alias = "use_defaults_unanswered"
+    )]
     pub use_defaults_all: Option<bool>,
 }
 
@@ -74,3 +74,86 @@ impl RenderArchetypeInfo {
     }
 }
 
+impl ContextExtensionInfo for RenderArchetypeInfo {
+    fn answers(&self) -> &Option<Map> {
+        &self.answers
+    }
+    fn switches(&self) -> &Option<HashSet<String>> {
+        &self.switches
+    }
+    fn use_defaults(&self) -> &Option<HashSet<String>> {
+        &self.use_defaults
+    }
+    fn use_defaults_all(&self) -> Option<bool> {
+        self.use_defaults_all
+    }
+}
+
+impl ContextExtensionInfo for &RenderArchetypeInfo {
+    fn answers(&self) -> &Option<Map> {
+        &self.answers
+    }
+    fn switches(&self) -> &Option<HashSet<String>> {
+        &self.switches
+    }
+    fn use_defaults(&self) -> &Option<HashSet<String>> {
+        &self.use_defaults
+    }
+    fn use_defaults_all(&self) -> Option<bool> {
+        self.use_defaults_all
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConnectInfo {
+    pub endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answers: Option<Map>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub switches: Option<HashSet<String>>,
+    #[serde(rename = "use_defaults", skip_serializing_if = "Option::is_none")]
+    pub use_defaults: Option<HashSet<String>>,
+    #[serde(
+        rename = "use_defaults_all",
+        skip_serializing_if = "Option::is_none",
+        alias = "use_defaults_unanswered"
+    )]
+    pub use_defaults_all: Option<bool>,
+}
+
+impl ContextExtensionInfo for ConnectInfo {
+    fn answers(&self) -> &Option<Map> {
+        &self.answers
+    }
+    fn switches(&self) -> &Option<HashSet<String>> {
+        &self.switches
+    }
+    fn use_defaults(&self) -> &Option<HashSet<String>> {
+        &self.use_defaults
+    }
+    fn use_defaults_all(&self) -> Option<bool> {
+        self.use_defaults_all
+    }
+}
+
+impl ContextExtensionInfo for &ConnectInfo {
+    fn answers(&self) -> &Option<Map> {
+        &self.answers
+    }
+    fn switches(&self) -> &Option<HashSet<String>> {
+        &self.switches
+    }
+    fn use_defaults(&self) -> &Option<HashSet<String>> {
+        &self.use_defaults
+    }
+    fn use_defaults_all(&self) -> Option<bool> {
+        self.use_defaults_all
+    }
+}
+
+pub trait ContextExtensionInfo {
+    fn answers(&self) -> &Option<Map>;
+    fn switches(&self) -> &Option<HashSet<String>>;
+    fn use_defaults(&self) -> &Option<HashSet<String>>;
+    fn use_defaults_all(&self) -> Option<bool>;
+}

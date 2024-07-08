@@ -43,6 +43,9 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
                     ArchetectAction::RenderArchetype { info, .. } => {
                         cache_manager.manage_archetype(info)?;
                     }
+                    ArchetectAction::Connect { .. } => {
+                        // Do Nothing
+                    }
                 },
             }
         }

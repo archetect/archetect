@@ -1,21 +1,23 @@
 pub use answer_error::AnswerFileError;
+pub use archetect_client_error::ArchetectIoDriverError;
 pub use archetect_error::ArchetectError;
 pub use archetect_script_error::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 pub use archetype_error::ArchetypeError;
 pub use catalog_error::CatalogError;
 pub use render_error::RenderError;
 pub use requirements_error::RequirementsError;
+pub use server_error::ArchetectServerError;
 pub use source_error::SourceError;
 pub use system_error::SystemError;
-pub use server_error::ArchetectServerError;
 
 mod answer_error;
+mod archetect_client_error;
 mod archetect_error;
 mod archetect_script_error;
 mod archetype_error;
 mod catalog_error;
 mod render_error;
 mod requirements_error;
+mod server_error;
 mod source_error;
 mod system_error;
-mod server_error;

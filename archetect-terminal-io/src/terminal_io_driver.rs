@@ -1,4 +1,6 @@
-use archetect_api::{ClientMessage, ScriptIoHandle, ScriptMessage, SyncClientIoHandle, SyncIoDriver, SyncScriptIoHandle};
+use archetect_api::{
+    ClientMessage, ScriptIoHandle, ScriptMessage, SyncClientIoHandle, SyncIoDriver, SyncScriptIoHandle,
+};
 
 use crate::TerminalClient;
 
@@ -8,11 +10,10 @@ pub struct TerminalIoDriver<SIO, CIO> {
     terminal_client: TerminalClient<CIO>,
 }
 
-impl ScriptIoHandle for TerminalIoDriver<SyncScriptIoHandle, SyncClientIoHandle>
-{
-    fn send(&self, request: ScriptMessage) {
+impl ScriptIoHandle for TerminalIoDriver<SyncScriptIoHandle, SyncClientIoHandle> {
+    fn send(&self, request: ScriptMessage) -> Option<()> {
         self.script_handle.send(request);
-        self.terminal_client.receive_script_message().expect("Working Client");
+        self.terminal_client.receive_script_message().ok()
     }
 
     fn receive(&self) -> Option<ClientMessage> {

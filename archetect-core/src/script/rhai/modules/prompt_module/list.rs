@@ -1,10 +1,10 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{ScriptMessage, ClientMessage, ListPromptInfo, PromptInfo};
+use archetect_api::{ClientMessage, ListPromptInfo, PromptInfo, ScriptMessage};
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::script::rhai::modules::prompt_module::{extract_prompt_info, extract_prompt_items_restrictions};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
@@ -47,25 +47,29 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
             let defaults = defaults.into_iter().map(|v| v.to_string()).collect();
             prompt_info.set_default(Some(defaults));
         } else {
-            let error = ArchetypeScriptError::default_type_error(default.to_string(), &prompt_info, "an Array of Strings");
+            let error =
+                ArchetypeScriptError::default_type_error(default.to_string(), &prompt_info, "an Array of Strings");
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
     }
 
-    if archetect.is_headless() || render_context.use_defaults_all() || render_context.use_defaults().contains(prompt_info.key().unwrap_or("")) {
+    if archetect.is_headless()
+        || render_context.use_defaults_all()
+        || render_context.use_defaults().contains(prompt_info.key().unwrap_or(""))
+    {
         if let Some(default) = prompt_info.defaults() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
             return Ok(None);
         } else {
             // TODO: Validate empty list
-            return Ok(vec![].into())
+            return Ok(vec![].into());
         }
     }
 
-    archetect.request(ScriptMessage::PromptForList(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForList(prompt_info.clone()))?;
 
-    match archetect.receive() {
+    match archetect.receive()? {
         ClientMessage::Array(answer) => {
             return Ok(Some(answer.into()));
         }
@@ -82,10 +86,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
         ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
-        },
+        }
         response => {
             let error = ArchetypeScriptError::unexpected_prompt_response(&prompt_info, "Array of Strings", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
-    }
+    };
 }

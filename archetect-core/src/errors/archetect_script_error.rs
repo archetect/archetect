@@ -1,7 +1,14 @@
 use rhai::{EvalAltResult, NativeCallContext};
 
 use archetect_api::{ClientMessage, PromptInfo};
-use ArchetypeScriptError::{AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError, HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError, KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting, KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse};
+use ArchetypeScriptError::{
+    AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError,
+    HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError,
+    KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting,
+    KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse,
+};
+
+use crate::errors::ArchetectIoDriverError;
 use crate::errors::ArchetypeScriptError::KeyedInvalidSetSetting;
 
 #[derive(Debug, thiserror::Error)]
@@ -88,9 +95,7 @@ pub enum ArchetypeScriptError {
     #[error("{0}")]
     PromptError(String),
     #[error("When supplying a destination to a 'render', the destination must be either a String or a Path, but '{actual}' was provided")]
-    RenderDestinationTypeError {
-        actual: String,
-    },
+    RenderDestinationTypeError { actual: String },
     #[error("The '{prompt}' prompt expects {expected}, but received {actual}")]
     UnexpectedPromptResponse {
         prompt: String,
@@ -105,9 +110,9 @@ pub enum ArchetypeScriptError {
         key: String,
     },
     #[error("The path '{path}' contains path manipulation patterns, which are not allowed. Rendering and other file operations are restricted to the destination directory")]
-    PathManipulationError {
-        path: String,
-    }
+    PathManipulationError { path: String },
+    #[error(transparent)]
+    ArchetectClientError(ArchetectIoDriverError),
 }
 
 impl ArchetypeScriptError {
@@ -125,6 +130,7 @@ impl ArchetypeScriptError {
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => "Unexpected Response",
             ArchetypeScriptError::RenderDestinationTypeError { .. } => "Invalid Destination",
             ArchetypeScriptError::PathManipulationError { .. } => "Path Error",
+            ArchetypeScriptError::ArchetectClientError(..) => "Client Error",
         }
     }
 
@@ -142,6 +148,7 @@ impl ArchetypeScriptError {
             KeyedInvalidSetSetting { .. } => ErrorType::Function,
             ArchetypeScriptError::RenderDestinationTypeError { .. } => ErrorType::Function,
             ArchetypeScriptError::PathManipulationError { .. } => ErrorType::Function,
+            ArchetypeScriptError::ArchetectClientError(..) => ErrorType::System,
         }
     }
 
@@ -302,11 +309,7 @@ impl ArchetypeScriptError {
         }
     }
 
-    pub fn unexpected_prompt_response<'a, P, E>(
-        prompt: &P,
-        expected: E,
-        actual: ClientMessage,
-    ) -> ArchetypeScriptError
+    pub fn unexpected_prompt_response<'a, P, E>(prompt: &P, expected: E, actual: ClientMessage) -> ArchetypeScriptError
     where
         P: PromptInfo,
         E: Into<String>,

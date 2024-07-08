@@ -1,11 +1,13 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{ScriptMessage, ClientMessage, MultiSelectPromptInfo, PromptInfo};
+use archetect_api::{ClientMessage, MultiSelectPromptInfo, PromptInfo, ScriptMessage};
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
-use crate::script::rhai::modules::prompt_module::{extract_prompt_info, extract_prompt_info_pageable, extract_prompt_items_restrictions};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::script::rhai::modules::prompt_module::{
+    extract_prompt_info, extract_prompt_info_pageable, extract_prompt_items_restrictions,
+};
 
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
@@ -21,8 +23,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
 
     let mut prompt_info = MultiSelectPromptInfo::new(message, key, options.clone());
 
-    extract_prompt_info(&mut prompt_info, settings)
-        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    extract_prompt_info(&mut prompt_info, settings).map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
     extract_prompt_items_restrictions(&mut prompt_info, settings)
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
     extract_prompt_info_pageable(&mut prompt_info, settings)
@@ -92,40 +93,39 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    if archetect.is_headless() || render_context.use_defaults_all() || render_context.use_defaults().contains(prompt_info.key().unwrap_or("")) {
+    if archetect.is_headless()
+        || render_context.use_defaults_all()
+        || render_context.use_defaults().contains(prompt_info.key().unwrap_or(""))
+    {
         if let Some(default) = prompt_info.defaults() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
             return Ok(None);
         } else {
             // TODO: Validate empty list
-            return Ok(vec![].into())
+            return Ok(vec![].into());
         }
     }
 
-    archetect.request(ScriptMessage::PromptForMultiSelect(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForMultiSelect(prompt_info.clone()))?;
 
-    match archetect.receive() {
-        ClientMessage::Array(answer) => {
-            return Ok(Some(answer));
-        }
+    return match archetect.receive()? {
+        ClientMessage::Array(answer) => Ok(Some(answer)),
         ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
-                return Err(ArchetypeScriptErrorWrapper(call, error).into());
+                Err(ArchetypeScriptErrorWrapper(call, error).into())
             } else {
-                return Ok(None);
+                Ok(None)
             }
         }
         ClientMessage::Error(error) => {
-            return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
+            Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into())
         }
-        ClientMessage::Abort => {
-            return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
-        },
+        ClientMessage::Abort => Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position()))),
         response => {
             let error = ArchetypeScriptError::unexpected_prompt_response(&prompt_info, "Array of Strings", response);
-            return Err(ArchetypeScriptErrorWrapper(call, error).into());
+            Err(ArchetypeScriptErrorWrapper(call, error).into())
         }
-    }
+    };
 }

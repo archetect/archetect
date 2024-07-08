@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::{Dynamic, Map};
-use std::collections::HashSet;
-use crate::actions::RenderArchetypeInfo;
+
+use crate::actions::ContextExtensionInfo;
 
 #[derive(Clone, Debug)]
 pub struct RenderContext {
@@ -25,18 +27,18 @@ impl RenderContext {
         }
     }
 
-    pub fn with_archetype_info(mut self, info: &RenderArchetypeInfo) -> Self {
-        if let Some(answers) = info.answers() {
+    pub fn extend_with<T: ContextExtensionInfo>(mut self, extension_info: &T) -> Self {
+        if let Some(answers) = extension_info.answers() {
             let mut answers = answers.clone();
             self.answers.append(&mut answers);
         }
-        if let Some(switches) = info.switches() {
+        if let Some(switches) = extension_info.switches() {
             self = self.with_switches(switches.clone());
         }
-        if let Some(use_defaults) = info.use_defaults() {
+        if let Some(use_defaults) = extension_info.use_defaults() {
             self = self.with_use_defaults(use_defaults.clone());
         }
-        if let Some(use_defaults_all) = info.use_defaults_all() {
+        if let Some(use_defaults_all) = extension_info.use_defaults_all() {
             self = self.with_use_defaults_all(use_defaults_all);
         }
         self
@@ -102,7 +104,7 @@ impl RenderContext {
         self.use_defaults.insert(default.into());
         self
     }
-    
+
     pub fn with_use_defaults(mut self, defaults: HashSet<String>) -> Self {
         self.set_use_defaults(defaults);
         self

@@ -2,7 +2,7 @@ use assert_matches::assert_matches;
 use camino::Utf8PathBuf;
 use rhai::Map;
 
-use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ClientMessage, PromptInfo, PromptInfoLengthRestrictions, ScriptMessage};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
@@ -63,7 +63,7 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::None);
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message, "Required: 'Service Port:' is not optional\nin call to function \
         'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
     });
@@ -88,7 +88,7 @@ fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::Integer(5));
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message, "Answer Invalid: '5' was provided as an answer to 'Management Port:', \
         but Answer must be between 1024 and 65535.\nin call to function 'prompt' @ \
         'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 11, position 27)");
@@ -109,7 +109,7 @@ fn test_scalar_int_prompt_unexpected() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::String("8080".to_string()));
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message,"Unexpected Response: The 'Service Port:' prompt expects Int, but received \
         String(\"8080\")\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' \
         (line 7, position 24)");

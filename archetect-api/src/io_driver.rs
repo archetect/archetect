@@ -3,13 +3,12 @@ use std::sync::{Arc, mpsc, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use dyn_clone::DynClone;
-
 use tracing::warn;
 
 use crate::{ClientMessage, ScriptMessage};
 
 pub trait ScriptIoHandle: DynClone + Debug + Send + Sync + 'static {
-    fn send(&self, request: ScriptMessage);
+    fn send(&self, request: ScriptMessage) -> Option<()>;
 
     fn receive(&self) -> Option<ClientMessage>;
 }
@@ -79,8 +78,8 @@ pub struct SyncScriptIoHandle {
 }
 
 impl ScriptIoHandle for SyncScriptIoHandle {
-    fn send(&self, request: ScriptMessage) {
-        self.script_tx.send(request).expect("Send Error");
+    fn send(&self, request: ScriptMessage) -> Option<()> {
+        self.script_tx.send(request).ok()
     }
 
     fn receive(&self) -> Option<ClientMessage> {

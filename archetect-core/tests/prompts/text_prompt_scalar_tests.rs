@@ -2,7 +2,7 @@ use assert_matches::assert_matches;
 use camino::Utf8PathBuf;
 use rhai::Map;
 
-use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ClientMessage, PromptInfo, PromptInfoLengthRestrictions, ScriptMessage};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
@@ -65,7 +65,7 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::None);
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message, "Required: 'Service Prefix:' is not optional\nin call to function \
         'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
     });
@@ -85,7 +85,7 @@ fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::String("".to_string()));
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message, "Answer Invalid: '' was provided as an answer to 'Service Prefix:', \
         but Answer must have greater than 1 characters.\nin call to function 'prompt' @ \
         'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
@@ -106,7 +106,7 @@ fn test_scalar_text_prompt_unexpected() -> Result<(), ArchetectError> {
 
     harness.respond(ClientMessage::Integer(1));
 
-    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::CompleteError{ message } => {
         assert_eq!(message, "Unexpected Response: The 'Service Prefix:' prompt expects a String, but received \
         Integer(1)\nin call to function 'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' \
         (line 7, position 26)");

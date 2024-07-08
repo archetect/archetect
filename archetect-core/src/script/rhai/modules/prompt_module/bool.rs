@@ -1,10 +1,10 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{BoolPromptInfo, ScriptMessage, ClientMessage, PromptInfo};
+use archetect_api::{BoolPromptInfo, ClientMessage, PromptInfo, ScriptMessage};
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info};
 
 // TODO: Better help messages
@@ -20,12 +20,9 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     let default = cast_setting("defaults_with", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    let mut prompt_info = BoolPromptInfo::new(message, key)
-        .with_default(default)
-        ;
+    let mut prompt_info = BoolPromptInfo::new(message, key).with_default(default);
 
-    extract_prompt_info(&mut prompt_info, settings)
-        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    extract_prompt_info(&mut prompt_info, settings).map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
     if let Some(answer) = answer {
         return match get_boolean(answer.to_string().as_str()) {
@@ -41,11 +38,14 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         };
     }
 
-    if archetect.is_headless() || render_context.use_defaults_all() || render_context.use_defaults().contains(prompt_info.key().unwrap_or("")){
+    if archetect.is_headless()
+        || render_context.use_defaults_all()
+        || render_context.use_defaults().contains(prompt_info.key().unwrap_or(""))
+    {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
-            return Ok(None)
+            return Ok(None);
         }
         if archetect.is_headless() {
             let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
@@ -53,9 +53,9 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    archetect.request(ScriptMessage::PromptForBool(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForBool(prompt_info.clone()))?;
 
-    match archetect.receive() {
+    match archetect.receive()? {
         ClientMessage::Boolean(answer) => {
             return Ok(Some(answer));
         }
@@ -72,12 +72,12 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
         ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
-        },
+        }
         response => {
             let error = ArchetypeScriptError::unexpected_prompt_response(&prompt_info, "a Boolean", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
-    }
+    };
 }
 
 fn get_boolean<V: AsRef<str>>(value: V) -> Result<bool, ()> {

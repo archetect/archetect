@@ -26,7 +26,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             .extract(ArgExtractor::flag("updates.force", "force-update"))
             .extract(ArgExtractor::flag("offline", "offline"))
             .extract(ArgExtractor::flag("headless", "headless"))
-            .extract(ArgExtractor::flag("locals.enabled", "locals"))
+            .extract(ArgExtractor::flag("locals.enabled", "local"))
             .extract(ArgExtractor::flag("security.allow_exec", "allow-exec"))
             .extract(ArgExtractor::u16("server.port", "port"))
             .extract(ArgExtractor::string("server.host", "host")),
@@ -72,17 +72,17 @@ fn smart_merge(figments: Vec<Figment>) -> Result<Figment> {
 
 #[cfg(test)]
 mod tests {
-    use archetect_core::system::NativeSystemLayout;
+    use archetect_core::system::RootedSystemLayout;
 
     use crate::cli;
     use crate::configuration::figment_config::load_user_config;
 
     #[test]
     fn test_actions_merge() -> anyhow::Result<()> {
-        let layout = NativeSystemLayout::new()?;
+        let layout = RootedSystemLayout::temp()?;
         let arg_vec = vec!["archetect"];
         let matches = cli::command().get_matches_from(arg_vec);
-        let configuration = load_user_config(&layout, &matches)?;
+        let _configuration = load_user_config(&layout, &matches)?;
         Ok(())
     }
 }

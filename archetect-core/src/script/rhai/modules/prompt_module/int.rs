@@ -1,12 +1,14 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{ScriptMessage, ClientMessage, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ClientMessage, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions, ScriptMessage};
 use archetect_validations::validate_int_size;
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
-use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::script::rhai::modules::prompt_module::{
+    cast_setting, extract_prompt_info, extract_prompt_length_restrictions,
+};
 
 pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
@@ -20,12 +22,9 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
     let default = cast_setting("defaults_with", settings, message, key.clone())
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
-    let mut prompt_info = IntPromptInfo::new(message, key)
-        .with_default(default)
-        ;
+    let mut prompt_info = IntPromptInfo::new(message, key).with_default(default);
 
-    extract_prompt_info(&mut prompt_info, settings)
-        .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
+    extract_prompt_info(&mut prompt_info, settings).map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
     extract_prompt_length_restrictions(&mut prompt_info, settings)
         .map_err(|error| ArchetypeScriptErrorWrapper(call, error))?;
 
@@ -45,22 +44,24 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
         };
     }
 
-    if archetect.is_headless() || render_context.use_defaults_all() || render_context.use_defaults().contains(prompt_info.key().unwrap_or("")) {
+    if archetect.is_headless()
+        || render_context.use_defaults_all()
+        || render_context.use_defaults().contains(prompt_info.key().unwrap_or(""))
+    {
         if let Some(default) = prompt_info.default() {
             return Ok(Some(default));
         } else if prompt_info.optional() {
-            return Ok(None)
+            return Ok(None);
         }
         if archetect.is_headless() {
             let error = ArchetypeScriptError::headless_no_answer(&prompt_info);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
-
     }
 
-    archetect.request(ScriptMessage::PromptForInt(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForInt(prompt_info.clone()))?;
 
-    match archetect.receive() {
+    return match archetect.receive()? {
         ClientMessage::Integer(answer) => match validate_int_size(prompt_info.min(), prompt_info.max(), answer) {
             Ok(_) => Ok(Some(answer)),
             Err(error_message) => {
@@ -82,10 +83,10 @@ pub fn prompt_int<'a, K: AsRef<str> + Clone>(
         }
         ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
-        },
+        }
         response => {
             let error = ArchetypeScriptError::unexpected_prompt_response(&prompt_info, "Int", response);
             return Err(ArchetypeScriptErrorWrapper(call, error).into());
         }
-    }
+    };
 }

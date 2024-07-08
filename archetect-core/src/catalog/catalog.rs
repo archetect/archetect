@@ -54,7 +54,7 @@ impl Catalog {
         self.inner.manifest.entries()
     }
 
-    pub fn render(&self, mut render_context: RenderContext) -> Result<(), ArchetectError> {
+    pub fn render(&self, render_context: RenderContext) -> Result<(), ArchetectError> {
         let mut catalog = self.clone();
 
         loop {
@@ -71,23 +71,29 @@ impl Catalog {
                 }
                 ArchetectAction::RenderArchetype { description: _, info } => {
                     let archetype = self.archetect.new_archetype(info.source())?;
-                    render_context = render_context.with_archetype_info(&info);
 
                     archetype.check_requirements()?;
-                    let _result = archetype.render(render_context)?;
+                    let _result = archetype.render(render_context.extend_with(&info))?;
                     return Ok(());
                 }
                 ArchetectAction::RenderGroup {
                     description: _,
                     info: _,
                 } => unreachable!(),
+                ArchetectAction::Connect { info, .. } => {
+                    crate::client::start(render_context.extend_with(&info), info.endpoint)?;
+                    return Ok(());
+                }
             }
         }
     }
 
-    pub fn select_from_entries(&self, mut entry_items: Vec<ArchetectAction>) -> Result<ArchetectAction, CatalogError> {
+    pub fn select_from_entries(
+        &self,
+        mut entry_items: Vec<ArchetectAction>,
+    ) -> Result<ArchetectAction, ArchetectError> {
         if entry_items.is_empty() {
-            return Err(CatalogError::EmptyGroup);
+            return Err(CatalogError::EmptyGroup.into());
         }
 
         loop {
@@ -101,9 +107,9 @@ impl Catalog {
             // TODO: handle page size
             let prompt_info = SelectPromptInfo::new("Catalog Selection:", key, options).with_default(default);
 
-            self.archetect.request(ScriptMessage::PromptForSelect(prompt_info));
+            self.archetect.request(ScriptMessage::PromptForSelect(prompt_info))?;
 
-            match self.archetect.receive() {
+            match self.archetect.receive()? {
                 ClientMessage::String(answer) => {
                     // TODO: Handle item missing error
                     let action = options_map.get(&answer).expect("Required Catalog Item").clone();
@@ -113,17 +119,18 @@ impl Catalog {
                         }
                         ArchetectAction::RenderCatalog { .. } => return Ok(action),
                         ArchetectAction::RenderArchetype { .. } => return Ok(action),
+                        ArchetectAction::Connect { .. } => return Ok(action),
                     }
                 }
                 ClientMessage::None => {
-                    return Err(CatalogError::SelectionCancelled);
+                    return Err(CatalogError::SelectionCancelled.into());
                 }
                 ClientMessage::Abort => {
-                    return Err(CatalogError::SelectionCancelled);
+                    return Err(CatalogError::SelectionCancelled.into());
                 }
                 _response => {
                     // TODO: Better error handling
-                    return Err(CatalogError::SelectionCancelled);
+                    return Err(CatalogError::SelectionCancelled.into());
                 }
             }
         }

@@ -14,7 +14,7 @@ use crate::Archetect;
 use crate::archetype::archetype_directory::ArchetypeDirectory;
 use crate::archetype::archetype_manifest::ArchetypeManifest;
 use crate::archetype::render_context::RenderContext;
-use crate::errors::{ArchetypeError, RenderError};
+use crate::errors::{ArchetectError, ArchetypeError, RenderError};
 use crate::script::create_environment;
 use crate::script::rhai::create_engine;
 use crate::source::Source;
@@ -66,7 +66,7 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, render_context: RenderContext) -> Result<Dynamic, ArchetypeError> {
+    pub fn render(&self, render_context: RenderContext) -> Result<Dynamic, ArchetectError> {
         let mut scope = Scope::new();
         scope.push_constant("ANSWERS", render_context.answers_owned());
         scope.push_constant("SWITCHES", render_context.switches_as_array());
@@ -81,16 +81,21 @@ impl Archetype {
                 Ok(result) => Ok(result),
                 Err(error) => {
                     return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {
-                        Err(ArchetypeError::ScriptAbortError)
+                        // TODO: Send Client Message?
+                        Err(ArchetypeError::ScriptAbortError.into())
                     } else {
-                        self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
-                        Err(ArchetypeError::ScriptAbortError)
+                        self.archetect.request(ScriptMessage::CompleteError {
+                            message: format!("{}", error),
+                        })?;
+                        Err(ArchetypeError::ScriptAbortError.into())
                     };
                 }
             },
             Err(error) => {
-                self.archetect.request(ScriptMessage::LogError(format!("{}", error)));
-                return Err(ArchetypeError::ScriptAbortError);
+                self.archetect.request(ScriptMessage::CompleteError {
+                    message: format!("{}", error),
+                })?;
+                return Err(ArchetypeError::ScriptAbortError.into());
             }
         }
     }
@@ -108,12 +113,12 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
     source: SRC,
     destination: DEST,
     overwrite_policy: OverwritePolicy,
-) -> Result<(), RenderError> {
+) -> Result<(), ArchetectError> {
     let source = source.into();
     let destination = destination.into();
     archetect.request(ScriptMessage::WriteDirectory(WriteDirectoryInfo {
         path: destination.to_string(),
-    }));
+    }))?;
     let _response = archetect.receive();
 
     for entry in fs::read_dir(&source).map_err(|err| RenderError::DirectoryListError {
@@ -130,7 +135,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
             let destination = render_destination(environment, context, &destination, &path)?;
             archetect.request(ScriptMessage::WriteDirectory(WriteDirectoryInfo {
                 path: destination.to_string(),
-            }));
+            }))?;
             let _response = archetect.receive();
             render_directory(environment, archetect, context, path, destination, overwrite_policy)?;
         } else if path.is_file() {
@@ -152,7 +157,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                         destination: destination.to_string(),
                         contents: contents.into_bytes(),
                         existing_file_policy: overwrite_policy.into(),
-                    }));
+                    }))?;
                     let _response = archetect.receive();
                 }
                 RuleAction::COPY => {
@@ -160,7 +165,7 @@ pub fn render_directory<SRC: Into<Utf8PathBuf>, DEST: Into<Utf8PathBuf>>(
                         destination: destination.to_string(),
                         contents,
                         existing_file_policy: overwrite_policy.into(),
-                    }));
+                    }))?;
                     let _response = archetect.receive();
                 }
                 RuleAction::SKIP => {}

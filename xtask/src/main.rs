@@ -1,11 +1,11 @@
 use std::process::Command;
+
 use clap::ArgMatches;
 
 mod cli;
 
 fn main() -> anyhow::Result<()> {
-    let args = cli::command()
-        .get_matches();
+    let args = cli::command().get_matches();
 
     match args.subcommand() {
         None => println!("Subcommands are required, and should be handled by Clap configuration"),
@@ -23,18 +23,13 @@ fn main() -> anyhow::Result<()> {
 fn build(args: &ArgMatches) -> anyhow::Result<()> {
     let cargo = std::env::var("CARGO")?;
     let mut command = Command::new(cargo);
-    command
-        .arg("install")
-        .arg("--path=archetect-bin")
-        ;
+    command.arg("install").arg("--path=archetect-bin/");
 
     if args.get_flag("openssl-static") {
         command.env("OPENSSL_STATIC", "1");
     }
 
-    command
-        .status()
-        .expect("Error installing Archetect");
+    command.status().expect("Error installing Archetect");
 
     Ok(())
 }

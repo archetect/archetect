@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 
 use archetect_inquire::{InquireError, Select};
-use crate::actions::{ArchetectAction, RenderArchetypeInfo};
 
+use crate::actions::{ArchetectAction, RenderArchetypeInfo};
 use crate::Archetect;
 use crate::catalog::{Catalog, CatalogItem};
 use crate::errors::{ArchetectError, CatalogError};
@@ -29,24 +29,21 @@ impl CacheManager {
 
             let operations = select_management_operations(&choice);
             match Select::new("Operation:", operations).prompt() {
-                Ok(operation) => {
-                    match operation {
-                        CacheCommand::View => {
-                            if let ArchetectAction::RenderCatalog { description: _, info} = choice {
-                                catalog = self.archetect.new_catalog(info.source())?;
-                                continue;
-                            }
+                Ok(operation) => match operation {
+                    CacheCommand::View => {
+                        if let ArchetectAction::RenderCatalog { description: _, info } = choice {
+                            catalog = self.archetect.new_catalog(info.source())?;
+                            continue;
                         }
-                        _ => {
-                            choice.execute_cache_command(&self.archetect, operation)?;
-                            break;
-                        },
                     }
-                }
+                    _ => {
+                        choice.execute_cache_command(&self.archetect, operation)?;
+                        break;
+                    }
+                },
                 Err(_) => {
                     break;
                 }
-
             }
         }
 
@@ -85,14 +82,12 @@ impl CacheManager {
 
             match prompt.prompt() {
                 Ok(item) => match item.entry {
-                    ArchetectAction::RenderGroup {
-                        description: _,
-                        info,
-                    } => {
+                    ArchetectAction::RenderGroup { description: _, info } => {
                         entry_items = info.entries;
                     }
                     ArchetectAction::RenderCatalog { .. } => return Ok(item.entry()),
                     ArchetectAction::RenderArchetype { .. } => return Ok(item.entry()),
+                    ArchetectAction::Connect { .. } => return Ok(item.entry()),
                 },
                 Err(err) => {
                     return match err {
@@ -117,8 +112,9 @@ fn select_management_operations(catalog_entry: &ArchetectAction) -> Vec<CacheCom
         ArchetectAction::RenderCatalog { .. } => {
             operations.insert(0, CacheCommand::View);
             operations.insert(2, CacheCommand::PullAll);
-        },
+        }
         ArchetectAction::RenderArchetype { .. } => {}
+        ArchetectAction::Connect { .. } => {}
     }
     operations
 }

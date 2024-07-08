@@ -43,7 +43,7 @@ fn main() {
                 ArchetectError::ArchetypeError(ScriptAbortError) => {}
                 ArchetectError::CatalogError(CatalogError::SelectionCancelled) => {}
                 _ => {
-                    driver.send(ScriptMessage::LogError(format!("{}", error)));
+                    let _ = driver.send(ScriptMessage::LogError(format!("{}", error)));
                 }
             }
 
@@ -108,7 +108,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(
                 .get_one::<String>("endpoint")
                 .expect("Required by Clap")
                 .to_string();
-            subcommands::handle_connect_subcommand(render_context, endpoint)?
+            archetect_core::client::start(render_context, endpoint)?
         }
         Some((_, _args)) => {
             let action = matches.get_one::<String>("action").expect("Expected an action");

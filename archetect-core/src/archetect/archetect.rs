@@ -10,7 +10,7 @@ use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 use crate::catalog::{Catalog, CatalogManifest};
 use crate::configuration::Configuration;
-use crate::errors::ArchetectError;
+use crate::errors::{ArchetectError, ArchetectIoDriverError};
 use crate::source::Source;
 use crate::system::{RootedSystemLayout, SystemLayout};
 
@@ -109,16 +109,26 @@ impl Archetect {
         &self.inner.layout
     }
 
-    pub fn request(&self, command: ScriptMessage) {
-        self.inner.script_io_handle.send(command)
-    }
-
     pub fn configuration(&self) -> &Configuration {
         &self.inner.configuration
     }
 
-    pub fn receive(&self) -> ClientMessage {
-        self.inner.script_io_handle.receive().expect("Received Message")
+    pub fn request(&self, command: ScriptMessage) -> Result<(), ArchetectIoDriverError> {
+        match self.inner.script_io_handle.send(command) {
+            None => Err(ArchetectIoDriverError::ScriptChannelClosed),
+            Some(_) => Ok(()),
+        }
+    }
+
+    pub fn receive(&self) -> Result<ClientMessage, ArchetectIoDriverError> {
+        match self.inner.script_io_handle.receive() {
+            None => Err(ArchetectIoDriverError::ClientDisconnected),
+            Some(message) => match message {
+                ClientMessage::Error(message) => Err(ArchetectIoDriverError::ClientError { message }),
+                ClientMessage::Abort => Err(ArchetectIoDriverError::ClientDisconnected),
+                other => Ok(other),
+            },
+        }
     }
 
     pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {
@@ -172,7 +182,10 @@ impl Archetect {
                     ArchetectAction::RenderArchetype { info, .. } => {
                         let archetype = self.new_archetype(info.source())?;
                         archetype.check_requirements()?;
-                        let _ = archetype.render(render_context.with_archetype_info(&info))?;
+                        let _ = archetype.render(render_context.extend_with(&info))?;
+                    }
+                    ArchetectAction::Connect { info, .. } => {
+                        crate::client::start(render_context.extend_with(info), info.endpoint.to_string())?;
                     }
                 }
                 return Ok(());
