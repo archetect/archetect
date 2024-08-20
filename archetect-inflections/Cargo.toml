@@ -17,3 +17,6 @@ readme = "CRATE_README.md"
 
 [dependencies]
 regex = { workspace = true }
+
+[features]
+unstable = []
