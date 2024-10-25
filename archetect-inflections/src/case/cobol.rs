@@ -30,6 +30,7 @@ pub fn is_cobol_case(test_string: &str) -> bool {
 /// assert_eq!(to_cobol_case("FooBar"), "FOO-BAR");
 /// assert_eq!(to_cobol_case("fooBar"), "FOO-BAR");
 /// assert_eq!(to_cobol_case("fooBar3"), "FOO-BAR3");
+/// assert_eq!(to_cobol_case("fooBar3a"), "FOO-BAR3A");
 /// ```
 pub fn to_cobol_case(input: &str) -> String {
     to_kebab_case(input).to_uppercase()

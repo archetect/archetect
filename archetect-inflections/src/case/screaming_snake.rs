@@ -11,6 +11,7 @@ use crate::case::*;
 /// assert_eq!(to_screaming_snake_case("FooBar"), "FOO_BAR");
 /// assert_eq!(to_screaming_snake_case("fooBar"), "FOO_BAR");
 /// assert_eq!(to_screaming_snake_case("fooBar3"), "FOO_BAR3");
+/// assert_eq!(to_screaming_snake_case("fooBar3a"), "FOO_BAR3A");
 /// ```
 pub fn to_screaming_snake_case(input: &str) -> String {
     to_snake_case(input).to_uppercase()
@@ -23,6 +24,7 @@ pub fn to_screaming_snake_case(input: &str) -> String {
 ///
 /// assert!(is_screaming_snake_case("FOO_BAR_STRING_THAT_IS_REALLY_REALLY_LONG"));
 /// assert!(is_screaming_snake_case("FOO_BAR1_STRING_THAT_IS_REALLY_REALLY_LONG"));
+/// assert!(is_screaming_snake_case("FOO_BAR1_STRING_THAT_IS_REALLY_REALLY3A_LONG"));
 /// assert!(is_screaming_snake_case("FOO_BAR1_STRING_THAT_IS_REALLY_REALLY_LONG"));
 ///
 /// assert!(!is_screaming_snake_case("Foo bar string that is really really long"));

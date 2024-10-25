@@ -14,6 +14,8 @@ use crate::string::singularize::to_singular;
 /// assert_eq!(to_class_case("FOO_BAR"), "FooBar");
 /// assert_eq!(to_class_case("foo_bars"), "FooBar");
 /// assert_eq!(to_class_case("Foo bar"), "FooBar");
+/// assert_eq!(to_class_case("Foo bar6"), "FooBar6");
+/// assert_eq!(to_class_case("Foo bar6a"), "FooBar6a");
 /// ```
 pub fn to_class_case(non_class_case_string: &str) -> String {
     let options = CamelOptions {
@@ -23,7 +25,7 @@ pub fn to_class_case(non_class_case_string: &str) -> String {
         injectable_char: ' ',
         has_seperator: false,
         inverted: false,
-        concat_num: true,
+        concat_num: false,
     };
     let class_plural = to_case_camel_like(non_class_case_string, options);
     let split: (&str, &str) =
@@ -38,6 +40,7 @@ pub fn to_class_case(non_class_case_string: &str) -> String {
 ///
 /// assert!(is_class_case("Foo"));
 /// assert!(is_class_case("FooBarIsAReallyReallyLongString"));
+/// assert!(is_class_case("FooBarIsAReallyReally3longString"));
 ///
 /// assert!(!is_class_case("foo"));
 /// assert!(!is_class_case("FooBarIsAReallyReallyLongStrings"));

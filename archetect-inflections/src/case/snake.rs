@@ -12,6 +12,7 @@ use crate::case::*;
 /// assert_eq!(to_snake_case("FOO_BAR"),  "foo_bar");
 /// assert_eq!(to_snake_case("fooBar"),  "foo_bar");
 /// assert_eq!(to_snake_case("fooBar3"),  "foo_bar3");
+/// assert_eq!(to_snake_case("fooBar3a"),  "foo_bar3a");
 /// ```
 pub fn to_snake_case(input: &str) -> String {
     let options = CamelOptions {
@@ -21,7 +22,7 @@ pub fn to_snake_case(input: &str) -> String {
         injectable_char: '_',
         has_seperator: true,
         inverted: true,
-        concat_num: true,
+        concat_num: false,
     };
     to_case_camel_like(input, options)
 }

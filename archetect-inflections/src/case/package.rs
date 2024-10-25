@@ -30,6 +30,7 @@ pub fn is_package_case(test_string: &str) -> bool {
 /// assert_eq!(to_package_case("FooBar"), "foo.bar");
 /// assert_eq!(to_package_case("fooBar"), "foo.bar");
 /// assert_eq!(to_package_case("fooBar3"), "foo.bar3");
+/// assert_eq!(to_package_case("fooBar3a"), "foo.bar3a");
 /// ```
 pub fn to_package_case(input: &str) -> String {
     let options = CamelOptions {
@@ -39,7 +40,7 @@ pub fn to_package_case(input: &str) -> String {
         injectable_char: '.',
         has_seperator: true,
         inverted: true,
-        concat_num: true,
+        concat_num: false,
     };
     to_case_camel_like(input, options)
 }

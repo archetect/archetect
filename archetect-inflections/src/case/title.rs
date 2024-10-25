@@ -10,6 +10,7 @@ use crate::case::*;
 /// assert!(to_title_case("FOO_BAR") == "Foo Bar");
 /// assert!(to_title_case("foo_bar") == "Foo Bar");
 /// assert!(to_title_case("foo-bar") == "Foo Bar");
+/// assert!(to_title_case("foo-bar-a1a") == "Foo Bar A1a");
 /// ```
 pub fn to_title_case(non_title_case_string: &str) -> String {
     let options = CamelOptions {

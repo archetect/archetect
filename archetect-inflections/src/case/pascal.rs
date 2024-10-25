@@ -12,6 +12,7 @@ use crate::case::*;
 /// assert_eq!(to_pascal_case("foo-bar"), "FooBar");
 /// assert_eq!(to_pascal_case("FooBar"), "FooBar");
 /// assert_eq!(to_pascal_case("FooBar3"), "FooBar3");
+/// assert_eq!(to_pascal_case("FooBar3a"), "FooBar3a");
 /// ```
 pub fn to_pascal_case(non_pascalized_string: &str) -> String {
     let options = CamelOptions {
@@ -21,7 +22,7 @@ pub fn to_pascal_case(non_pascalized_string: &str) -> String {
         injectable_char: ' ',
         has_seperator: false,
         inverted: false,
-        concat_num: true,
+        concat_num: false,
     };
     to_case_camel_like(non_pascalized_string, options)
 }
@@ -33,7 +34,7 @@ pub fn to_pascal_case(non_pascalized_string: &str) -> String {
 ///
 /// assert!(is_pascal_case("Foo"));
 /// assert!(is_pascal_case("FooBarIsAReallyReallyLongString"));
-/// assert!(is_pascal_case("FooBarIsAReallyReally3LongString"));
+/// assert!(is_pascal_case("FooBarIsAReallyReally3longString"));
 /// assert!(is_pascal_case("FooBarIsAReallyReallyLongString"));
 ///
 /// assert!(!is_pascal_case("foo"));

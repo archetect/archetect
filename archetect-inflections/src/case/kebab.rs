@@ -29,6 +29,7 @@ pub fn is_kebab_case(test_string: &str) -> bool {
 /// assert_eq!(to_kebab_case("FooBar"), "foo-bar");
 /// assert_eq!(to_kebab_case("fooBar"), "foo-bar");
 /// assert_eq!(to_kebab_case("fooBar3"), "foo-bar3");
+/// assert_eq!(to_kebab_case("p6m-dev"), "p6m-dev");
 /// ```
 pub fn to_kebab_case(non_kebab_case_string: &str) -> String {
     let options = CamelOptions {
@@ -38,7 +39,7 @@ pub fn to_kebab_case(non_kebab_case_string: &str) -> String {
         injectable_char: '-',
         has_seperator: true,
         inverted: true,
-        concat_num: true,
+        concat_num: false,
     };
     to_case_camel_like(non_kebab_case_string, options)
 }

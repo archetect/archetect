@@ -28,6 +28,7 @@ pub fn is_train_case(test_string: &str) -> bool {
 /// assert!(to_train_case("Foo-Bar") == "Foo-Bar");
 /// assert!(to_train_case("FooBar") == "Foo-Bar");
 /// assert!(to_train_case("fooBar") == "Foo-Bar");
+/// assert!(to_train_case("fooBar3a") == "Foo-Bar3a");
 /// ```
 pub fn to_train_case(non_train_case_string: &str) -> String {
     let options = CamelOptions {
@@ -37,7 +38,7 @@ pub fn to_train_case(non_train_case_string: &str) -> String {
         injectable_char: '-',
         has_seperator: true,
         inverted: false,
-        concat_num: true,
+        concat_num: false,
     };
     to_case_camel_like(non_train_case_string, options)
 }
