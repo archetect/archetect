@@ -113,7 +113,7 @@ fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> R
     let action = matches.get_one::<String>("action").expect("Expected an action");
     match archetect.configuration().action(&action) {
         None => {
-            return Err(ArchetectError::MissingAction(
+            Err(ArchetectError::MissingAction(
                 action.to_owned(),
                 archetect
                     .configuration()
@@ -121,26 +121,28 @@ fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> R
                     .keys()
                     .map(|v| v.to_string())
                     .collect::<Vec<String>>(),
-            ));
-
+            ))
         }
         Some(command) => {
             match command {
                 ArchetectAction::RenderGroup{info, ..} => {
                     let catalog = Catalog::new(archetect.clone(), CatalogManifest::new().with_entries(info.actions().clone()));
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
+                    let destination = Utf8PathBuf::from(destination);
                     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
                     catalog.render(render_context)?;
                 }
                 ArchetectAction::RenderCatalog{info, ..} => {
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
+                    let destination = Utf8PathBuf::from(destination);
                     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
                     let catalog = archetect.new_catalog(info.source())?;
                     catalog.check_requirements()?;
                     catalog.render(render_context)?;
                 }
                 ArchetectAction::RenderArchetype{info, ..} => {
-                    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+                    let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
+                    let destination = Utf8PathBuf::from(destination);
                     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches)
                         .with_archetype_info(&info)
                         ;
