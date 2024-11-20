@@ -17,10 +17,10 @@ name = "archetect"
 path = "src/main.rs"
 
 [dependencies]
-archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.18" }
-archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.18" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.18" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.18" }
+archetect-core = { path = "../archetect-core", version = "2.0.0-ALPHA.19" }
+archetect-api = { path = "../archetect-api", version = "2.0.0-ALPHA.19" }
+archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0-ALPHA.19" }
+archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0-ALPHA.19" }
 
 ansi_term = { workspace = true }
 anyhow = { workspace = true }
