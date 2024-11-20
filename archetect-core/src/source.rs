@@ -375,7 +375,7 @@ fn is_branch(path: &str, gitref: &str) -> bool {
 }
 
 fn find_default_branch(path: &str) -> Result<String, SourceError> {
-    for candidate in &["develop", "main", "master"] {
+    for candidate in &["main", "master"] {
         if is_branch(path, candidate) {
             return Ok((*candidate).to_owned());
         }
