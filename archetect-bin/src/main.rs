@@ -165,7 +165,8 @@ fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(
 pub fn render(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let source = archetect.new_source(source)?;
-    let destination = Utf8PathBuf::from(matches.get_one::<String>("destination").unwrap());
+    let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
+    let destination = Utf8PathBuf::from(destination);
     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
     match source.source_contents() {
         SourceContents::Archetype => {
