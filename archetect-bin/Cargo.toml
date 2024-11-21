@@ -39,3 +39,6 @@ serde_json = { workspace = true }
 serde_yaml= { workspace = true }
 shellexpand = { workspace = true }
 
+[build-dependencies]
+embed-resource = "3.0.1"
+
