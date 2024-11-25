@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_compiler.rs
+source: archetect_templating/tests/test_compiler.rs
 expression: "&c.finish()"
 ---
 (

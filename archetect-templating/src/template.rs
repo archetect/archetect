@@ -72,7 +72,7 @@ impl<'env> Template<'env> {
     /// [`context!`](crate::context) macro can be used to create an ad-hoc context.
     ///
     /// ```
-    /// # use archetect_minijinja::{Environment, context};
+    /// # use archetect_templating::{Environment, context};
     /// # let mut env = Environment::new();
     /// # env.add_template("hello", "Hello {{ name }}!").unwrap();
     /// let tmpl = env.get_template("hello").unwrap();
@@ -99,7 +99,7 @@ impl<'env> Template<'env> {
     /// as it's evaluating into a [`io::Write`].
     ///
     /// ```
-    /// # use archetect_minijinja::{Environment, context};
+    /// # use archetect_templating::{Environment, context};
     /// # let mut env = Environment::new();
     /// # env.add_template("hello", "Hello {{ name }}!").unwrap();
     /// use std::io::stdout;

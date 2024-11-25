@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_parser.rs
+source: archetect_templating/tests/test_parser.rs
 description: "{{ value in sequence }}\n{{ value not in sequence }}\n{{ not value in sequence }}"
-input_file: archetect_minijinja/tests/parser-inputs/in.txt
+input_file: archetect_templating/tests/parser-inputs/in.txt
 ---
 Ok(
     Template {

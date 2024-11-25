@@ -1,5 +1,5 @@
 #![cfg(feature = "builtins")]
-use archetect_minijinja::filters::indent;
+use archetect_templating::filters::indent;
 
 #[test]
 fn test_indent_one_empty_line() {

@@ -1,9 +1,9 @@
 #![cfg(feature = "unstable_machinery")]
 use std::collections::BTreeMap;
 
-use archetect_minijinja::machinery::{make_string_output, CodeGenerator, Instruction, Instructions, Vm};
-use archetect_minijinja::value::Value;
-use archetect_minijinja::{AutoEscape, Environment, Error};
+use archetect_templating::machinery::{make_string_output, CodeGenerator, Instruction, Instructions, Vm};
+use archetect_templating::value::Value;
+use archetect_templating::{AutoEscape, Environment, Error};
 
 use similar_asserts::assert_eq;
 

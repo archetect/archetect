@@ -84,7 +84,7 @@ impl dyn Object {
     /// # Example
     ///
     /// ```rust
-    /// # use archetect_minijinja::value::{Value, Object};
+    /// # use archetect_templating::value::{Value, Object};
     /// use std::fmt;
     ///
     /// #[derive(Debug)]
@@ -180,7 +180,7 @@ pub enum ObjectKind<'a> {
 /// stringification and debug printing.
 ///
 /// ```
-/// use archetect_minijinja::value::{Value, SeqObject};
+/// use archetect_templating::value::{Value, SeqObject};
 ///
 /// struct Point(f32, f32, f32);
 ///
@@ -211,7 +211,7 @@ pub enum ObjectKind<'a> {
 ///
 /// ```
 /// use std::fmt;
-/// use archetect_minijinja::value::{Value, Object, ObjectKind, SeqObject};
+/// use archetect_templating::value::{Value, Object, ObjectKind, SeqObject};
 ///
 /// #[derive(Debug, Clone)]
 /// struct Point(f32, f32, f32);
@@ -362,7 +362,7 @@ impl<'a> ExactSizeIterator for SeqObjectIter<'a> {}
 /// for stringification and debug printing.
 ///
 /// ```
-/// use archetect_minijinja::value::{Value, StructObject};
+/// use archetect_templating::value::{Value, StructObject};
 ///
 /// struct Point(f32, f32, f32);
 ///
@@ -393,7 +393,7 @@ impl<'a> ExactSizeIterator for SeqObjectIter<'a> {}
 ///
 /// ```
 /// use std::fmt;
-/// use archetect_minijinja::value::{Value, Object, ObjectKind, StructObject};
+/// use archetect_templating::value::{Value, Object, ObjectKind, StructObject};
 ///
 /// #[derive(Debug, Clone)]
 /// struct Point(f32, f32, f32);

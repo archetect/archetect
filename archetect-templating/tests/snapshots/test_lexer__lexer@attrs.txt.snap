@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_lexer.rs
+source: archetect_templating/tests/test_lexer.rs
 description: "{# useless comment #}\n{{ foo.bar[baz].blah }}\n{{ {\"foo\": \"bar\"}.test }}\n{{ [1, 2, 3].test }}"
-input_file: archetect_minijinja/tests/lexer-inputs/attrs.txt
+input_file: archetect_templating/tests/lexer-inputs/attrs.txt
 ---
 TemplateData("\n")
   "\n"

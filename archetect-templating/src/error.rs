@@ -19,7 +19,7 @@ use crate::compiler::tokens::Span;
 /// Here is an example of you might want to render errors:
 ///
 /// ```rust
-/// # let mut env = archetect_minijinja::Environment::new();
+/// # let mut env = archetect_templating::Environment::new();
 /// # env.add_template("", "");
 /// # let template = env.get_template("").unwrap(); let ctx = ();
 /// match template.render(ctx) {

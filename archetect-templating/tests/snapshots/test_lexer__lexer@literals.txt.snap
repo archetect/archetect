@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_lexer.rs
+source: archetect_templating/tests/test_lexer.rs
 description: "{{ true }}\n{{ false }}\n{{ null }}\n{{ 1.0 }}\n{{ 2 }}\n{{ [1, 2, 3] }}\n{{ {\"foo\": \"bar\"} }}"
-input_file: archetect_minijinja/tests/lexer-inputs/literals.txt
+input_file: archetect_templating/tests/lexer-inputs/literals.txt
 ---
 VariableStart
   "{{"

@@ -11,8 +11,8 @@
 //! resolving them from the environment.
 //!
 //! ```
-//! use archetect_minijinja::{Environment, Error};
-//! use archetect_minijinja::testutils::apply_filter;
+//! use archetect_templating::{Environment, Error};
+//! use archetect_templating::testutils::apply_filter;
 //!
 //! fn add(a: u32, b: u32) -> Result<u32, Error> {
 //!     Ok(a + b)
@@ -38,7 +38,7 @@ use crate::State;
 /// use is otherwise private.
 ///
 /// ```
-/// # use archetect_minijinja::{Environment, testutils::format};
+/// # use archetect_templating::{Environment, testutils::format};
 /// let mut env = Environment::new();
 /// env.set_formatter(|out, state, value| {
 ///     write!(out, "{:?}", value)?;
@@ -57,7 +57,7 @@ pub fn format(env: &Environment, value: Value) -> Result<String, Error> {
 /// Invokes a filter of an environment.
 ///
 /// ```
-/// # use archetect_minijinja::{Environment, testutils::apply_filter};
+/// # use archetect_templating::{Environment, testutils::apply_filter};
 /// let mut env = Environment::new();
 /// let rv = apply_filter(&env, "upper", &["hello world".into()]).unwrap();
 /// assert_eq!(rv.as_str(), Some("HELLO WORLD"));
@@ -73,7 +73,7 @@ pub fn apply_filter(env: &Environment, filter: &str, args: &[Value]) -> Result<V
 /// Invokes a test of an environment.
 ///
 /// ```
-/// # use archetect_minijinja::{Environment, testutils::perform_test};
+/// # use archetect_templating::{Environment, testutils::perform_test};
 /// let mut env = Environment::new();
 /// let rv = perform_test(&env, "even", &[42i32.into()]).unwrap();
 /// assert!(rv);
@@ -89,7 +89,7 @@ pub fn perform_test(env: &Environment, test: &str, args: &[Value]) -> Result<boo
 /// Invokes a global function.
 ///
 /// ```
-/// # use archetect_minijinja::{Environment, testutils::invoke_global};
+/// # use archetect_templating::{Environment, testutils::invoke_global};
 /// let mut env = Environment::new();
 /// let rv = invoke_global(&env, "range", &[3u32.into()]).unwrap();
 /// assert_eq!(rv.to_string(), "[0, 1, 2]");

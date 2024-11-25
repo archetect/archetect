@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_lexer.rs
+source: archetect_templating/tests/test_lexer.rs
 description: "{% for item in seq -%}\n  {{ item }}{% endfor %}"
-input_file: archetect_minijinja/tests/lexer-inputs/block-filter.txt
+input_file: archetect_templating/tests/lexer-inputs/block-filter.txt
 ---
 BlockStart
   "{%"

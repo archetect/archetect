@@ -87,7 +87,7 @@ impl Source {
     /// Creates an empty source.
     ///
     /// ```rust
-    /// # use archetect_minijinja::{Source, Environment};
+    /// # use archetect_templating::{Source, Environment};
     /// fn create_env() -> Environment<'static> {
     ///     let mut env = Environment::new();
     ///     let mut source = Source::new();
@@ -114,7 +114,7 @@ impl Source {
     /// # Example
     ///
     /// ```rust
-    /// # use archetect_minijinja::{Source, Environment};
+    /// # use archetect_templating::{Source, Environment};
     /// fn create_env() -> Environment<'static> {
     ///     let mut env = Environment::new();
     ///     env.set_source(Source::with_loader(|name| {
@@ -151,7 +151,7 @@ impl Source {
     /// # Example
     ///
     /// ```rust
-    /// # use archetect_minijinja::{Source, Environment};
+    /// # use archetect_templating::{Source, Environment};
     /// fn create_env() -> Environment<'static> {
     ///     let mut env = Environment::new();
     ///     env.set_source(Source::from_path("path/to/templates"));

@@ -1,8 +1,8 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{{ 10 % 0 }}"
 info: {}
-input_file: archetect_minijinja/tests/inputs/int_rem_by_zero.txt
+input_file: archetect_templating/tests/inputs/int_rem_by_zero.txt
 ---
 !!!ERROR!!!
 

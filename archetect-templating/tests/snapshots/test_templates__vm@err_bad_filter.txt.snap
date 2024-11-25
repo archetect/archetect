@@ -1,8 +1,8 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% for item in 42|slice(4) %}\n  - {{ item }}\n{% endfor %}"
 info: {}
-input_file: archetect_minijinja/tests/inputs/err_bad_filter.txt
+input_file: archetect_templating/tests/inputs/err_bad_filter.txt
 ---
 !!!ERROR!!!
 

@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "<ul>\n{% for a, b in seq %}\n  <li>{{ a }}: {{ b }}\n{% endfor %}\n</ul>"
 info:
   seq:
@@ -12,7 +12,7 @@ info:
     - - 3
       - 4
       - 5
-input_file: archetect_minijinja/tests/inputs/loop_bad_unpacking_wrong_len.txt
+input_file: archetect_templating/tests/inputs/loop_bad_unpacking_wrong_len.txt
 ---
 !!!ERROR!!!
 

@@ -1,12 +1,12 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% for item in seq %}\n  {{ ((item + 4) * (3 - [])) + 4 - 2 }}\n{% endfor %}"
 info:
   seq:
     - 1
     - 2
     - 3
-input_file: archetect_minijinja/tests/inputs/err_bad_nested_subtraction.txt
+input_file: archetect_templating/tests/inputs/err_bad_nested_subtraction.txt
 ---
 !!!ERROR!!!
 

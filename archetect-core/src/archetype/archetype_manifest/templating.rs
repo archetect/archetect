@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
-use archetect_minijinja::UndefinedBehavior as MinijinjaUndefinedBehavior;
+use archetect_templating::UndefinedBehavior as MinijinjaUndefinedBehavior;
 
 const DEFAULT_CONTENT_DIRECTORY: &str = ".";
 const DEFAULT_TEMPLATES_DIRECTORY: &str = "templates";

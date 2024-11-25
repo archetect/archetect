@@ -35,13 +35,13 @@
 //!
 //! # Template Usage
 //!
-//! To use archetect_minijinja one needs to create an [`Environment`] and populate it with
+//! To use archetect_templating one needs to create an [`Environment`] and populate it with
 //! templates.  Afterwards templates can be loaded and rendered.  To pass data
 //! one can pass any serde serializable value.  The [`context!`] macro can be
 //! used to quickly construct a template context:
 //!
 //! ```
-//! use archetect_minijinja::{Environment, context};
+//! use archetect_templating::{Environment, context};
 //!
 //! let mut env = Environment::new();
 //! env.add_template("hello", "Hello {{ name }}!").unwrap();
@@ -65,7 +65,7 @@
 //! an expression object that can then be evaluated, returning the result:
 //!
 //! ```
-//! use archetect_minijinja::{Environment, context};
+//! use archetect_templating::{Environment, context};
 //!
 //! let env = Environment::new();
 //! let expr = env.compile_expression("number < 42").unwrap();
@@ -83,7 +83,7 @@
 //! invoked directly from the template:
 //!
 //! ```
-//! use archetect_minijinja::{Environment, context};
+//! use archetect_templating::{Environment, context};
 //!
 //! let mut env = Environment::new();
 //! env.add_filter("repeat", str::repeat);

@@ -1,9 +1,9 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "1:[{% block title %}{{ var }}{% endblock %}]\n2:({{ self.title() }})"
 info:
   var: foobar
-input_file: archetect_minijinja/tests/inputs/self.txt
+input_file: archetect_templating/tests/inputs/self.txt
 ---
 1:[foobar]
 2:(foobar)

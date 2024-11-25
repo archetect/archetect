@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_parser.rs
+source: archetect_templating/tests/test_parser.rs
 description: "{% filter foo|bar(1, 2)|baz %}...{% endfilter %}"
-input_file: archetect_minijinja/tests/parser-inputs/filter_block.txt
+input_file: archetect_templating/tests/parser-inputs/filter_block.txt
 ---
 Ok(
     Template {

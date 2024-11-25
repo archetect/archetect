@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "<ul>\n{% for op, (a, b) in seq %}\n  <li>{{ a }} {{ op }} {{ b }} = ?\n{% endfor %}\n</ul>"
 info:
   seq:
@@ -9,7 +9,7 @@ info:
     - - "-"
       - - 3
         - 4
-input_file: archetect_minijinja/tests/inputs/loop_unpacking.txt
+input_file: archetect_templating/tests/inputs/loop_unpacking.txt
 ---
 <ul>
 

@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{%- macro nest(children) -%}\n    <nest>\n    {%- for child in children -%}\n        <child>{{ nest(child.children) }}</child>\n    {%- endfor -%}\n    </nest>\n{%- endmacro -%}\n{% set not_nest = nest %}\n{% set nest = \"not callable\" %}\n{{ not_nest(top_level) }}"
 info:
   top_level:
@@ -8,7 +8,7 @@ info:
         - children: []
     - children:
         - children: []
-input_file: archetect_minijinja/tests/inputs/macro_recursive_alias.txt
+input_file: archetect_templating/tests/inputs/macro_recursive_alias.txt
 ---
 
 

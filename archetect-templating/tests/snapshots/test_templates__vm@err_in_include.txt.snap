@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% for a in seq %}\n  This fails in the include: {% include \"a_plus_b.txt\" %}\n{% endfor %}"
 info:
   b: []
@@ -7,7 +7,7 @@ info:
     - 1
     - 2
     - 3
-input_file: archetect_minijinja/tests/inputs/err_in_include.txt
+input_file: archetect_templating/tests/inputs/err_in_include.txt
 ---
 !!!ERROR!!!
 

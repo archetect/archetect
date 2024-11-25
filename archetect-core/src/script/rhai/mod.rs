@@ -2,7 +2,7 @@ use rhai::module_resolvers::FileModuleResolver;
 use rhai::Engine;
 use rhai::packages::Package;
 
-use archetect_minijinja::Environment;
+use archetect_templating::Environment;
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;

@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{%- for item in seq if item is even and loop is undefined %}\n- {{ item }} ({{ loop.index }} / {{ loop.length }})\n{%- endfor %}"
 info:
   seq:
@@ -13,7 +13,7 @@ info:
     - 8
     - 9
     - 10
-input_file: archetect_minijinja/tests/inputs/loop_filter.txt
+input_file: archetect_templating/tests/inputs/loop_filter.txt
 ---
 
 - 2 (1 / 5)

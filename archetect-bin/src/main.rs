@@ -98,6 +98,7 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         Some(("catalog", args)) => catalog(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
+        Some(("check", args)) => subcommands::handle_check_subcommand(args, &archetect)?,
         Some((_, _args)) => {
             execute_action(&matches, archetect, answers)?;
         },

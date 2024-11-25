@@ -1,9 +1,9 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% if value %}\n  was true\n{% endif %}"
 info:
   value: 42
-input_file: archetect_minijinja/tests/inputs/if_cond.txt
+input_file: archetect_templating/tests/inputs/if_cond.txt
 ---
 
   was true

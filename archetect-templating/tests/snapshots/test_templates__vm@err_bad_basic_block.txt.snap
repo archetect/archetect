@@ -1,8 +1,8 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% extends \"bad_basic_block.txt\" %}\n{% block title %}My Title{% endblock %}"
 info: {}
-input_file: archetect_minijinja/tests/inputs/err_bad_basic_block.txt
+input_file: archetect_templating/tests/inputs/err_bad_basic_block.txt
 ---
 !!!ERROR!!!
 

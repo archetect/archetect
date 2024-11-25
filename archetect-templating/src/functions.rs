@@ -25,9 +25,9 @@
 //! render invocation.
 //!
 //! ```rust
-//! # use archetect_minijinja::Environment;
+//! # use archetect_templating::Environment;
 //! # let mut env = Environment::new();
-//! use archetect_minijinja::{Error, ErrorKind};
+//! use archetect_templating::{Error, ErrorKind};
 //!
 //! fn include_file(name: String) -> Result<String, Error> {
 //!     std::fs::read_to_string(&name)
@@ -101,9 +101,9 @@ pub(crate) struct BoxedFunction(Arc<FuncFunc>, #[cfg(feature = "debug")] &'stati
 /// # Basic Example
 ///
 /// ```rust
-/// # use archetect_minijinja::Environment;
+/// # use archetect_templating::Environment;
 /// # let mut env = Environment::new();
-/// use archetect_minijinja::{Error, ErrorKind};
+/// use archetect_templating::{Error, ErrorKind};
 ///
 /// fn include_file(name: String) -> Result<String, Error> {
 ///     std::fs::read_to_string(&name)
@@ -123,9 +123,9 @@ pub(crate) struct BoxedFunction(Arc<FuncFunc>, #[cfg(feature = "debug")] &'stati
 /// # Variadic
 ///
 /// ```
-/// # use archetect_minijinja::Environment;
+/// # use archetect_templating::Environment;
 /// # let mut env = Environment::new();
-/// use archetect_minijinja::value::Rest;
+/// use archetect_templating::value::Rest;
 ///
 /// fn sum(values: Rest<i64>) -> i64 {
 ///     values.iter().sum()

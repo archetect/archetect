@@ -1,9 +1,9 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% with f = range %}{% for x in f(upper) %}{{ debug() }}{% endfor %}{% endwith %}"
 info:
   upper: 1
-input_file: archetect_minijinja/tests/inputs/debug.txt
+input_file: archetect_templating/tests/inputs/debug.txt
 ---
 State {
     name: "debug.txt",
@@ -27,14 +27,14 @@ State {
             previtem: Undefined,
             nextitem: Undefined,
         },
-        "f": archetect_minijinja::functions::builtins::range,
+        "f": archetect_templating::functions::builtins::range,
         "upper": 1,
     },
     env: Environment {
         globals: {
-            "debug": archetect_minijinja::functions::builtins::debug,
-            "dict": archetect_minijinja::functions::builtins::dict,
-            "range": archetect_minijinja::functions::builtins::range,
+            "debug": archetect_templating::functions::builtins::debug,
+            "dict": archetect_templating::functions::builtins::dict,
+            "range": archetect_templating::functions::builtins::range,
         },
         tests: [
             "!=",

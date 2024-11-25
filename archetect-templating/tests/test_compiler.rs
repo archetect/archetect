@@ -1,6 +1,6 @@
 #![cfg(feature = "unstable_machinery")]
-use archetect_minijinja::machinery::{CodeGenerator, Instruction};
-use archetect_minijinja::value::Value;
+use archetect_templating::machinery::{CodeGenerator, Instruction};
+use archetect_templating::value::Value;
 
 #[test]
 fn test_for_loop() {

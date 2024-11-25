@@ -1,9 +1,9 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{{ value|upper }}"
 info:
   value: foo bar baz
-input_file: archetect_minijinja/tests/inputs/filter.txt
+input_file: archetect_templating/tests/inputs/filter.txt
 ---
 FOO BAR BAZ
 

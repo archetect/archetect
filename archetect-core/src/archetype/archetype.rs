@@ -10,7 +10,7 @@ use rhai::{Dynamic, EvalAltResult, Map, Scope};
 
 use archetect_api::CommandRequest;
 use archetect_inquire::Confirm;
-use archetect_minijinja::Environment;
+use archetect_templating::Environment;
 
 use crate::Archetect;
 use crate::archetype::archetype_directory::ArchetypeDirectory;

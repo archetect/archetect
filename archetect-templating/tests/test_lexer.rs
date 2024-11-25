@@ -1,5 +1,5 @@
 #![cfg(feature = "unstable_machinery")]
-use archetect_minijinja::machinery::{tokenize, Span};
+use archetect_templating::machinery::{tokenize, Span};
 
 use std::fmt::Write;
 

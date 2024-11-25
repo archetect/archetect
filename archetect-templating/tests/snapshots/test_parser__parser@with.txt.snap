@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_parser.rs
+source: archetect_templating/tests/test_parser.rs
 description: "{% with a=foo, b=bar %}\n  {{ a }}|{{ b }}\n{% endwith %}\n\n{% with a=foo %}\n  {{ a }}\n{% endwith %}"
-input_file: archetect_minijinja/tests/parser-inputs/with.txt
+input_file: archetect_templating/tests/parser-inputs/with.txt
 ---
 Ok(
     Template {

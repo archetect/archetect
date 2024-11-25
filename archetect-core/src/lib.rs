@@ -10,7 +10,7 @@ mod utils;
 pub mod caching;
 mod cache_manager;
 pub mod actions;
-
+pub(crate) mod check;
 
 pub use cache_manager::*;
 

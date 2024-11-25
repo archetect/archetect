@@ -2,7 +2,7 @@ use camino::Utf8PathBuf;
 use rhai::plugin::*;
 use rhai::{Engine, EvalAltResult, Map, Module};
 
-use archetect_minijinja::Environment;
+use archetect_templating::Environment;
 
 use crate::archetype::archetype::{render_directory, Archetype, OverwritePolicy};
 use crate::archetype::render_context::RenderContext;

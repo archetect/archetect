@@ -14,14 +14,14 @@
 //! Values are typically created via the [`From`] trait:
 //!
 //! ```
-//! # use archetect_minijinja::value::Value;
+//! # use archetect_templating::value::Value;
 //! let value = Value::from(42);
 //! ```
 //!
 //! Or via the [`FromIterator`] trait:
 //!
 //! ```
-//! # use archetect_minijinja::value::Value;
+//! # use archetect_templating::value::Value;
 //! // collection into a sequence
 //! let value: Value = (1..10).into_iter().collect();
 //!
@@ -34,7 +34,7 @@
 //! triggered manually by using the [`Value::from_serializable`] method:
 //!
 //! ```
-//! # use archetect_minijinja::value::Value;
+//! # use archetect_templating::value::Value;
 //! let value = Value::from_serializable(&[1, 2, 3]);
 //! ```
 //!
@@ -42,7 +42,7 @@
 //! implementations can be used:
 //!
 //! ```
-//! # use archetect_minijinja::value::Value;
+//! # use archetect_templating::value::Value;
 //! use std::convert::TryFrom;
 //! let v = u64::try_from(Value::from(42)).unwrap();
 //! ```
@@ -81,7 +81,7 @@
 //!
 //! ```rust
 //! # use std::sync::Arc;
-//! # use archetect_minijinja::value::{Value, Object};
+//! # use archetect_templating::value::{Value, Object};
 //! #[derive(Debug)]
 //! struct Foo;
 //!
@@ -435,7 +435,7 @@ impl Default for Value {
 /// will only work during the template engine execution (eg: within filters etc.).
 ///
 /// ```
-/// use archetect_minijinja::value::{intern, Value};
+/// use archetect_templating::value::{intern, Value};
 /// let val = Value::from(intern("my_key"));
 /// ```
 pub fn intern(s: &str) -> Arc<String> {
@@ -463,7 +463,7 @@ impl Value {
     /// For more information see [`serializing_for_value`].
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
+    /// # use archetect_templating::value::Value;
     /// let val = Value::from_serializable(&vec![1, 2, 3]);
     /// ```
     ///
@@ -490,7 +490,7 @@ impl Value {
     /// supply the `|safe` filter, you can use a value of this type instead.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
+    /// # use archetect_templating::value::Value;
     /// let val = Value::from_safe_string("<em>note</em>".into());
     /// ```
     pub fn from_safe_string(value: String) -> Value {
@@ -502,7 +502,7 @@ impl Value {
     /// For more information see [`Object`].
     ///
     /// ```rust
-    /// # use archetect_minijinja::value::{Value, Object};
+    /// # use archetect_templating::value::{Value, Object};
     /// use std::fmt;
     ///
     /// #[derive(Debug)]
@@ -525,7 +525,7 @@ impl Value {
     /// `Arc` you can directly create the value from an arc'ed object:
     ///
     /// ```rust
-    /// # use archetect_minijinja::value::{Value, Object};
+    /// # use archetect_templating::value::{Value, Object};
     /// # #[derive(Debug)]
     /// # struct Thing { id: usize };
     /// # impl std::fmt::Display for Thing {
@@ -566,7 +566,7 @@ impl Value {
     /// Creates a callable value from a function.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
+    /// # use archetect_templating::value::Value;
     /// let pow = Value::from_function(|a: u32| a * a);
     /// ```
     pub fn from_function<F, Rv, Args>(f: F) -> Value
@@ -702,7 +702,7 @@ impl Value {
     /// Values without a length will return `None`.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
+    /// # use archetect_templating::value::Value;
     /// let seq = Value::from(vec![1, 2, 3, 4]);
     /// assert_eq!(seq.len(), Some(4));
     /// ```
@@ -727,9 +727,9 @@ impl Value {
     /// that has attributes.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
-    /// # fn test() -> Result<(), archetect_minijinja::Error> {
-    /// let ctx = archetect_minijinja::context! {
+    /// # use archetect_templating::value::Value;
+    /// # fn test() -> Result<(), archetect_templating::Error> {
+    /// let ctx = archetect_templating::context! {
     ///     foo => "Foo"
     /// };
     /// let value = ctx.get_attr("foo")?;
@@ -771,7 +771,7 @@ impl Value {
     /// This is a shortcut for [`get_item`](Self::get_item).
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
+    /// # use archetect_templating::value::Value;
     /// let seq = Value::from(vec![0u32, 1, 2]);
     /// let value = seq.get_item_by_index(1).unwrap();
     /// assert_eq!(value.try_into().ok(), Some(1));
@@ -788,8 +788,8 @@ impl Value {
     /// [`UNDEFINED`](Self::UNDEFINED) when an invalid key is looked up.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
-    /// let ctx = archetect_minijinja::context! {
+    /// # use archetect_templating::value::Value;
+    /// let ctx = archetect_templating::context! {
     ///     foo => "Foo",
     /// };
     /// let value = ctx.get_item(&Value::from("foo")).unwrap();
@@ -813,8 +813,8 @@ impl Value {
     /// * [`ValueKind::None`] / [`ValueKind::Undefined`]: the iterator is empty.
     ///
     /// ```
-    /// # use archetect_minijinja::value::Value;
-    /// # fn test() -> Result<(), archetect_minijinja::Error> {
+    /// # use archetect_templating::value::Value;
+    /// # fn test() -> Result<(), archetect_templating::Error> {
     /// let value = Value::from({
     ///     let mut m = std::collections::BTreeMap::new();
     ///     m.insert("foo", 42);
@@ -843,7 +843,7 @@ impl Value {
     /// # Example
     ///
     /// ```rust
-    /// # use archetect_minijinja::value::{Value, Object};
+    /// # use archetect_templating::value::{Value, Object};
     /// use std::fmt;
     ///
     /// #[derive(Debug)]

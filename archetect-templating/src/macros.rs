@@ -62,7 +62,7 @@ pub mod __context {
 /// Creates a template context with keys and values.
 ///
 /// ```rust
-/// # use archetect_minijinja::context;
+/// # use archetect_templating::context;
 /// let ctx = context! {
 ///     name => "Peter",
 ///     location => "World",
@@ -73,7 +73,7 @@ pub mod __context {
 /// be omitted:
 ///
 /// ```rust
-/// # use archetect_minijinja::context;
+/// # use archetect_templating::context;
 /// let name = "Peter";
 /// let ctx = context! { name };
 /// ```
@@ -84,7 +84,7 @@ pub mod __context {
 /// create nested objects:
 ///
 /// ```rust
-/// # use archetect_minijinja::context;
+/// # use archetect_templating::context;
 /// let ctx = context! {
 ///     nav => vec![
 ///         context!(path => "/", title => "Index"),
@@ -144,14 +144,14 @@ macro_rules! __context_pair {
 /// Passing context explicitly:
 ///
 /// ```
-/// # use archetect_minijinja::render;
+/// # use archetect_templating::render;
 /// println!("{}", render!("Hello {{ name }}!", name => "World"));
 /// ```
 ///
 /// Passing variables with the default name:
 ///
 /// ```
-/// # use archetect_minijinja::render;
+/// # use archetect_templating::render;
 /// let name = "World";
 /// println!("{}", render!("Hello {{ name }}!", name));
 /// ```
@@ -159,7 +159,7 @@ macro_rules! __context_pair {
 /// Passing an explicit environment:
 ///
 /// ```
-/// # use archetect_minijinja::{Environment, render};
+/// # use archetect_templating::{Environment, render};
 /// let env = Environment::new();
 /// println!("{}", render!(in env, "Hello {{ name }}!", name => "World"));
 /// ```

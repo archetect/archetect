@@ -1,9 +1,9 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{{'\\'' ~ 'foo'}}\n{{'\\'' ~ x ~ '\\''}}\n{{\"\\'\" ~ x ~ '\\''}}\n{{\"\\'\" ~ x ~ '\\''}}\n{{\"\nhello world\"}}\n{{\"hello\nworld\"}}"
 info:
   x: hello
-input_file: archetect_minijinja/tests/inputs/escape.txt
+input_file: archetect_templating/tests/inputs/escape.txt
 ---
 'foo
 'hello'

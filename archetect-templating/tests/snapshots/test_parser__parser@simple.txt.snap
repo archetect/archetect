@@ -1,7 +1,7 @@
 ---
-source: archetect_minijinja/tests/test_parser.rs
+source: archetect_templating/tests/test_parser.rs
 description: "Hello {{ world }}!"
-input_file: archetect_minijinja/tests/parser-inputs/simple.txt
+input_file: archetect_templating/tests/parser-inputs/simple.txt
 ---
 Ok(
     Template {

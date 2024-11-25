@@ -139,4 +139,9 @@ impl Archetect {
         let source = Source::new(self.clone(), path)?;
         Ok(source)
     }
+
+    pub fn check(&self) -> Result<(), ArchetectError> {
+        crate::check::check_all()?;
+        Ok(())
+    }
 }

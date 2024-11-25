@@ -11,7 +11,7 @@ pub enum RenderError {
     #[error( "Unable to render path `{path}`: {source}")]
     PathRenderError2 {
         path: PathBuf,
-        source: archetect_minijinja::Error,
+        source: archetect_templating::Error,
     },
     #[error("Unable to render file `{path}`: {source}")]
     FileRenderIOError {

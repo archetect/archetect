@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::{env, fs};
 
-use archetect_minijinja::value::{StructObject, Value};
-use archetect_minijinja::{context, Environment, Error, State};
+use archetect_templating::value::{StructObject, Value};
+use archetect_templating::{context, Environment, Error, State};
 
 use similar_asserts::assert_eq;
 
@@ -109,11 +109,11 @@ fn test_items_and_dictsort_with_structs() {
     }
 
     insta::assert_snapshot!(
-        archetect_minijinja::render!("{{ x|items }}", x => Value::from_struct_object(MyStruct)),
+        archetect_templating::render!("{{ x|items }}", x => Value::from_struct_object(MyStruct)),
         @r###"[["b", "B"], ["a", "A"]]"###
     );
     insta::assert_snapshot!(
-        archetect_minijinja::render!("{{ x|dictsort }}", x => Value::from_struct_object(MyStruct)),
+        archetect_templating::render!("{{ x|dictsort }}", x => Value::from_struct_object(MyStruct)),
         @r###"[["a", "A"], ["b", "B"]]"###
     );
 }
@@ -137,7 +137,7 @@ fn test_urlencode_with_struct() {
     }
 
     insta::assert_snapshot!(
-        archetect_minijinja::render!("{{ x|urlencode }}", x => Value::from_struct_object(MyStruct)),
+        archetect_templating::render!("{{ x|urlencode }}", x => Value::from_struct_object(MyStruct)),
         @"a=a%201&b=b%202"
     );
 }
@@ -209,7 +209,7 @@ fn test_auto_escaping() {
     // JSON
     #[cfg(feature = "json")]
     {
-        use archetect_minijinja::value::Value;
+        use archetect_templating::value::Value;
         let tmpl = env.get_template("index.js").unwrap();
         let rv = tmpl.render(context!(var => "foo\"bar'baz")).unwrap();
         insta::assert_snapshot!(rv, @r###""foo\"bar'baz""###);
@@ -227,7 +227,7 @@ fn test_auto_escaping() {
 
 #[test]
 fn test_loop_changed() {
-    let rv = archetect_minijinja::render!(
+    let rv = archetect_templating::render!(
         r#"
         {%- for i in items -%}
           {% if loop.changed(i) %}{{ i }}{% endif %}
@@ -240,7 +240,7 @@ fn test_loop_changed() {
 
 #[test]
 fn test_current_call_state() {
-    use archetect_minijinja::value::{Object, Value};
+    use archetect_templating::value::{Object, Value};
     use std::fmt;
 
     #[derive(Debug)]

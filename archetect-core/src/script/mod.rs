@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-use archetect_minijinja::{Environment, Source};
+use archetect_templating::{Environment, Source};
 
 use crate::Archetect;
 use crate::archetype::archetype::Archetype;

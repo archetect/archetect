@@ -152,6 +152,10 @@ pub fn command() -> Command {
                 .subcommand(Command::new("clear").about("Removes Archetect's entire Repository Cache"))
                 .subcommand(Command::new("pull").about("Pull all Archetypes and Catalogs in Archetect's Catalog")),
         )
+        .subcommand(
+            Command::new("check")
+                .about("Check Archetect's environment for problems")
+        )
         .allow_external_subcommands(true)
 }
 

@@ -1,5 +1,5 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{{ word in the_sentence }}\n{{ word in the_words }}\n{{ word in the_map }}\n{{ word not in the_sentence }}\n{{ word not in the_words }}\n{{ word not in the_map }}"
 info:
   the_map:
@@ -9,7 +9,7 @@ info:
     - bird
     - not bird
   word: bird
-input_file: archetect_minijinja/tests/inputs/in.txt
+input_file: archetect_templating/tests/inputs/in.txt
 ---
 true
 true

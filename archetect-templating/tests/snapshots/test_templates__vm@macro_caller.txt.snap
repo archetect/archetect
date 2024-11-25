@@ -1,8 +1,8 @@
 ---
-source: archetect_minijinja/tests/test_templates.rs
+source: archetect_templating/tests/test_templates.rs
 description: "{% macro render_dialog(title, class='dialog') -%}\n    <div class=\"{{ class }}\">\n        <h2>{{ title }}</h2>\n        <div class=\"contents\">\n            {{ caller() }}\n        </div>\n    </div>\n{%- endmacro %}\n\n{% call render_dialog('Hello World') %}\n    This is a simple dialog rendered by using a macro and\n    a call block.\n{% endcall %}\n\ncaller: {{ render_dialog.caller }}"
 info: {}
-input_file: archetect_minijinja/tests/inputs/macro_caller.txt
+input_file: archetect_templating/tests/inputs/macro_caller.txt
 ---
 
 
