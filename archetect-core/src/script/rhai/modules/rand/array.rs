@@ -81,7 +81,7 @@ pub mod array_functions {
     /// ```
     #[rhai_fn(global)]
     pub fn shuffle(array: &mut Array) {
-        let mut rng = thread_rng();
+        let mut rng = rand::thread_rng();
         array.shuffle(&mut rng);
     }
 }

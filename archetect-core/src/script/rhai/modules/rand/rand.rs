@@ -3,10 +3,9 @@ use rhai::plugin::*;
 
 #[export_module]
 pub mod rand_functions {
-    use rand::prelude::*;
     use rhai::{EvalAltResult, Position, INT};
     use std::ops::{Range, RangeInclusive};
-
+    use rand::Rng;
     #[cfg(feature = "float")]
     use rhai::FLOAT;
 
@@ -25,7 +24,7 @@ pub mod rand_functions {
     /// }
     /// ```
     pub fn rand_bool() -> bool {
-        random()
+        rand::random()
     }
 
     /// Generate a random boolean value with a probability of being `true`.

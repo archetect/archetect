@@ -6,6 +6,7 @@ use super::CHECK_PREFIX;
 
 pub fn perform_checks() -> Result<(), ArchetectError> {
     check_git_installed()?;
+    check_git_author()?;
     Ok(())
 }
 
@@ -15,18 +16,41 @@ pub fn check_git_installed() -> Result<(), ArchetectError> {
     match  Command::new("git").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
-                println!("\t{CHECK_SUCCESS} {}", String::from_utf8(output.stdout).expect("UTF-8 Version String"));
+                println!("\t{CHECK_SUCCESS} {}", String::from_utf8(output.stdout.trim_ascii().to_owned()).expect("UTF-8 Version String"));
             } else {
                 println!("\t{CHECK_ERROR} Git was found, but returned an unexpected Status Code: {}",  output.status.code().unwrap());
 
                 println!("\n\t Ensure that git is installed correctly.");
             }
         }
-        Err(error) => {
-            println!("\t Git is required, but was not found on the PATH");
+        Err(_error) => {
+            println!("\tGit is required, but was not found on the PATH");
             println!("\n\t Ensure that git is installed correctly.");
         }
     }
+    Ok(())
+}
+
+pub fn check_git_author() -> Result<(), ArchetectError> {
+    println!("\n{CHECK_PREFIX} Checking Git User Name and Email");
+    if let Ok(config) = git2::Config::open_default() {
+        let name = config.get_string("user.name");
+        let email = config.get_string("user.email");
+
+        if let (Ok(name), Ok(email)) = (name, email)  {
+            if !name.is_empty() && !email.is_empty() {
+                println!("\t{CHECK_SUCCESS} {} <{}>", name, email);
+            }
+        } else {
+            println!("\t{CHECK_ERROR} Git User Name or Email is empty.  Archetypes may use your Git\n\
+            User Name and Email to answer questions about code authorship.");
+
+            println!("\n\tExecute the following command to configure git:");
+            println!("\n\tgit config --global user.name \"<your name>\"");
+            println!("\tgit config --global user.email \"<your email>\"");
+        }
+    }
+
     Ok(())
 }
 
