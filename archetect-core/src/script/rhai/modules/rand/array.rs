@@ -21,7 +21,7 @@ pub mod array_functions {
     #[rhai_fn(global)]
     pub fn sample(array: &mut Array) -> Dynamic {
         if !array.is_empty() {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             if let Some(res) = array.choose(&mut rng) {
                 return res.clone();
             }
@@ -52,7 +52,7 @@ pub mod array_functions {
             return Array::new();
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let amount = amount as usize;
 
         if amount >= array.len() {
@@ -81,7 +81,7 @@ pub mod array_functions {
     /// ```
     #[rhai_fn(global)]
     pub fn shuffle(array: &mut Array) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         array.shuffle(&mut rng);
     }
 }

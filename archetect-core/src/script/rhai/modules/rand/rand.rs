@@ -53,7 +53,7 @@ pub mod rand_functions {
             )
                 .into())
         } else {
-            Ok(rand::thread_rng().gen_range(range))
+            Ok(rand::rng().random_range(range))
         }
     }
 
@@ -75,7 +75,7 @@ pub mod rand_functions {
             )
                 .into())
         } else {
-            Ok(rand::thread_rng().gen_range(range))
+            Ok(rand::rng().random_range(range))
         }
     }
 
@@ -97,7 +97,7 @@ pub mod rand_functions {
             )
                 .into())
         } else {
-            Ok(rand::thread_rng().gen_range(start..=end))
+            Ok(rand::rng().random_range(start..=end))
         }
     }
 }
