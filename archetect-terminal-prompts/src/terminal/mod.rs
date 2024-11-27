@@ -21,6 +21,7 @@ pub mod console;
 
 pub struct TerminalSize {
     pub width: u16,
+    #[allow(dead_code)]
     pub height: u16,
 }
 
