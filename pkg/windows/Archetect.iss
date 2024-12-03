@@ -29,6 +29,7 @@ Uninstallable=true
 [Files]
 Source: "pkg\windows\PathMgr.dll"; DestDir: "{app}"; Flags: uninsneveruninstall
 Source: "target\release\archetect.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Enable Long Paths Support in the Registry
 [Registry]
