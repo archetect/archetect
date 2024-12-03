@@ -3,7 +3,7 @@ fn main() {
 }
 
 fn configure_windows() {
-    static MANIFEST: &str = "pkg/windows/Manifest.xml";
+    static MANIFEST: &str = "../pkg/windows/Manifest.xml";
 
     let Ok(target_os) = std::env::var("CARGO_CFG_TARGET_OS") else { return };
     let Ok(target_env) = std::env::var("CARGO_CFG_TARGET_ENV") else { return };
