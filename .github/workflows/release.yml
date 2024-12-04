@@ -123,7 +123,7 @@ jobs:
 
       # Windows specific steps
       - name: Create Installer (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.platform == 'windows'
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
           VERSION: "${{ needs.create-release.outputs.version }}"
@@ -134,8 +134,9 @@ jobs:
       - name: Upload Windows Installer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: matrix.os == 'windows-latest'
+        if: matrix.platform == 'windows'
         shell: bash
         run: |
+          version="${{ needs.create-release.outputs.version }}"
           gh release upload "$version" "target\archetect-$version-win64-installer.exe"
 
