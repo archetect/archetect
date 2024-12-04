@@ -120,3 +120,20 @@ jobs:
         run: |
           version="${{ needs.create-release.outputs.version }}"
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+
+      # Windows specific steps
+      - name: Create Installer (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: Minionguyjpro/Inno-Setup-Action@v0.2.4
+        env:
+          APP_VERSION: "${{ needs.create-release.outputs.version }}"
+        with:
+          path: pkg/windows/archetect.iss
+          options: /O+
+
+      - name: Upload Windows Installer
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          gh release upload $version target\archetect-$version-win64-installer.exe
+
