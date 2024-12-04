@@ -124,7 +124,7 @@ jobs:
       # Windows specific steps
       - name: Create Installer (Windows)
         if: matrix.os == 'windows-latest'
-        uses: Minionguyjpro/Inno-Setup-Action@v0.2.4
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
           APP_VERSION: "${{ needs.create-release.outputs.version }}"
         with:
