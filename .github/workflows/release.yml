@@ -135,5 +135,5 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
-          gh release upload $version target\archetect-$version-win64-installer.exe
+          gh release upload "$version" target\archetect-$version-win64-installer.exe
 
