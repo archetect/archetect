@@ -138,5 +138,5 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.create-release.outputs.version }}"
-          gh release upload "$version" "target\archetect-$version-win64-installer.exe"
+          gh release upload "$version" "target\archetect-$version-windows_x64-installer.exe"
 
