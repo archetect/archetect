@@ -126,7 +126,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
-          APP_VERSION: "${{ needs.create-release.outputs.version }}"
+          VERSION: "${{ needs.create-release.outputs.version }}"
         with:
           path: pkg/windows/archetect.iss
           options: /O+
