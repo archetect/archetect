@@ -124,7 +124,7 @@ impl<'source> CodeGenerator<'source> {
     fn finish_subgenerator(&mut self, sub: CodeGenerator<'source>) -> Instructions<'source> {
         self.current_line = sub.current_line;
         let (instructions, blocks) = sub.finish();
-        self.blocks.extend(blocks.into_iter());
+        self.blocks.extend(blocks);
         instructions
     }
 
@@ -152,9 +152,7 @@ impl<'source> CodeGenerator<'source> {
                     self.add(Instruction::PushDidNotIterate);
                 };
                 self.add(Instruction::PopFrame);
-                if let Some(Instruction::Iterate(ref mut jump_target)) =
-                    self.instructions.get_mut(iter_instr)
-                {
+                if let Some(Instruction::Iterate(ref mut jump_target)) = self.instructions.get_mut(iter_instr) {
                     *jump_target = loop_end;
                 } else {
                     unreachable!();
@@ -219,8 +217,7 @@ impl<'source> CodeGenerator<'source> {
     fn end_condition(&mut self, jump_instr: usize) {
         match self.pending_block.pop() {
             Some(PendingBlock::Branch(instr)) => match self.instructions.get_mut(instr) {
-                Some(Instruction::JumpIfFalse(ref mut target))
-                | Some(Instruction::Jump(ref mut target)) => {
+                Some(Instruction::JumpIfFalse(ref mut target)) | Some(Instruction::Jump(ref mut target)) => {
                     *target = jump_instr;
                 }
                 _ => {}
@@ -677,11 +674,7 @@ impl<'source> CodeGenerator<'source> {
         }
     }
 
-    fn compile_call(
-        &mut self,
-        c: &ast::Spanned<ast::Call<'source>>,
-        caller: Option<&Caller<'source>>,
-    ) {
+    fn compile_call(&mut self, c: &ast::Spanned<ast::Call<'source>>, caller: Option<&Caller<'source>>) {
         self.push_span(c.span());
         match c.identify_call() {
             ast::CallType::Function(name) => {
@@ -708,11 +701,7 @@ impl<'source> CodeGenerator<'source> {
         self.pop_span();
     }
 
-    fn compile_call_args(
-        &mut self,
-        args: &[ast::Expr<'source>],
-        caller: Option<&Caller<'source>>,
-    ) -> usize {
+    fn compile_call_args(&mut self, args: &[ast::Expr<'source>], caller: Option<&Caller<'source>>) -> usize {
         match caller {
             // we can conditionally compile the caller part here since this will
             // nicely call through for non macro builds
@@ -728,11 +717,7 @@ impl<'source> CodeGenerator<'source> {
     }
 
     #[cfg(feature = "macros")]
-    fn compile_call_args_with_caller(
-        &mut self,
-        args: &[ast::Expr<'source>],
-        caller: &Caller<'source>,
-    ) -> usize {
+    fn compile_call_args_with_caller(&mut self, args: &[ast::Expr<'source>], caller: &Caller<'source>) -> usize {
         let mut injected_caller = false;
 
         // try to add the caller to already existing keyword arguments.
@@ -810,12 +795,7 @@ impl<'source> CodeGenerator<'source> {
     }
 
     /// Converts the compiler into the instructions.
-    pub fn finish(
-        self,
-    ) -> (
-        Instructions<'source>,
-        BTreeMap<&'source str, Instructions<'source>>,
-    ) {
+    pub fn finish(self) -> (Instructions<'source>, BTreeMap<&'source str, Instructions<'source>>) {
         assert!(self.pending_block.is_empty());
         (self.instructions, self.blocks)
     }

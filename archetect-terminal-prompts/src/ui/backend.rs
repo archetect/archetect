@@ -2,7 +2,15 @@ use std::{collections::BTreeSet, fmt::Display, io::Result};
 
 use unicode_width::UnicodeWidthChar;
 
-use crate::{input::Input, List, list_option::ListOption, terminal::{Terminal, TerminalSize}, ui::{IndexPrefix, Key, RenderConfig, Styled}, utils::{int_log10, Page}, validator::ErrorMessage};
+use crate::{
+    input::Input,
+    list_option::ListOption,
+    terminal::{Terminal, TerminalSize},
+    ui::{IndexPrefix, Key, RenderConfig, Styled},
+    utils::{int_log10, Page},
+    validator::ErrorMessage,
+    List,
+};
 
 pub trait CommonBackend {
     fn read_key(&mut self) -> Result<Key>;
@@ -23,7 +31,7 @@ pub trait TextBackend: CommonBackend {
 }
 
 pub trait ListBackend: CommonBackend {
-    fn render_prompt(&mut self, prompt: &str, options: &Vec<String>, defaults: Option<&Vec<String>>) -> Result<()>;
+    fn render_prompt(&mut self, prompt: &str, options: &[String], defaults: Option<&Vec<String>>) -> Result<()>;
     fn render_options(&mut self, options: &[String], input: &Input) -> Result<()>;
 }
 
@@ -323,7 +331,6 @@ where
         Ok(())
     }
 
-
     fn print_prompt_with_input(&mut self, prompt: &str, default: Option<&String>, input: &Input) -> Result<()> {
         self.print_prompt(prompt)?;
 
@@ -470,9 +477,9 @@ impl<T> ListBackend for Backend<T>
 where
     T: Terminal,
 {
-    fn render_prompt(&mut self, prompt: &str, options: &Vec<String>, defaults: Option<&Vec<String>>) -> Result<()> {
+    fn render_prompt(&mut self, prompt: &str, options: &[String], defaults: Option<&Vec<String>>) -> Result<()> {
         self.print_prompt(prompt)?;
-        if options.len() == 0 {
+        if options.is_empty() {
             if let Some(defaults) = defaults {
                 let default_string = List::DEFAULT_FORMATTER(defaults);
                 self.print_default_value(&default_string)?;
