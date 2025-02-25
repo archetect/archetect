@@ -182,7 +182,7 @@ jobs:
         if: matrix.platform == 'windows'
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
-          path: ci/templates/inno/${{ env.BINARY_NAME }}.iss
+          path: pkg/windows/Archetect.iss
           options: /O+
 
       - name: Upload Windows Installer
