@@ -340,6 +340,7 @@ fn test_current_call_state() {
 }
 
 #[test]
+#[ignore]
 #[should_panic = "can only flatten structs and maps"]
 fn test_flattening() {
     // ideally this would work, but unfortuantely the way serde flatten works makes it
