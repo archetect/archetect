@@ -1,142 +1,239 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - '**'
+  workflow_dispatch:
+    inputs:
+      level:
+        description: "Version Bump Level"
+        type: choice
+        required: false
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
 
-permissions:
-  contents: write
+permissions: write-all
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  BINARY_NAME: archetect
+  BINARY_HOMEPAGE: "https://github.com/${{ github.repository }}"
+  BINARY_DESCRIPTION: "Archetect"
+  DOWNLOAD_PREFIX: "https://github.com/${{ github.repository }}/releases/download"
+  DESTINATION_HOMEBREW_TAP: https://github.com/archetect/homebrew-tap
+  REPOSITORY_DISPATCH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
+  COMMIT_USER: github-actions
+  COMMIT_EMAIL: github-actions@users.noreply.github.com
 
 jobs:
-  # Create a draft release placeholder for each build to publish to
-  create-release:
-    name: create-release
+  pre-release:
+    name: Pre Release
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Get the release version from the tag
-        if: env.VERSION == ''
-        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-      - name: Show the version
-        run: |
-          echo "version is: $VERSION"
-      - name: Check that tag version and Cargo.toml version are the same
-        shell: bash
-        run: |
-          if ! grep -q "version = \"${VERSION:1}\"" Cargo.toml; then
-            echo "version does not match Cargo.toml" >&2
-            exit 1
-          fi
-      - name: Create GitHub release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create $VERSION --draft --verify-tag --title $VERSION
     outputs:
-      version: ${{ env.VERSION }}
-
-
-
-  build-release:
-    name: build-release
-    needs: ['create-release']
-    env:
-      RUST_BACKTRACE: 1
-      TARGET_DIR: ./target
-      BINARY: archetect
-      OPENSSL_STATIC: 1
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux
-            os: ubuntu-latest
-            arch: x64
-          - platform: macos
-            os: macos-latest
-            rust: stable
-            arch: aarch64
-          - platform: windows
-            os: windows-latest
-            rust: stable
-            arch: x64
-    runs-on: ${{ matrix.os }}
-
+      version: ${{ steps.capture.outputs.version }}
     steps:
-      - name: Checkout Repository
+      - name: Install cargo-workspaces
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-workspaces
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build release binary
+      - name: Bump Version
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
-          cargo build --verbose --release
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            bin="target/release/${{ env.BINARY}}.exe"
-          else
-            bin="target/release/${{ env.BINARY }}"
-          fi
-          echo "BIN=$bin" >> $GITHUB_ENV
+          git config user.name ${{ env.COMMIT_USER }}
+          git config user.email ${{ env.COMMIT_EMAIL }}
+          cargo workspaces version ${{ inputs.level }} -y --allow-branch main -m "Release %v [skip ci]" --no-individual-tags --force '*'
 
-      - name: Strip Release Binary (linux and macos)
+      - name: Capture Version
+        id: capture
+        shell: bash
+        run: |
+          version=$(cargo workspaces list --json | jq '.[0].version' -r)
+          echo "Release Version: v{$version}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: v${{ steps.capture.outputs.version }}
+        run: gh release create ${VERSION} --draft --verify-tag --title ${VERSION}
+
+  build:
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+    needs: [pre-release]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+          - os: macos-13
+            platform: macos
+            arch: x86_64
+          - os: windows-latest
+            platform: windows
+            arch: x86_64
+
+    outputs:
+      linux-x86_64_archive: ${{ steps.create-archive.outputs.linux-x86_64_archive }}
+      linux-x86_64_sha256: ${{ steps.create-archive.outputs.linux-x86_64_sha256 }}
+      macos-arm64_archive: ${{ steps.create-archive.outputs.macos-arm64_archive }}
+      macos-arm64_sha256: ${{ steps.create-archive.outputs.macos-arm64_sha256 }}
+      macos-x86_64_archive: ${{ steps.create-archive.outputs.macos-x86_64_archive }}
+      macos-x86_64_sha256: ${{ steps.create-archive.outputs.macos-x86_64_sha256 }}
+
+    env:
+      VERSION: v${{ needs.pre-release.outputs.version }}
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VERSION }}
+
+      - name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+        shell: bash
+        run: |
+          echo "Building ${BINARY_NAME} for ${{ matrix.platform }}-${{ matrix.arch }}"
+
+      - name: Enable Rust Dependency Caching
+        uses: Swatinem/rust-cache@v2
+
+      # - name: Setup vcpkg cache
+      #   if: matrix.platform == 'windows'
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: |
+      #       C:\vcpkg\installed
+      #       C:\vcpkg\buildtrees
+      #       C:\vcpkg\packages
+      #     key: vcpkg-${{ runner.os }}
+      #     restore-keys: |
+      #       vcpkg-${{ runner.os }}
+
+      # - name: Install Windows Dependencies
+      #   if: matrix.platform == 'windows'
+      #   shell: bash
+      #   run: |
+      #     VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT
+      #     echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+      #     vcpkg install openssl:x64-windows-static-md
+
+      - name: Build Binary
+        shell: bash
+        run: |
+          cargo build --release
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            binary_path="target/release/${BINARY_NAME}.exe"
+          else
+            binary_path="target/release/${BINARY_NAME}"
+          fi
+          echo "BINARY_PATH=$binary_path" >> $GITHUB_ENV
+
+      - name: Strip Binary
         if: matrix.platform == 'linux' || matrix.platform == 'macos'
-        run: strip "$BIN"
+        run: strip "$BINARY_PATH"
 
-      - name: Determine Archive Name
+      - name: Create Release Archive
+        id: create-archive
         shell: bash
         run: |
-          version="${{ needs.create-release.outputs.version }}"
-          echo "ARCHIVE=${{ env.BINARY }}-$version-${{ matrix.platform }}_${{ matrix.arch }}" >> $GITHUB_ENV
-
-      - name: Creating Archive Directory
-        shell: bash
-        run: |
-          mkdir -p "$ARCHIVE"/
-          cp "$BIN" "$ARCHIVE"/
-          cp {README.md,LICENSE} "$ARCHIVE"/
-
-      - name: Build Archive
-        shell: bash
-        run: |
+          archive_prefix="${BINARY_NAME}-${VERSION}-${{matrix.platform}}-${{matrix.arch}}"
+          mkdir -p "${archive_prefix}" >> $GITHUB_ENV
+          cp "$BINARY_PATH" "$archive_prefix"
           if [ "${{ matrix.platform }}" = "windows" ]; then
-            7z a "$ARCHIVE.zip" "$ARCHIVE"
-            certutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
-            echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
-            echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
+            archive=${archive_prefix}.zip
+            archive_sum=${archive_prefix}.zip.sha256
+            7z a "${archive}" "${archive_prefix}"
+            certutil -hashfile "${archive}" SHA256 > "${archive_sum}"
           else
-            tar czf "$ARCHIVE.tar.gz" "$ARCHIVE"
-            shasum -a 256 "$ARCHIVE.tar.gz" > "$ARCHIVE.tar.gz.sha256"
-            echo "ASSET=$ARCHIVE.tar.gz" >> $GITHUB_ENV
-            echo "ASSET_SUM=$ARCHIVE.tar.gz.sha256" >> $GITHUB_ENV
-          fi
+            archive=${archive_prefix}.tar.gz
+            archive_sum=${archive_prefix}.tar.gz.sha256
+            tar czf "${archive}" "${archive_prefix}"
+            shasum -a 256 "${archive}" > "${archive_sum}"
+            echo "${{ matrix.platform }}-${{ matrix.arch}}_archive=${VERSION}/${archive}" >> $GITHUB_OUTPUT
+            echo "${{ matrix.platform }}-${{ matrix.arch}}_sha256=$(cat $archive_sum | awk '{print $1}')" >> $GITHUB_OUTPUT
+          fi          
+          echo "ARCHIVE=${archive}" >> $GITHUB_ENV
+          echo "ARCHIVE_PREFIX=${archive_prefix}" >> $GITHUB_ENV
+          echo "ARCHIVE_SUM=${archive_sum}" >> $GITHUB_ENV
 
       - name: Upload Release Archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          version="${{ needs.create-release.outputs.version }}"
-          gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+          gh release upload "${VERSION}" "${ARCHIVE}" "${ARCHIVE_SUM}"
 
       # Windows specific steps
-      - name: Create Installer (Windows)
+      - name: Create Windows Installer
         if: matrix.platform == 'windows'
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        env:
-          VERSION: "${{ needs.create-release.outputs.version }}"
         with:
-          path: pkg/windows/archetect.iss
+          path: ci/templates/inno/${{ env.BINARY_NAME }}.iss
           options: /O+
 
       - name: Upload Windows Installer
+        if: matrix.platform == 'windows'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: matrix.platform == 'windows'
         shell: bash
         run: |
-          version="${{ needs.create-release.outputs.version }}"
-          gh release upload "$version" "target\archetect-$version-win64-installer.exe"
+          gh release upload "${VERSION}" "target\${{ env.ARCHIVE_PREFIX }}-installer.exe"
 
+  post-release:
+    name: Post Release
+    runs-on: ubuntu-latest
+    needs: [pre-release, build]
+    env:
+      VERSION: v${{ needs.pre-release.outputs.version }}
+    steps:
+      - name: Checkout Tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VERSION }}
+      - name: Finalize Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh release edit "${VERSION}" --draft=false --latest
+
+  update_homebrew_formula:
+    name: Update Homebrew Forumula
+    needs: [pre-release, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: v${{ needs.pre-release.outputs.version }}
+    steps:
+      - name: Dispatch event to ${{ env.DESTINATION_HOMEBREW_TAP }}
+        uses: ph-fritsche/action-dispatch@v1
+        with:
+          token: ${{ env.REPOSITORY_DISPATCH_TOKEN }}
+          type: repository
+          repo: ${{ env.DESTINATION_HOMEBREW_TAP }}
+          ident: update-formula
+          payload: |
+            {
+              "binary": "${{ env.BINARY_NAME }}",
+              "homepage": "${{ env.BINARY_HOMEPAGE }}",
+              "description": "${{ env.BINARY_DESCRIPTION }}",
+              "version": "${{ needs.pre-release.outputs.version }}",
+              "linux-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-x86_64_archive }}",
+              "linux-x86_64_sha256": "${{ needs.build.outputs.linux-x86_64_sha256 }}",
+              "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
+              "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}",
+              "macos-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-x86_64_archive }}",
+              "macos-x86_64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}"
+            }

@@ -6,10 +6,10 @@
 [Setup]
 AlwaysRestart=true
 AppId={{65a4900f-d54c-45a4-8645-82db7cb5266b}
-AppName=Archetect
+AppName={#GetEnv('BINARY_DESCRIPTION')}
 AppVersion={#GetEnv('VERSION')}
 AppPublisher=Archetect
-AppPublisherURL=https://github.com/archetect
+AppPublisherURL={#GetEnv('BINARY_HOMEPAGE')}
 ChangesEnvironment=yes
 DefaultDirName={autopf}\Archetect
 DefaultGroupName=Archetect
@@ -20,7 +20,7 @@ Compression=zip
 SolidCompression=no
 WizardStyle=modern
 SourceDir={#GetEnv('GITHUB_WORKSPACE')}
-OutputBaseFilename=archetect-{#GetEnv('VERSION')}-win64-installer
+OutputBaseFilename={#GetEnv('ARCHIVE_PREFIX')}-installer
 OutputDir=.\target
 UsePreviousAppDir=false
 UninstallDisplayName=Archetect
