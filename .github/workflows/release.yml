@@ -23,7 +23,7 @@ env:
   BINARY_HOMEPAGE: "https://github.com/${{ github.repository }}"
   BINARY_DESCRIPTION: "Archetect"
   DOWNLOAD_PREFIX: "https://github.com/${{ github.repository }}/releases/download"
-  DESTINATION_HOMEBREW_TAP: https://github.com/archetect/homebrew-tap
+  DESTINATION_HOMEBREW_TAP: ${{ github.repository_owner }}/homebrew-tap
   REPOSITORY_DISPATCH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
   COMMIT_USER: github-actions
   COMMIT_EMAIL: github-actions@users.noreply.github.com
