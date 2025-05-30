@@ -326,7 +326,25 @@ fn cache_git_repo(
         }
     } else {
         let repo = Repository::open(cache_destination.join(".git"))?;
-        if force_pull || should_pull(&repo, archetect)? {
+        let mut should_fetch = force_pull || should_pull(&repo, archetect)?;
+        
+        // Check if the requested gitref exists, and if not, force a fetch unless offline
+        if !should_fetch && gitref.is_some() {
+            let gitref_str = gitref.as_ref().unwrap();
+            let gitref_exists = is_branch(cache_destination.as_str(), gitref_str) ||
+                               is_tag_or_commit(cache_destination.as_str(), gitref_str);
+            
+            if !gitref_exists && !archetect.is_offline() {
+                debug!("Requested gitref '{}' not found in cache, fetching latest", gitref_str);
+                should_fetch = true;
+            } else if !gitref_exists && archetect.is_offline() {
+                return Err(SourceError::RemoteSourceError(format!(
+                    "Branch/tag '{}' not found in cache and running in offline mode", gitref_str
+                )));
+            }
+        }
+        
+        if should_fetch {
             if cached_paths().lock().unwrap().insert(url.to_owned()) {
                 info!("Fetching {}", url);
                 handle_git(
@@ -371,6 +389,33 @@ fn is_branch(path: &str, gitref: &str) -> bool {
             .arg("-q")
             .arg("--verify")
             .arg(format!("refs/remotes/origin/{}", gitref)),
+    )
+    .is_ok()
+}
+
+fn is_tag_or_commit(path: &str, gitref: &str) -> bool {
+    // Check if it's a tag
+    if handle_git(
+        Command::new("git")
+            .current_dir(path)
+            .arg("show-ref")
+            .arg("-q")
+            .arg("--verify")
+            .arg(format!("refs/tags/{}", gitref)),
+    )
+    .is_ok()
+    {
+        return true;
+    }
+
+    // Check if it's a valid commit hash
+    handle_git(
+        Command::new("git")
+            .current_dir(path)
+            .arg("rev-parse")
+            .arg("-q")
+            .arg("--verify")
+            .arg(format!("{}^{{commit}}", gitref)),
     )
     .is_ok()
 }
