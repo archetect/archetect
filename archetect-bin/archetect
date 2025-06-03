@@ -1,0 +1,11 @@
+
+headless: false
+actions:
+  project_action:
+    archetype:
+      description: "Project Action"
+      source: "https://example.com/project.git"
+  dot_action:
+    archetype:
+      description: "Overridden Dot Action"
+      source: "https://example.com/overridden-dot.git"

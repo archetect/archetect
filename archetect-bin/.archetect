@@ -1,0 +1,7 @@
+
+headless: true
+actions:
+  dot_action:
+    archetype:
+      description: "Dot Action"
+      source: "https://example.com/dot.git"

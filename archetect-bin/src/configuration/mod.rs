@@ -123,22 +123,28 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     
     let mut config = config;
     
-    // Only add .archetect file if it exists and is a file (not directory)
-    if dot_config_path.exists() && dot_config_path.is_file() {
-        config = config.add_source(
-            File::with_name(dot_config_path.to_str().unwrap())
-                .format(FileFormat::Yaml)
-                .required(true),
-        );
+    // Load .archetect.yaml and .archetect.yml files
+    for extension in &[".yaml", ".yml"] {
+        let config_file = current_dir.join(format!("{}{}", DOT_CONFIGURATION_FILE, extension));
+        if config_file.exists() && config_file.is_file() {
+            config = config.add_source(
+                File::with_name(config_file.to_str().unwrap())
+                    .format(FileFormat::Yaml)
+                    .required(true),
+            );
+        }
     }
     
-    // Only add archetect file if it exists and is a file (not directory)
-    if config_path.exists() && config_path.is_file() {
-        config = config.add_source(
-            File::with_name(config_path.to_str().unwrap())
-                .format(FileFormat::Yaml)
-                .required(true),
-        );
+    // Load archetect.yaml and archetect.yml files
+    for extension in &[".yaml", ".yml"] {
+        let config_file = current_dir.join(format!("{}{}", CONFIGURATION_FILE, extension));
+        if config_file.exists() && config_file.is_file() {
+            config = config.add_source(
+                File::with_name(config_file.to_str().unwrap())
+                    .format(FileFormat::Yaml)
+                    .required(true),
+            );
+        }
     }
 
     // Merge Config File specified from Command Line

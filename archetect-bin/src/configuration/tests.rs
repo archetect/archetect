@@ -218,7 +218,7 @@ offline: true
         assert!(config.offline()); // Should be true from system config
         
         // Test 2: System + local config  
-        ctx.write_local_config(DOT_CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE), r#"
 headless: false
 "#);
         
@@ -228,7 +228,7 @@ headless: false
         assert!(!config.headless()); // from local
         assert!(config.offline()); // from system, should be preserved
         
-        ctx.cleanup_local_config(DOT_CONFIGURATION_FILE);
+        ctx.cleanup_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE));
     }
 
     #[test]
@@ -238,7 +238,7 @@ headless: false
         let args = empty_args();
         
         // .archetect config
-        ctx.write_local_config(DOT_CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE), r#"
 headless: true
 actions:
   dot_action:
@@ -248,7 +248,7 @@ actions:
 "#);
         
         // archetect config (should have higher precedence)
-        ctx.write_local_config(CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", CONFIGURATION_FILE), r#"
 headless: false
 actions:
   project_action:
@@ -275,8 +275,8 @@ actions:
             assert_eq!(action.description(), "Overridden Dot Action");
         }
         
-        ctx.cleanup_local_config(DOT_CONFIGURATION_FILE);
-        ctx.cleanup_local_config(CONFIGURATION_FILE);
+        ctx.cleanup_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE));
+        ctx.cleanup_local_config(&format!("{}.yaml", CONFIGURATION_FILE));
     }
 
     #[test]
@@ -320,7 +320,7 @@ actions:
 "#);
         
         // Local config that replaces the action completely
-        ctx.write_local_config(DOT_CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE), r#"
 actions:
   test_action:
     archetype:
@@ -337,7 +337,7 @@ actions:
             // This verifies that actions are replaced, not merged
         }
         
-        ctx.cleanup_local_config(DOT_CONFIGURATION_FILE);
+        ctx.cleanup_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE));
     }
 
     #[test]
@@ -354,7 +354,7 @@ answers:
 "#);
         
         // Local config with additional answers
-        ctx.write_local_config(DOT_CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE), r#"
 answers:
   local_answer: "local_value"
   shared_answer: "local_shared"
@@ -373,7 +373,7 @@ answers:
             assert_eq!(shared.to_string(), "local_shared");
         }
         
-        ctx.cleanup_local_config(DOT_CONFIGURATION_FILE);
+        ctx.cleanup_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE));
     }
 
     #[test]
@@ -426,7 +426,7 @@ answers:
 "#);
         
         // .archetect config
-        ctx.write_local_config(DOT_CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE), r#"
 headless: false
 answers:
   level: "dot"
@@ -434,7 +434,7 @@ answers:
 "#);
         
         // archetect config
-        ctx.write_local_config(CONFIGURATION_FILE, r#"
+        ctx.write_local_config(&format!("{}.yaml", CONFIGURATION_FILE), r#"
 offline: false
 answers:
   level: "project"
@@ -453,8 +453,8 @@ answers:
         assert!(answers.contains_key("dot_only"));
         assert!(answers.contains_key("project_only"));
         
-        ctx.cleanup_local_config(DOT_CONFIGURATION_FILE);
-        ctx.cleanup_local_config(CONFIGURATION_FILE);
+        ctx.cleanup_local_config(&format!("{}.yaml", DOT_CONFIGURATION_FILE));
+        ctx.cleanup_local_config(&format!("{}.yaml", CONFIGURATION_FILE));
     }
 
     #[test]
