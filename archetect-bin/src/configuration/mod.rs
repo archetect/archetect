@@ -11,14 +11,16 @@ use archetect_core::system::SystemLayout;
 pub const CONFIGURATION_FILE: &str = "archetect";
 pub const DOT_CONFIGURATION_FILE: &str = ".archetect";
 
-/// Load configuration files from ~/.archetect/etc.d/*.yaml in sorted order
+/// Load configuration files from {etc_d_dir}/*.yaml in sorted order
+/// For NativeSystemLayout, etc_d_dir is typically ~/.archetect/etc.d
+/// For RootedSystemLayout (tests), etc_d_dir is {root}/etc.d
 fn load_config_dir_files<L: SystemLayout>(
     mut config: config::ConfigBuilder<config::builder::DefaultState>,
     layout: &L,
 ) -> Result<config::ConfigBuilder<config::builder::DefaultState>, ConfigError> {
     use std::fs;
 
-    let etc_d_dir = layout.etc_dir().join("etc.d");
+    let etc_d_dir = layout.etc_d_dir();
     debug!("Looking for etc.d directory at: {}", etc_d_dir);
 
     // Check if the etc.d directory exists

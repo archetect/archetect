@@ -1,0 +1,2 @@
+   Compiling archetect v2.0.4 (/Users/jimmie/personal/archetect/archetect/archetect-bin)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.82s

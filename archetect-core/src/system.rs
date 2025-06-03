@@ -14,6 +14,8 @@ pub enum LayoutType {
 pub trait SystemLayout: Debug + Send + Sync + 'static {
     fn etc_dir(&self) -> Utf8PathBuf;
 
+    fn etc_d_dir(&self) -> Utf8PathBuf;
+
     fn cache_dir(&self) -> Utf8PathBuf;
 
     fn configuration_path(&self) -> Utf8PathBuf {
@@ -48,6 +50,11 @@ impl SystemLayout for NativeSystemLayout {
         Utf8PathBuf::from_path_buf(self.project.config_dir().to_owned()).unwrap()
     }
 
+    fn etc_d_dir(&self) -> Utf8PathBuf {
+        // For NativeSystemLayout, etc.d is at ~/.archetect/etc.d
+        Utf8PathBuf::from_path_buf(self.project.config_dir().to_owned()).unwrap().join("etc.d")
+    }
+
     fn cache_dir(&self) -> Utf8PathBuf {
         Utf8PathBuf::from_path_buf(self.project.cache_dir().to_owned()).unwrap()
     }
@@ -80,6 +87,11 @@ impl SystemLayout for RootedSystemLayout {
         self.directory.clone().join("etc")
     }
 
+    fn etc_d_dir(&self) -> Utf8PathBuf {
+        // For RootedSystemLayout (used in tests), etc.d is at {root}/etc.d
+        self.directory.clone().join("etc.d")
+    }
+
     fn cache_dir(&self) -> Utf8PathBuf {
         self.directory.clone().join("cache")
     }
@@ -88,6 +100,7 @@ impl SystemLayout for RootedSystemLayout {
 impl Display for dyn SystemLayout {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "{}: {}", "Etc Directory", self.etc_dir())?;
+        writeln!(f, "{}: {}", "Etc.d Directory", self.etc_d_dir())?;
         writeln!(f, "{}: {}", "Cache Directory", self.cache_dir())?;
         Ok(())
     }

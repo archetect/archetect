@@ -1,6 +1,7 @@
 use archetect_templating::Environment;
 use rhai::{Engine, EvalAltResult, Map, NativeCallContext};
 
+#[allow(deprecated)]
 pub(crate) fn register(engine: &mut Engine, environment: Environment<'static>) {
     engine.register_fn(
         "render",

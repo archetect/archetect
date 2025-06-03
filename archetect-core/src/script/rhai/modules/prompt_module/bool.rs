@@ -8,6 +8,7 @@ use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info};
 
 // TODO: Better help messages
+#[allow(deprecated)]
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,

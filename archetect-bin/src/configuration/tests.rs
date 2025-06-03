@@ -6,6 +6,7 @@ mod configuration_tests {
     use clap::ArgMatches;
     use std::fs;
     use tempfile::TempDir;
+    use serial_test::serial;
 
     struct TestContext {
         temp_dir: TempDir,
@@ -175,6 +176,7 @@ mod configuration_tests {
     }
 
     #[test]
+    #[serial]
     fn test_system_config_merging() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -202,6 +204,7 @@ actions:
     }
 
     #[test]
+    #[serial]
     fn test_local_config_overrides_system() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -229,6 +232,7 @@ headless: false
     }
 
     #[test]
+    #[serial]
     fn test_project_config_overrides_dot_config() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -276,6 +280,7 @@ actions:
     }
 
     #[test]
+    #[serial]
     fn test_cli_args_override_all() {
         let ctx = TestContext::new();
         
@@ -300,6 +305,7 @@ offline: false
     }
 
     #[test]
+    #[serial]
     fn test_actions_replacement_behavior() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -335,6 +341,7 @@ actions:
     }
 
     #[test]
+    #[serial]
     fn test_non_action_sections_merge() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -404,6 +411,7 @@ actions:
     }
 
     #[test]
+    #[serial]
     fn test_configuration_precedence_order() {
         let ctx = TestContext::new();
         let args = empty_args();
@@ -450,12 +458,13 @@ answers:
     }
 
     #[test]
+    #[serial]
     fn test_etc_d_directory_loading() {
         let ctx = TestContext::new();
         let args = empty_args();
         
         // Create etc.d directory
-        let etc_d_dir = ctx.layout.etc_dir().join("etc.d");
+        let etc_d_dir = ctx.layout.etc_d_dir();
         fs::create_dir_all(&etc_d_dir).unwrap();
         
         // Create multiple config files in etc.d with sorted names
@@ -508,12 +517,13 @@ answers:
     }
 
     #[test]
+    #[serial]
     fn test_etc_d_directory_precedence() {
         let ctx = TestContext::new();
         let args = empty_args();
         
         // Create etc.d directory and config
-        let etc_d_dir = ctx.layout.etc_dir().join("etc.d");
+        let etc_d_dir = ctx.layout.etc_d_dir();
         fs::create_dir_all(&etc_d_dir).unwrap();
         
         fs::write(etc_d_dir.join("config.yaml"), r#"
@@ -541,12 +551,13 @@ offline: true
     }
 
     #[test]
+    #[serial]
     fn test_etc_d_file_extensions() {
         let ctx = TestContext::new();
         let args = empty_args();
         
         // Create etc.d directory
-        let etc_d_dir = ctx.layout.etc_dir().join("etc.d");
+        let etc_d_dir = ctx.layout.etc_d_dir();
         fs::create_dir_all(&etc_d_dir).unwrap();
         
         // Create files with different extensions
@@ -637,5 +648,43 @@ offline: true
         
         assert!(result.headless());
         assert!(result.offline());
+    }
+
+    #[test]
+    #[serial]
+    fn test_etc_d_directory_structure() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+        
+        // Document the expected directory structure:
+        // For tests using RootedSystemLayout:
+        //   - System config: {root}/etc/archetect.yaml  
+        //   - etc.d directory: {root}/etc.d/
+        // For real usage with NativeSystemLayout:
+        //   - System config: ~/.archetect/archetect.yaml
+        //   - etc.d directory: ~/.archetect/etc.d/
+        
+        // Verify the paths
+        let etc_dir = ctx.layout.etc_dir();
+        let config_path = ctx.layout.configuration_path();
+        let etc_d_dir = ctx.layout.etc_d_dir();
+        
+        assert!(etc_dir.to_string().ends_with("/etc"));
+        assert!(config_path.to_string().ends_with("/etc/archetect.yaml"));
+        assert!(etc_d_dir.to_string().ends_with("/etc.d"));
+        
+        // Create etc.d directory and a config file
+        fs::create_dir_all(&etc_d_dir).unwrap();
+        fs::write(etc_d_dir.join("test.yaml"), r#"
+test_setting: true
+answers:
+  test_answer: "test_value"
+"#).unwrap();
+        
+        let config = load_user_config(&ctx.layout, &args).unwrap();
+        
+        // Verify the config was loaded
+        let answers = config.answers();
+        assert_eq!(answers.get("test_answer").unwrap().to_string(), "test_value");
     }
 }

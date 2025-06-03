@@ -330,6 +330,7 @@ impl ArchetypeScriptError {
 
 pub struct ArchetypeScriptErrorWrapper<'a>(pub &'a NativeCallContext<'a>, pub ArchetypeScriptError);
 
+#[allow(deprecated)]
 impl<'a> From<ArchetypeScriptErrorWrapper<'a>> for Box<EvalAltResult> {
     fn from(value: ArchetypeScriptErrorWrapper<'a>) -> Self {
         match value.1.error_type() {

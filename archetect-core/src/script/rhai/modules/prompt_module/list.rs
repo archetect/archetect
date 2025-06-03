@@ -7,6 +7,7 @@ use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{extract_prompt_info, extract_prompt_items_restrictions};
 
+#[allow(deprecated)]
 pub fn prompt<'a, K: AsRef<str> + Clone>(
     call: &NativeCallContext,
     message: &str,
