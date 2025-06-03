@@ -64,8 +64,8 @@ fn test_scalar_int_prompt_non_optional() -> Result<(), ArchetectError> {
     harness.respond(CommandResponse::None);
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Port:' is not optional\nin call to function \
-        'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 7, position 24)");
+        assert_eq!(message, "Required: 'Service Port:' is not optional @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai'\nin call to function \
+        'prompt' (from 'tests/prompts/int_prompt_scalar_tests/archetype.rhai') (line 7, position 24)");
     });
 
     assert!(!harness.render_succeeded());
@@ -90,8 +90,8 @@ fn test_scalar_int_prompt_invalid() -> Result<(), ArchetectError> {
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Answer Invalid: '5' was provided as an answer to 'Management Port:', \
-        but Answer must be between 1024 and 65535.\nin call to function 'prompt' @ \
-        'tests/prompts/int_prompt_scalar_tests/archetype.rhai' (line 11, position 27)");
+        but Answer must be between 1024 and 65535. @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai'\nin call to function 'prompt' (from \
+        'tests/prompts/int_prompt_scalar_tests/archetype.rhai') (line 11, position 27)");
     });
 
     assert!(!harness.render_succeeded());
@@ -111,7 +111,7 @@ fn test_scalar_int_prompt_unexpected() -> Result<(), ArchetectError> {
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message,"Unexpected Response: The 'Service Port:' prompt expects Int, but received \
-        String(\"8080\")\nin call to function 'prompt' @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai' \
+        String(\"8080\") @ 'tests/prompts/int_prompt_scalar_tests/archetype.rhai'\nin call to function 'prompt' (from 'tests/prompts/int_prompt_scalar_tests/archetype.rhai') \
         (line 7, position 24)");
     });
 

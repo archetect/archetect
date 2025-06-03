@@ -130,7 +130,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             config = config.add_source(
                 File::with_name(config_file.to_str().unwrap())
                     .format(FileFormat::Yaml)
-                    .required(true),
+                    .required(false),
             );
         }
     }
@@ -142,7 +142,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
             config = config.add_source(
                 File::with_name(config_file.to_str().unwrap())
                     .format(FileFormat::Yaml)
-                    .required(true),
+                    .required(false),
             );
         }
     }

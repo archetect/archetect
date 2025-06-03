@@ -66,8 +66,8 @@ fn test_scalar_text_prompt_non_optional() -> Result<(), ArchetectError> {
     harness.respond(CommandResponse::None);
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Service Prefix:' is not optional\nin call to function \
-        'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
+        assert_eq!(message, "Required: 'Service Prefix:' is not optional @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai'\nin call to function \
+        'prompt' (from 'tests/prompts/text_prompt_scalar_tests/archetype.rhai') (line 7, position 26)");
     });
 
     assert!(!harness.render_succeeded());
@@ -87,8 +87,8 @@ fn test_scalar_text_prompt_invalid() -> Result<(), ArchetectError> {
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Answer Invalid: '' was provided as an answer to 'Service Prefix:', \
-        but Answer must have greater than 1 characters.\nin call to function 'prompt' @ \
-        'tests/prompts/text_prompt_scalar_tests/archetype.rhai' (line 7, position 26)");
+        but Answer must have greater than 1 characters. @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai'\nin call to function 'prompt' (from \
+        'tests/prompts/text_prompt_scalar_tests/archetype.rhai') (line 7, position 26)");
     });
 
     assert!(!harness.render_succeeded());
@@ -108,7 +108,7 @@ fn test_scalar_text_prompt_unexpected() -> Result<(), ArchetectError> {
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Unexpected Response: The 'Service Prefix:' prompt expects a String, but received \
-        Integer(1)\nin call to function 'prompt' @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai' \
+        Integer(1) @ 'tests/prompts/text_prompt_scalar_tests/archetype.rhai'\nin call to function 'prompt' (from 'tests/prompts/text_prompt_scalar_tests/archetype.rhai') \
         (line 7, position 26)");
     });
 

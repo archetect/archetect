@@ -33,8 +33,8 @@ fn test_simple_defaults() -> anyhow::Result<()> {
     harness.respond(CommandResponse::None);
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Services:' is not optional\nin call to function 'prompt' @ \
-        'tests/prompts/list_prompt_tests/archetype.rhai' (line 4, position 24)");
+        assert_eq!(message, "Required: 'Services:' is not optional @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to function 'prompt' (from \
+        'tests/prompts/list_prompt_tests/archetype.rhai') (line 4, position 24)");
     });
 
     assert!(!harness.render_succeeded());
@@ -65,8 +65,8 @@ fn test_map_defaults() -> anyhow::Result<()> {
     harness.respond(CommandResponse::None);
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
-        assert_eq!(message, "Required: 'Services:' (key: 'services') is not optional\nin call to \
-        function 'prompt' @ 'tests/prompts/list_prompt_tests/archetype.rhai' (line 11, position 16)");
+        assert_eq!(message, "Required: 'Services:' (key: 'services') is not optional @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to \
+        function 'prompt' (from 'tests/prompts/list_prompt_tests/archetype.rhai') (line 11, position 16)");
     });
 
     assert!(!harness.render_succeeded());
@@ -240,8 +240,8 @@ fn  test_map_cased_as_with_string_strategy() -> anyhow::Result<()> {
 
     assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
         assert_eq!(message, "Invalid Setting: For the 'Services:' prompt (key: 'services'), the 'cased_as' setting must \
-        be an array of CaseStrategy elements, but contains \"CamelCase\" (string)\nin call to function 'prompt' @ \
-        'tests/prompts/list_prompt_tests/archetype.rhai' (line 53, position 16)");
+        be an array of CaseStrategy elements, but contains \"CamelCase\" (string) @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to function 'prompt' (from \
+        'tests/prompts/list_prompt_tests/archetype.rhai') (line 53, position 16)");
     });
 
     assert!(!harness.render_succeeded());
