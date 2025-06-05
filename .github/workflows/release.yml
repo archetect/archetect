@@ -235,5 +235,5 @@ jobs:
               "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
               "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}",
               "macos-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-x86_64_archive }}",
-              "macos-x86_64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}"
+              "macos-x86_64_sha256": "${{ needs.build.outputs.macos-x86_64_sha256 }}"
             }
