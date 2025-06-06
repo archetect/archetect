@@ -72,9 +72,12 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux
             arch: x86_64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
           - os: macos-latest
             platform: macos
             arch: arm64
@@ -86,6 +89,8 @@ jobs:
             arch: x86_64
 
     outputs:
+      linux-arm64_archive: ${{ steps.create-archive.outputs.linux-arm64_archive }}
+      linux-arm64_sha256: ${{ steps.create-archive.outputs.linux-arm64_sha256 }}
       linux-x86_64_archive: ${{ steps.create-archive.outputs.linux-x86_64_archive }}
       linux-x86_64_sha256: ${{ steps.create-archive.outputs.linux-x86_64_sha256 }}
       macos-arm64_archive: ${{ steps.create-archive.outputs.macos-arm64_archive }}
@@ -230,6 +235,8 @@ jobs:
               "homepage": "${{ env.BINARY_HOMEPAGE }}",
               "description": "${{ env.BINARY_DESCRIPTION }}",
               "version": "${{ needs.pre-release.outputs.version }}",
+              "linux-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-arm64_archive }}",
+              "linux-arm64_sha256": "${{ needs.build.outputs.linux-arm64_sha256 }}",
               "linux-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-x86_64_archive }}",
               "linux-x86_64_sha256": "${{ needs.build.outputs.linux-x86_64_sha256 }}",
               "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
