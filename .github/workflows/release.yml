@@ -235,12 +235,14 @@ jobs:
               "homepage": "${{ env.BINARY_HOMEPAGE }}",
               "description": "${{ env.BINARY_DESCRIPTION }}",
               "version": "${{ needs.pre-release.outputs.version }}",
-              "linux-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-arm64_archive }}",
-              "linux-arm64_sha256": "${{ needs.build.outputs.linux-arm64_sha256 }}",
-              "linux-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-x86_64_archive }}",
-              "linux-x86_64_sha256": "${{ needs.build.outputs.linux-x86_64_sha256 }}",
-              "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
-              "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}",
-              "macos-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-x86_64_archive }}",
-              "macos-x86_64_sha256": "${{ needs.build.outputs.macos-x86_64_sha256 }}"
+              "builds": {
+                "linux-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-arm64_archive }}",
+                "linux-arm64_sha256": "${{ needs.build.outputs.linux-arm64_sha256 }}",
+                "linux-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-x86_64_archive }}",
+                "linux-x86_64_sha256": "${{ needs.build.outputs.linux-x86_64_sha256 }}",
+                "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
+                "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}",
+                "macos-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-x86_64_archive }}",
+                "macos-x86_64_sha256": "${{ needs.build.outputs.macos-x86_64_sha256 }}"
+              }
             }
