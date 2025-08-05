@@ -1,0 +1,5 @@
+name: archive-demo-simple
+description: Simple demo of archive functions without prompts
+version: 1.0.0
+requires:
+  archetect: "2.0.0"

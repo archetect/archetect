@@ -54,6 +54,7 @@ pub(crate) fn create_engine(
         archetect.clone(),
         render_context.clone(),
     );
+    modules::archive_module::register(&mut engine, render_context.clone());
 
     engine
 }

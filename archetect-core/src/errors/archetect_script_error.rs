@@ -107,6 +107,22 @@ pub enum ArchetypeScriptError {
     #[error("The path '{path}' contains path manipulation patterns, which are not allowed. Rendering and other file operations are restricted to the destination directory")]
     PathManipulationError {
         path: String,
+    },
+    #[error("The path '{path}' was not found")]
+    PathNotFound {
+        path: String,
+    },
+    #[error("The path '{path}' is not a directory")]
+    NotADirectory {
+        path: String,
+    },
+    #[error("Archive operation failed: {message}")]
+    ArchiveError {
+        message: String,
+    },
+    #[error("I/O operation failed: {message}")]
+    IoError {
+        message: String,
     }
 }
 
@@ -125,6 +141,10 @@ impl ArchetypeScriptError {
             UnexpectedPromptResponse { .. } | KeyedUnexpectedPromptResponse { .. } => "Unexpected Response",
             ArchetypeScriptError::RenderDestinationTypeError { .. } => "Invalid Destination",
             ArchetypeScriptError::PathManipulationError { .. } => "Path Error",
+            ArchetypeScriptError::PathNotFound { .. } => "Path Not Found",
+            ArchetypeScriptError::NotADirectory { .. } => "Not A Directory",
+            ArchetypeScriptError::ArchiveError { .. } => "Archive Error",
+            ArchetypeScriptError::IoError { .. } => "I/O Error",
         }
     }
 
@@ -142,6 +162,10 @@ impl ArchetypeScriptError {
             KeyedInvalidSetSetting { .. } => ErrorType::Function,
             ArchetypeScriptError::RenderDestinationTypeError { .. } => ErrorType::Function,
             ArchetypeScriptError::PathManipulationError { .. } => ErrorType::Function,
+            ArchetypeScriptError::PathNotFound { .. } => ErrorType::Function,
+            ArchetypeScriptError::NotADirectory { .. } => ErrorType::Function,
+            ArchetypeScriptError::ArchiveError { .. } => ErrorType::System,
+            ArchetypeScriptError::IoError { .. } => ErrorType::System,
         }
     }
 

@@ -1,4 +1,5 @@
 pub(crate) mod archetype_module;
+pub(crate) mod archive_module;
 pub(crate) mod cases_module;
 pub(crate) mod path_module;
 pub(crate) mod directory_module;
