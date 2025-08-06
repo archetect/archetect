@@ -5,6 +5,8 @@ pub(crate) mod path_module;
 pub(crate) mod directory_module;
 pub(crate) mod exec_module;
 pub(crate) mod formats_module;
+pub(crate) mod git_module;
+pub(crate) mod github_module;
 pub(crate) mod log_module;
 pub(crate) mod prompt_module;
 pub(crate) mod render_module;

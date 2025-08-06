@@ -123,6 +123,10 @@ pub enum ArchetypeScriptError {
     #[error("I/O operation failed: {message}")]
     IoError {
         message: String,
+    },
+    #[error("Git operation failed: {message}")]
+    GitError {
+        message: String,
     }
 }
 
@@ -145,6 +149,7 @@ impl ArchetypeScriptError {
             ArchetypeScriptError::NotADirectory { .. } => "Not A Directory",
             ArchetypeScriptError::ArchiveError { .. } => "Archive Error",
             ArchetypeScriptError::IoError { .. } => "I/O Error",
+            ArchetypeScriptError::GitError { .. } => "Git Error",
         }
     }
 
@@ -166,6 +171,7 @@ impl ArchetypeScriptError {
             ArchetypeScriptError::NotADirectory { .. } => ErrorType::Function,
             ArchetypeScriptError::ArchiveError { .. } => ErrorType::System,
             ArchetypeScriptError::IoError { .. } => ErrorType::System,
+            ArchetypeScriptError::GitError { .. } => ErrorType::System,
         }
     }
 
