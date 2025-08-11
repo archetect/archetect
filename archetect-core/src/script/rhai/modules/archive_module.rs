@@ -193,7 +193,16 @@ fn create_zip_archive(source_dir: &Utf8Path, dest_file: &Utf8Path) -> io::Result
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o755);
 
-    add_directory_to_zip(&mut zip, source_dir, source_dir, &options)?;
+    // Get the directory name to use as the root in the archive
+    let dir_name = source_dir
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid source directory"))?;
+
+    // Add the directory itself first
+    zip.add_directory(format!("{}/", dir_name), options)?;
+
+    // Then add all contents with the directory prefix
+    add_directory_to_zip(&mut zip, source_dir, source_dir, dir_name, &options)?;
 
     zip.finish()?;
     Ok(())
@@ -203,6 +212,7 @@ fn add_directory_to_zip(
     zip: &mut zip::ZipWriter<File>,
     base_path: &Utf8Path,
     dir_path: &Utf8Path,
+    prefix: &str,
     options: &zip::write::SimpleFileOptions,
 ) -> io::Result<()> {
     use std::fs::read_dir;
@@ -216,17 +226,20 @@ fn add_directory_to_zip(
             .strip_prefix(base_path)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to get relative path"))?;
 
+        // Prepend the directory name to the relative path
+        let archive_path = format!("{}/{}", prefix, relative_path);
+
         if path.is_dir() {
             // Add directory entry
-            let dir_name = format!("{}/", relative_path);
+            let dir_name = format!("{}/", archive_path);
             zip.add_directory(&dir_name, *options)?;
 
             // Recursively add directory contents
-            add_directory_to_zip(zip, base_path, &path, options)?;
+            add_directory_to_zip(zip, base_path, &path, prefix, options)?;
         } else {
             // Add file
             let mut file = File::open(&path)?;
-            zip.start_file(relative_path.as_str(), *options)?;
+            zip.start_file(&archive_path, *options)?;
             io::copy(&mut file, zip)?;
         }
     }
