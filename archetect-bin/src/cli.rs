@@ -12,7 +12,7 @@ use crate::vendor::loggerv;
 
 pub fn command() -> Command {
     command!()
-        .name("archetect")
+        .name("archetect3")
         .help_expected(true)
         .args(render_args(false))
         .subcommand(
@@ -155,6 +155,47 @@ pub fn command() -> Command {
         .subcommand(
             Command::new("check")
                 .about("Check Archetect's environment for problems")
+        )
+        .subcommand(
+            Command::new("server")
+                .about("Start Archetect Server")
+                .arg(
+                    Arg::new("host")
+                        .help("The interface to bind to")
+                        .long("host")
+                        .default_value("0.0.0.0")
+                        .action(ArgAction::Set)
+                        .env("ARCHETECT_SERVER_HOST"),
+                )
+                .arg(
+                    Arg::new("port")
+                        .help("The port to listen on")
+                        .long("port")
+                        .short('p')
+                        .default_value("8080")
+                        .action(ArgAction::Set)
+                        .value_parser(value_parser!(u16))
+                        .env("ARCHETECT_SERVER_PORT"),
+                ),
+        )
+        .subcommand(
+            Command::new("connect")
+                .about("Connect to an Archetect Server")
+                .arg(
+                    Arg::new("endpoint")
+                        .help("The Archetect Server endpoint (e.g. http://localhost:8080)")
+                        .action(ArgAction::Set)
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("destination")
+                        .help("The directory to render the Archetype in to")
+                        .long("destination")
+                        .visible_alias("dest")
+                        .default_value(".")
+                        .action(ArgAction::Set),
+                )
+                .args(render_args(true)),
         )
         .allow_external_subcommands(true)
 }

@@ -1,13 +1,14 @@
-use std::sync::mpsc::SyncSender;
+
 
 use archetect_validations::validate_int_size;
-use archetect_api::{CommandResponse, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
+use archetect_api::{ClientMessage, IntPromptInfo, PromptInfo, PromptInfoLengthRestrictions};
+use crate::responder::Responder;
 use archetect_inquire::validator::Validation;
 use archetect_inquire::{InquireError, Text};
 
 use crate::get_render_config;
 
-pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &dyn Responder) {
     let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
     let default = prompt_info.default().map(|v| v.to_string());
     prompt.default = default;
@@ -24,23 +25,18 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &SyncSender<Comm
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::Integer(answer.parse::<i64>().expect("Pre-validated")))
-                    .expect("Channel Send Error");
+                responses.respond(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                responses.respond(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.send(CommandResponse::Abort)
-                        .expect("Channel Send Error");
+                    responses.respond(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    responses.respond(ClientMessage::Error(error.to_string()));
                 }
             }
         }

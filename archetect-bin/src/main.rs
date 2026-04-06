@@ -5,7 +5,7 @@ use clap::ArgMatches;
 use log::warn;
 use rhai::Map;
 
-use archetect_api::{CommandRequest, IoDriver};
+use archetect_api::{ScriptMessage, ScriptIoHandle};
 use archetect_core::{self};
 use archetect_core::actions::ArchetectAction;
 use archetect_core::Archetect;
@@ -16,7 +16,7 @@ use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError, SourceError};
 use archetect_core::source::SourceContents;
 use archetect_core::system::{RootedSystemLayout, SystemLayout};
-use archetect_terminal_io::TerminalIoDriver;
+use archetect_terminal_io::TerminalScriptIoHandle;
 use ArchetypeError::ScriptAbortError;
 
 use crate::answers::parse_answer_pair;
@@ -33,8 +33,14 @@ fn main() {
         .get_matches();
     cli::configure(&matches);
 
-    let driver = TerminalIoDriver::default();
-    let layout = RootedSystemLayout::dot_home().unwrap();
+    let driver = TerminalScriptIoHandle::default();
+    let layout = match RootedSystemLayout::dot_home() {
+        Ok(layout) => layout,
+        Err(err) => {
+            let _ = driver.send(ScriptMessage::LogError(format!("Failed to initialize: {}", err)));
+            std::process::exit(1);
+        }
+    };
 
     match execute(matches, driver.clone(), layout) {
         Ok(()) => (),
@@ -44,7 +50,7 @@ fn main() {
                 ArchetectError::ArchetypeError(ScriptAbortError) => {}
                 ArchetectError::CatalogError(CatalogError::SelectionCancelled) => {}
                 _ => {
-                    driver.send(CommandRequest::LogError(format!("{}", error)));
+                    let _ = driver.send(ScriptMessage::LogError(format!("{}", error)));
                 }
             }
 
@@ -53,9 +59,9 @@ fn main() {
     }
 }
 
-fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout: L) -> Result<(), ArchetectError> {
+fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, layout: L) -> Result<(), ArchetectError> {
     let configuration = configuration::load_user_config(&layout, &matches)
-        .map_err(|err| ArchetectError::GeneralError(err.to_string()))?;
+        .map_err(|err| ArchetectError::ConfigError(err.to_string()))?;
 
     let mut answers = Map::new();
     // Load answers from merged configuration
@@ -74,7 +80,8 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
     // Load answers from individual answer arguments
     if let Some(answer_matches) = matches.get_many::<String>("answer") {
         for answer_match in answer_matches {
-            let (identifier, value) = parse_answer_pair(answer_match).unwrap();
+            let (identifier, value) = parse_answer_pair(answer_match)
+                .map_err(|e| ArchetectError::ConfigError(format!("Invalid answer '{}': {}", answer_match, e)))?;
             if let Ok(value) = value.parse::<i64>() {
                 answers.insert(identifier.into(), value.into());
             } else if let Ok(value) = value.parse::<bool>() {
@@ -99,6 +106,24 @@ fn execute<D: IoDriver, L: SystemLayout>(matches: ArgMatches, driver: D, layout:
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
         Some(("check", args)) => subcommands::handle_check_subcommand(args, &archetect)?,
+        Some(("server", args)) => subcommands::handle_server_subcommand(args, archetect)?,
+        Some(("connect", args)) => {
+            let render_context = configure_render_context(
+                archetect_core::archetype::render_context::RenderContext::new(
+                    camino::Utf8PathBuf::from(
+                        args.get_one::<String>("destination").expect("Has default"),
+                    ),
+                    answers,
+                ),
+                &archetect,
+                args,
+            );
+            let endpoint = args
+                .get_one::<String>("endpoint")
+                .expect("Required by Clap")
+                .to_string();
+            archetect_core::client::start(render_context, endpoint)?;
+        }
         Some((_, _args)) => {
             execute_action(&matches, archetect, answers)?;
         },

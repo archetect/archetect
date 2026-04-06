@@ -54,7 +54,7 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
             match prompt.prompt() {
                 Ok(proceed) => {
                     if proceed {
-                        let paths = fs::read_dir(archetect.layout().cache_dir()).unwrap();
+                        let paths = fs::read_dir(archetect.layout().cache_dir())?;
                         for path in paths {
                             if let Ok(path) = path {
                                 fs::remove_dir_all(path.path())?;

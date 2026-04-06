@@ -4,7 +4,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use log::{debug, error, info, trace, warn};
 
 use crate::list_prompt_handler::handle_list_prompt;
-use archetect_api::{CommandRequest, CommandResponse, IoDriver};
+use archetect_api::{ScriptMessage, ClientMessage, IoError, ScriptIoHandle};
 
 use crate::bool_prompt_handler::handle_prompt_bool;
 use crate::editor_prompt_info::handle_editor_prompt;
@@ -12,67 +12,86 @@ use crate::int_prompt_handler::handle_prompt_int;
 use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 use crate::select_prompt_handler::handle_select_prompt;
 use crate::text_prompt_handler::handle_prompt_text;
+use crate::write_directory_handler::handle_write_directory;
+use crate::write_file_handler::handle_write_file;
 
 #[derive(Clone, Debug)]
-pub struct TerminalIoDriver {
-    responses_tx: SyncSender<CommandResponse>,
-    responses_rx: Arc<Mutex<Receiver<CommandResponse>>>,
+pub struct TerminalScriptIoHandle {
+    responses_tx: SyncSender<ClientMessage>,
+    responses_rx: Arc<Mutex<Receiver<ClientMessage>>>,
 }
 
-impl IoDriver for TerminalIoDriver {
-    fn send(&self, request: CommandRequest) {
+impl ScriptIoHandle for TerminalScriptIoHandle {
+    fn send(&self, request: ScriptMessage) -> Result<(), IoError> {
         match request {
-            CommandRequest::PromptForText(prompt_info) => {
+            ScriptMessage::PromptForText(prompt_info) => {
                 handle_prompt_text(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForInt(prompt_info) => {
+            ScriptMessage::PromptForInt(prompt_info) => {
                 handle_prompt_int(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForBool(prompt_info) => {
+            ScriptMessage::PromptForBool(prompt_info) => {
                 handle_prompt_bool(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForList(prompt_info) => {
+            ScriptMessage::PromptForList(prompt_info) => {
                 handle_list_prompt(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForSelect(prompt_info) => {
+            ScriptMessage::PromptForSelect(prompt_info) => {
                 handle_select_prompt(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForMultiSelect(prompt_info) => {
+            ScriptMessage::PromptForMultiSelect(prompt_info) => {
                 handle_multiselect_prompt(prompt_info, &self.responses_tx);
             }
-            CommandRequest::PromptForEditor(prompt_info) => {
+            ScriptMessage::PromptForEditor(prompt_info) => {
                 handle_editor_prompt(prompt_info, &self.responses_tx);
             }
-            CommandRequest::LogInfo(message) => {
+            ScriptMessage::LogInfo(message) => {
                 info!("{}", message)
             }
-            CommandRequest::LogWarn(message) => {
+            ScriptMessage::LogWarn(message) => {
                 warn!("{}", message)
             }
-            CommandRequest::LogDebug(message) => {
+            ScriptMessage::LogDebug(message) => {
                 debug!("{}", message)
             }
-            CommandRequest::LogTrace(message) => {
+            ScriptMessage::LogTrace(message) => {
                 trace!("{}", message)
             }
-            CommandRequest::LogError(message) => {
+            ScriptMessage::LogError(message) => {
                 error!("{}", message)
             }
-            CommandRequest::Print(message) => {
+            ScriptMessage::Print(message) => {
                 println!("{}", message)
             }
-            CommandRequest::Display(message) => {
+            ScriptMessage::Display(message) => {
                 eprintln!("{}", message)
             }
+            ScriptMessage::WriteFile(write_info) => {
+                handle_write_file(write_info, &self.responses_tx);
+            }
+            ScriptMessage::WriteDirectory(write_info) => {
+                handle_write_directory(write_info, &self.responses_tx);
+            }
+            ScriptMessage::CompleteSuccess => {
+                debug!("Archetype completed successfully");
+            }
+            ScriptMessage::CompleteError(message) => {
+                error!("Archetype completed with error: {}", message);
+            }
         }
+        Ok(())
     }
 
-    fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>> {
-        self.responses_rx.clone()
+    fn receive(&self) -> Result<ClientMessage, IoError> {
+        self.responses_rx
+            .lock()
+            .expect("Lock Error")
+            .recv()
+            .map_err(|_| IoError::ClientDisconnected)
     }
 }
 
-impl Default for TerminalIoDriver {
+impl Default for TerminalScriptIoHandle {
     fn default() -> Self {
         let (responses_tx, responses_rx) = mpsc::sync_channel(1);
         Self {

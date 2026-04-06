@@ -1,8 +1,8 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, PromptInfo, SelectPromptInfo};
+use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, SelectPromptInfo};
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper, io_error_to_script_error};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_info_pageable};
@@ -55,13 +55,13 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
         }
     }
 
-    archetect.request(CommandRequest::PromptForSelect(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForSelect(prompt_info.clone())).map_err(io_error_to_script_error)?;
 
-    match archetect.response() {
-        CommandResponse::String(answer) => {
+    match archetect.response().map_err(io_error_to_script_error)? {
+        ClientMessage::String(answer) => {
             return Ok(Some(answer));
         }
-        CommandResponse::None => {
+        ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
@@ -69,10 +69,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 return Ok(None);
             }
         }
-        CommandResponse::Error(error) => {
+        ClientMessage::Error(error) => {
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
-        CommandResponse::Abort => {
+        ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {

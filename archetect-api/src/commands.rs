@@ -12,6 +12,8 @@ pub use crate::commands::prompt_info::{
 };
 pub use crate::commands::select_prompt_info::SelectPromptInfo;
 pub use crate::commands::text_prompt_info::TextPromptInfo;
+pub use crate::commands::write_directory_info::WriteDirectoryInfo;
+pub use crate::commands::write_file_info::{ExistingFilePolicy, WriteFileInfo};
 
 mod bool_prompt_info;
 mod editor_prompt_info;
@@ -21,9 +23,11 @@ mod multiselect_prompt_info;
 mod prompt_info;
 mod select_prompt_info;
 mod text_prompt_info;
+mod write_directory_info;
+mod write_file_info;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CommandRequest {
+pub enum ScriptMessage {
     /// Prompt for Text
     PromptForText(TextPromptInfo),
     /// Prompt for a Signed Integer
@@ -52,10 +56,18 @@ pub enum CommandRequest {
     Print(String),
     /// Print a String that show not be captured as output, such as on STDERR
     Display(String),
+    /// Write a file to the destination
+    WriteFile(WriteFileInfo),
+    /// Create a directory at the destination
+    WriteDirectory(WriteDirectoryInfo),
+    /// Signal successful completion
+    CompleteSuccess,
+    /// Signal completion with an error
+    CompleteError(String),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CommandResponse {
+pub enum ClientMessage {
     String(String),
     Integer(i64),
     Boolean(bool),
@@ -63,4 +75,14 @@ pub enum CommandResponse {
     None,
     Error(String),
     Abort,
+    /// Acknowledge receipt of a write operation
+    Ack,
+    /// Initialize a session with configuration
+    Initialize {
+        answers_yaml: String,
+        switches: Vec<String>,
+        use_defaults: Vec<String>,
+        use_defaults_all: bool,
+        destination: String,
+    },
 }

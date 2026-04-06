@@ -1,34 +1,45 @@
 let context = #{};
 
 let alternate_answers = #{
-    rest_port: 8060,
+    enable_logging: true,
 };
 
-context.service_port = prompt("Service Port:", #{
-    type: Int,
-});
+if switch_enabled("test_scalar_bool_prompt") {
+    context.enabled = prompt("Enabled:", #{
+        type: Bool,
+    });
+    debug(context);
+}
 
-context.management_port = prompt("Management Port:", #{
-    defaults_with: context.service_port + 1,
-    type: Int,
-    min: 1024,
-    max: 65535,
-    placeholder: "Management Port Number",
-    help: "Enter an integer between 1024 and 65535",
-    optional: true,
-});
+if switch_enabled("test_scalar_bool_prompt_with_default") {
+    context.verbose = prompt("Verbose:", #{
+        type: Bool,
+        defaults_with: true,
+        help: "Enable verbose output",
+        placeholder: "true/false",
+    });
+    debug(context);
+}
 
-// Get answer provided by RenderContext
-context.debug_port = prompt("Debug Port:", #{
-    type: Int,
-    answer_key: "debug_port",
-});
+if switch_enabled("test_scalar_bool_prompt_non_optional") {
+    context.enabled = prompt("Enabled:", #{
+        type: Bool,
+    });
+    debug(context);
+}
 
-// Get answer from within Scripting Context
-context.rest_port = prompt("Rest Port:", #{
-    type: Int,
-    answer_key: "rest_port",
-    answer_source: alternate_answers,
-});
+if switch_enabled("test_scalar_bool_prompt_unexpected") {
+    context.enabled = prompt("Enabled:", #{
+        type: Bool,
+    });
+    debug(context);
+}
 
-debug(context);
+if switch_enabled("test_scalar_bool_prompt_with_answer") {
+    context.enable_logging = prompt("Enable Logging:", #{
+        type: Bool,
+        answer_key: "enable_logging",
+        answer_source: alternate_answers,
+    });
+    debug(context);
+}

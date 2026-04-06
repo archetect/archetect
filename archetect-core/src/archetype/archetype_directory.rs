@@ -28,13 +28,23 @@ impl ArchetypeDirectory {
     }
 
     pub fn script(&self) -> Result<Utf8PathBuf, ArchetypeError> {
-        let mut script_path = self.root.clone();
-        script_path.push(self.manifest().scripting().main());
+        let main = self.manifest().scripting().main();
+        let script_path = self.root.join(&main);
 
-        if !script_path.is_file() {
-            return Err(ArchetypeError::ArchetypeManifestNotFound { path: script_path });
+        if script_path.is_file() {
+            return Ok(script_path);
         }
 
-        Ok(script_path)
+        // Auto-detect: if main wasn't explicitly set, try common filenames
+        if self.manifest().scripting().main.is_none() {
+            for fallback in &["archetype.rhai", "archetype.lua"] {
+                let fallback_path = self.root.join(fallback);
+                if fallback_path.is_file() {
+                    return Ok(fallback_path);
+                }
+            }
+        }
+
+        Err(ArchetypeError::ArchetypeManifestNotFound { path: script_path })
     }
 }

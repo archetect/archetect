@@ -1,0 +1,8 @@
+---
+description: "Rhai Cases Tests"
+
+requires:
+  archetect: "2.0.0-ALPHA.4"
+
+scripting:
+  engine: rhai

@@ -38,7 +38,7 @@ impl NativeSystemLayout {
     pub fn new() -> Result<NativeSystemLayout, SystemError> {
         match ProjectDirs::from("", "", "archetect") {
             Some(project) => Ok(NativeSystemLayout { project }),
-            None => Err(SystemError::GenericError(
+            None => Err(SystemError::HomeDirectoryNotFound(
                 "No home directory detected for the current user.".to_owned(),
             )),
         }

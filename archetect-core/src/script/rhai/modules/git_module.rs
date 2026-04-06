@@ -3,7 +3,7 @@ use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
 use crate::script::rhai::modules::path_module::Path;
 use crate::utils::restrict_path_manipulation;
 use crate::Archetect;
-use archetect_api::CommandRequest;
+use archetect_api::ScriptMessage;
 use camino::Utf8PathBuf;
 use git2::{BranchType, IndexAddOption, Repository, Signature};
 use log::info;
@@ -372,7 +372,7 @@ fn git_init_dir(
                 ArchetypeScriptErrorWrapper(call, error)
             })?;
 
-            archetect.request(CommandRequest::LogInfo(format!(
+            let _ = archetect.request(ScriptMessage::LogInfo(format!(
                 "Initialized Git repository at: {} with default branch 'main'",
                 full_path
             )));
@@ -421,7 +421,7 @@ fn git_init_with_branch(
                 ArchetypeScriptErrorWrapper(call, error)
             })?;
 
-            archetect.request(CommandRequest::LogInfo(format!(
+            let _ = archetect.request(ScriptMessage::LogInfo(format!(
                 "Initialized Git repository at: {} with default branch '{}'",
                 full_path, branch_name
             )));
@@ -588,7 +588,7 @@ fn git_commit(
             ArchetypeScriptErrorWrapper(call, error)
         })?;
 
-    archetect.request(CommandRequest::LogDebug(format!(
+    let _ = archetect.request(ScriptMessage::LogDebug(format!(
         "Created commit: {}",
         &commit_id.to_string()[..7]
     )));
@@ -631,7 +631,7 @@ fn git_remote_add(
         ArchetypeScriptErrorWrapper(call, error)
     })?;
 
-    archetect.request(CommandRequest::LogInfo(format!("Added remote '{}' -> {}", name, url)));
+    let _ = archetect.request(ScriptMessage::LogInfo(format!("Added remote '{}' -> {}", name, url)));
 
     Ok(())
 }
@@ -662,7 +662,7 @@ fn git_push(
     // This leverages the user's existing Git configuration and credential helpers
     use std::process::Command;
 
-    archetect.request(CommandRequest::LogInfo(format!(
+    let _ = archetect.request(ScriptMessage::LogInfo(format!(
         "Pushing to '{}/{}' ...",
         remote, branch
     )));
@@ -688,7 +688,7 @@ fn git_push(
         return Err(ArchetypeScriptErrorWrapper(call, error).into());
     }
 
-    archetect.request(CommandRequest::LogInfo(format!(
+    let _ = archetect.request(ScriptMessage::LogInfo(format!(
         "Successfully pushed to '{}/{}'",
         remote, branch
     )));

@@ -6,11 +6,5 @@ pub enum SystemError {
         source: std::io::Error,
     },
     #[error("System Error: {0}")]
-    GenericError(String),
-}
-
-impl From<String> for SystemError {
-    fn from(error: String) -> Self {
-        SystemError::GenericError(error)
-    }
+    HomeDirectoryNotFound(String),
 }

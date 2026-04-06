@@ -1,12 +1,13 @@
-use std::sync::mpsc::SyncSender;
+
 
 use archetect_inquire::{Confirm, InquireError};
 
-use archetect_api::{BoolPromptInfo, CommandResponse, ValueSource};
+use archetect_api::{BoolPromptInfo, ClientMessage, ValueSource};
+use crate::responder::Responder;
 
 use crate::get_render_config;
 
-pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &dyn Responder) {
     let mut prompt = Confirm::new(prompt_info.message()).with_render_config(get_render_config());
     let default = prompt_info.default();
     prompt.default = default;
@@ -25,23 +26,18 @@ pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &SyncSender<Co
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::Boolean(answer))
-                    .expect("Channel Send Error");
+                responses.respond(ClientMessage::Boolean(answer));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                responses.respond(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                   responses.send(CommandResponse::Abort)
-                       .expect("Channel Send Error");
+                   responses.respond(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    responses.respond(ClientMessage::Error(error.to_string()));
                 }
             }
         }

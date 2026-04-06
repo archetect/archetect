@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use archetect_api::IoError;
 use camino::Utf8PathBuf;
 
 #[derive(Debug, thiserror::Error)]
@@ -58,4 +59,8 @@ pub enum RenderError {
         path: Utf8PathBuf,
         source: std::io::Error,
     },
+    #[error("IO channel error: {0}")]
+    ChannelError(#[from] IoError),
+    #[error("Unexpected IO response: {0}")]
+    UnexpectedResponse(String),
 }

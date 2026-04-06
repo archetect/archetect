@@ -13,7 +13,7 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "archetect"
+name = "archetect3"
 path = "src/main.rs"
 
 [dependencies]
@@ -39,6 +39,7 @@ serde_json = { workspace = true }
 serde_yaml= { workspace = true }
 shellexpand = { workspace = true }
 tempfile = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 
 [build-dependencies]
 embed-resource = "3.0.1"

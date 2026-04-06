@@ -8,6 +8,7 @@ use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
 
+pub mod lua;
 pub mod rhai;
 
 pub(crate) fn create_environment(

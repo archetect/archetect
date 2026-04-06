@@ -182,7 +182,7 @@ fn tar_path(
 }
 
 // Implementation using zip crate
-fn create_zip_archive(source_dir: &Utf8Path, dest_file: &Utf8Path) -> io::Result<()> {
+pub fn create_zip_archive(source_dir: &Utf8Path, dest_file: &Utf8Path) -> io::Result<()> {
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
 
@@ -248,7 +248,7 @@ fn add_directory_to_zip(
 }
 
 // Implementation using tar crate
-fn create_tar_archive(source_dir: &Utf8Path, dest_file: &Utf8Path, compress: bool) -> io::Result<()> {
+pub fn create_tar_archive(source_dir: &Utf8Path, dest_file: &Utf8Path, compress: bool) -> io::Result<()> {
     use tar::Builder;
 
     let file = File::create(dest_file)?;

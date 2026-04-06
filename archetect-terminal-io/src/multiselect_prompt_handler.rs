@@ -1,11 +1,12 @@
-use std::sync::mpsc::SyncSender;
 
-use archetect_api::{CommandResponse, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
+
+use archetect_api::{ClientMessage, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
+use crate::responder::Responder;
 use archetect_inquire::{InquireError, MultiSelect};
 
 use crate::get_render_config;
 
-pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: &SyncSender<CommandResponse>) {
+pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: &dyn Responder) {
     let mut prompt =
         MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -34,23 +35,18 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
     match prompt.prompt_skippable() {
         Ok(answer) => {
             if let Some(answer) = answer {
-                responses
-                    .send(CommandResponse::Array(answer))
-                    .expect("Channel Send Error");
+                responses.respond(ClientMessage::Array(answer));
             } else {
-                responses.send(CommandResponse::None).expect("Channel Send Error");
+                responses.respond(ClientMessage::None);
             }
         }
         Err(error) => {
             match error {
                 InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.send(CommandResponse::Abort)
-                        .expect("Channel Send Error");
+                    responses.respond(ClientMessage::Abort);
                 }
                 _ => {
-                    responses
-                        .send(CommandResponse::Error(error.to_string()))
-                        .expect("Channel Send Error");
+                    responses.respond(ClientMessage::Error(error.to_string()));
                 }
             }
         }

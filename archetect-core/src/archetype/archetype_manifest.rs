@@ -10,7 +10,7 @@ use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
 
 mod requirements;
-mod scripting;
+pub mod scripting;
 mod templating;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

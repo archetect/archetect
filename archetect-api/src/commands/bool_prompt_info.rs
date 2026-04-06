@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BoolPromptInfo {
-    message: String,
-    key: Option<String>,
-    default: Option<bool>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
+    pub message: String,
+    pub key: Option<String>,
+    pub default: Option<bool>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
 }
 
 impl PromptInfo for BoolPromptInfo {

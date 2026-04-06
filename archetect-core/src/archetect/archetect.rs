@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use semver::Version;
 
-use archetect_api::{CommandRequest, CommandResponse, IoDriver};
-use archetect_terminal_io::TerminalIoDriver;
+use archetect_api::{ScriptMessage, ClientMessage, IoError, ScriptIoHandle};
+use archetect_terminal_io::TerminalScriptIoHandle;
 
 use crate::archetype::archetype::Archetype;
 use crate::catalog::{Catalog};
@@ -20,7 +20,7 @@ pub struct Archetect {
 #[derive(Debug)]
 struct Inner {
     version: Version,
-    io_driver: Box<dyn IoDriver>,
+    io_driver: Box<dyn ScriptIoHandle>,
     layout: Box<dyn SystemLayout>,
     configuration: Configuration,
 }
@@ -28,7 +28,7 @@ struct Inner {
 pub struct ArchetectBuilder {
     configuration: Option<Configuration>,
     layout: Option<Box<dyn SystemLayout>>,
-    driver: Option<Box<dyn IoDriver>>,
+    driver: Option<Box<dyn ScriptIoHandle>>,
 }
 
 impl ArchetectBuilder {
@@ -42,7 +42,7 @@ impl ArchetectBuilder {
         Ok(self)
     }
 
-    pub fn with_driver<D: Into<Box<dyn IoDriver>>>(mut self, driver: D) -> Self {
+    pub fn with_driver<D: Into<Box<dyn ScriptIoHandle>>>(mut self, driver: D) -> Self {
         self.driver = Some(driver.into());
         self
     }
@@ -56,7 +56,7 @@ impl ArchetectBuilder {
         let configuration = self.configuration.unwrap_or(Configuration::default());
         let default_layout = RootedSystemLayout::dot_home()?;
         let layout = self.layout.unwrap_or_else(|| default_layout.into());
-        let driver = self.driver.unwrap_or_else(|| TerminalIoDriver::default().into());
+        let driver = self.driver.unwrap_or_else(|| TerminalScriptIoHandle::default().into());
         Ok(Archetect::new(configuration, driver, layout))
     }
 }
@@ -72,7 +72,7 @@ impl Default for ArchetectBuilder {
 }
 
 impl Archetect {
-    pub fn new<T: Into<Box<dyn IoDriver>>, L: Into<Box<dyn SystemLayout>>>(
+    pub fn new<T: Into<Box<dyn ScriptIoHandle>>, L: Into<Box<dyn SystemLayout>>>(
         configuration: Configuration,
         driver: T,
         layout: L,
@@ -107,7 +107,7 @@ impl Archetect {
         &self.inner.layout
     }
 
-    pub fn request(&self, command: CommandRequest) {
+    pub fn request(&self, command: ScriptMessage) -> Result<(), IoError> {
         self.inner.io_driver.send(command)
     }
 
@@ -115,12 +115,8 @@ impl Archetect {
         &self.inner.configuration
     }
 
-    pub fn response(&self) -> CommandResponse {
-        self.inner.io_driver.responses()
-            .lock()
-            .expect("Lock Error")
-            .recv()
-            .expect("Receive Error")
+    pub fn response(&self) -> Result<ClientMessage, IoError> {
+        self.inner.io_driver.receive()
     }
 
     pub fn new_archetype(&self, path: &str) -> Result<Archetype, ArchetectError> {

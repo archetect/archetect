@@ -11,6 +11,10 @@ pub mod caching;
 mod cache_manager;
 pub mod actions;
 pub(crate) mod check;
+pub mod client;
+pub mod io;
+pub mod proto;
+pub mod server;
 
 pub use cache_manager::*;
 

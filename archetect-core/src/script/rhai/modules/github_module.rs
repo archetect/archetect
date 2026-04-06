@@ -1,5 +1,5 @@
 use crate::Archetect;
-use archetect_api::CommandRequest;
+use archetect_api::ScriptMessage;
 use octocrab::Octocrab;
 use rhai::plugin::*;
 use rhai::{Engine, EvalAltResult};
@@ -86,7 +86,7 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect) {
             // Check if repo already exists
             match octocrab.repos(owner, repo_name).get().await {
                 Ok(_) => {
-                    archetect_clone.request(CommandRequest::LogWarn(
+                    let _ = archetect_clone.request(ScriptMessage::LogWarn(
                         format!("Repository '{}/{}' already exists", owner, repo_name)
                     ));
                     Ok(false)
@@ -146,7 +146,7 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect) {
                         .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
                     
                     if repo_data.get("id").is_some() {
-                        archetect_clone.request(CommandRequest::LogInfo(
+                        let _ = archetect_clone.request(ScriptMessage::LogInfo(
                             format!("Created repository '{}/{}'", display_owner, repo_name)
                         ));
                         Ok(true)
@@ -186,7 +186,7 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect) {
             // Check if repo already exists
             match octocrab.repos(owner, repo_name).get().await {
                 Ok(_) => {
-                    archetect_clone2.request(CommandRequest::LogWarn(
+                    let _ = archetect_clone2.request(ScriptMessage::LogWarn(
                         format!("Repository '{}/{}' already exists", owner, repo_name)
                     ));
                     Ok(false)
@@ -251,7 +251,7 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect) {
                         .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
                     
                     if repo_data.get("id").is_some() {
-                        archetect_clone2.request(CommandRequest::LogInfo(
+                        let _ = archetect_clone2.request(ScriptMessage::LogInfo(
                             format!("Created {} repository '{}/{}'", visibility_str, display_owner, repo_name)
                         ));
                         Ok(true)

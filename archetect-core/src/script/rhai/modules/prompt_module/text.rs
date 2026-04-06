@@ -1,9 +1,9 @@
 use rhai::{Dynamic, EvalAltResult, Map, NativeCallContext};
 
-use archetect_api::{CommandRequest, CommandResponse, PromptInfo, PromptInfoLengthRestrictions, TextPromptInfo};
+use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoLengthRestrictions, TextPromptInfo};
 use archetect_validations::validate_text_length;
 
-use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper};
+use crate::errors::{ArchetypeScriptError, ArchetypeScriptErrorWrapper, io_error_to_script_error};
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::script::rhai::modules::prompt_module::{cast_setting, extract_prompt_info, extract_prompt_length_restrictions};
@@ -58,10 +58,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
     }
 
 
-    archetect.request(CommandRequest::PromptForText(prompt_info.clone()));
+    archetect.request(ScriptMessage::PromptForText(prompt_info.clone())).map_err(io_error_to_script_error)?;
 
-    match archetect.response() {
-        CommandResponse::String(answer) => {
+    match archetect.response().map_err(io_error_to_script_error)? {
+        ClientMessage::String(answer) => {
             match validate_text_length(prompt_info.min(), prompt_info.max(), &answer.to_string()) {
                 Ok(_) => Ok(answer.into()),
                 Err(error_message) => {
@@ -70,7 +70,7 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 }
             }
         }
-        CommandResponse::None => {
+        ClientMessage::None => {
             if !prompt_info.optional() {
                 let error = ArchetypeScriptError::answer_not_optional(&prompt_info);
                 return Err(ArchetypeScriptErrorWrapper(call, error).into());
@@ -78,10 +78,10 @@ pub fn prompt<'a, K: AsRef<str> + Clone>(
                 return Ok(None);
             }
         }
-        CommandResponse::Error(error) => {
+        ClientMessage::Error(error) => {
             return Err(ArchetypeScriptErrorWrapper(call, ArchetypeScriptError::PromptError(error)).into());
         }
-        CommandResponse::Abort => {
+        ClientMessage::Abort => {
             return Err(Box::new(EvalAltResult::ErrorTerminated(Dynamic::UNIT, call.position())));
         },
         response => {

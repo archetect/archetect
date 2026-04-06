@@ -29,7 +29,10 @@ pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<Map, ArchetectError> 
 
 fn read_yaml_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = serde_yaml::from_str(&contents).unwrap();
+    let result: Dynamic = serde_yaml::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+        path: path.to_string(),
+        source: AnswerFileError::ParseError(err.to_string()),
+    })?;
 
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
@@ -43,7 +46,10 @@ fn read_yaml_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
 
 fn read_json_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = serde_json::from_str(&contents).unwrap();
+    let result: Dynamic = serde_json::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+        path: path.to_string(),
+        source: AnswerFileError::ParseError(err.to_string()),
+    })?;
 
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
@@ -57,7 +63,10 @@ fn read_json_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
 
 fn read_rhai_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = Engine::new().eval::<Dynamic>(&contents).unwrap();
+    let result: Dynamic = Engine::new().eval::<Dynamic>(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+        path: path.to_string(),
+        source: AnswerFileError::ParseError(err.to_string()),
+    })?;
 
     if let Some(map) = result.try_cast::<Map>() {
         Ok(map)
@@ -80,20 +89,20 @@ struct AnswerParser;
 pub fn parse_answer_pair(input: &str) -> Result<(String, String), anyhow::Error> {
     let mut pairs = AnswerParser::parse(Rule::answer, input)?;
 
-    let mut iter = pairs.next().unwrap().into_inner();
-    let identifier_pair = iter.next().unwrap();
-    let value_pair = iter.next().unwrap();
-    Ok((parse_identifier(identifier_pair), parse_value(value_pair)))
+    let answer_pair = pairs.next().ok_or_else(|| anyhow::anyhow!("No answer pair found"))?;
+    let mut iter = answer_pair.into_inner();
+    let identifier_pair = iter.next().ok_or_else(|| anyhow::anyhow!("Missing identifier"))?;
+    let value_pair = iter.next().ok_or_else(|| anyhow::anyhow!("Missing value"))?;
+    Ok((parse_identifier(identifier_pair), parse_value(value_pair)?))
 }
 
 fn parse_identifier(pair: Pair<Rule>) -> String {
-    assert_eq!(pair.as_rule(), Rule::identifier);
     pair.as_str().to_owned()
 }
 
-fn parse_value(pair: Pair<Rule>) -> String {
-    assert_eq!(pair.as_rule(), Rule::string);
-    pair.into_inner().next().unwrap().as_str().to_owned()
+fn parse_value(pair: Pair<Rule>) -> Result<String, anyhow::Error> {
+    let inner = pair.into_inner().next().ok_or_else(|| anyhow::anyhow!("Missing value content"))?;
+    Ok(inner.as_str().to_owned())
 }
 
 #[cfg(test)]
@@ -111,17 +120,17 @@ mod tests {
     #[test]
     fn test_parse_value() {
         assert_eq!(
-            parse_value(AnswerParser::parse(Rule::string, "value").unwrap().next().unwrap()),
+            parse_value(AnswerParser::parse(Rule::string, "value").unwrap().next().unwrap()).unwrap(),
             "value"
         );
 
         assert_eq!(
-            parse_value(AnswerParser::parse(Rule::string, "\"value\"").unwrap().next().unwrap()),
+            parse_value(AnswerParser::parse(Rule::string, "\"value\"").unwrap().next().unwrap()).unwrap(),
             "value"
         );
 
         assert_eq!(
-            parse_value(AnswerParser::parse(Rule::string, "'value'").unwrap().next().unwrap()),
+            parse_value(AnswerParser::parse(Rule::string, "'value'").unwrap().next().unwrap()).unwrap(),
             "value"
         );
     }

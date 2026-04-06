@@ -5,16 +5,16 @@ use crate::PromptInfoItemsRestrictions;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MultiSelectPromptInfo {
-    message: String,
-    key: Option<String>,
-    options: Vec<String>,
-    defaults: Option<Vec<String>>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
-    min_items: Option<usize>,
-    max_items: Option<usize>,
-    page_size: Option<usize>,
+    pub message: String,
+    pub key: Option<String>,
+    pub options: Vec<String>,
+    pub defaults: Option<Vec<String>>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
+    pub min_items: Option<usize>,
+    pub max_items: Option<usize>,
+    pub page_size: Option<usize>,
 }
 
 impl PromptInfo for MultiSelectPromptInfo {

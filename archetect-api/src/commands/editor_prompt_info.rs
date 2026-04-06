@@ -4,14 +4,14 @@ use crate::PromptInfoLengthRestrictions;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EditorPromptInfo {
-    message: String,
-    key: Option<String>,
-    default: Option<String>,
-    min: Option<i64>,
-    max: Option<i64>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
+    pub message: String,
+    pub key: Option<String>,
+    pub default: Option<String>,
+    pub min: Option<i64>,
+    pub max: Option<i64>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
 }
 
 impl PromptInfo for EditorPromptInfo {

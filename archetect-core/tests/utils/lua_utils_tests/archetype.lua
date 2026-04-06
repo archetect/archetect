@@ -1,0 +1,7 @@
+log.trace("trace message")
+log.debug("debug message")
+log.info("info message")
+log.warn("warn message")
+log.error("error message")
+output.print("print message")
+output.banner("banner message")

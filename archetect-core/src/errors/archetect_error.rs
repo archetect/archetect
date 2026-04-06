@@ -1,4 +1,5 @@
 use std::env::VarError;
+use archetect_api::IoError;
 use crate::errors::answer_error::AnswerFileError;
 use crate::errors::{ArchetypeError, RenderError, SourceError};
 use crate::errors::{CatalogError, SystemError};
@@ -40,6 +41,12 @@ pub enum ArchetectError {
     "Headless mode does not allow command line interaction, and requires a default value or answers to be set for this prompt style."
     )]
     HeadlessNoDefault,
+    #[error("IO channel error: {0}")]
+    ChannelError(#[from] IoError),
+    #[error("Server error: {0}")]
+    ServerError(String),
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
     #[error("Error: {0}")]
     GeneralError(String),
     #[error("Action \"{0}\" is not defined in configuration. Available actions: {1:?}.")]

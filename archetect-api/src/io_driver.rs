@@ -2,73 +2,86 @@ use std::fmt::Debug;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{mpsc, Arc, Mutex};
 
-use crate::{CommandRequest, CommandResponse};
+use crate::{ClientMessage, IoError, ScriptMessage};
 
-pub trait IoDriver: Debug + Send + Sync + 'static {
-    fn send(&self, request: CommandRequest);
+pub trait ScriptIoHandle: Debug + Send + Sync + 'static {
+    fn send(&self, request: ScriptMessage) -> Result<(), IoError>;
 
-    fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>>;
-
-    fn receive(&self) -> CommandResponse {
-        self.responses()
-            .lock()
-            .expect("Lock Error")
-            .recv()
-            .expect("Receive Error")
-    }
+    fn receive(&self) -> Result<ClientMessage, IoError>;
 }
 
-impl<T: IoDriver> From<T> for Box<dyn IoDriver> {
+impl<T: ScriptIoHandle> From<T> for Box<dyn ScriptIoHandle> {
     fn from(value: T) -> Self {
         Box::new(value)
     }
 }
 
-pub fn api_driver_and_handle() -> (ApiIoDriver, ApiIoHandle) {
+pub trait ClientIoHandle: Debug + Send + Sync + 'static {
+    fn send(&self, message: ClientMessage) -> Result<(), IoError>;
+
+    fn receive(&self) -> Result<ScriptMessage, IoError>;
+}
+
+impl<T: ClientIoHandle> From<T> for Box<dyn ClientIoHandle> {
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
+pub fn sync_io_channel() -> (SyncScriptIoHandle, SyncClientIoHandle) {
     let (requests_tx, requests_rx) = mpsc::sync_channel(1);
     let (responses_tx, responses_rx) = mpsc::sync_channel(1);
-    let driver = ApiIoDriver {
+    let script_handle = SyncScriptIoHandle {
         requests_tx,
         responses_rx: Arc::new(Mutex::new(responses_rx)),
     };
-    let handle = ApiIoHandle {
+    let client_handle = SyncClientIoHandle {
         responses_tx,
-        requests_rx,
+        requests_rx: Arc::new(Mutex::new(requests_rx)),
     };
-    (driver, handle)
+    (script_handle, client_handle)
 }
 
 #[derive(Debug)]
-pub struct ApiIoDriver {
-    requests_tx: SyncSender<CommandRequest>,
-    responses_rx: Arc<Mutex<Receiver<CommandResponse>>>,
+pub struct SyncScriptIoHandle {
+    requests_tx: SyncSender<ScriptMessage>,
+    responses_rx: Arc<Mutex<Receiver<ClientMessage>>>,
 }
 
-impl IoDriver for ApiIoDriver {
-    fn send(&self, request: CommandRequest) {
-        self.requests_tx.send(request).expect("Send Error");
+impl ScriptIoHandle for SyncScriptIoHandle {
+    fn send(&self, request: ScriptMessage) -> Result<(), IoError> {
+        self.requests_tx
+            .send(request)
+            .map_err(|_| IoError::ClientDisconnected)
     }
 
-    fn responses(&self) -> Arc<Mutex<Receiver<CommandResponse>>> {
-        self.responses_rx.clone()
+    fn receive(&self) -> Result<ClientMessage, IoError> {
+        self.responses_rx
+            .lock()
+            .expect("Lock Error")
+            .recv()
+            .map_err(|_| IoError::ClientDisconnected)
     }
 }
 
-pub struct ApiIoHandle {
-    requests_rx: Receiver<CommandRequest>,
-    responses_tx: SyncSender<CommandResponse>,
+#[derive(Debug)]
+pub struct SyncClientIoHandle {
+    requests_rx: Arc<Mutex<Receiver<ScriptMessage>>>,
+    responses_tx: SyncSender<ClientMessage>,
 }
 
-impl ApiIoHandle {
-    pub fn respond(&self, response: CommandResponse) {
-        self.responses_tx.send(response).expect("Send Error")
+impl ClientIoHandle for SyncClientIoHandle {
+    fn send(&self, response: ClientMessage) -> Result<(), IoError> {
+        self.responses_tx
+            .send(response)
+            .map_err(|_| IoError::ScriptChannelClosed)
     }
 
-    pub fn requests(&self) -> &Receiver<CommandRequest> {
-        &self.requests_rx
-    }
-
-    pub fn receive(&self) -> CommandRequest {
-        self.requests_rx.recv().expect("Receive Error")
+    fn receive(&self) -> Result<ScriptMessage, IoError> {
+        self.requests_rx
+            .lock()
+            .expect("Lock Error")
+            .recv()
+            .map_err(|_| IoError::ScriptChannelClosed)
     }
 }

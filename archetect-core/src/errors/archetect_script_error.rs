@@ -1,6 +1,6 @@
-use rhai::{EvalAltResult, NativeCallContext};
+use rhai::{Dynamic, EvalAltResult, NativeCallContext, Position};
 
-use archetect_api::{CommandResponse, PromptInfo};
+use archetect_api::{ClientMessage, IoError, PromptInfo};
 use ArchetypeScriptError::{AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError, HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError, KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting, KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse};
 use crate::errors::ArchetypeScriptError::KeyedInvalidSetSetting;
 
@@ -335,7 +335,7 @@ impl ArchetypeScriptError {
     pub fn unexpected_prompt_response<'a, P, E>(
         prompt: &P,
         expected: E,
-        actual: CommandResponse,
+        actual: ClientMessage,
     ) -> ArchetypeScriptError
     where
         P: PromptInfo,
@@ -392,4 +392,11 @@ impl<'a> From<ArchetypeScriptErrorWrapper<'a>> for Box<EvalAltResult> {
 pub enum ErrorType {
     Function,
     System,
+}
+
+pub fn io_error_to_script_error(error: IoError) -> Box<EvalAltResult> {
+    Box::new(EvalAltResult::ErrorTerminated(
+        Dynamic::from(error.to_string()),
+        Position::NONE,
+    ))
 }

@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListPromptInfo {
-    message: String,
-    key: Option<String>,
-    defaults: Option<Vec<String>>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
-    min_items: Option<usize>,
-    max_items: Option<usize>,
+    pub message: String,
+    pub key: Option<String>,
+    pub defaults: Option<Vec<String>>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
+    pub min_items: Option<usize>,
+    pub max_items: Option<usize>,
 }
 
 impl PromptInfo for ListPromptInfo {

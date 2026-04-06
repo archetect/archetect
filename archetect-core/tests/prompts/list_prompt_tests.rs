@@ -4,7 +4,7 @@ use function_name::named;
 use indoc::indoc;
 use rhai::Map;
 
-use archetect_api::{CommandRequest, CommandResponse, PromptInfo, PromptInfoItemsRestrictions};
+use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoItemsRestrictions};
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 
@@ -20,7 +20,7 @@ fn test_simple_defaults() -> anyhow::Result<()> {
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
         assert_matches!(prompt_info.min_items(), None);
         assert_matches!(prompt_info.max_items(), None);
@@ -30,9 +30,9 @@ fn test_simple_defaults() -> anyhow::Result<()> {
         assert_matches!(prompt_info.optional(), false);
     });
 
-    harness.respond(CommandResponse::None);
+    harness.respond(ClientMessage::None);
 
-    assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
         assert_eq!(message, "Required: 'Services:' is not optional @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to function 'prompt' (from \
         'tests/prompts/list_prompt_tests/archetype.rhai') (line 4, position 24)");
     });
@@ -52,7 +52,7 @@ fn test_map_defaults() -> anyhow::Result<()> {
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test for defaults
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
         assert_matches!(prompt_info.min_items(), None);
         assert_matches!(prompt_info.max_items(), None);
@@ -62,9 +62,9 @@ fn test_map_defaults() -> anyhow::Result<()> {
         assert_matches!(prompt_info.optional(), false);
     });
 
-    harness.respond(CommandResponse::None);
+    harness.respond(ClientMessage::None);
 
-    assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
         assert_eq!(message, "Required: 'Services:' (key: 'services') is not optional @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to \
         function 'prompt' (from 'tests/prompts/list_prompt_tests/archetype.rhai') (line 11, position 16)");
     });
@@ -84,13 +84,13 @@ fn test_simple_non_cased_results() -> anyhow::Result<()> {
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test Prompt
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
     });
 
-    harness.respond(CommandResponse::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
+    harness.respond(ClientMessage::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
 
-    assert_matches!(harness.receive(), CommandRequest::Print(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::Print(message) => {
         assert_eq!(message, indoc! {"
            services:
            - Cart
@@ -114,13 +114,13 @@ fn test_simple_cased_results() -> anyhow::Result<()> {
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test Prompt
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
     });
 
-    harness.respond(CommandResponse::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
+    harness.respond(ClientMessage::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
 
-    assert_matches!(harness.receive(), CommandRequest::Print(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::Print(message) => {
         assert_eq!(message, indoc! {"
            services:
            - cart
@@ -145,13 +145,13 @@ fn test_map_cased_with_array_of_strategies() -> anyhow::Result<()> {
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
     // Test Prompt
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
     });
 
-    harness.respond(CommandResponse::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
+    harness.respond(ClientMessage::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
 
-    assert_matches!(harness.receive(), CommandRequest::Print(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::Print(message) => {
         assert_eq!(message, indoc! {"
             services:
             - service-name: cart
@@ -178,13 +178,13 @@ fn  test_map_cased_with_single_strategy() -> anyhow::Result<()> {
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
     // Test Prompt
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
     });
 
-    harness.respond(CommandResponse::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
+    harness.respond(ClientMessage::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
 
-    assert_matches!(harness.receive(), CommandRequest::Print(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::Print(message) => {
         assert_eq!(message, indoc! {"
             services:
             - ItemName: Cart
@@ -208,13 +208,13 @@ fn  test_simple_cased_as_with_single_style() -> anyhow::Result<()> {
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
     // Test Prompt
-    assert_matches!(harness.receive(), CommandRequest::PromptForList(prompt_info) => {
+    assert_matches!(harness.receive(), ScriptMessage::PromptForList(prompt_info) => {
         assert_eq!(prompt_info.message(), "Services:");
     });
 
-    harness.respond(CommandResponse::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
+    harness.respond(ClientMessage::Array(vec!["Cart".to_string(), "customer".to_string(), "transactionProcessing".to_string()]));
 
-    assert_matches!(harness.receive(), CommandRequest::Print(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::Print(message) => {
         assert_eq!(message, indoc! {"
            services:
            - cart
@@ -238,7 +238,7 @@ fn  test_map_cased_as_with_string_strategy() -> anyhow::Result<()> {
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
 
-    assert_matches!(harness.receive(), CommandRequest::LogError(message) => {
+    assert_matches!(harness.receive(), ScriptMessage::LogError(message) => {
         assert_eq!(message, "Invalid Setting: For the 'Services:' prompt (key: 'services'), the 'cased_as' setting must \
         be an array of CaseStrategy elements, but contains \"CamelCase\" (string) @ 'tests/prompts/list_prompt_tests/archetype.rhai'\nin call to function 'prompt' (from \
         'tests/prompts/list_prompt_tests/archetype.rhai') (line 53, position 16)");

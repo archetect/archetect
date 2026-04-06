@@ -5,14 +5,14 @@ use crate::PromptInfoPageable;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SelectPromptInfo {
-    message: String,
-    key: Option<String>,
-    options: Vec<String>,
-    default: Option<String>,
-    help: Option<String>,
-    placeholder: Option<String>,
-    optional: bool,
-    page_size: Option<usize>,
+    pub message: String,
+    pub key: Option<String>,
+    pub options: Vec<String>,
+    pub default: Option<String>,
+    pub help: Option<String>,
+    pub placeholder: Option<String>,
+    pub optional: bool,
+    pub page_size: Option<usize>,
 }
 
 impl PromptInfo for SelectPromptInfo {

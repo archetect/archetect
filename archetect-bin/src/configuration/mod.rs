@@ -98,7 +98,8 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     let config = load_config_dir_files(config, layout)?;
 
     // Debug local config files and current directory
-    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = std::env::current_dir()
+        .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
     debug!("Current working directory: {}", current_dir.display());
     
     let dot_config_path = current_dir.join(DOT_CONFIGURATION_FILE);
@@ -128,7 +129,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
         let config_file = current_dir.join(format!("{}{}", DOT_CONFIGURATION_FILE, extension));
         if config_file.exists() && config_file.is_file() {
             config = config.add_source(
-                File::with_name(config_file.to_str().unwrap())
+                File::with_name(&config_file.to_string_lossy())
                     .format(FileFormat::Yaml)
                     .required(false),
             );
@@ -140,7 +141,7 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
         let config_file = current_dir.join(format!("{}{}", CONFIGURATION_FILE, extension));
         if config_file.exists() && config_file.is_file() {
             config = config.add_source(
-                File::with_name(config_file.to_str().unwrap())
+                File::with_name(&config_file.to_string_lossy())
                     .format(FileFormat::Yaml)
                     .required(false),
             );
