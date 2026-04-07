@@ -12,7 +12,7 @@
 ---Create with `Context.new()`. Supports `get`, `set`, `has`, and all prompt types.
 ---When a prompt includes `cases`, the Context automatically expands the value
 ---into multiple case-variant entries (e.g., snake_case, PascalCase, etc.).
-local Context = {}
+Context = {}
 
 ---Create a new Context.
 ---Pre-loaded answers from the CLI (`-a key=value`) are available immediately.
@@ -29,6 +29,13 @@ function Context:get(key) end
 ---@return boolean
 function Context:has(key) end
 
+---Check if an array stored at `key` contains the given value.
+---Returns false if the key doesn't exist or isn't an array.
+---@param key string Key of the array to search
+---@param value string Value to look for
+---@return boolean
+function Context:contains(key, value) end
+
 ---Set a value directly in the context.
 ---@param key string Key to store under
 ---@param value any Value to store
@@ -39,45 +46,45 @@ function Context:set(key, value, opts) end
 ---@param message string Prompt message displayed to the user
 ---@param key string Key to store the result under
 ---@param opts? TextPromptOpts
-function Context:text(message, key, opts) end
+function Context:prompt_text(message, key, opts) end
 
 ---Prompt for integer input and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? IntPromptOpts
-function Context:int(message, key, opts) end
+function Context:prompt_int(message, key, opts) end
 
 ---Prompt for boolean confirmation and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? ConfirmPromptOpts
-function Context:confirm(message, key, opts) end
+function Context:prompt_confirm(message, key, opts) end
 
 ---Prompt for selection from a list and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param options string[] Available options
 ---@param opts? SelectPromptOpts
-function Context:select(message, key, options, opts) end
+function Context:prompt_select(message, key, options, opts) end
 
 ---Prompt for multiple selections and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param options string[] Available options
 ---@param opts? MultiSelectPromptOpts
-function Context:multi_select(message, key, options, opts) end
+function Context:prompt_multi_select(message, key, options, opts) end
 
 ---Prompt for a list of strings and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? ListPromptOpts
-function Context:list(message, key, opts) end
+function Context:prompt_list(message, key, opts) end
 
 ---Prompt for text via editor and store in context.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? EditorPromptOpts
-function Context:editor(message, key, opts) end
+function Context:prompt_editor(message, key, opts) end
 
 ---@class TextPromptOpts
 ---@field default? string Default value

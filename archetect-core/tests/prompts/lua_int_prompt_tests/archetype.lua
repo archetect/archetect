@@ -1,12 +1,12 @@
 local ctx = Context.new()
 
 if archetype.switch("test_lua_int_prompt") then
-    ctx:int("Port:", "port")
+    ctx:prompt_int("Port:", "port")
     log.info(tostring(ctx:get("port")))
 end
 
 if archetype.switch("test_lua_int_prompt_with_options") then
-    ctx:int("Port:", "port", {
+    ctx:prompt_int("Port:", "port", {
         default = 8080,
         min = 1024,
         max = 65535,
@@ -17,6 +17,6 @@ if archetype.switch("test_lua_int_prompt_with_options") then
 end
 
 if archetype.switch("test_lua_int_prompt_non_optional") then
-    ctx:int("Port:", "port")
+    ctx:prompt_int("Port:", "port")
     log.info(tostring(ctx:get("port")))
 end

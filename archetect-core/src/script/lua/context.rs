@@ -39,6 +39,9 @@ impl Context {
                 data.insert(key_str, ContextValue::Integer(i));
             } else if let Some(b) = value.clone().try_cast::<bool>() {
                 data.insert(key_str, ContextValue::Boolean(b));
+            } else if let Some(arr) = value.clone().try_cast::<Vec<rhai::Dynamic>>() {
+                let strings: Vec<String> = arr.iter().map(|v| v.to_string()).collect();
+                data.insert(key_str, ContextValue::Array(strings));
             }
         }
 
@@ -251,6 +254,15 @@ impl UserData for Context {
         // ctx:has(key) -> bool
         methods.add_method("has", |_, this, key: String| Ok(this.data.contains_key(&key)));
 
+        // ctx:contains(key, value) -> bool
+        // Check if an array stored at `key` contains the given string value.
+        methods.add_method("contains", |_, this, (key, value): (String, String)| {
+            match this.data.get(&key) {
+                Some(ContextValue::Array(arr)) => Ok(arr.contains(&value)),
+                _ => Ok(false),
+            }
+        });
+
         // ctx:set(key, value, opts?)
         methods.add_method_mut("set", |_, this, (key, value, opts): (String, Value, Option<Table>)| {
             let cases = extract_cases(&opts);
@@ -276,8 +288,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:text(message, key, opts?)
-        methods.add_method_mut("text", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_text(message, key, opts?)
+        methods.add_method_mut("prompt_text", |_, this, (message, key, opts): (String, String, Option<Table>)| {
             let mut info = TextPromptInfo::new(&message, Some(&key));
             let cases = extract_cases(&opts);
 
@@ -319,8 +331,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:int(message, key, opts?)
-        methods.add_method_mut("int", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_int(message, key, opts?)
+        methods.add_method_mut("prompt_int", |_, this, (message, key, opts): (String, String, Option<Table>)| {
             let mut info = IntPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -358,8 +370,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:confirm(message, key, opts?)
-        methods.add_method_mut("confirm", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_confirm(message, key, opts?)
+        methods.add_method_mut("prompt_confirm", |_, this, (message, key, opts): (String, String, Option<Table>)| {
             let mut info = BoolPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -395,8 +407,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:select(message, key, options, opts?)
-        methods.add_method_mut("select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
+        // ctx:prompt_select(message, key, options, opts?)
+        methods.add_method_mut("prompt_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
             let mut info = SelectPromptInfo::new(&message, Some(&key), options);
 
             if let Some(ref opts) = opts {
@@ -432,8 +444,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:multi_select(message, key, options, opts?)
-        methods.add_method_mut("multi_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
+        // ctx:prompt_multi_select(message, key, options, opts?)
+        methods.add_method_mut("prompt_multi_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
             let mut info = MultiSelectPromptInfo::new(&message, Some(&key), options);
 
             if let Some(ref opts) = opts {
@@ -466,8 +478,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:list(message, key, opts?)
-        methods.add_method_mut("list", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_list(message, key, opts?)
+        methods.add_method_mut("prompt_list", |_, this, (message, key, opts): (String, String, Option<Table>)| {
             let mut info = ListPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -500,8 +512,8 @@ impl UserData for Context {
             Ok(())
         });
 
-        // ctx:editor(message, key, opts?)
-        methods.add_method_mut("editor", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_editor(message, key, opts?)
+        methods.add_method_mut("prompt_editor", |_, this, (message, key, opts): (String, String, Option<Table>)| {
             let mut info = EditorPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {

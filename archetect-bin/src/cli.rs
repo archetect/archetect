@@ -157,6 +157,20 @@ pub fn command() -> Command {
                 .about("Check Archetect's environment for problems")
         )
         .subcommand(
+            Command::new("ide")
+                .about("IDE integration tools")
+                .arg_required_else_help(true)
+                .subcommand(
+                    Command::new("setup")
+                        .about("Set up IDE support for Lua archetypes")
+                        .long_about(
+                            "Installs Lua type annotations to ~/.archetect/lua/annotations/ for IDE autocompletion.\n\
+                             If run inside a Lua archetype directory (containing archetype.yaml and archetype.lua),\n\
+                             also creates a .luarc.json pointing to the installed annotations."
+                        )
+                )
+        )
+        .subcommand(
             Command::new("server")
                 .about("Start Archetect Server")
                 .arg(

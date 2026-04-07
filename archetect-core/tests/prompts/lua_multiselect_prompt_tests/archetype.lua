@@ -1,7 +1,7 @@
 local ctx = Context.new()
 
 if archetype.switch("test_lua_multiselect_prompt") then
-    ctx:multi_select("Languages:", "languages", {"Rust", "Java", "Go"})
+    ctx:prompt_multi_select("Languages:", "languages", {"Rust", "Java", "Go"})
     local langs = ctx:get("languages")
     if langs then
         for i, v in ipairs(langs) do
@@ -11,7 +11,7 @@ if archetype.switch("test_lua_multiselect_prompt") then
 end
 
 if archetype.switch("test_lua_multiselect_prompt_with_options") then
-    ctx:multi_select("Languages:", "languages", {"Rust", "Java", "Go"}, {
+    ctx:prompt_multi_select("Languages:", "languages", {"Rust", "Java", "Go"}, {
         help = "Select your languages",
         min = 1,
         max = 2,
@@ -25,7 +25,7 @@ if archetype.switch("test_lua_multiselect_prompt_with_options") then
 end
 
 if archetype.switch("test_lua_multiselect_prompt_non_optional") then
-    ctx:multi_select("Languages:", "languages", {"Rust", "Java", "Go"})
+    ctx:prompt_multi_select("Languages:", "languages", {"Rust", "Java", "Go"})
     local langs = ctx:get("languages")
     if langs then
         for i, v in ipairs(langs) do

@@ -106,6 +106,12 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
         Some(("cache", args)) => subcommands::handle_cache_subcommand(args, &archetect)?,
         Some(("check", args)) => subcommands::handle_check_subcommand(args, &archetect)?,
+        Some(("ide", args)) => {
+            match args.subcommand() {
+                Some(("setup", _)) => subcommands::handle_ide_subcommand(archetect.layout().as_ref())?,
+                _ => {}
+            }
+        }
         Some(("server", args)) => subcommands::handle_server_subcommand(args, archetect)?,
         Some(("connect", args)) => {
             let render_context = configure_render_context(
