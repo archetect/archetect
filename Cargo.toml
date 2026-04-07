@@ -8,6 +8,7 @@ members = [
     "archetect-templating",
     "archetect-terminal-prompts",
     "archetect-validations",
+    "archetect-mcp",
     "xtask",
 ]
 resolver = "2"
@@ -29,6 +30,7 @@ archetect-inquire = { path = "archetect-terminal-prompts", version = "3.0.0" }
 archetect-templating = { path = "archetect-templating", version = "3.0.0" }
 archetect-terminal-io = { path = "archetect-terminal-io", version = "3.0.0" }
 archetect-validations = { path = "archetect-validations", version = "3.0.0" }
+archetect-mcp = { path = "archetect-mcp", version = "3.0.0" }
 
 ansi_term = "0.12"
 anyhow = "1.0.69"

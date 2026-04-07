@@ -20,6 +20,7 @@ path = "src/main.rs"
 archetect-core = { workspace = true }
 archetect-api = { workspace = true }
 archetect-inquire = { workspace = true }
+archetect-mcp = { workspace = true }
 archetect-terminal-io = { workspace = true }
 
 ansi_term = { workspace = true }

@@ -112,6 +112,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 _ => {}
             }
         }
+        Some(("mcp", _)) => subcommands::handle_mcp_subcommand(archetect)?,
         Some(("server", args)) => subcommands::handle_server_subcommand(args, archetect)?,
         Some(("connect", args)) => {
             let render_context = configure_render_context(

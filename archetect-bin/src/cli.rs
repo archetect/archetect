@@ -171,6 +171,10 @@ pub fn command() -> Command {
                 )
         )
         .subcommand(
+            Command::new("mcp")
+                .about("Start MCP stdio server for AI agent integration")
+        )
+        .subcommand(
             Command::new("server")
                 .about("Start Archetect Server")
                 .arg(
