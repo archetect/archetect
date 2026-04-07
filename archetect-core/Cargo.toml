@@ -11,12 +11,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-archetect-api = { path = "../archetect-api", version = "2.0.0" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0", features = ["editor"] }
-archetect-inflections = { path = "../archetect-inflections", version = "2.0.0" }
-archetect-templating = { path = "../archetect-templating", version= "2.0.0", features = ["source", "urlencode", "json"] }
-archetect-validations = { path = "../archetect-validations", version = "2.0.0" }
+archetect-api = { workspace = true }
+archetect-terminal-io = { workspace = true }
+archetect-inquire = { workspace = true, features = ["editor"] }
+archetect-inflections = { workspace = true }
+archetect-templating = { workspace = true, features = ["source", "urlencode", "json"] }
+archetect-validations = { workspace = true }
 
 anyhow = { workspace = true }
 camino = { workspace = true }

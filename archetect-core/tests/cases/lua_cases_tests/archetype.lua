@@ -1,6 +1,6 @@
 local ctx = Context.new()
 
-if archetype.switch("test_lua_cases_programming") then
+if switches.is_enabled("test_lua_cases_programming") then
     ctx:set("project_name", "My Cool Project", {
         cases = Cases.programming()
     })
@@ -15,7 +15,7 @@ if archetype.switch("test_lua_cases_programming") then
     log.info(tostring(ctx:get("PROJECT_NAME")))        -- constant value
 end
 
-if archetype.switch("test_lua_cases_enum_set") then
+if switches.is_enabled("test_lua_cases_enum_set") then
     -- Cases.set() with Case enum constants
     ctx:set("app_name", "My App", {
         cases = Cases.set(Case.Snake, Case.Kebab, Case.Constant)
@@ -25,7 +25,7 @@ if archetype.switch("test_lua_cases_enum_set") then
     log.info(tostring(ctx:get("APP_NAME")))        -- constant: "MY_APP"
 end
 
-if archetype.switch("test_lua_cases_enum_fixed") then
+if switches.is_enabled("test_lua_cases_enum_fixed") then
     -- Cases.fixed() with Case enum constant
     ctx:set("name", "Hello World", {
         cases = Cases.fixed("display_name", Case.Title)

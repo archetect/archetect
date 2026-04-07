@@ -17,10 +17,10 @@ name = "archetect3"
 path = "src/main.rs"
 
 [dependencies]
-archetect-core = { path = "../archetect-core", version = "2.0.0" }
-archetect-api = { path = "../archetect-api", version = "2.0.0" }
-archetect-inquire = { path = "../archetect-terminal-prompts", version = "2.0.0" }
-archetect-terminal-io = { path = "../archetect-terminal-io", version = "2.0.0" }
+archetect-core = { workspace = true }
+archetect-api = { workspace = true }
+archetect-inquire = { workspace = true }
+archetect-terminal-io = { workspace = true }
 
 ansi_term = { workspace = true }
 anyhow = { workspace = true }

@@ -190,30 +190,56 @@ function Cases.set(...) end
 function Cases.fixed(key, style) end
 
 --
+-- directory
+--
+
+---@class directory
+---Render content directories from the archetype's content directory.
+directory = {}
+
+---Render a content directory using the context for template variables.
+---@param path string Directory path relative to the archetype's content root
+---@param context Context Template context
+---@param opts? DirectoryRenderOpts
+function directory.render(path, context, opts) end
+
+---@class DirectoryRenderOpts
+---@field destination? string Subdirectory to render into (relative to current destination)
+---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
+
+--
 -- archetype
 --
 
 ---@class archetype
----The current archetype's rendering and configuration surface.
+---Render child archetype components declared in `archetype.yaml`.
 archetype = {}
 
----Render a content directory or a child archetype component.
----
----When `target` is a **string**, renders the named content directory
----(relative to the archetype root) using the context for template variables.
----
----When `target` is an **Archetype** reference (from `Archetype("name")`),
----renders the registered child component with the given context.
----
----@param target string|ArchetypeRef A directory name or Archetype("component-name")
----@param ctx Context Template context
----@param opts? RenderOpts
-function archetype.render(target, ctx, opts) end
+---Render a named child archetype component.
+---The component must be declared in the `components` section of `archetype.yaml`.
+---@param name string Component name from archetype.yaml
+---@param context Context Template context
+---@param opts? ArchetypeRenderOpts
+function archetype.render(name, context, opts) end
 
----Check if a switch is enabled (from CLI `--switch name` or config).
+---@class ArchetypeRenderOpts
+---@field destination? string Subdirectory to render into (relative to current destination)
+---@field switches? string[] Switches to pass to child archetype
+---@field use_defaults? string[] Keys to use defaults for in child archetype
+---@field use_defaults_all? boolean Use defaults for all prompts in child archetype
+
+--
+-- switches
+--
+
+---@class switches
+---Query CLI switches passed via `--switch name`.
+switches = {}
+
+---Check if a switch is enabled.
 ---@param name string Switch name
 ---@return boolean
-function archetype.switch(name) end
+function switches.is_enabled(name) end
 
 ---@class ExistingPolicy
 ---Strategy for handling files that already exist at the destination.
@@ -224,28 +250,6 @@ function archetype.switch(name) end
 ---@field Preserve ExistingPolicy Keep existing files unchanged
 ---@field Prompt ExistingPolicy Ask the user what to do
 Existing = {}
-
----@class RenderOpts
----@field destination? string Subdirectory to render into (relative to current destination)
----@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
----@field switches? string[] Switches to pass to child archetype
----@field use_defaults? string[] Keys to use defaults for in child archetype
----@field use_defaults_all? boolean Use defaults for all prompts in child archetype
-
---
--- Archetype (component reference)
---
-
----@class ArchetypeRef
----A reference to a registered child archetype component.
----Created by `Archetype("name")` where `name` matches a key in the
----`components` section of `archetype.yaml`.
-
----Create a reference to a registered archetype component.
----The component must be declared in the `components` section of `archetype.yaml`.
----@param name string Component name from archetype.yaml
----@return ArchetypeRef
-function Archetype(name) end
 
 --
 -- template
