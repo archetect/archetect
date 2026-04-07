@@ -28,16 +28,44 @@ pub(crate) fn execute(
         ArchetypeError::IoError(err)
     })?;
 
-    lua.load(&script)
+    let result: Result<mlua::Value, mlua::Error> = lua.load(&script)
         .set_name(script_path.as_str())
-        .exec()
-        .map_err(|err| {
+        .eval();
+
+    match result {
+        Ok(value) => {
+            // If the script returns a Context, convert its data to a rhai::Map
+            match value {
+                mlua::Value::UserData(ud) => {
+                    if let Ok(ctx) = ud.borrow::<context::Context>() {
+                        Ok(Dynamic::from(ctx.to_rhai_map()))
+                    } else {
+                        Ok(Dynamic::UNIT)
+                    }
+                }
+                _ => Ok(Dynamic::UNIT),
+            }
+        }
+        Err(err) => {
+            // Check for clean exit() — not an error, just early termination
+            if is_clean_exit(&err) {
+                return Ok(Dynamic::UNIT);
+            }
+
             let _ = archetect.request(archetect_api::ScriptMessage::LogError(format!("{}", err)));
             let _ = archetect.request(archetect_api::ScriptMessage::CompleteError(format!("{}", err)));
-            ArchetypeError::ScriptAbortError
-        })?;
+            Err(ArchetypeError::ScriptAbortError)
+        }
+    }
+}
 
-    Ok(Dynamic::UNIT)
+/// Check if a Lua error is a clean exit() call (not a real error).
+fn is_clean_exit(err: &mlua::Error) -> bool {
+    match err {
+        mlua::Error::RuntimeError(msg) if msg.contains(modules::EXIT_SENTINEL) => true,
+        mlua::Error::CallbackError { cause, .. } => is_clean_exit(cause),
+        _ => false,
+    }
 }
 
 fn create_lua(

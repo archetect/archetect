@@ -24,6 +24,8 @@ pub enum ContextValue {
     Integer(i64),
     Boolean(bool),
     Array(Vec<String>),
+    /// Arbitrary dynamic value — supports nested maps, mixed arrays, etc.
+    Dynamic(rhai::Dynamic),
     Nil,
 }
 
@@ -49,6 +51,23 @@ impl Context {
             data,
             archetect,
             render_context,
+        }
+    }
+
+    /// Merge a rhai::Map (from a child archetype's return value) into this context.
+    pub fn merge_rhai_map(&mut self, map: &rhai::Map) {
+        for (key, value) in map {
+            let key_str = key.to_string();
+            if let Some(s) = value.clone().try_cast::<String>() {
+                self.data.insert(key_str, ContextValue::String(s));
+            } else if let Some(i) = value.clone().try_cast::<i64>() {
+                self.data.insert(key_str, ContextValue::Integer(i));
+            } else if let Some(b) = value.clone().try_cast::<bool>() {
+                self.data.insert(key_str, ContextValue::Boolean(b));
+            } else if let Some(arr) = value.clone().try_cast::<Vec<rhai::Dynamic>>() {
+                let strings: Vec<String> = arr.iter().map(|v| v.to_string()).collect();
+                self.data.insert(key_str, ContextValue::Array(strings));
+            }
         }
     }
 
@@ -86,14 +105,19 @@ impl Context {
                         arr.iter().map(|s| rhai::Dynamic::from(s.clone())).collect();
                     rhai::Dynamic::from(array)
                 }
+                ContextValue::Dynamic(d) => d.clone(),
                 ContextValue::Nil => rhai::Dynamic::UNIT,
             };
             // Store with original key
             map.insert(key.clone().into(), dynamic.clone());
-            // Also store with snake_case key for template compatibility
+            // Also store with snake_case and kebab-case aliases for template compatibility
             let snake = archetect_inflections::to_snake_case(key);
             if snake != *key {
-                map.insert(snake.into(), dynamic);
+                map.insert(snake.into(), dynamic.clone());
+            }
+            let kebab = archetect_inflections::to_kebab_case(key);
+            if kebab != *key {
+                map.insert(kebab.into(), dynamic);
             }
         }
         map
@@ -112,8 +136,97 @@ fn context_value_to_lua(lua: &Lua, value: &ContextValue) -> LuaResult<Value> {
             }
             Ok(Value::Table(table))
         }
+        ContextValue::Dynamic(d) => {
+            // Convert rhai::Dynamic to Lua Value
+            if let Some(s) = d.clone().try_cast::<String>() {
+                Ok(Value::String(lua.create_string(&s)?))
+            } else if let Some(i) = d.clone().try_cast::<i64>() {
+                Ok(Value::Integer(i))
+            } else if let Some(b) = d.clone().try_cast::<bool>() {
+                Ok(Value::Boolean(b))
+            } else if let Some(arr) = d.clone().try_cast::<Vec<rhai::Dynamic>>() {
+                let table = lua.create_table()?;
+                for (i, item) in arr.iter().enumerate() {
+                    let cv = dynamic_to_context_value(item);
+                    table.set(i + 1, context_value_to_lua(lua, &cv)?)?;
+                }
+                Ok(Value::Table(table))
+            } else if let Some(map) = d.clone().try_cast::<rhai::Map>() {
+                let table = lua.create_table()?;
+                for (k, v) in &map {
+                    let cv = dynamic_to_context_value(v);
+                    table.set(k.to_string(), context_value_to_lua(lua, &cv)?)?;
+                }
+                Ok(Value::Table(table))
+            } else {
+                Ok(Value::Nil)
+            }
+        }
         ContextValue::Nil => Ok(Value::Nil),
     }
+}
+
+/// Convert a rhai::Dynamic to a ContextValue.
+fn dynamic_to_context_value(d: &rhai::Dynamic) -> ContextValue {
+    if let Some(s) = d.clone().try_cast::<String>() {
+        ContextValue::String(s)
+    } else if let Some(i) = d.clone().try_cast::<i64>() {
+        ContextValue::Integer(i)
+    } else if let Some(b) = d.clone().try_cast::<bool>() {
+        ContextValue::Boolean(b)
+    } else {
+        ContextValue::Dynamic(d.clone())
+    }
+}
+
+/// Convert a Lua table to a rhai::Dynamic (map or array).
+fn lua_table_to_dynamic(table: &Table) -> LuaResult<rhai::Dynamic> {
+    // Check if it's an array (sequential integer keys starting at 1)
+    let len = table.raw_len();
+    if len > 0 {
+        let mut arr: Vec<rhai::Dynamic> = Vec::new();
+        for i in 1..=len {
+            let v: Value = table.raw_get(i)?;
+            arr.push(lua_value_to_dynamic(&v)?);
+        }
+        Ok(rhai::Dynamic::from(arr))
+    } else {
+        let mut map = rhai::Map::new();
+        for pair in table.pairs::<Value, Value>() {
+            let (k, v) = pair?;
+            let key = match &k {
+                Value::String(s) => s.to_string_lossy().to_string(),
+                Value::Integer(i) => i.to_string(),
+                _ => continue,
+            };
+            map.insert(key.into(), lua_value_to_dynamic(&v)?);
+        }
+        Ok(rhai::Dynamic::from(map))
+    }
+}
+
+/// Convert a Lua value to a rhai::Dynamic.
+fn lua_value_to_dynamic(value: &Value) -> LuaResult<rhai::Dynamic> {
+    match value {
+        Value::String(s) => Ok(rhai::Dynamic::from(s.to_string_lossy().to_string())),
+        Value::Integer(i) => Ok(rhai::Dynamic::from(*i)),
+        Value::Boolean(b) => Ok(rhai::Dynamic::from(*b)),
+        Value::Number(n) => Ok(rhai::Dynamic::from(*n as i64)),
+        Value::Table(t) => lua_table_to_dynamic(t),
+        Value::Nil => Ok(rhai::Dynamic::UNIT),
+        _ => Ok(rhai::Dynamic::from(format!("{:?}", value))),
+    }
+}
+
+/// Get the answer lookup key from opts. If `answer_key` is specified in opts,
+/// use that; otherwise use the prompt's own key.
+fn get_answer_key(opts: &Option<Table>, default_key: &str) -> String {
+    if let Some(ref opts) = opts {
+        if let Ok(Value::String(s)) = opts.get::<Value>("answer_key") {
+            return s.to_string_lossy().to_string();
+        }
+    }
+    default_key.to_string()
 }
 
 fn get_opt_string(opts: &Table, key: &str) -> LuaResult<Option<String>> {
@@ -277,6 +390,10 @@ impl UserData for Context {
                 Value::Boolean(b) => {
                     this.data.insert(key, ContextValue::Boolean(*b));
                 }
+                Value::Table(table) => {
+                    let dynamic = lua_table_to_dynamic(table)?;
+                    this.data.insert(key, ContextValue::Dynamic(dynamic));
+                }
                 Value::Nil => {
                     this.data.insert(key, ContextValue::Nil);
                 }
@@ -304,8 +421,9 @@ impl UserData for Context {
                 }
             }
 
-            // Check for pre-supplied answer
-            if let Some(ContextValue::String(answer)) = this.data.get(&key).cloned() {
+            // Check for pre-supplied answer (via answer_key or key)
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(ContextValue::String(answer)) = this.data.get(&answer_key).cloned() {
                 this.store_string_with_cases(&key, &answer, &cases);
                 return Ok(());
             }
@@ -346,7 +464,11 @@ impl UserData for Context {
                 }
             }
 
-            if let Some(ContextValue::Integer(_)) = this.data.get(&key) {
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(ContextValue::Integer(v)) = this.data.get(&answer_key).cloned() {
+                if answer_key != key {
+                    this.data.insert(key, ContextValue::Integer(v));
+                }
                 return Ok(());
             }
 
@@ -383,7 +505,11 @@ impl UserData for Context {
                 }
             }
 
-            if let Some(ContextValue::Boolean(_)) = this.data.get(&key) {
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(ContextValue::Boolean(v)) = this.data.get(&answer_key).cloned() {
+                if answer_key != key {
+                    this.data.insert(key, ContextValue::Boolean(v));
+                }
                 return Ok(());
             }
 
@@ -420,7 +546,11 @@ impl UserData for Context {
                 }
             }
 
-            if let Some(ContextValue::String(_)) = this.data.get(&key) {
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(ContextValue::String(v)) = this.data.get(&answer_key).cloned() {
+                if answer_key != key {
+                    this.data.insert(key, ContextValue::String(v));
+                }
                 return Ok(());
             }
 
@@ -458,8 +588,24 @@ impl UserData for Context {
                 }
             }
 
-            if let Some(ContextValue::Array(_)) = this.data.get(&key) {
-                return Ok(());
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(answer) = this.data.get(&answer_key).cloned() {
+                match answer {
+                    ContextValue::Array(arr) => {
+                        // Copy to prompt key if answer_key differs
+                        if answer_key != key {
+                            this.data.insert(key, ContextValue::Array(arr));
+                        }
+                        return Ok(());
+                    }
+                    ContextValue::String(s) => {
+                        // CLI answers come as comma-separated strings
+                        let items: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
+                        this.data.insert(key, ContextValue::Array(items));
+                        return Ok(());
+                    }
+                    _ => {}
+                }
             }
 
             if this.use_default(&key) {
@@ -492,8 +638,22 @@ impl UserData for Context {
                 }
             }
 
-            if let Some(ContextValue::Array(_)) = this.data.get(&key) {
-                return Ok(());
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(answer) = this.data.get(&answer_key).cloned() {
+                match answer {
+                    ContextValue::Array(arr) => {
+                        if answer_key != key {
+                            this.data.insert(key, ContextValue::Array(arr));
+                        }
+                        return Ok(());
+                    }
+                    ContextValue::String(s) => {
+                        let items: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
+                        this.data.insert(key, ContextValue::Array(items));
+                        return Ok(());
+                    }
+                    _ => {}
+                }
             }
 
             if this.use_default(&key) {
@@ -522,7 +682,11 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
             }
 
-            if let Some(ContextValue::String(_)) = this.data.get(&key) {
+            let answer_key = get_answer_key(&opts, &key);
+            if let Some(ContextValue::String(v)) = this.data.get(&answer_key).cloned() {
+                if answer_key != key {
+                    this.data.insert(key, ContextValue::String(v));
+                }
                 return Ok(());
             }
 

@@ -16,7 +16,7 @@ pub struct Page<'a, T> {
     pub total: usize,
 }
 
-pub fn paginate<T>(page_size: usize, choices: &[T], sel: Option<usize>) -> Page<T> {
+pub fn paginate<T>(page_size: usize, choices: &[T], sel: Option<usize>) -> Page<'_, T> {
     // if there is no selection, we default to the first page.
     // in practice, the same as selecting the 0 index.
 

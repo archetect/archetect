@@ -94,6 +94,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field max? integer Maximum length
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class IntPromptOpts
 ---@field default? integer Default value
@@ -102,12 +103,14 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum value
 ---@field max? integer Maximum value
 ---@field optional? boolean Whether the prompt can be skipped
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class ConfirmPromptOpts
 ---@field default? boolean Default value
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class SelectPromptOpts
 ---@field default? string Default selection
@@ -115,6 +118,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class MultiSelectPromptOpts
 ---@field default? string[] Default selections
@@ -123,6 +127,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum selections
 ---@field max? integer Maximum selections
 ---@field optional? boolean Whether the prompt can be skipped
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class ListPromptOpts
 ---@field help? string Help text
@@ -130,11 +135,13 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum items
 ---@field max? integer Maximum items
 ---@field optional? boolean Whether the prompt can be skipped
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class EditorPromptOpts
 ---@field default? string Default text in editor
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
+---@field answer_key? string Alternate key to look up pre-supplied answers
 
 --
 -- Cases
@@ -145,6 +152,12 @@ function Context:prompt_editor(message, key, opts) end
 
 ---@class CaseStyle
 ---A case transformation style. Use `Case.*` constants (e.g., `Case.Snake`, `Case.Pascal`).
+---Can also transform strings directly via `:apply(input)`.
+
+---Apply this case transformation to a string.
+---@param input string The string to transform
+---@return string result The transformed string
+function CaseStyle:apply(input) end
 
 ---@class Case
 ---Case style constants. Use these instead of string names for type safety.
@@ -190,6 +203,56 @@ function Cases.set(...) end
 function Cases.fixed(key, style) end
 
 --
+-- archetect (binary introspection)
+--
+
+---@class archetect
+---Archetect binary version and raw answers access.
+---@field version string Full version string (e.g., "3.0.0")
+---@field version_major integer Major version number
+---@field version_minor integer Minor version number
+---@field version_patch integer Patch version number
+archetect = {}
+
+---Get the raw answers table from CLI/YAML/parent archetype.
+---Returns a fresh table each call. Use for advanced patterns where
+---you need to inspect answers independently of the Context.
+---@return table answers Key-value pairs
+function archetect.answers() end
+
+--
+-- archetype (current archetype introspection)
+--
+
+---@class archetype
+---Information about the currently executing archetype.
+---@field description string Archetype description from manifest
+---@field directory string Root directory path of the archetype
+---@field authors string[] Author list from manifest
+archetype = {}
+
+--
+-- component (child archetype rendering)
+--
+
+---@class component
+---Render child archetype components declared in `archetype.yaml`.
+component = {}
+
+---Render a named child archetype component.
+---The component must be declared in the `components` section of `archetype.yaml`.
+---@param name string Component name from archetype.yaml
+---@param context Context Template context
+---@param opts? ComponentRenderOpts
+function component.render(name, context, opts) end
+
+---@class ComponentRenderOpts
+---@field destination? string Subdirectory to render into (relative to current destination)
+---@field switches? string[] Switches to pass to child archetype
+---@field use_defaults? string[] Keys to use defaults for in child archetype
+---@field use_defaults_all? boolean Use defaults for all prompts in child archetype
+
+--
 -- directory
 --
 
@@ -208,25 +271,61 @@ function directory.render(path, context, opts) end
 ---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
 
 --
--- archetype
+-- format
 --
 
----@class archetype
----Render child archetype components declared in `archetype.yaml`.
-archetype = {}
+---@class format
+---Serialize values to structured text formats. Accepts Context or plain tables.
+format = {}
 
----Render a named child archetype component.
----The component must be declared in the `components` section of `archetype.yaml`.
----@param name string Component name from archetype.yaml
----@param context Context Template context
----@param opts? ArchetypeRenderOpts
-function archetype.render(name, context, opts) end
+---Serialize a value to pretty-printed JSON.
+---@param value Context|table The value to serialize
+---@return string json The JSON string
+function format.json(value) end
 
----@class ArchetypeRenderOpts
----@field destination? string Subdirectory to render into (relative to current destination)
----@field switches? string[] Switches to pass to child archetype
----@field use_defaults? string[] Keys to use defaults for in child archetype
----@field use_defaults_all? boolean Use defaults for all prompts in child archetype
+---Serialize a value to YAML.
+---@param value Context|table The value to serialize
+---@return string yaml The YAML string
+function format.yaml(value) end
+
+---Serialize a value to TOML.
+---@param value Context|table The value to serialize (must be a table/map at top level)
+---@return string toml The TOML string
+function format.toml(value) end
+
+--
+-- runtime
+--
+
+---@class runtime
+---Runtime state of the archetect process.
+---@field is_offline boolean Whether archetect is running in offline mode
+---@field is_headless boolean Whether archetect is running in headless mode (no interactive prompts)
+---@field locals_enabled boolean Whether local directory overrides are enabled
+runtime = {}
+
+--
+-- exit
+--
+
+---Cleanly terminate the script. Does not produce an error — signals
+---successful completion to the IO channel. Use for early termination
+---when further processing is not needed.
+function exit() end
+
+--
+-- env
+--
+
+---@class env
+---Host environment information.
+---@field os string Operating system: "macos", "linux", "windows", etc.
+---@field arch string CPU architecture: "aarch64", "x86_64", etc.
+---@field family string OS family: "unix" or "windows"
+---@field is_unix boolean True if running on a Unix-like OS
+---@field is_windows boolean True if running on Windows
+---@field is_macos boolean True if running on macOS
+env = {}
 
 --
 -- switches
@@ -240,6 +339,10 @@ switches = {}
 ---@param name string Switch name
 ---@return boolean
 function switches.is_enabled(name) end
+
+--
+-- Existing (enum constants)
+--
 
 ---@class ExistingPolicy
 ---Strategy for handling files that already exist at the destination.
@@ -261,9 +364,9 @@ template = {}
 
 ---Render an inline Jinja2 template string using the context's variables.
 ---@param tmpl string Template string (e.g., "{{ project_name | title_case }}")
----@param ctx Context Template context
+---@param context Context Template context
 ---@return string result The rendered string
-function template.render(tmpl, ctx) end
+function template.render(tmpl, context) end
 
 --
 -- log

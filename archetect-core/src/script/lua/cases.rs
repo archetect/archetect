@@ -107,7 +107,15 @@ pub fn all_cases() -> Vec<CaseSpec> {
     ]
 }
 
-impl UserData for CaseStyle {}
+impl UserData for CaseStyle {
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        // Use add_method so both Case.Snake:apply("val") and Case.Snake.apply("val") patterns
+        // are documented, but only : syntax actually works in Lua. We use : consistently.
+        methods.add_method("apply", |_, this, input: String| {
+            Ok(this.transform_key(&input))
+        });
+    }
+}
 
 /// Wrapper for a list of CaseSpecs, usable as Lua UserData
 #[derive(Clone, Debug)]
