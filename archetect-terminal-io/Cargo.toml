@@ -11,9 +11,9 @@ repository.workspace = true
 
 [dependencies]
 archetect-api = { workspace = true }
-archetect-inquire = { workspace = true, features = ["editor"] }
 archetect-validations = { workspace = true }
 
 camino = { workspace = true }
 dyn-clone = { workspace = true }
+inquire = { version = "0.7", features = ["editor"] }
 log = { workspace = true }

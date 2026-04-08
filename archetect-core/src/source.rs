@@ -66,15 +66,16 @@ impl Source {
     }
 
     pub fn source_contents(&self) -> SourceContents {
-        if self.source_type().directory().join("catalog.yaml").is_file()
-            || self.source_type().directory().join("catalog.yml").is_file()
-        {
-            return SourceContents::Catalog;
+        let dir = self.source_type().directory();
+
+        // Unified manifest (v3): archetect.yaml/yml
+        // May also contain catalog entries — handled at render time.
+        if dir.join("archetect.yaml").is_file() || dir.join("archetect.yml").is_file() {
+            return SourceContents::Archetype;
         }
 
-        if self.source_type().directory().join("archetype.yaml").is_file()
-            || self.source_type().directory().join("archetype.yml").is_file()
-        {
+        // Legacy manifest (v2): archetype.yaml/yml
+        if dir.join("archetype.yaml").is_file() || dir.join("archetype.yml").is_file() {
             return SourceContents::Archetype;
         }
 
@@ -114,7 +115,6 @@ impl Source {
 #[derive(Clone, Copy)]
 pub enum SourceContents {
     Archetype,
-    Catalog,
     Unknown,
 }
 
@@ -144,7 +144,7 @@ pub enum SourceType {
 
 fn ssh_git_pattern() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"\S+@(\S+):(.*)").unwrap())
+    REGEX.get_or_init(|| Regex::new(r"\S+@(\S+):(.*)").expect("hardcoded SSH git pattern is valid"))
 }
 
 fn cached_paths() -> &'static Mutex<HashSet<String>> {
@@ -180,11 +180,11 @@ impl SourceType {
         };
 
         if let Ok(url) = Url::parse(path) {
-            if path.contains(".git") && url.has_host() {
+            if let Some(host) = url.host_str().filter(|_| path.contains(".git")) {
                 let cache_path =
                     cache_dir
                         .clone()
-                        .join(get_cache_key(format!("{}/{}", url.host_str().unwrap(), url.path())));
+                        .join(get_cache_key(format!("{}/{}", host, url.path())));
                 let directory_name = Utf8PathBuf::from(url.path()).file_stem().map(|stem| stem.to_string());
 
                 let gitref = url.fragment().map(|r| r.to_owned());
@@ -282,10 +282,15 @@ fn should_pull(repo: &Repository, archetect: &Archetect) -> Result<bool, SourceE
 
     let config = repo.config()?;
     if let Ok(timestamp) = config.get_i64(ARCHETECT_PULLED) {
-        let timestamp = chrono::Utc.timestamp_millis_opt(timestamp);
-        let now = chrono::Utc::now();
-        let delta = now - timestamp.unwrap();
-        Ok(delta > archetect.configuration().updates().interval())
+        match chrono::Utc.timestamp_millis_opt(timestamp).single() {
+            Some(parsed) => {
+                let delta = chrono::Utc::now() - parsed;
+                Ok(delta > archetect.configuration().updates().interval())
+            }
+            // Stored timestamp is out of range or ambiguous — treat the cache
+            // as stale and force a refresh rather than panicking.
+            None => Ok(true),
+        }
     } else {
         Ok(true)
     }
@@ -314,7 +319,7 @@ fn cache_git_repo(
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
         if !archetect.is_offline() {
-            if cached_paths().lock().unwrap().insert(url.to_owned()) {
+            if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
                 info!("Cloning {}", url);
                 debug!("Cloning to {}", cache_destination.as_str());
                 handle_git(Command::new("git").args(["clone", url, cache_destination.as_str(), "-q"]))?;
@@ -329,8 +334,7 @@ fn cache_git_repo(
         let mut should_fetch = force_pull || should_pull(&repo, archetect)?;
         
         // Check if the requested gitref exists, and if not, force a fetch unless offline
-        if !should_fetch && gitref.is_some() {
-            let gitref_str = gitref.as_ref().unwrap();
+        if let Some(gitref_str) = gitref.as_ref().filter(|_| !should_fetch) {
             let gitref_exists = is_branch(cache_destination.as_str(), gitref_str) ||
                                is_tag_or_commit(cache_destination.as_str(), gitref_str);
             
@@ -345,7 +349,7 @@ fn cache_git_repo(
         }
         
         if should_fetch {
-            if cached_paths().lock().unwrap().insert(url.to_owned()) {
+            if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
                 info!("Fetching {}", url);
                 handle_git(
                     Command::new("git")

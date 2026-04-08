@@ -14,7 +14,7 @@ pub fn handle_ide_subcommand(layout: &dyn SystemLayout) -> Result<(), ArchetectE
 }
 
 fn install_annotations(layout: &dyn SystemLayout) -> Result<PathBuf, ArchetectError> {
-    let annotations_dir = PathBuf::from(layout.etc_dir().join("lua/annotations").as_str());
+    let annotations_dir = PathBuf::from(layout.data_dir().join("lua/annotations").as_str());
 
     fs::create_dir_all(&annotations_dir)
         .map_err(|e| ArchetectError::GeneralError(format!("Failed to create {}: {}", annotations_dir.display(), e)))?;

@@ -35,7 +35,8 @@ impl RuntimeRequirements {
 
 impl Default for RuntimeRequirements {
     fn default() -> Self {
-        let archetect_version = VersionReq::parse(env!("CARGO_PKG_VERSION")).unwrap();
+        let archetect_version = VersionReq::parse(env!("CARGO_PKG_VERSION"))
+            .expect("CARGO_PKG_VERSION is always a valid semver requirement");
         RuntimeRequirements {
             archetect_version,
         }

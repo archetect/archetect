@@ -1,7 +1,0 @@
-{% with a=foo, b=bar %}
-  {{ a }}|{{ b }}
-{% endwith %}
-
-{% with a=foo %}
-  {{ a }}
-{% endwith %}

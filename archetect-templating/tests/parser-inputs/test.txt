@@ -1,3 +1,0 @@
-{{ foo is even }}
-{{ foo is not even }}
-{{ not foo is even }}

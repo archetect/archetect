@@ -138,7 +138,7 @@ fn patterns() -> &'static Vec<(Regex, &'static str)> {
                                      (r"(\w*(vert|ind))ices$", "ex"),
                                      (r"(\w*(matr))ices$", "ix"),
                                      (r"(\w*(quiz))zes$", ""),
-                                     (r"(\w*(database))s$", ""),].into_iter().map(|(rule, replace)| {(Regex::new(rule).unwrap(), replace)}).collect())
+                                     (r"(\w*(database))s$", ""),].into_iter().map(|(rule, replace)| {(Regex::new(rule).expect("static singularization rule is a valid regex"), replace)}).collect())
 }
 
 #[test]

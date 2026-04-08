@@ -1,9 +1,0 @@
-{
-  "seq": []
-}
----
-{% for item in seq %}
-  should not happen
-{% else %}
-  else block!
-{% endfor %}

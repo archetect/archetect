@@ -13,27 +13,26 @@ repository.workspace = true
 [dependencies]
 archetect-api = { workspace = true }
 archetect-terminal-io = { workspace = true }
-archetect-inquire = { workspace = true, features = ["editor"] }
+archetect-aml = { path = "../archetect-aml", version = "3.0.0" }
 archetect-inflections = { workspace = true }
-archetect-templating = { workspace = true, features = ["source", "urlencode", "json"] }
 archetect-validations = { workspace = true }
 
 anyhow = { workspace = true }
 camino = { workspace = true }
 chrono = { workspace = true }
 content_inspector = { workspace = true }
-directories = { workspace = true }
+etcetera = { workspace = true }
 either = { workspace = true }
 farmhash = { workspace = true }
 git2 = { workspace = true }
 indoc = { workspace = true }
+inquire = "0.7"
 linked-hash-map = { workspace = true }
 log = { workspace = true }
 mlua = { version = "0.10", features = ["lua54", "vendored", "serialize"] }
 memchr = { workspace = true }
 octocrab = "0.44"
 regex = { workspace = true }
-rhai = { workspace = true }
 semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

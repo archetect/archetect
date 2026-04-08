@@ -1,8 +1,0 @@
-{
-  "template": "simple_layout.txt"
-}
----
-{%- extends template %}
-{%- macro foo() %}inside foo{% endmacro %}
-{%- block title %}{{ foo() }}{% endblock %}
-{%- block body %}new body{% endblock %}

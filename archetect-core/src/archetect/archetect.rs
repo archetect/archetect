@@ -2,15 +2,14 @@ use std::sync::Arc;
 
 use semver::Version;
 
-use archetect_api::{ScriptMessage, ClientMessage, IoError, ScriptIoHandle};
+use archetect_api::{ClientMessage, IoError, ScriptIoHandle, ScriptMessage};
 use archetect_terminal_io::TerminalScriptIoHandle;
 
 use crate::archetype::archetype::Archetype;
-use crate::catalog::{Catalog};
 use crate::configuration::Configuration;
 use crate::errors::ArchetectError;
 use crate::source::Source;
-use crate::system::{RootedSystemLayout, SystemLayout};
+use crate::system::{RootedSystemLayout, SystemLayout, XdgSystemLayout};
 
 #[derive(Clone, Debug)]
 pub struct Archetect {
@@ -54,8 +53,10 @@ impl ArchetectBuilder {
 
     pub fn build(self) -> Result<Archetect, ArchetectError> {
         let configuration = self.configuration.unwrap_or(Configuration::default());
-        let default_layout = RootedSystemLayout::dot_home()?;
-        let layout = self.layout.unwrap_or_else(|| default_layout.into());
+        let layout = match self.layout {
+            Some(layout) => layout,
+            None => XdgSystemLayout::new()?.into(),
+        };
         let driver = self.driver.unwrap_or_else(|| TerminalScriptIoHandle::default().into());
         Ok(Archetect::new(configuration, driver, layout))
     }
@@ -79,7 +80,8 @@ impl Archetect {
     ) -> Archetect {
         Archetect {
             inner: Arc::new(Inner {
-                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                version: Version::parse(env!("CARGO_PKG_VERSION"))
+                    .expect("CARGO_PKG_VERSION is always valid semver"),
                 io_driver: driver.into(),
                 layout: layout.into(),
                 configuration,
@@ -125,19 +127,13 @@ impl Archetect {
         Ok(archetype)
     }
 
-    pub fn new_catalog(&self, path: &str) -> Result<Catalog, ArchetectError> {
-        let source = self.new_source(path)?;
-        let catalog = Catalog::load(self.clone(), source)?;
-        Ok(catalog)
-    }
-
     pub fn new_source(&self, path: &str) -> Result<Source, ArchetectError> {
         let source = Source::new(self.clone(), path)?;
         Ok(source)
     }
 
     pub fn check(&self) -> Result<(), ArchetectError> {
-        crate::check::check_all()?;
+        crate::check::check_all(self)?;
         Ok(())
     }
 }

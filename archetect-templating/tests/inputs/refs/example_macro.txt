@@ -1,2 +1,0 @@
-{% set d = "closure" -%}
-{% macro example(a, b, c="default") %}{{ [a, b, c, d] }}{% endmacro -%}

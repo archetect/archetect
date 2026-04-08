@@ -1,0 +1,1 @@
+mod lua_catalog_render_tests;

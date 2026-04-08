@@ -96,19 +96,17 @@ pub async fn drain_until_prompt_or_complete(
                     outcome: DrainOutcome::Complete { success: false, message: Some(msg) },
                 });
             }
-            Some(ref msg) if PromptEnvelope::from_script_message(msg).is_some() => {
-                let envelope = PromptEnvelope::from_script_message(msg).unwrap();
-                return Ok(DrainResult {
-                    logs,
-                    files_written,
-                    outcome: DrainOutcome::Prompt(envelope),
-                });
-            }
-            Some(ref msg) if LogEntry::from_script_message(msg).is_some() => {
-                logs.push(LogEntry::from_script_message(msg).unwrap());
-            }
-            Some(_) => {
-                // Unknown message type, skip
+            Some(msg) => {
+                if let Some(envelope) = PromptEnvelope::from_script_message(&msg) {
+                    return Ok(DrainResult {
+                        logs,
+                        files_written,
+                        outcome: DrainOutcome::Prompt(envelope),
+                    });
+                } else if let Some(entry) = LogEntry::from_script_message(&msg) {
+                    logs.push(entry);
+                }
+                // Unknown message types fall through and are skipped.
             }
             None => {
                 return Err("Render thread exited unexpectedly".to_string());

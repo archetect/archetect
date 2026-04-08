@@ -231,6 +231,7 @@ pub struct TestHarnessBuilder {
     destination: Utf8PathBuf,
 }
 
+#[allow(dead_code)] // TestHarnessBuilder is a test API; some methods are reserved for future tests
 impl TestHarnessBuilder {
     pub fn new(test_file: &str) -> Self {
         TestHarnessBuilder {

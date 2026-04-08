@@ -1,5 +1,0 @@
-{% if expr1 %}
-    branch 1
-{% else %}
-    else
-{% endif %}

@@ -1,5 +1,0 @@
-name: archive-demo
-description: Demonstrates the new archive functions (zip, tar, tar_gz)
-version: 1.0.0
-requires:
-  archetect: "2.0.0"

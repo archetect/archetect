@@ -55,27 +55,6 @@ impl CaseStyle {
     }
 }
 
-/// Expand a prompt key and value into multiple context entries based on case specs.
-pub fn expand_cases(key: &str, value: &str, specs: &[CaseSpec]) -> Vec<(String, String)> {
-    let mut entries = Vec::new();
-
-    for spec in specs {
-        match spec {
-            CaseSpec::Auto(style) => {
-                let new_key = style.transform_key(key);
-                let new_value = style.transform_value(value);
-                entries.push((new_key, new_value));
-            }
-            CaseSpec::Fixed { key: fixed_key, style } => {
-                let new_value = style.transform_value(value);
-                entries.push((fixed_key.clone(), new_value));
-            }
-        }
-    }
-
-    entries
-}
-
 /// The programming case preset: snake, pascal, camel, kebab, train, constant
 pub fn programming_cases() -> Vec<CaseSpec> {
     vec![

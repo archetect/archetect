@@ -1,3 +1,0 @@
-{% for loop in seq %}
-  ...
-{% endfor %}

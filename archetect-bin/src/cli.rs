@@ -18,36 +18,31 @@ pub fn command() -> Command {
         .subcommand(
             Command::new("render")
                 .about("Render an Archetype")
-                .long_about("Render an Archetype from an archetype or catalog directory or git URL")
+                .long_about(
+                    "Render an Archetype from an archetype or catalog directory or git URL.\n\
+                     The destination defaults to the current directory; override with --dest <path>."
+                )
                 .arg(
                     Arg::new("source")
                         .help("The Archetype or Catalog source directory or git URL")
                         .action(ArgAction::Set)
                         .required(true),
                 )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set),
-                )
                 .args(render_args(true)),
         )
         .subcommand(
-            Command::new("catalog")
-                .about("Render an Archetype from a Catalog")
-                .hide(true)
-                .arg(
-                    Arg::new("source")
-                        .help("The Catalog source directory or git URL")
-                        .action(ArgAction::Set)
-                        .required(true),
+            Command::new("global")
+                .about("Run a catalog action from the global config, bypassing any project .archetect.yaml")
+                .long_about(
+                    "Bypasses project config detection. Useful when you're inside a generated project\n\
+                     (which has a .archetect.yaml that overrides the global catalog) but want to\n\
+                     access the global catalog — for example, to bootstrap a sub-project."
                 )
                 .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .default_value(".")
-                        .action(ArgAction::Set),
+                    Arg::new("path")
+                        .help("Catalog path to render (slash-separated). Empty = present the menu.")
+                        .action(ArgAction::Set)
+                        .default_value("")
                 )
                 .args(render_args(true)),
         )
@@ -68,15 +63,16 @@ pub fn command() -> Command {
         )
         .arg(
             Arg::new("action")
-                .help("Execute a configured actions")
-                .long_help("Execute a configured action defined within an archetect.yaml file")
+                .help("Catalog path to browse or render")
+                .long_help("Navigate to a catalog entry by path (e.g. 'services/grpc')")
                 .default_value("default")
                 .action(ArgAction::Set)
                 .global(true)
         )
         .subcommand(
-            Command::new("actions")
-                .about("List configured actions")
+            Command::new("ls")
+                .visible_alias("list")
+                .about("List the resolved catalog tree (project's if present, otherwise global)")
         )
         .arg(
             Arg::new("verbosity")
@@ -98,14 +94,6 @@ pub fn command() -> Command {
                 .action(ArgAction::Set)
                 .global(true)
                 .value_name("config"),
-        )
-        .arg(
-            Arg::new("destination")
-                .help("The directory to render the Archetype in to")
-                .long("destination")
-                .visible_alias("dest")
-                .default_value(".")
-                .action(ArgAction::Set),
         )
         .subcommand(
             Command::new("completions")
@@ -139,18 +127,38 @@ pub fn command() -> Command {
         )
         .subcommand(
             Command::new("cache")
-                .about("Manage/Select from Archetypes cached from Git Repositories")
-                .subcommand(Command::new("manage").about("Manage Archetect's cache for entries defined within actions")
-                    .arg(
-                        Arg::new("action")
-                            .help("The action to managed")
-                            .long_help("The action to managed, as defined within an archetype.yaml")
-                            .default_value("default")
-                            .action(ArgAction::Set)
-                    )
+                .about("Manage Archetect's archetype/catalog cache")
+                .subcommand(Command::new("clear").about("Remove Archetect's entire Repository Cache"))
+                .subcommand(
+                    Command::new("pull")
+                        .about("Recursively pull all archetypes/catalogs reachable from a source")
+                        .long_about(
+                            "Resolves the source, walks its catalog tree, and pulls every reachable archetype.\n\
+                             Following the 'archetypes all the way down' model: if a leaf entry points to an\n\
+                             archetype that itself has a catalog, those entries are pulled too. Idempotent\n\
+                             within a single run — sources are deduplicated."
+                        )
+                        .arg(
+                            Arg::new("source")
+                                .help("The archetype/catalog source (Git URL or local path)")
+                                .required(true)
+                                .action(ArgAction::Set)
+                        )
                 )
-                .subcommand(Command::new("clear").about("Removes Archetect's entire Repository Cache"))
-                .subcommand(Command::new("pull").about("Pull all Archetypes and Catalogs in Archetect's Catalog")),
+                .subcommand(
+                    Command::new("invalidate")
+                        .about("Recursively invalidate cached archetypes/catalogs reachable from a source")
+                        .long_about(
+                            "Walks the catalog tree and invalidates the cache timestamp for each reachable\n\
+                             archetype, forcing a re-fetch on next render."
+                        )
+                        .arg(
+                            Arg::new("source")
+                                .help("The archetype/catalog source (Git URL or local path)")
+                                .required(true)
+                                .action(ArgAction::Set)
+                        )
+                ),
         )
         .subcommand(
             Command::new("check")
@@ -205,14 +213,6 @@ pub fn command() -> Command {
                         .action(ArgAction::Set)
                         .required(true),
                 )
-                .arg(
-                    Arg::new("destination")
-                        .help("The directory to render the Archetype in to")
-                        .long("destination")
-                        .visible_alias("dest")
-                        .default_value(".")
-                        .action(ArgAction::Set),
-                )
                 .args(render_args(true)),
         )
         .allow_external_subcommands(true)
@@ -220,6 +220,15 @@ pub fn command() -> Command {
 
 fn render_args(global: bool) -> Vec<Arg> {
     let mut args = vec![];
+    args.push(
+        Arg::new("destination")
+            .help("The directory to render the Archetype in to")
+            .long("destination")
+            .visible_alias("dest")
+            .default_value(".")
+            .action(ArgAction::Set)
+            .global(global),
+    );
     args.push(
         Arg::new("answer")
             .help("Supply a key=value pair as an answer to a variable question.")
@@ -233,9 +242,9 @@ fn render_args(global: bool) -> Vec<Arg> {
 
     args.push(
         Arg::new("answer-file")
-            .help("Supply an answers file in JSON, YAML, or Rhai format as answers to variable questions.")
+            .help("Supply an answers file in JSON or YAML format as answers to variable questions.")
             .long_help(
-                "Supply an answers file in JSON, YAML, or Rhai format as answers to variable questions. This option may \
+                "Supply an answers file in JSON or YAML format as answers to variable questions. This option may \
                      be specified more than once.",
             )
             .long("answer-file")
@@ -343,7 +352,7 @@ pub fn configure(matches: &ArgMatches) {
         .module_path(false)
         .base_level(Level::Info)
         .init()
-        .unwrap();
+        .expect("loggerv initialization is infallible in this configuration");
 }
 
 pub fn completions(matches: &ArgMatches) -> Result<(), ArchetectError> {

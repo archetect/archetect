@@ -7,6 +7,10 @@ pub enum TemplateCompileError {
     UnterminatedComment { line: usize },
     EmptyExpression { line: usize },
     InvalidFilter { line: usize, detail: String },
+    /// The generated Lua source failed to parse. This typically means a `{% ... %}`
+    /// logic block contained malformed Lua. The `detail` is the underlying mlua
+    /// parser message (which carries its own line offset within the generated source).
+    InvalidLuaSyntax { detail: String },
 }
 
 impl fmt::Display for TemplateCompileError {
@@ -26,6 +30,9 @@ impl fmt::Display for TemplateCompileError {
             }
             Self::InvalidFilter { line, detail } => {
                 write!(f, "Invalid filter at line {}: {}", line, detail)
+            }
+            Self::InvalidLuaSyntax { detail } => {
+                write!(f, "Invalid Lua syntax in compiled template: {}", detail)
             }
         }
     }

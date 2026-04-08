@@ -3,7 +3,6 @@ use std::fs;
 use mlua::Lua;
 
 use archetect_api::ContextValue;
-use archetect_templating::Environment;
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
@@ -20,11 +19,11 @@ pub(crate) fn execute(
     archetype: &Archetype,
     archetect: &Archetect,
     render_context: &RenderContext,
-    environment: &Environment<'static>,
 ) -> Result<ContextValue, ArchetypeError> {
-    let lua = create_lua(archetype, archetect, render_context, environment)?;
+    let lua = create_lua(archetype, archetect, render_context)?;
 
-    let script_path = archetype.directory().script()?;
+    let script_path = archetype.directory().script()
+        .ok_or_else(|| ArchetypeError::ArchetypeConfigMissing)?;
     let script = fs::read_to_string(&script_path).map_err(|err| {
         ArchetypeError::IoError(err)
     })?;
@@ -73,12 +72,11 @@ fn create_lua(
     archetype: &Archetype,
     archetect: &Archetect,
     render_context: &RenderContext,
-    environment: &Environment<'static>,
 ) -> Result<Lua, ArchetypeError> {
     let lua = Lua::new();
 
     // Register pre-loaded globals
-    modules::register_all(&lua, archetype, archetect, render_context, environment)
+    modules::register_all(&lua, archetype, archetect, render_context)
         .map_err(|_| ArchetypeError::ScriptAbortError)?;
 
     // Register require-based modules

@@ -1,12 +1,12 @@
-
-
 use archetect_api::{ClientMessage, MultiSelectPromptInfo, PromptInfo, PromptInfoPageable};
-use crate::responder::Responder;
-use archetect_inquire::{InquireError, MultiSelect};
+use inquire::{InquireError, MultiSelect};
 
 use crate::get_render_config;
+use crate::responder::Responder;
 
 pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: &dyn Responder) {
+    let help_str = prompt_info.help().map(|v| v.to_string());
+
     let mut prompt =
         MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -16,7 +16,7 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
             if let Some(position) = prompt_info
                 .options()
                 .iter()
-                .position(|option| option.to_string().as_str() == default.to_string().as_str())
+                .position(|option| option.as_str() == default.as_str())
             {
                 indices.push(position);
             }
@@ -24,9 +24,7 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
         prompt = prompt.with_default(&indices);
     }
 
-    if prompt_info.help().is_some() {
-        prompt.help_message = prompt_info.help().map(|v| v.to_string());
-    }
+    prompt.help_message = help_str.as_deref();
 
     if let Some(page_size) = prompt_info.page_size() {
         prompt.page_size = page_size;
@@ -40,15 +38,13 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
                 responses.respond(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.respond(ClientMessage::Abort);
-                }
-                _ => {
-                    responses.respond(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                responses.respond(ClientMessage::Abort);
             }
-        }
+            _ => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }

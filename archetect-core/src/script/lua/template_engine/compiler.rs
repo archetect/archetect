@@ -16,7 +16,10 @@ impl Compiler {
         // Function preamble — set up output buffer and _ENV for context resolution
         lua.push_str("return function(__ctx, __filters)\n");
         lua.push_str("    local __out = {}\n");
-        lua.push_str("    local __w = function(s) __out[#__out+1] = tostring(s) end\n");
+        // nil is dropped silently — emitting the literal "nil" into a generated source
+        // file is far worse than an empty interpolation. Strict mode (Phase 6) will
+        // offer fail-on-undefined as an opt-in.
+        lua.push_str("    local __w = function(s) if s ~= nil then __out[#__out+1] = tostring(s) end end\n");
         lua.push_str("    local _ENV = setmetatable({\n");
         lua.push_str("        __ctx = __ctx,\n");
         lua.push_str("        __filters = __filters,\n");
@@ -397,7 +400,7 @@ message {{ entity.name.pascal }} {
 
         assert!(lua.starts_with("return function(__ctx, __filters)"));
         assert!(lua.contains("local __out = {}"));
-        assert!(lua.contains("local __w = function(s) __out[#__out+1] = tostring(s) end"));
+        assert!(lua.contains("local __w = function(s) if s ~= nil then __out[#__out+1] = tostring(s) end end"));
         assert!(lua.contains("return table.concat(__out)"));
         assert!(lua.trim_end().ends_with("end"));
     }

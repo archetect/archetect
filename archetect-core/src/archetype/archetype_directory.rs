@@ -27,12 +27,14 @@ impl ArchetypeDirectory {
         self.root.join(self.manifest().scripting().modules())
     }
 
-    pub fn script(&self) -> Result<Utf8PathBuf, ArchetypeError> {
+    /// Returns the script path if a script file exists, or `None` if this is a
+    /// script-less archetype (e.g. a pure catalog).
+    pub fn script(&self) -> Option<Utf8PathBuf> {
         let main = self.manifest().scripting().main();
         let script_path = self.root.join(&main);
 
         if script_path.is_file() {
-            return Ok(script_path);
+            return Some(script_path);
         }
 
         // Auto-detect: if main wasn't explicitly set, try common filenames
@@ -40,11 +42,16 @@ impl ArchetypeDirectory {
             for fallback in &["archetype.rhai", "archetype.lua"] {
                 let fallback_path = self.root.join(fallback);
                 if fallback_path.is_file() {
-                    return Ok(fallback_path);
+                    return Some(fallback_path);
                 }
             }
         }
 
-        Err(ArchetypeError::ArchetypeManifestNotFound { path: script_path })
+        None
+    }
+
+    /// True if this archetype has a script file.
+    pub fn has_script(&self) -> bool {
+        self.script().is_some()
     }
 }

@@ -99,15 +99,23 @@ impl ArchetectService for ArchetectServiceCore {
                                     });
 
                                     let destination = initialize.destination;
+                                    // Find a source from the configured catalog: prefer
+                                    // an entry named "default" if present, otherwise the
+                                    // first leaf entry. This is a server-side bootstrap;
+                                    // proper path-based selection should come from the
+                                    // gRPC protocol in a future revision.
                                     let source = archetect
                                         .configuration()
-                                        .action("default")
-                                        .and_then(|action| match action {
-                                            crate::actions::ArchetectAction::RenderArchetype {
-                                                info,
-                                                ..
-                                            } => Some(info.source().to_string()),
-                                            _ => None,
+                                        .catalog()
+                                        .and_then(|catalog| {
+                                            catalog
+                                                .get("default")
+                                                .and_then(|e| e.source.clone())
+                                                .or_else(|| {
+                                                    catalog
+                                                        .values()
+                                                        .find_map(|e| e.source.clone())
+                                                })
                                         });
 
                                     if let Some(source) = source {

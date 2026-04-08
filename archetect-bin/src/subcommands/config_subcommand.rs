@@ -6,7 +6,7 @@ use log::error;
 use archetect_core::Archetect;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
-use archetect_inquire::{Editor, InquireError};
+use inquire::{Editor, InquireError};
 
 pub fn handle_config_subcommand(matches: &ArgMatches, archetect: &Archetect) -> Result<(), ArchetectError> {
     match matches.subcommand() {

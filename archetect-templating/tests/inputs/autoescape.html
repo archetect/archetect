@@ -1,9 +1,0 @@
-{
-  "unsafe": "<foo>"
-}
----
-{{ unsafe }}
-{% autoescape true %}{{ unsafe }}{% endautoescape %}
-{% autoescape false %}{{ unsafe }}{% endautoescape %}
-{% autoescape "html" %}{{ unsafe }}{% endautoescape %}
-{% autoescape "none" %}{{ unsafe }}{% endautoescape %}

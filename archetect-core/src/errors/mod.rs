@@ -1,6 +1,6 @@
 pub use answer_error::AnswerFileError;
 pub use archetect_error::ArchetectError;
-pub use archetect_script_error::{ArchetypeScriptError, ArchetypeScriptErrorWrapper, io_error_to_script_error};
+pub use archetect_script_error::ArchetypeScriptError;
 pub use archetype_error::ArchetypeError;
 pub use catalog_error::CatalogError;
 pub use render_error::RenderError;

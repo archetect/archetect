@@ -214,6 +214,71 @@ impl LogEntry {
     }
 }
 
+// ── Catalog tool response types ────────────────────────────────────
+
+/// A single catalog entry as presented to MCP clients.
+/// This is the stable MCP-facing DTO — decoupled from internal `IndexEntry`.
+#[derive(Clone, Debug, Serialize)]
+pub struct CatalogEntryInfo {
+    pub name: String,
+    pub path: String,
+    pub description: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frameworks: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+}
+
+impl CatalogEntryInfo {
+    pub fn from_index_entry(entry: &archetect_core::catalog::catalog_index::IndexEntry) -> Self {
+        let (languages, frameworks, tags) = match &entry.metadata {
+            Some(meta) => (
+                non_empty_vec(&meta.languages),
+                non_empty_vec(&meta.frameworks),
+                non_empty_vec(&meta.tags),
+            ),
+            None => (None, None, None),
+        };
+
+        CatalogEntryInfo {
+            name: entry.name.clone(),
+            path: entry.path.clone(),
+            description: entry.description.clone(),
+            kind: match entry.kind {
+                archetect_core::catalog::catalog_index::IndexEntryKind::Group => "group".to_owned(),
+                archetect_core::catalog::catalog_index::IndexEntryKind::Leaf => "leaf".to_owned(),
+            },
+            source: entry.source.clone(),
+            languages,
+            frameworks,
+            tags,
+        }
+    }
+}
+
+fn non_empty_vec(v: &[String]) -> Option<Vec<String>> {
+    if v.is_empty() { None } else { Some(v.to_vec()) }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CatalogBrowseResponse {
+    pub path: String,
+    pub entries: Vec<CatalogEntryInfo>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CatalogSearchResponse {
+    pub query: String,
+    pub results: Vec<CatalogEntryInfo>,
+}
+
+// ── Render tool response types ────────────────────────────────────
+
 /// The JSON response returned from render/respond/cancel tool calls.
 #[derive(Clone, Debug, Serialize)]
 pub struct ToolResponse {

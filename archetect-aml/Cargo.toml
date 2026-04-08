@@ -1,0 +1,16 @@
+[package]
+name = "archetect-aml"
+description = "Archetect Modeling Language — parser, model types, and query API"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+archetect-inflections = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+indoc = { workspace = true }

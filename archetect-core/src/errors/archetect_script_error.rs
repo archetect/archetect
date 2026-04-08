@@ -1,6 +1,4 @@
-use rhai::{Dynamic, EvalAltResult, NativeCallContext, Position};
-
-use archetect_api::{ClientMessage, IoError, PromptInfo};
+use archetect_api::{ClientMessage, PromptInfo};
 use ArchetypeScriptError::{AnswerNotOptional, AnswerTypeError, AnswerValidationError, DefaultTypeError, DefaultValidationError, HeadlessNoAnswer, InvalidPromptSetting, KeyedAnswerNotOptional, KeyedAnswerTypeError, KeyedAnswerValidationError, KeyedDefaultTypeError, KeyedDefaultValidationError, KeyedHeadlessNoAnswer, KeyedInvalidPromptSetting, KeyedUnexpectedPromptResponse, PromptError, UnexpectedPromptResponse};
 use crate::errors::ArchetypeScriptError::KeyedInvalidSetSetting;
 
@@ -358,45 +356,8 @@ impl ArchetypeScriptError {
     }
 }
 
-pub struct ArchetypeScriptErrorWrapper<'a>(pub &'a NativeCallContext<'a>, pub ArchetypeScriptError);
-
-#[allow(deprecated)]
-impl<'a> From<ArchetypeScriptErrorWrapper<'a>> for Box<EvalAltResult> {
-    fn from(value: ArchetypeScriptErrorWrapper<'a>) -> Self {
-        match value.1.error_type() {
-            ErrorType::Function => {
-                let fn_name = value.0.fn_name().to_owned();
-                let source = value
-                    .0
-                    .source()
-                    .unwrap_or_else(|| value.0.global_runtime_state().source().unwrap_or("<unknown>"))
-                    .to_owned();
-                let position = value.0.position();
-                let error = EvalAltResult::ErrorSystem(value.1.title().to_string(), Box::new(value.1));
-                Box::new(EvalAltResult::ErrorInFunctionCall(
-                    fn_name,
-                    source,
-                    Box::new(error),
-                    position,
-                ))
-            }
-            ErrorType::System => Box::new(EvalAltResult::ErrorSystem(
-                value.1.title().to_string(),
-                Box::new(value.1),
-            )),
-        }
-    }
-}
-
 #[derive(PartialOrd, PartialEq, Clone, Debug)]
 pub enum ErrorType {
     Function,
     System,
-}
-
-pub fn io_error_to_script_error(error: IoError) -> Box<EvalAltResult> {
-    Box::new(EvalAltResult::ErrorTerminated(
-        Dynamic::from(error.to_string()),
-        Position::NONE,
-    ))
 }

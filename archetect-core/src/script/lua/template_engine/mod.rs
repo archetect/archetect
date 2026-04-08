@@ -12,8 +12,6 @@ use tokenizer::Tokenizer;
 pub struct CompiledTemplate {
     /// The Lua source code (a function definition).
     pub source: String,
-    /// The template name (for error reporting).
-    pub name: String,
 }
 
 /// Compiles Archetect Template Language (ATL) templates into Lua functions.
@@ -25,14 +23,29 @@ pub struct TemplateCompiler;
 
 impl TemplateCompiler {
     /// Compile a template string into Lua source code.
-    pub fn compile(template: &str, name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
+    /// The `_name` parameter is reserved for future error-reporting use.
+    pub fn compile(template: &str, _name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
         let tokens = Tokenizer::tokenize(template)?;
         let source = Compiler::compile(&tokens);
-        Ok(CompiledTemplate {
-            source,
-            name: name.to_string(),
-        })
+        validate_lua_syntax(&source)?;
+        Ok(CompiledTemplate { source })
     }
+}
+
+/// Try to parse the generated Lua source so that malformed `{% ... %}` blocks
+/// surface as compile-time errors instead of being deferred to render-time.
+///
+/// This spins up a short-lived `mlua::Lua` purely for parsing — `into_function`
+/// loads but does not execute the chunk. Templates are compile-cached, so the
+/// cost is paid once per unique template per render.
+fn validate_lua_syntax(source: &str) -> Result<(), TemplateCompileError> {
+    let lua = mlua::Lua::new();
+    lua.load(source)
+        .into_function()
+        .map(|_| ())
+        .map_err(|err| TemplateCompileError::InvalidLuaSyntax {
+            detail: err.to_string(),
+        })
 }
 
 #[cfg(test)]
@@ -44,7 +57,6 @@ mod tests {
         let result = TemplateCompiler::compile("Hello {{ name }}!", "test");
         assert!(result.is_ok());
         let compiled = result.unwrap();
-        assert_eq!(compiled.name, "test");
         assert!(compiled.source.contains("__w(name)"));
     }
 
@@ -279,5 +291,92 @@ service {{ entity.name.pascal }}Service {
         assert!(result.contains("string email = 2;"));
         assert!(result.contains("service CustomerService {"));
         assert!(result.contains("rpc GetCustomer (GetCustomerRequest) returns (CustomerResponse);"));
+    }
+
+    // ---------- Error-case coverage ----------
+
+    #[test]
+    fn test_missing_context_var_renders_empty() {
+        // Undefined context vars resolve to nil; the writer drops nil silently
+        // rather than emitting the literal "nil" into the generated output.
+        let compiled = TemplateCompiler::compile("Hello {{ name }}!", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        let filters = lua.create_table().unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "Hello !");
+    }
+
+    #[test]
+    fn test_explicit_nil_renders_empty() {
+        // An explicit nil in the context behaves the same as a missing key:
+        // it produces an empty interpolation rather than the string "nil".
+        let compiled = TemplateCompiler::compile("Hello {{ name }}!", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", mlua::Value::Nil).unwrap();
+        let filters = lua.create_table().unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "Hello !");
+    }
+
+    #[test]
+    fn test_filter_runtime_failure_propagates() {
+        // A filter that calls error() should produce a render-time mlua error
+        // (not a panic) — render.rs maps this to RenderError::LuaTemplateRuntimeError.
+        let compiled = TemplateCompiler::compile("{{ name | boom }}", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "anything").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let boom = lua
+            .create_function(|_, _: String| -> mlua::Result<String> {
+                Err(mlua::Error::RuntimeError("boom".to_string()))
+            })
+            .unwrap();
+        filters.set("boom", boom).unwrap();
+
+        let result = func.call::<String>((ctx, filters));
+        assert!(result.is_err(), "expected runtime error, got {:?}", result);
+    }
+
+    #[test]
+    fn test_invalid_lua_in_logic_block_caught_at_compile() {
+        // A `{% ... %}` block containing malformed Lua should now be caught
+        // by the compile-time syntax validator, not deferred to render time.
+        let result = TemplateCompiler::compile("{% if then %}oops{% end %}", "test");
+        match result {
+            Err(TemplateCompileError::InvalidLuaSyntax { .. }) => {}
+            other => panic!(
+                "expected InvalidLuaSyntax compile error, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn test_invalid_lua_unclosed_block_caught_at_compile() {
+        // Missing `end` should also be a compile-time failure.
+        let result = TemplateCompiler::compile(
+            "{% for i = 1, 3 do %}{{ i }}",
+            "test",
+        );
+        assert!(
+            matches!(result, Err(TemplateCompileError::InvalidLuaSyntax { .. })),
+            "expected InvalidLuaSyntax, got {:?}",
+            result
+        );
     }
 }

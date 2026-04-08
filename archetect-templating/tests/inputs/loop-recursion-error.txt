@@ -1,7 +1,0 @@
-{
-  "seq": [1, 2, 3]
-}
----
-{% for item in seq recursive %}
-  {{ loop(seq) }}
-{% endfor %}

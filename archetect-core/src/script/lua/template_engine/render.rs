@@ -14,6 +14,15 @@ use crate::Archetect;
 use super::TemplateCompiler;
 
 /// Cache for compiled Lua template functions, keyed by file path.
+///
+/// One `TemplateCache` is created per Lua script registration (i.e. per
+/// archetype render — see `register_lua_modules` in `script/lua/modules.rs`),
+/// and is dropped when that registration is torn down. There is no global,
+/// long-lived template cache, so the cache size is bounded by the number of
+/// distinct template files an archetype touches during a single render.
+/// Archetypes are finite trees of files on disk, so an unbounded `HashMap`
+/// is appropriate here — adding eviction would only add complexity for a
+/// scenario that cannot occur in practice.
 pub struct TemplateCache {
     cache: HashMap<String, String>,
 }
@@ -129,7 +138,8 @@ pub fn lua_render_directory(
             path: source.clone(),
             source: err,
         })?;
-        let path = Utf8PathBuf::from_path_buf(entry.path()).unwrap();
+        let path = Utf8PathBuf::from_path_buf(entry.path())
+            .map_err(|bad| RenderError::InvalidUtf8Path { path: bad })?;
 
         if path.is_dir() {
             let dest = lua_render_destination(lua, ctx_table, filters_table, &destination, &path)?;

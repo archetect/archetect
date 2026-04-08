@@ -1,5 +1,0 @@
-{
-  "egg": "Humpty Dumpty sat on a wall"
-}
----
-{% filter upper %}{{ egg }}{% endfilter %}

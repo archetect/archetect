@@ -1,7 +1,0 @@
-{
-  "template": "simple_layout.txt"
-}
----
-{% extends template %}
-{% block title %}[{{ super() }}]{% endblock %}
-{% block body %}{{ super()|upper }}{% endblock %}

@@ -1,14 +1,14 @@
-
-
 use log::warn;
 
 use archetect_api::{ClientMessage, PromptInfo, PromptInfoPageable, SelectPromptInfo};
-use crate::responder::Responder;
-use archetect_inquire::{InquireError, Select};
+use inquire::{InquireError, Select};
 
 use crate::get_render_config;
+use crate::responder::Responder;
 
 pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Responder) {
+    let help_str = prompt_info.help().map(|v| v.to_string());
+
     let mut prompt =
         Select::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
 
@@ -16,7 +16,7 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
         let default = prompt_info
             .options()
             .iter()
-            .position(|item| item.to_string().as_str() == defaults_with.to_string().as_str());
+            .position(|item| item.as_str() == defaults_with);
         if let Some(default) = default {
             prompt.starting_cursor = default;
         } else {
@@ -24,9 +24,7 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
         }
     }
 
-    if prompt_info.help().is_some() {
-        prompt.help_message = prompt_info.help().map(|v| v.to_string());
-    }
+    prompt.help_message = help_str.as_deref();
 
     if let Some(page_size) = prompt_info.page_size() {
         prompt.page_size = page_size;
@@ -40,15 +38,13 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
                 responses.respond(ClientMessage::None);
             }
         }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.respond(ClientMessage::Abort);
-                }
-                _ => {
-                    responses.respond(ClientMessage::Error(error.to_string()));
-                }
+        Err(error) => match error {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                responses.respond(ClientMessage::Abort);
             }
-        }
+            _ => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+            }
+        },
     }
 }

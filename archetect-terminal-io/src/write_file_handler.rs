@@ -6,7 +6,7 @@ use log::debug;
 
 use archetect_api::{ClientMessage, ExistingFilePolicy, WriteFileInfo};
 use crate::responder::Responder;
-use archetect_inquire::Confirm;
+use inquire::Confirm;
 
 pub fn handle_write_file(write_info: WriteFileInfo, responses: &dyn Responder) {
     let path = Utf8PathBuf::from(&write_info.destination);

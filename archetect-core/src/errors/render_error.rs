@@ -9,11 +9,6 @@ pub enum RenderError {
     InvalidPathCharacters {
         path: PathBuf,
     },
-    #[error( "Unable to render path `{path}`: {source}")]
-    PathRenderError2 {
-        path: PathBuf,
-        source: archetect_templating::Error,
-    },
     #[error("Unable to render file `{path}`: {source}")]
     FileRenderIOError {
         path: Utf8PathBuf,
@@ -72,5 +67,9 @@ pub enum RenderError {
     LuaTemplateRuntimeError {
         path: Utf8PathBuf,
         message: String,
+    },
+    #[error("Non-UTF-8 path encountered while rendering: {path}")]
+    InvalidUtf8Path {
+        path: PathBuf,
     },
 }

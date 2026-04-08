@@ -3,7 +3,6 @@ use archetect_api::IoError;
 use crate::errors::answer_error::AnswerFileError;
 use crate::errors::{ArchetypeError, RenderError, SourceError};
 use crate::errors::{CatalogError, SystemError};
-use rhai::EvalAltResult;
 use shellexpand::LookupError;
 
 #[derive(Debug, thiserror::Error)]
@@ -14,8 +13,6 @@ pub enum ArchetectError {
     ArchetypeError(#[from] ArchetypeError),
     #[error(transparent)]
     RenderError(#[from] RenderError),
-    #[error(transparent)]
-    ScriptError(#[from] Box<EvalAltResult>),
     #[error(transparent)]
     SystemError(#[from] SystemError),
     #[error(transparent)]

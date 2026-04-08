@@ -5,4 +5,5 @@ mod configuration_security_sections;
 
 pub use configuration::Configuration;
 pub use configuration_local_section::ConfigurationLocalsSection;
+pub use configuration_security_sections::{ConfigurationSecuritySection, ShellExecPolicy};
 pub use configuration_update_section::ConfigurationUpdateSection;

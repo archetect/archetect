@@ -1,1 +1,0 @@
-Hello {{ variable }} from included template!

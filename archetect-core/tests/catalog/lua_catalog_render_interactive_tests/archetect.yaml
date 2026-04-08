@@ -1,0 +1,11 @@
+description: "Catalog Interactive Render Test"
+requires:
+  archetect: "3.0.0"
+
+catalog:
+  services:
+    description: "Backend Services"
+    catalog:
+      rest:
+        description: "REST Service"
+        source: "/Users/jimmie/personal/archetect/archetect-3/archetect-core/tests/catalog/lua_catalog_render_tests/child-archetype"

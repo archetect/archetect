@@ -7,16 +7,13 @@ pub mod script;
 pub mod source;
 pub mod system;
 mod utils;
-pub mod conversions;
+pub mod archive;
+pub mod manifest;
 pub mod caching;
-mod cache_manager;
-pub mod actions;
 pub(crate) mod check;
 pub mod client;
 pub mod io;
 pub mod proto;
 pub mod server;
-
-pub use cache_manager::*;
 
 pub use archetect::*;

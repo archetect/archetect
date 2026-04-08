@@ -1,6 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
-use archetect_templating::UndefinedBehavior as MinijinjaUndefinedBehavior;
 
 const DEFAULT_CONTENT_DIRECTORY: &str = ".";
 const DEFAULT_TEMPLATES_DIRECTORY: &str = "templates";
@@ -13,8 +12,6 @@ pub struct TemplatingConfig {
     templates: Utf8PathBuf,
     #[serde(default = "default_undefined_behavior")]
     undefined_behavior: UndefinedBehavior,
-    #[serde(default)]
-    pub engine: Option<TemplateEngine>,
 }
 
 impl TemplatingConfig {
@@ -36,21 +33,7 @@ impl Default for TemplatingConfig {
             content: default_content_directory(),
             templates: default_templates_directory(),
             undefined_behavior: default_undefined_behavior(),
-            engine: None,
         }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TemplateEngine {
-    Jinja,
-    Lua,
-}
-
-impl TemplatingConfig {
-    pub fn template_engine(&self) -> TemplateEngine {
-        self.engine.unwrap_or(TemplateEngine::Jinja)
     }
 }
 
@@ -71,14 +54,4 @@ pub enum UndefinedBehavior {
     Lenient,
     Chainable,
     Strict,
-}
-
-impl UndefinedBehavior {
-    pub fn to_minijinja(&self) -> MinijinjaUndefinedBehavior {
-        match self {
-            UndefinedBehavior::Lenient => MinijinjaUndefinedBehavior::Lenient,
-            UndefinedBehavior::Chainable => MinijinjaUndefinedBehavior::Chainable,
-            UndefinedBehavior::Strict => MinijinjaUndefinedBehavior::Strict,
-        }
-    }
 }

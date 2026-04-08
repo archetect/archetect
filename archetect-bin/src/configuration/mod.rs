@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use clap::parser::ValueSource;
 use clap::ArgMatches;
@@ -6,10 +7,83 @@ use config::{Config, ConfigError, File, FileFormat, Source, Value};
 use log::debug;
 
 use archetect_core::configuration::Configuration;
+use archetect_core::manifest::CatalogEntry;
 use archetect_core::system::SystemLayout;
+use linked_hash_map::LinkedHashMap;
+use serde::Deserialize;
 
+// Legacy base names — used by tests. New code should use PROJECT_CONFIG_VARIANTS.
+#[allow(dead_code)]
 pub const CONFIGURATION_FILE: &str = "archetect";
+#[allow(dead_code)]
 pub const DOT_CONFIGURATION_FILE: &str = ".archetect";
+
+/// All accepted variants of a project-level config file, in priority order.
+const PROJECT_CONFIG_VARIANTS: &[&str] = &[
+    "archetect.yaml",
+    "archetect.yml",
+    ".archetect.yaml",
+    ".archetect.yml",
+];
+
+/// Detect a project-level archetect config file in the given directory.
+///
+/// Returns:
+/// - `Ok(Some(path))` if exactly one variant exists
+/// - `Ok(None)` if no variants exist
+/// - `Err(ConfigError::Message(...))` if multiple variants exist (ambiguous)
+pub fn detect_project_config(cwd: &Path) -> Result<Option<PathBuf>, ConfigError> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for variant in PROJECT_CONFIG_VARIANTS {
+        let path = cwd.join(variant);
+        if path.is_file() {
+            found.push(path);
+        }
+    }
+
+    let mut iter = found.into_iter();
+    match (iter.next(), iter.next()) {
+        (None, _) => Ok(None),
+        (Some(only), None) => Ok(Some(only)),
+        (Some(first), Some(second)) => {
+            let names: Vec<String> = std::iter::once(first)
+                .chain(std::iter::once(second))
+                .chain(iter)
+                .map(|p| {
+                    p.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| p.display().to_string())
+                })
+                .collect();
+            Err(ConfigError::Message(format!(
+                "Multiple archetect config files found in {}: {}. \
+                 Remove all but one to avoid ambiguity.",
+                cwd.display(),
+                names.join(", ")
+            )))
+        }
+    }
+}
+
+/// Minimal struct used to extract just the `catalog` field from a project config file
+/// without going through the full Configuration deserialization pipeline.
+#[derive(Debug, Deserialize)]
+struct ProjectCatalogOnly {
+    #[serde(default)]
+    catalog: Option<LinkedHashMap<String, CatalogEntry>>,
+}
+
+/// Parse just the `catalog` field from a project config file. Returns `None`
+/// if the file doesn't have a catalog field. Other parse errors are reported.
+pub fn parse_project_catalog(path: &Path) -> Result<Option<LinkedHashMap<String, CatalogEntry>>, ConfigError> {
+    let contents = std::fs::read_to_string(path)
+        .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
+    let parsed: ProjectCatalogOnly = serde_yaml::from_str(&contents)
+        .map_err(|e| ConfigError::Message(format!(
+            "Failed to parse project config {}: {}", path.display(), e
+        )))?;
+    Ok(parsed.catalog)
+}
 
 /// Load configuration files from {etc_d_dir}/*.yaml in sorted order
 /// For NativeSystemLayout, etc_d_dir is typically ~/.archetect/etc.d
@@ -75,7 +149,30 @@ fn load_config_dir_files<L: SystemLayout>(
     Ok(config)
 }
 
+/// Load user configuration using the current working directory for project config detection.
 pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Result<Configuration, ConfigError> {
+    let current_dir = std::env::current_dir()
+        .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
+    load_user_config_with_cwd(layout, Some(&current_dir), args)
+}
+
+/// Load user configuration WITHOUT detecting any project-level config.
+/// Used by `archetect global` to explicitly bypass `.archetect.yaml` overrides.
+pub fn load_global_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Result<Configuration, ConfigError> {
+    load_user_config_with_cwd(layout, None, args)
+}
+
+/// Load user configuration with an explicit working directory.
+///
+/// - `Some(cwd)` → look for project config in `cwd`
+/// - `None` → skip project config detection entirely (used by `archetect global`)
+///
+/// Tests should use `Some(tempdir_path)` to avoid polluting the workspace.
+pub fn load_user_config_with_cwd<L: SystemLayout>(
+    layout: &L,
+    current_dir: Option<&Path>,
+    args: &ArgMatches,
+) -> Result<Configuration, ConfigError> {
     let default_config_yaml = Configuration::default().to_yaml();
     debug!("Default configuration YAML:\n{}", default_config_yaml);
 
@@ -97,55 +194,36 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     // Load additional config files from ~/.archetect/etc.d/*.yaml in sorted order
     let config = load_config_dir_files(config, layout)?;
 
-    // Debug local config files and current directory
-    let current_dir = std::env::current_dir()
-        .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
-    debug!("Current working directory: {}", current_dir.display());
-    
-    let dot_config_path = current_dir.join(DOT_CONFIGURATION_FILE);
-    let config_path = current_dir.join(CONFIGURATION_FILE);
-    
-    debug!("Checking for .archetect config file at: {}", dot_config_path.display());
-    if dot_config_path.exists() {
-        if let Ok(contents) = std::fs::read_to_string(&dot_config_path) {
-            debug!(".archetect config contents:\n{}", contents);
-        }
-    }
-    
-    debug!("Checking for archetect config file at: {}", config_path.display());
-    if config_path.exists() {
-        if let Ok(contents) = std::fs::read_to_string(&config_path) {
-            debug!("archetect config contents:\n{}", contents);
-        }
+    if let Some(cwd) = current_dir {
+        debug!("Current working directory: {}", cwd.display());
+    } else {
+        debug!("Project config detection disabled (global mode)");
     }
 
-    // Use absolute paths for local config files and only add them if they exist
-    // This avoids a bug in the config crate where non-existent files can inject default values
-    
-    let mut config = config;
-    
-    // Load .archetect.yaml and .archetect.yml files
-    for extension in &[".yaml", ".yml"] {
-        let config_file = current_dir.join(format!("{}{}", DOT_CONFIGURATION_FILE, extension));
-        if config_file.exists() && config_file.is_file() {
-            config = config.add_source(
-                File::with_name(&config_file.to_string_lossy())
-                    .format(FileFormat::Yaml)
-                    .required(false),
-            );
-        }
+    // Detect a single project config file in CWD if enabled. Errors if multiple
+    // variants coexist (no clever merging — explicit failure is safer).
+    let project_config_path = match current_dir {
+        Some(cwd) => detect_project_config(cwd)?,
+        None => None,
+    };
+    if let Some(ref path) = project_config_path {
+        debug!("Detected project config: {}", path.display());
+    } else {
+        debug!("No project config in CWD");
     }
-    
-    // Load archetect.yaml and archetect.yml files
-    for extension in &[".yaml", ".yml"] {
-        let config_file = current_dir.join(format!("{}{}", CONFIGURATION_FILE, extension));
-        if config_file.exists() && config_file.is_file() {
-            config = config.add_source(
-                File::with_name(&config_file.to_string_lossy())
-                    .format(FileFormat::Yaml)
-                    .required(false),
-            );
-        }
+
+    let mut config = config;
+
+    // Layer in the project config file (if any) as a config source. The config
+    // crate does field-level merge by default — this gives us the answer-merge
+    // semantics we want for free. The catalog field is REPLACED separately
+    // below to enforce "project replaces global" semantics.
+    if let Some(ref project_path) = project_config_path {
+        config = config.add_source(
+            File::with_name(&project_path.to_string_lossy())
+                .format(FileFormat::Yaml)
+                .required(true),
+        );
     }
 
     // Merge Config File specified from Command Line
@@ -194,9 +272,22 @@ pub fn load_user_config<L: SystemLayout>(layout: &L, args: &ArgMatches) -> Resul
     let config = config.add_source(clap_source);
 
     let config = config.build()?;
-    let result: Configuration = config.try_deserialize()?;
+    let mut result: Configuration = config.try_deserialize()?;
     debug!("Final config headless: {}", result.headless());
     debug!("Final config offline: {}", result.offline());
+
+    // Catalog "replace" semantics: if a project config file exists and declares
+    // a `catalog`, it fully replaces the global catalog (not field-merged into it).
+    if let Some(ref project_path) = project_config_path {
+        if let Some(project_catalog) = parse_project_catalog(project_path)? {
+            debug!(
+                "Replacing global catalog with project catalog from {}",
+                project_path.display()
+            );
+            result.set_catalog(project_catalog);
+        }
+    }
+
     Ok(result)
 }
 

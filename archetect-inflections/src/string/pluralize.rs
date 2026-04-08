@@ -28,7 +28,7 @@ fn patterns() -> &'static Vec<(Regex, &'static str)> {
                              (r"(\w*(M|m|L|l))(?:ice|ouse)$", "ice"),
                              (r"(\w*(Pe|pe))(?:rson|ople)$", "ople"),
                              (r"(\w*(Child|child))(?:ren)?$", "ren"),
-                             (r"(\w*eaux)$", "")].into_iter().map(|(rule, replace)| {(Regex::new(rule).unwrap(), replace)}).collect())
+                             (r"(\w*eaux)$", "")].into_iter().map(|(rule, replace)| {(Regex::new(rule).expect("static pluralization rule is a valid regex"), replace)}).collect())
 }
 
 macro_rules! special_cases{

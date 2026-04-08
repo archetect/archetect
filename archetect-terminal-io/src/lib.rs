@@ -11,10 +11,10 @@ mod text_prompt_handler;
 mod write_directory_handler;
 mod write_file_handler;
 
-use archetect_inquire::ui::{Color, RenderConfig, Styled};
+use inquire::ui::{Color, RenderConfig, Styled};
 pub use terminal_client::TerminalClient;
 pub use terminal_io_driver::TerminalScriptIoHandle;
 
-pub(crate) fn get_render_config() -> RenderConfig {
+pub(crate) fn get_render_config() -> RenderConfig<'static> {
     RenderConfig::default_colored().with_canceled_prompt_indicator(Styled::new("<none>").with_fg(Color::DarkGrey))
 }

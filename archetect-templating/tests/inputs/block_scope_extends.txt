@@ -1,6 +1,0 @@
-{
-  "template": "var_referencing_layout.txt"
-}
----
-{% extends template %}
-{% block item_block %}[{{ item }}]{% endblock %}

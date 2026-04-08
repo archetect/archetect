@@ -1,6 +1,0 @@
-{
-  "var": "foobar"
-}
----
-1:[{% block title %}{{ var }}{% endblock %}]
-2:({{ self.title() }})

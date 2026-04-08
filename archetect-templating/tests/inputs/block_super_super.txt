@@ -1,4 +1,0 @@
-{}
----
-{% extends "simple2_layout.txt" %}
-{% block title %}[{{ super() }}]{% endblock %}

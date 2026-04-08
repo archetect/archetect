@@ -3,47 +3,31 @@ use std::rc::Rc;
 
 use mlua::{AnyUserData, Error as LuaError, Lua, Result as LuaResult, Table, Value};
 
-use archetect_templating::Environment;
-
-use crate::archetype::archetype::{render_directory, Archetype, OverwritePolicy};
-use crate::archetype::archetype_manifest::templating::TemplateEngine;
+use crate::archetype::archetype::{Archetype, OverwritePolicy};
 use crate::archetype::render_context::RenderContext;
 use crate::Archetect;
 
 use super::context::Context;
 use super::template_engine::render::{self as lua_render, TemplateCache};
-#[allow(unused_imports)]
-use super::template_engine;
 
 pub fn register_all(
     lua: &Lua,
     archetype: &Archetype,
     archetect: &Archetect,
     render_context: &RenderContext,
-    environment: &Environment<'static>,
 ) -> LuaResult<()> {
-    let template_engine = archetype.manifest().templating().template_engine();
-
     register_context_constructor(lua, archetect, render_context)?;
     super::cases::register_cases(lua)?;
     register_existing_constants(lua)?;
     register_archetect_module(lua, archetect, render_context)?;
     register_archetype_module(lua, archetype)?;
-    register_component_module(lua, archetype, archetect, render_context)?;
 
-    match template_engine {
-        TemplateEngine::Lua => {
-            let filters = create_builtin_filters(lua)?;
-            let cache = Rc::new(RefCell::new(TemplateCache::new()));
-            register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone())?;
-            register_lua_template_module(lua, &filters, cache)?;
-        }
-        TemplateEngine::Jinja => {
-            register_directory_module(lua, archetype, archetect, render_context, environment)?;
-            register_template_module(lua, environment)?;
-        }
-    }
+    let filters = create_builtin_filters(lua)?;
+    let cache = Rc::new(RefCell::new(TemplateCache::new()));
+    register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache)?;
+    register_lua_template_module(lua, &filters)?;
 
+    register_catalog_module(lua, archetype, archetect, render_context)?;
     register_runtime_module(lua, archetect)?;
     register_env_module(lua)?;
     register_switches_module(lua, render_context)?;
@@ -129,48 +113,40 @@ fn register_archetype_module(
     Ok(())
 }
 
-// ── component module (render child archetype components) ────────────
+// ── catalog module (render catalog entries by path) ─────────────────
 
-fn register_component_module(
+fn register_catalog_module(
     lua: &Lua,
     archetype: &Archetype,
     archetect: &Archetect,
     render_context: &RenderContext,
 ) -> LuaResult<()> {
-    let component_table = lua.create_table()?;
+    let catalog_table = lua.create_table()?;
 
+    // catalog.render(path?, context, opts?)
+    //   - catalog.render(context)                  → present root catalog entries
+    //   - catalog.render("services", context)      → present "services" group as menu
+    //   - catalog.render("services/grpc", context) → render the leaf archetype directly
     let parent = archetype.clone();
     let arc = archetect.clone();
     let ctx = render_context.clone();
 
-    // component.render(name, context, opts?)
-    component_table.set(
+    catalog_table.set(
         "render",
         lua.create_function(
-            move |_, (name, context_ud, opts): (String, AnyUserData, Option<Table>)| {
+            move |_, args: mlua::MultiValue| {
+                let (path, context_ud, opts) = parse_catalog_render_args(&args)?;
+
+                let catalog = parent.manifest().catalog().ok_or_else(|| {
+                    LuaError::RuntimeError("No catalog entries defined in archetect.yaml".to_string())
+                })?;
+
                 let context_map = {
                     let context = context_ud.borrow::<Context>()?;
                     context.to_context_map()
                 };
 
-                let components = parent.manifest().components().ok_or_else(|| {
-                    LuaError::RuntimeError("No components defined in archetype.yaml".to_string())
-                })?;
-
-                let source = components.get(&name).ok_or_else(|| {
-                    LuaError::RuntimeError(format!(
-                        "Component '{}' not found in archetype.yaml. Available: {:?}",
-                        name,
-                        components.keys().collect::<Vec<_>>()
-                    ))
-                })?;
-
-                let child = arc.new_archetype(source).map_err(|e| {
-                    LuaError::RuntimeError(format!("Failed to load component '{}': {}", name, e))
-                })?;
-
                 let mut destination = ctx.destination().to_path_buf();
-
                 if let Some(ref opts) = opts {
                     if let Ok(dest_str) = opts.get::<String>("destination".to_string()) {
                         let dest_str = restrict_path(&dest_str)?;
@@ -178,82 +154,95 @@ fn register_component_module(
                     }
                 }
 
-                let mut child_render_context = RenderContext::new(destination, context_map);
+                let mut child_context = RenderContext::new(destination, context_map);
 
+                // Apply opts-level overrides (these override catalog entry defaults
+                // for switches/defaults). The dispatch module applies entry-level
+                // values first, so we apply opts AFTER the dispatch by leveraging
+                // the fact that for opts to take effect on a leaf render we need
+                // to set them on the context BEFORE calling dispatch.
                 if let Some(ref opts) = opts {
                     if let Ok(switches) = opts.get::<Vec<String>>("switches".to_string()) {
-                        child_render_context.set_switches(switches.into_iter().collect());
+                        child_context.set_switches(switches.into_iter().collect());
                     }
                     if let Ok(defaults) = opts.get::<Vec<String>>("use_defaults".to_string()) {
-                        child_render_context.set_use_defaults(defaults.into_iter().collect());
+                        child_context.set_use_defaults(defaults.into_iter().collect());
                     }
                     if let Ok(use_defaults_all) = opts.get::<bool>("use_defaults_all".to_string()) {
-                        child_render_context.set_use_defaults_all(use_defaults_all);
+                        child_context.set_use_defaults_all(use_defaults_all);
                     }
                 }
 
-                let result = child.render(child_render_context)
-                    .map_err(|e| LuaError::RuntimeError(format!("Component render error: {}", e)))?;
-
-                // Merge the child's return value (if it's a map) into the parent context
-                if let archetect_api::ContextValue::Map(map) = &result {
-                    let mut context = context_ud.borrow_mut::<Context>()?;
-                    context.merge_context_map(map);
-                }
+                crate::catalog::dispatch::dispatch(&arc, catalog, path.as_deref(), child_context)
+                    .map_err(|e| LuaError::RuntimeError(format!("Catalog error: {}", e)))?;
 
                 Ok(())
             },
         )?,
     )?;
 
-    lua.globals().set("component", component_table)?;
+    lua.globals().set("catalog", catalog_table)?;
     Ok(())
 }
 
-// ── directory module ────────────────────────────────────────────────
+/// Parse variadic args for catalog.render(): (context), (path, context), or (path, context, opts).
+fn parse_catalog_render_args(args: &mlua::MultiValue) -> LuaResult<(Option<String>, AnyUserData, Option<Table>)> {
+    match args.len() {
+        1 => {
+            // catalog.render(context)
+            let context_ud = extract_userdata(args, 0, "catalog.render(context)")?;
+            Ok((None, context_ud, None))
+        }
+        2 => {
+            // Could be (path, context) or (context, opts)
+            if let Some(Value::String(_)) = args.get(0) {
+                let path = extract_string(args, 0, "catalog.render(path, context)")?;
+                let context_ud = extract_userdata(args, 1, "catalog.render(path, context)")?;
+                Ok((Some(path), context_ud, None))
+            } else {
+                let context_ud = extract_userdata(args, 0, "catalog.render(context, opts)")?;
+                let opts = extract_table(args, 1, "catalog.render(context, opts)")?;
+                Ok((None, context_ud, Some(opts)))
+            }
+        }
+        3 => {
+            // (path, context, opts)
+            let path = extract_string(args, 0, "catalog.render(path, context, opts)")?;
+            let context_ud = extract_userdata(args, 1, "catalog.render(path, context, opts)")?;
+            let opts = extract_table(args, 2, "catalog.render(path, context, opts)")?;
+            Ok((Some(path), context_ud, Some(opts)))
+        }
+        n => Err(LuaError::RuntimeError(format!(
+            "catalog.render() takes 1-3 arguments, got {}", n
+        ))),
+    }
+}
 
-fn register_directory_module(
-    lua: &Lua,
-    archetype: &Archetype,
-    archetect: &Archetect,
-    render_context: &RenderContext,
-    environment: &Environment<'static>,
-) -> LuaResult<()> {
-    let directory_table = lua.create_table()?;
+fn extract_string(args: &mlua::MultiValue, idx: usize, context: &str) -> LuaResult<String> {
+    args.get(idx)
+        .and_then(|v| match v {
+            Value::String(s) => Some(s.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .ok_or_else(|| LuaError::RuntimeError(format!("{}: arg {} must be a string", context, idx + 1)))
+}
 
-    let arch = archetype.clone();
-    let arc = archetect.clone();
-    let ctx = render_context.clone();
-    let env = environment.clone();
+fn extract_userdata(args: &mlua::MultiValue, idx: usize, context: &str) -> LuaResult<AnyUserData> {
+    args.get(idx)
+        .and_then(|v| match v {
+            Value::UserData(ud) => Some(ud.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| LuaError::RuntimeError(format!("{}: arg {} must be a Context", context, idx + 1)))
+}
 
-    // directory.render(path, context, opts?)
-    directory_table.set(
-        "render",
-        lua.create_function(
-            move |_, (dir_name, context_ud, opts): (String, AnyUserData, Option<Table>)| {
-                let context = context_ud.borrow::<Context>()?;
-                let rhai_map = context.to_rhai_map();
-
-                let source = arch.content_directory().join(&dir_name);
-                let mut destination = ctx.destination().to_owned();
-
-                if let Some(ref opts) = opts {
-                    if let Ok(dest_str) = opts.get::<String>("destination".to_string()) {
-                        let dest_str = restrict_path(&dest_str)?;
-                        destination = destination.join(dest_str);
-                    }
-                }
-
-                let overwrite_policy = extract_overwrite_policy(&opts);
-
-                render_directory(&env, &arc, &rhai_map, source, destination, overwrite_policy)
-                    .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))
-            },
-        )?,
-    )?;
-
-    lua.globals().set("directory", directory_table)?;
-    Ok(())
+fn extract_table(args: &mlua::MultiValue, idx: usize, context: &str) -> LuaResult<Table> {
+    args.get(idx)
+        .and_then(|v| match v {
+            Value::Table(t) => Some(t.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| LuaError::RuntimeError(format!("{}: arg {} must be a table", context, idx + 1)))
 }
 
 // ── runtime module ──────────────────────────────────────────────────
@@ -365,7 +354,6 @@ fn register_lua_directory_module(
 fn register_lua_template_module(
     lua: &Lua,
     filters: &Table,
-    cache: Rc<RefCell<TemplateCache>>,
 ) -> LuaResult<()> {
     let template_table = lua.create_table()?;
 
@@ -407,6 +395,27 @@ fn register_lua_template_module(
     Ok(())
 }
 
+/// Coerce a Lua value into a string for a scalar filter (case conversions, etc.).
+///
+/// String/Integer/Number/Boolean coerce to their natural string forms. Nil
+/// becomes the empty string. Non-scalar values (tables, functions, threads,
+/// userdata) raise an explicit runtime error so authors get a clear message
+/// instead of garbled `Debug`-formatted output leaking into a generated file.
+fn coerce_scalar_for_filter(value: &Value, filter_name: &str) -> LuaResult<String> {
+    match value {
+        Value::String(s) => Ok(s.to_string_lossy().to_string()),
+        Value::Integer(i) => Ok(i.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        Value::Boolean(b) => Ok(b.to_string()),
+        Value::Nil => Ok(String::new()),
+        other => Err(LuaError::RuntimeError(format!(
+            "filter `{}` expects a scalar value, got {}",
+            filter_name,
+            other.type_name()
+        ))),
+    }
+}
+
 /// Create the built-in filter table for the Lua template engine.
 /// These are the inflection filters ported as Lua functions.
 fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
@@ -417,10 +426,7 @@ fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
             filters.set(
                 $name,
                 lua.create_function(|_, value: Value| {
-                    let s = match &value {
-                        Value::String(s) => s.to_string_lossy().to_string(),
-                        other => format!("{:?}", other),
-                    };
+                    let s = coerce_scalar_for_filter(&value, $name)?;
                     Ok($func(&s))
                 })?,
             )?;
@@ -454,26 +460,6 @@ fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
     lua.globals().set("__atl_filters", filters.clone())?;
 
     Ok(filters)
-}
-
-// ── template module (MiniJinja) ─────────────────────────────────────
-
-fn register_template_module(lua: &Lua, environment: &Environment<'static>) -> LuaResult<()> {
-    let template_table = lua.create_table()?;
-
-    let env = environment.clone();
-    template_table.set(
-        "render",
-        lua.create_function(move |_, (tmpl, context_ud): (String, AnyUserData)| {
-            let context = context_ud.borrow::<Context>()?;
-            let rhai_map = context.to_rhai_map();
-            env.render_str(&tmpl, &rhai_map)
-                .map_err(|e| LuaError::RuntimeError(format!("Template error: {}", e)))
-        })?,
-    )?;
-
-    lua.globals().set("template", template_table)?;
-    Ok(())
 }
 
 // ── format module ───────────────────────────────────────────────────
@@ -775,5 +761,100 @@ fn context_value_to_lua(lua: &Lua, value: &archetect_api::ContextValue) -> LuaRe
         }
         archetect_api::ContextValue::Map(map) => context_map_to_lua_table(lua, map),
         archetect_api::ContextValue::Nil => Ok(Value::Nil),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::script::lua::template_engine::TemplateCompiler;
+
+    #[test]
+    fn test_coerce_scalar_for_filter_string() {
+        let lua = Lua::new();
+        let value = Value::String(lua.create_string("hello").unwrap());
+        assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_coerce_scalar_for_filter_integer() {
+        let value = Value::Integer(42);
+        assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "42");
+    }
+
+    #[test]
+    fn test_coerce_scalar_for_filter_number() {
+        let value = Value::Number(2.5);
+        assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "2.5");
+    }
+
+    #[test]
+    fn test_coerce_scalar_for_filter_boolean() {
+        let value = Value::Boolean(true);
+        assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "true");
+    }
+
+    #[test]
+    fn test_coerce_scalar_for_filter_nil() {
+        let value = Value::Nil;
+        assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "");
+    }
+
+    #[test]
+    fn test_coerce_scalar_for_filter_table_errors() {
+        let lua = Lua::new();
+        let value = Value::Table(lua.create_table().unwrap());
+        let err = coerce_scalar_for_filter(&value, "upper_case").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("upper_case"), "error should name the filter: {}", msg);
+        assert!(msg.contains("scalar"), "error should explain the constraint: {}", msg);
+        assert!(msg.contains("table"), "error should name the offending type: {}", msg);
+    }
+
+    #[test]
+    fn test_filter_coerces_integer_to_string() {
+        // {{ count | upper_case }} with count=5 should produce "5", not "Integer(5)".
+        let compiled = TemplateCompiler::compile("{{ count | upper_case }}", "test").unwrap();
+        let lua = Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("count", 5).unwrap();
+        let filters = create_builtin_filters(&lua).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "5");
+    }
+
+    #[test]
+    fn test_filter_coerces_boolean_to_string() {
+        let compiled = TemplateCompiler::compile("{{ flag | upper_case }}", "test").unwrap();
+        let lua = Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("flag", true).unwrap();
+        let filters = create_builtin_filters(&lua).unwrap();
+
+        // upper_case("true") → "TRUE"
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "TRUE");
+    }
+
+    #[test]
+    fn test_filter_rejects_table_input() {
+        // {{ items | upper_case }} where items is a table should fail with a clear error.
+        let compiled = TemplateCompiler::compile("{{ items | upper_case }}", "test").unwrap();
+        let lua = Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("items", lua.create_table().unwrap()).unwrap();
+        let filters = create_builtin_filters(&lua).unwrap();
+
+        let result = func.call::<String>((ctx, filters));
+        assert!(result.is_err(), "expected error, got {:?}", result);
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("upper_case"), "error should name the filter: {}", msg);
     }
 }

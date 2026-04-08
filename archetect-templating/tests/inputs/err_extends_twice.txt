@@ -1,6 +1,0 @@
-{
-  "template": "simple_layout.txt"
-}
----
-{% extends template %}
-{% extends template %}

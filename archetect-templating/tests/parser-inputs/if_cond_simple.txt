@@ -1,3 +1,0 @@
-{% if expr1 %}
-    branch 1
-{% endif %}

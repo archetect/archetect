@@ -1,7 +1,0 @@
-{
-  "value": 42
-}
----
-{% if value %}
-  was true
-{% endif %}

@@ -1,72 +1,207 @@
-use crate::errors::ArchetectError;
+use std::env;
+use std::fs;
 use std::process::Command;
-use super::CHECK_SUCCESS;
-use super::CHECK_ERROR;
-use super::CHECK_PREFIX;
 
-pub fn perform_checks() -> Result<(), ArchetectError> {
+use crate::Archetect;
+use crate::configuration::ShellExecPolicy;
+use crate::errors::ArchetectError;
+
+use super::{error, hint, header, info, pass, warn};
+
+pub fn perform_checks(archetect: &Archetect) -> Result<(), ArchetectError> {
     check_git_installed()?;
     check_git_author()?;
+    check_cache_dir(archetect)?;
+    check_shell_exec_policy(archetect);
+    check_lua_annotations(archetect);
+    check_github_token();
     Ok(())
 }
 
 pub fn check_git_installed() -> Result<(), ArchetectError> {
-    println!("\n{CHECK_PREFIX} Checking Git Installation");
+    header("Git installation");
 
-    match  Command::new("git").arg("--version").output() {
+    match Command::new("git").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
-                println!("\t{CHECK_SUCCESS} {}", String::from_utf8(output.stdout.trim_ascii().to_owned()).expect("UTF-8 Version String"));
+                let version = String::from_utf8_lossy(output.stdout.trim_ascii()).to_string();
+                pass(&version);
             } else {
-                println!("\t{CHECK_ERROR} Git was found, but returned an unexpected Status Code: {}",  output.status.code().unwrap());
-
-                println!("\n\t Ensure that git is installed correctly.");
+                let code = output.status.code().unwrap_or(-1);
+                error(format!("Git found but returned status {}", code));
+                hint("Ensure git is installed correctly.");
             }
         }
-        Err(_error) => {
-            println!("\tGit is required, but was not found on the PATH");
-            println!("\n\t Ensure that git is installed correctly.");
+        Err(_) => {
+            error("Git is required, but was not found on PATH");
+            hint("Install git from https://git-scm.com/downloads");
         }
     }
     Ok(())
 }
 
 pub fn check_git_author() -> Result<(), ArchetectError> {
-    println!("\n{CHECK_PREFIX} Checking Git User Name and Email");
-    if let Ok(config) = git2::Config::open_default() {
-        let name = config.get_string("user.name");
-        let email = config.get_string("user.email");
+    header("Git user.name and user.email");
 
-        if let (Ok(name), Ok(email)) = (name, email)  {
-            if !name.is_empty() && !email.is_empty() {
-                println!("\t{CHECK_SUCCESS} {} <{}>", name, email);
-            }
-        } else {
-            println!("\t{CHECK_ERROR} Git User Name or Email is empty.  Archetypes may use your Git\n\
-            User Name and Email to answer questions about code authorship.");
+    let config = match git2::Config::open_default() {
+        Ok(c) => c,
+        Err(_) => {
+            warn("Could not read git config");
+            return Ok(());
+        }
+    };
 
-            println!("\n\tExecute the following command to configure git:");
-            println!("\n\tgit config --global user.name \"<your name>\"");
-            println!("\tgit config --global user.email \"<your email>\"");
+    let name = config.get_string("user.name").ok();
+    let email = config.get_string("user.email").ok();
+
+    match (name.as_deref(), email.as_deref()) {
+        (Some(n), Some(e)) if !n.is_empty() && !e.is_empty() => {
+            pass(format!("{} <{}>", n, e));
+        }
+        _ => {
+            warn("user.name or user.email is not set");
+            hint("Archetypes use these as default answers for code authorship.");
+            hint("Configure git with:");
+            hint("  git config --global user.name \"<your name>\"");
+            hint("  git config --global user.email \"<your email>\"");
         }
     }
-
     Ok(())
+}
+
+pub fn check_cache_dir(archetect: &Archetect) -> Result<(), ArchetectError> {
+    header("Cache directory");
+
+    let cache_dir = archetect.layout().cache_dir();
+
+    if !cache_dir.exists() {
+        // Try to create it — that's where archetect would put it on first run
+        match fs::create_dir_all(&cache_dir) {
+            Ok(_) => {
+                pass(format!("{} (created)", cache_dir));
+            }
+            Err(e) => {
+                error(format!("Cannot create {}: {}", cache_dir, e));
+                hint("Archetect cannot pull or cache archetypes without a writable cache directory.");
+                return Ok(());
+            }
+        }
+    } else if !cache_dir.is_dir() {
+        error(format!("{} exists but is not a directory", cache_dir));
+        return Ok(());
+    } else {
+        // Test writability by attempting a probe file
+        let probe = cache_dir.join(".archetect-probe");
+        match fs::write(&probe, b"") {
+            Ok(_) => {
+                let _ = fs::remove_file(&probe);
+                pass(format!("{} (writable)", cache_dir));
+            }
+            Err(e) => {
+                error(format!("{} is not writable: {}", cache_dir, e));
+                hint("Check directory permissions.");
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn check_shell_exec_policy(archetect: &Archetect) {
+    header("Shell execution policy");
+
+    let policy = archetect.configuration().shell_exec_policy();
+    match policy {
+        ShellExecPolicy::Forbidden => {
+            info("Forbidden — archetype scripts cannot run shell commands");
+        }
+        ShellExecPolicy::Prompt => {
+            info("Prompt — scripts must request approval per command (default)");
+        }
+        ShellExecPolicy::Allowed => {
+            info("Allowed — scripts can run any shell command without prompting");
+            hint("Set via --allow-exec, ARCHETECT_ALLOW_EXEC, or security.allow_exec in config.");
+        }
+    }
+}
+
+pub fn check_lua_annotations(archetect: &Archetect) {
+    header("Lua IDE annotations");
+
+    let annotations_dir = archetect.layout().data_dir().join("lua/annotations");
+    let main_file = annotations_dir.join("archetect.lua");
+
+    if main_file.is_file() {
+        info(format!("Installed at {}", annotations_dir));
+    } else {
+        info("Not installed");
+        hint("Run `archetect ide setup` to install Lua type annotations for IDE autocomplete.");
+    }
+}
+
+pub fn check_github_token() {
+    header("GITHUB_TOKEN environment variable");
+
+    match env::var("GITHUB_TOKEN") {
+        Ok(token) if !token.is_empty() => {
+            // Don't print the token — just confirm it's set
+            info(format!("Set ({} chars)", token.len()));
+        }
+        _ => {
+            info("Not set");
+            hint("Required only if archetype scripts use the archetect.github module.");
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::check::check_common::{perform_checks, check_git_installed};
+    use super::*;
+    use crate::system::RootedSystemLayout;
 
     #[test]
-    fn test_check_git() {
-        perform_checks().expect("Working code");
+    fn test_check_git_installed() {
+        // Just verify it doesn't panic — output is informational
+        check_git_installed().expect("check should not error");
     }
 
     #[test]
-    fn test_git_version() {
-        check_git_installed().expect("Working Code");
+    fn test_check_git_author() {
+        check_git_author().expect("check should not error");
     }
 
+    #[test]
+    fn test_check_cache_dir_with_temp_layout() {
+        let layout = RootedSystemLayout::temp().unwrap();
+        let archetect = Archetect::builder()
+            .with_layout(layout)
+            .build()
+            .unwrap();
+        check_cache_dir(&archetect).expect("check should not error");
+    }
 
+    #[test]
+    fn test_check_shell_exec_policy() {
+        let layout = RootedSystemLayout::temp().unwrap();
+        let archetect = Archetect::builder()
+            .with_layout(layout)
+            .build()
+            .unwrap();
+        // Just verify it doesn't panic
+        check_shell_exec_policy(&archetect);
+    }
+
+    #[test]
+    fn test_check_lua_annotations() {
+        let layout = RootedSystemLayout::temp().unwrap();
+        let archetect = Archetect::builder()
+            .with_layout(layout)
+            .build()
+            .unwrap();
+        check_lua_annotations(&archetect);
+    }
+
+    #[test]
+    fn test_check_github_token() {
+        check_github_token();
+    }
 }

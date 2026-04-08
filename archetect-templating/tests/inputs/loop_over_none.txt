@@ -1,5 +1,0 @@
-{
-  "seq": null
-}
----
-[{% for item in seq %}{% endfor %}]

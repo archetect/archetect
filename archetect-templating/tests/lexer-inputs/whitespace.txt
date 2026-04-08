@@ -1,2 +1,0 @@
-foo {{- bar -}} baz {{ blah }} blub
-foo {#- comment -#} baz {# blah #} blub

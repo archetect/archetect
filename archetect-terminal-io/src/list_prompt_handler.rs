@@ -1,57 +1,75 @@
 use std::ops::{RangeFrom, RangeInclusive, RangeToInclusive};
 
-
 use archetect_api::{ClientMessage, ListPromptInfo, PromptInfo, PromptInfoItemsRestrictions};
-use crate::responder::Responder;
-use archetect_inquire::validator::Validation;
-use archetect_inquire::{InquireError, List};
+use inquire::{InquireError, Text};
 
 use crate::get_render_config;
+use crate::responder::Responder;
 
 pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder) {
     let min_items = prompt_info.min_items();
     let max_items = prompt_info.max_items();
-    let list_validator = move |input: &Vec<String>| match validate_list(min_items, max_items, input) {
-        Ok(_) => return Ok(Validation::Valid),
-        Err(message) => return Ok(Validation::Invalid(message.into())),
-    };
-    let mut prompt = List::new(prompt_info.message())
-        .with_list_validator(list_validator)
-        .with_render_config(get_render_config())
-        ;
+    let help_str = prompt_info.help().map(|v| v.to_string());
 
-    prompt.defaults = prompt_info.defaults();
-    prompt.placeholder = prompt_info.placeholder().map(|v| v.to_string());
-    if prompt_info.help().is_some() {
-        prompt.help_message = prompt_info.help().map(|v| v.to_string());
-    }
+    let mut items: Vec<String> = Vec::new();
 
-    match prompt.prompt_skippable() {
-        Ok(answer) => {
-            if let Some(answer) = answer {
-                responses.respond(ClientMessage::Array(answer));
-            } else {
+    loop {
+        let item_num = items.len() + 1;
+        let message = if items.is_empty() {
+            format!("{} (empty input when done)", prompt_info.message())
+        } else {
+            format!("{} [{}] (empty input when done)", prompt_info.message(), item_num)
+        };
+
+        let mut prompt = Text::new(&message).with_render_config(get_render_config());
+        prompt.help_message = help_str.as_deref();
+
+        match prompt.prompt_skippable() {
+            Ok(Some(value)) => {
+                if value.is_empty() {
+                    // Empty input = done
+                    break;
+                }
+                items.push(value);
+
+                // If we've hit max, stop
+                if let Some(max) = max_items {
+                    if items.len() >= max {
+                        break;
+                    }
+                }
+            }
+            Ok(None) => {
+                // Skipped (Esc)
                 responses.respond(ClientMessage::None);
+                return;
             }
-        }
-        Err(error) => {
-            match error {
-                InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                    responses.respond(ClientMessage::Abort);
-                }
-                _ => {
-                    responses.respond(ClientMessage::Error(error.to_string()));
-                }
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
+                return;
+            }
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
             }
         }
     }
+
+    // Validate list constraints
+    if let Err(message) = validate_list(min_items, max_items, &items) {
+        // Re-prompt would be complex; for now, report the error
+        responses.respond(ClientMessage::Error(message));
+        return;
+    }
+
+    responses.respond(ClientMessage::Array(items));
 }
 
-fn validate_list(min_items: Option<usize>, max_items: Option<usize>, input: &Vec<String>) -> Result<(), String> {
+fn validate_list(min_items: Option<usize>, max_items: Option<usize>, input: &[String]) -> Result<(), String> {
     let length = input.len();
     match (min_items, max_items) {
         (Some(start), Some(end)) => {
-            if !RangeInclusive::new(start, end).contains(&input.len()) {
+            if !RangeInclusive::new(start, end).contains(&length) {
                 return Err(format!("List must have between {} and {} items", start, end));
             }
         }
@@ -65,8 +83,7 @@ fn validate_list(min_items: Option<usize>, max_items: Option<usize>, input: &Vec
                 return Err(format!("List must have no more than {} items", end));
             }
         }
-        (None, None) => return Ok(()),
-    };
-
+        (None, None) => {}
+    }
     Ok(())
 }

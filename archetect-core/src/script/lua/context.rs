@@ -33,13 +33,6 @@ impl Context {
         }
     }
 
-    /// Merge a ContextMap (from a child archetype's return value) into this context.
-    pub fn merge_context_map(&mut self, map: &ContextMap) {
-        for (key, value) in map {
-            self.data.insert(key.clone(), value.clone());
-        }
-    }
-
     /// Convert context data to a ContextMap.
     pub fn to_context_map(&self) -> ContextMap {
         self.data.clone()
@@ -85,30 +78,23 @@ impl Context {
         }
     }
 
-    /// Convert context data to a Lua table, bypassing rhai entirely.
-    /// Used by the Lua-native template engine for zero-conversion rendering.
+    /// Convert context data to a Lua table for the Lua-native template engine.
+    ///
+    /// Only the keys explicitly stored in the Context are written. Cases are an
+    /// opt-in concept declared via the `cases =` option on prompts and `ctx:set`
+    /// (see `cases` module). The previous implementation silently aliased every
+    /// key into snake_case and kebab_case variants, which made templates appear
+    /// to "just work" against keys that were never actually declared — a footgun
+    /// that masked author errors.
     pub fn to_lua_table(&self, lua: &Lua) -> LuaResult<Table> {
         let table = lua.create_table()?;
         for (key, value) in &self.data {
             let lua_value = context_value_to_lua(lua, value)?;
-            table.set(key.as_str(), lua_value.clone())?;
-            let snake = archetect_inflections::to_snake_case(key);
-            if snake != *key {
-                table.set(snake.as_str(), lua_value.clone())?;
-            }
-            let kebab = archetect_inflections::to_kebab_case(key);
-            if kebab != *key {
-                table.set(kebab.as_str(), lua_value)?;
-            }
+            table.set(key.as_str(), lua_value)?;
         }
         Ok(table)
     }
 
-    /// Convert context data to a rhai::Map for backwards compatibility with the
-    /// Rhai/MiniJinja rendering paths.
-    pub fn to_rhai_map(&self) -> rhai::Map {
-        crate::conversions::context_map_to_rhai_map(&self.data)
-    }
 }
 
 fn context_value_to_lua(lua: &Lua, value: &ContextValue) -> LuaResult<Value> {
@@ -660,5 +646,87 @@ impl UserData for Context {
             }
             Ok(())
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use camino::Utf8PathBuf;
+
+    use crate::system::RootedSystemLayout;
+
+    fn make_context() -> Context {
+        let layout = RootedSystemLayout::temp().unwrap();
+        let archetect = Archetect::builder().with_layout(layout).build().unwrap();
+        let render_context = RenderContext::new(Utf8PathBuf::from("/tmp/test"), ContextMap::new());
+        Context::new(archetect, render_context)
+    }
+
+    #[test]
+    fn test_to_lua_table_no_implicit_kebab_alias() {
+        // ctx:set("project-name", "foo") used to silently expose `project_name`
+        // as well via to_lua_table. After Phase 1.3 the only key written is the
+        // one the author actually declared.
+        let lua = Lua::new();
+        let mut context = make_context();
+        context
+            .data
+            .insert("project-name".to_string(), ContextValue::String("foo".to_string()));
+
+        let table = context.to_lua_table(&lua).unwrap();
+
+        let original: Value = table.get("project-name").unwrap();
+        assert!(matches!(original, Value::String(_)), "original key should be present");
+
+        let snake_alias: Value = table.get("project_name").unwrap();
+        assert!(
+            matches!(snake_alias, Value::Nil),
+            "implicit snake_case alias should NOT be present, got {:?}",
+            snake_alias
+        );
+    }
+
+    #[test]
+    fn test_to_lua_table_no_implicit_kebab_alias_for_snake_input() {
+        // The mirror case: a snake_case key should not silently expose its
+        // kebab-case variant either.
+        let lua = Lua::new();
+        let mut context = make_context();
+        context
+            .data
+            .insert("project_name".to_string(), ContextValue::String("foo".to_string()));
+
+        let table = context.to_lua_table(&lua).unwrap();
+
+        let kebab_alias: Value = table.get("project-name").unwrap();
+        assert!(
+            matches!(kebab_alias, Value::Nil),
+            "implicit kebab-case alias should NOT be present, got {:?}",
+            kebab_alias
+        );
+    }
+
+    #[test]
+    fn test_to_lua_table_writes_only_declared_keys() {
+        let lua = Lua::new();
+        let mut context = make_context();
+        context
+            .data
+            .insert("name".to_string(), ContextValue::String("foo".to_string()));
+        context
+            .data
+            .insert("count".to_string(), ContextValue::Integer(42));
+
+        let table = context.to_lua_table(&lua).unwrap();
+
+        // Walk the table and collect keys.
+        let mut keys: Vec<String> = Vec::new();
+        for pair in table.pairs::<String, Value>() {
+            let (k, _) = pair.unwrap();
+            keys.push(k);
+        }
+        keys.sort();
+        assert_eq!(keys, vec!["count".to_string(), "name".to_string()]);
     }
 }

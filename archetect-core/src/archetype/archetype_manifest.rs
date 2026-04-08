@@ -1,15 +1,14 @@
-use std::fs;
-
 use camino::Utf8PathBuf;
-use serde::{Deserialize, Serialize};
 use linked_hash_map::LinkedHashMap;
+use serde::{Deserialize, Serialize};
 
 pub use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
 use crate::archetype::archetype_manifest::scripting::ScriptingConfig;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
+use crate::manifest::{CatalogEntry, Manifest};
 
-mod requirements;
+pub mod requirements;
 pub mod scripting;
 pub mod templating;
 
@@ -25,37 +24,20 @@ pub struct ArchetypeManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
     requires: RuntimeRequirements,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    components: Option<LinkedHashMap<String, String>>,
     #[serde(default = "ScriptingConfig::default")]
     scripting: ScriptingConfig,
     #[serde(default = "TemplatingConfig::default")]
     templating: TemplatingConfig,
+    /// Catalog entries (populated from unified Manifest).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    catalog: Option<LinkedHashMap<String, CatalogEntry>>,
 }
 
 impl ArchetypeManifest {
+    /// Load an archetype manifest, delegating to `Manifest::load()` for unified file detection.
     pub fn load<P: Into<Utf8PathBuf>>(path: P) -> Result<ArchetypeManifest, ArchetypeError> {
-        let mut path = path.into();
-        if path.is_dir() {
-            let candidates = vec!["archetype.yml", "archetype.yaml"];
-            for candidate in candidates {
-                let config_file = path.join(candidate);
-                if config_file.exists() {
-                    path = config_file;
-                }
-            }
-        }
-        if path.is_dir() {
-            Err(ArchetypeError::ArchetypeConfigMissing)
-        } else if !path.exists() {
-            Err(ArchetypeError::ArchetypeManifestNotFound { path })
-        } else {
-            let config = fs::read_to_string(&path)?;
-            return match serde_yaml::from_str::<ArchetypeManifest>(&config) {
-                Ok(config) => Ok(config),
-                Err(source) => Err(ArchetypeError::ArchetypeManifestSyntaxError { path, source }),
-            };
-        }
+        let manifest = Manifest::load(path)?;
+        Ok(ArchetypeManifest::from(manifest))
     }
 
     pub fn description(&self) -> &str {
@@ -109,18 +91,6 @@ impl ArchetypeManifest {
         self.tags.as_ref().map(|r| r.as_slice()).unwrap_or_default()
     }
 
-    pub fn with_component(mut self, key: &str, source: &str) -> ArchetypeManifest {
-        self.components
-            .get_or_insert_with(|| LinkedHashMap::new())
-            .insert(key.into(), source.into());
-        // self.archetypes.insert(key.into(), source.into());
-        self
-    }
-
-    pub fn components(&self) -> Option<&LinkedHashMap<String, String>> {
-        self.components.as_ref()
-    }
-
     pub fn with_framework(mut self, framework: &str) -> ArchetypeManifest {
         self.add_framework(framework);
         self
@@ -146,25 +116,36 @@ impl ArchetypeManifest {
     pub fn templating(&self) -> &TemplatingConfig {
         &self.templating
     }
+
+    /// Returns catalog entries if this manifest declares any.
+    pub fn catalog(&self) -> Option<&LinkedHashMap<String, CatalogEntry>> {
+        self.catalog.as_ref()
+    }
+
+    /// True if this manifest has non-empty catalog entries.
+    pub fn has_catalog(&self) -> bool {
+        self.catalog
+            .as_ref()
+            .map(|c| !c.is_empty())
+            .unwrap_or(false)
+    }
+}
+
+impl From<Manifest> for ArchetypeManifest {
+    fn from(m: Manifest) -> Self {
+        ArchetypeManifest {
+            description: m.description,
+            authors: if m.authors.is_empty() { None } else { Some(m.authors) },
+            languages: if m.languages.is_empty() { None } else { Some(m.languages) },
+            frameworks: if m.frameworks.is_empty() { None } else { Some(m.frameworks) },
+            tags: if m.tags.is_empty() { None } else { Some(m.tags) },
+            requires: m.requires,
+            scripting: m.scripting,
+            templating: m.templating,
+            catalog: m.catalog,
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    // use super::*;
-
-    // #[test]
-    // fn test_serialize_to_yaml() {
-    //     let config = ArchetypeManifest::default()
-    //         .with_description("Simple REST Service")
-    //         .with_language("Java")
-    //         .with_framework("Spring")
-    //         .with_framework("Hessian")
-    //         .with_tag("Service")
-    //         .with_tag("REST")
-    //         .with_component("rust-service", "git:/rust-foo")
-    //         .with_component("java-service", "git:/java-foo");
-    //
-    //     let output = serde_yaml::to_string(&config).unwrap();
-    //     println!("{}", output);
-    // }
-}
+mod tests {}

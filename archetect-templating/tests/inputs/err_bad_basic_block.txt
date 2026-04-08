@@ -1,4 +1,0 @@
-{}
----
-{% extends "bad_basic_block.txt" %}
-{% block title %}My Title{% endblock %}

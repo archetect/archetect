@@ -4,15 +4,19 @@ use serde::{Deserialize, Serialize};
 
 use archetect_api::{ContextMap, ContextValue};
 
-use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
-use crate::configuration::configuration_security_sections::ConfigurationSecuritySection;
+use crate::configuration::configuration_security_sections::{
+    ConfigurationSecuritySection, ShellExecPolicy,
+};
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
+use crate::manifest::CatalogEntry;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Configuration {
-    #[serde(with = "serde_yaml::with::singleton_map_recursive")]
-    actions: LinkedHashMap<String, ArchetectAction>,
+    /// Unified catalog — named, addressable archetype references.
+    /// Project-level `.archetect.yaml` files can override this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    catalog: Option<LinkedHashMap<String, CatalogEntry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     offline: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,12 +59,32 @@ impl Configuration {
         &self.security
     }
 
-    pub fn actions(&self) -> &LinkedHashMap<String, ArchetectAction> {
-        &self.actions
+    /// Resolved shell execution policy.
+    pub fn shell_exec_policy(&self) -> ShellExecPolicy {
+        self.security.shell_exec_policy()
     }
 
-    pub fn action<C: AsRef<str>>(&self, command_name: C) -> Option<&ArchetectAction> {
-        self.actions.get(command_name.as_ref())
+    /// Override the shell execution policy. Used by MCP mode to force `Forbidden`
+    /// and by `--allow-exec` to force `Allowed`.
+    pub fn with_shell_exec_policy(mut self, policy: ShellExecPolicy) -> Self {
+        self.security.set_shell_exec_policy(policy);
+        self
+    }
+
+    /// Returns the unified catalog if set.
+    pub fn catalog(&self) -> Option<&LinkedHashMap<String, CatalogEntry>> {
+        self.catalog.as_ref()
+    }
+
+    /// Replace the catalog. Used by project config detection to swap in
+    /// project-level catalogs.
+    pub fn with_catalog(mut self, catalog: LinkedHashMap<String, CatalogEntry>) -> Self {
+        self.catalog = Some(catalog);
+        self
+    }
+
+    pub fn set_catalog(&mut self, catalog: LinkedHashMap<String, CatalogEntry>) {
+        self.catalog = Some(catalog);
     }
 
     pub fn answers(&self) -> &ContextMap {
@@ -95,7 +119,7 @@ impl Configuration {
 impl Default for Configuration {
     fn default() -> Self {
         Self {
-            actions: default_commands(),
+            catalog: Some(default_catalog()),
             headless: Default::default(),
             offline: Default::default(),
             updates: Default::default(),
@@ -107,21 +131,24 @@ impl Default for Configuration {
     }
 }
 
-fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
-    let mut commands = LinkedHashMap::new();
-    let mut entries = vec![];
-
-    let archetect_catalog = ArchetectAction::RenderCatalog {
-        description: "Archetect".to_string(),
-        info: RenderCatalogInfo::new("https://github.com/archetect/archetect.catalog.git"),
-    };
-
-    entries.push(archetect_catalog);
-
-    let command = RenderGroupInfo::new(entries);
-
-    commands.insert("default".to_string(), ArchetectAction::RenderGroup{description: "Archetect".to_string(), info: command });
-    commands
+fn default_catalog() -> LinkedHashMap<String, CatalogEntry> {
+    let mut catalog = LinkedHashMap::new();
+    // TODO(v3-catalog-repo): point this at the v3 master catalog once the
+    // archetect/* git org is reorganized for v3. The current URL points at
+    // the v2 catalog; v3 needs its own repo with unified Manifest format.
+    catalog.insert(
+        "archetect".to_string(),
+        CatalogEntry {
+            description: Some("Archetect Catalog".to_string()),
+            source: Some("https://github.com/archetect/archetect.catalog.git".to_string()),
+            catalog: None,
+            answers: None,
+            switches: None,
+            use_defaults: None,
+            use_defaults_all: None,
+        },
+    );
+    catalog
 }
 
 fn default_answers() -> ContextMap {

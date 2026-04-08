@@ -330,5 +330,6 @@ There is an established catalog of archetypes used in production at the maintain
 
 - `archetect-templating` and `archetect-terminal-prompts` are **vendored forks**, not upstream dependencies. Edit them directly.
 - The `build.rs` in `archetect-core` compiles `specs/archetect.proto` — if you modify the proto, regeneration happens automatically on build.
-- `SystemLayout` has three implementations: `NativeSystemLayout` (production, XDG dirs), `RootedSystemLayout` (custom root), `TempLayout` (tests). Use `TempLayout` in tests to avoid polluting user config.
+- `SystemLayout` has two implementations: `XdgSystemLayout` (production, XDG paths on Unix-likes including macOS, native on Windows) and `RootedSystemLayout` (custom root, used for tests via `RootedSystemLayout::temp()` and `RootedSystemLayout::new()`). The trait exposes `etc_dir`, `etc_d_dir`, `cache_dir`, and `data_dir`.
+- v3 paths (XDG): config `~/.config/archetect/`, cache `~/.cache/archetect/`, data `~/.local/share/archetect/`. Lua IDE annotations live in `data_dir/lua/annotations`. v2 still uses `~/.archetect/` and is unaffected — both can coexist.
 - The `feature/client-server` branch is stale. The gRPC client/server architecture was removed in favor of direct CLI invocation on main.

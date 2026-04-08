@@ -1,3 +1,0 @@
-{}
----
-This is {{ an_unknown_function() }}!
