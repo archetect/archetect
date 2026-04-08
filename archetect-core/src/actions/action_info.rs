@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use rhai::Map;
+use archetect_api::ContextMap;
 use serde::{Deserialize, Serialize};
 use crate::actions::ArchetectAction;
 
@@ -47,7 +47,7 @@ impl RenderCatalogInfo {
 pub struct RenderArchetypeInfo {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub answers: Option<Map>,
+    pub answers: Option<ContextMap>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switches: Option<HashSet<String>>,
     #[serde(rename = "use_defaults",skip_serializing_if = "Option::is_none")]
@@ -60,7 +60,7 @@ impl RenderArchetypeInfo {
     pub fn source(&self) -> &str {
         &self.source
     }
-    pub fn answers(&self) -> &Option<Map> {
+    pub fn answers(&self) -> &Option<ContextMap> {
         &self.answers
     }
     pub fn switches(&self) -> &Option<HashSet<String>> {

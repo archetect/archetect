@@ -1,7 +1,8 @@
 use git2;
 use linked_hash_map::LinkedHashMap;
-use rhai::{Dynamic, Identifier, Map};
 use serde::{Deserialize, Serialize};
+
+use archetect_api::{ContextMap, ContextValue};
 
 use crate::actions::{ArchetectAction, RenderCatalogInfo, RenderGroupInfo};
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
@@ -16,7 +17,7 @@ pub struct Configuration {
     offline: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     headless: Option<bool>,
-    answers: Map,
+    answers: ContextMap,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
     security: ConfigurationSecuritySection,
@@ -62,11 +63,11 @@ impl Configuration {
         self.actions.get(command_name.as_ref())
     }
 
-    pub fn answers(&self) -> &Map {
+    pub fn answers(&self) -> &ContextMap {
         &self.answers
     }
 
-    pub fn with_answer<K: Into<Identifier>, V: Into<Dynamic>>(mut self, key: K, value: V) -> Self {
+    pub fn with_answer<K: Into<String>, V: Into<ContextValue>>(mut self, key: K, value: V) -> Self {
         self.answers.insert(key.into(), value.into());
         self
     }
@@ -123,25 +124,25 @@ fn default_commands() -> LinkedHashMap<String, ArchetectAction> {
     commands
 }
 
-fn default_answers() -> Map {
-    let mut results = Map::new();
+fn default_answers() -> ContextMap {
+    let mut results = ContextMap::new();
 
     if let Ok(config) = git2::Config::open_default() {
         let name = config.get_string("user.name");
         let email = config.get_string("user.email");
 
-        if name.is_ok() {
-            results.insert("author_name".to_owned().into(), name.as_ref().unwrap().into());
+        if let Ok(ref name) = name {
+            results.insert("author_name".to_string(), ContextValue::String(name.clone()));
         }
 
-        if email.is_ok() {
-            results.insert("author_email".to_owned().into(), email.as_ref().unwrap().into());
+        if let Ok(ref email) = email {
+            results.insert("author_email".to_string(), ContextValue::String(email.clone()));
         }
 
-        if name.is_ok() && email.is_ok() {
+        if let (Ok(ref name), Ok(ref email)) = (&name, &email) {
             results.insert(
-                "author_full".to_owned().into(),
-                format!("{} <{}>", name.as_ref().unwrap(), email.as_ref().unwrap()).into(),
+                "author_full".to_string(),
+                ContextValue::String(format!("{} <{}>", name, email)),
             );
         }
     }

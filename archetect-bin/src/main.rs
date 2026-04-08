@@ -3,9 +3,7 @@ use std::collections::HashSet;
 use camino::Utf8PathBuf;
 use clap::ArgMatches;
 use log::warn;
-use rhai::Map;
-
-use archetect_api::{ScriptMessage, ScriptIoHandle};
+use archetect_api::{ContextMap, ContextValue, ScriptMessage, ScriptIoHandle};
 use archetect_core::{self};
 use archetect_core::actions::ArchetectAction;
 use archetect_core::Archetect;
@@ -63,7 +61,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
     let configuration = configuration::load_user_config(&layout, &matches)
         .map_err(|err| ArchetectError::ConfigError(err.to_string()))?;
 
-    let mut answers = Map::new();
+    let mut answers = ContextMap::new();
     // Load answers from merged configuration
     for (identifier, value) in configuration.answers() {
         answers.insert(identifier.clone(), value.clone());
@@ -83,11 +81,11 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
             let (identifier, value) = parse_answer_pair(answer_match)
                 .map_err(|e| ArchetectError::ConfigError(format!("Invalid answer '{}': {}", answer_match, e)))?;
             if let Ok(value) = value.parse::<i64>() {
-                answers.insert(identifier.into(), value.into());
+                answers.insert(identifier, ContextValue::Integer(value));
             } else if let Ok(value) = value.parse::<bool>() {
-                answers.insert(identifier.into(), value.into());
+                answers.insert(identifier, ContextValue::Boolean(value));
             } else {
-                answers.insert(identifier.into(), value.into());
+                answers.insert(identifier, ContextValue::String(value));
             }
         }
     }
@@ -142,7 +140,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
     Ok(())
 }
 
-fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
+fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -> Result<(), ArchetectError> {
     let action = matches.get_one::<String>("action").expect("Expected an action");
     match archetect.configuration().action(&action) {
         None => {
@@ -190,12 +188,12 @@ fn execute_action(matches: &ArgMatches, archetect: Archetect, answers: Map) -> R
     }
 }
 
-fn catalog(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
+fn catalog(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -> Result<(), ArchetectError> {
     warn!("'archetect catalog' is deprecated.  Use 'archetect render', instead");
     render(matches, archetect, answers)
 }
 
-pub fn render(matches: &ArgMatches, archetect: Archetect, answers: Map) -> Result<(), ArchetectError> {
+pub fn render(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -> Result<(), ArchetectError> {
     let source = matches.get_one::<String>("source").unwrap();
     let source = archetect.new_source(source)?;
     let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();

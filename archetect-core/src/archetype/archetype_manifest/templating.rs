@@ -13,6 +13,8 @@ pub struct TemplatingConfig {
     templates: Utf8PathBuf,
     #[serde(default = "default_undefined_behavior")]
     undefined_behavior: UndefinedBehavior,
+    #[serde(default)]
+    pub engine: Option<TemplateEngine>,
 }
 
 impl TemplatingConfig {
@@ -34,7 +36,21 @@ impl Default for TemplatingConfig {
             content: default_content_directory(),
             templates: default_templates_directory(),
             undefined_behavior: default_undefined_behavior(),
+            engine: None,
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TemplateEngine {
+    Jinja,
+    Lua,
+}
+
+impl TemplatingConfig {
+    pub fn template_engine(&self) -> TemplateEngine {
+        self.engine.unwrap_or(TemplateEngine::Jinja)
     }
 }
 

@@ -82,13 +82,11 @@ impl ArchetectMcpServer {
         }
 
         // Parse answers
-        let mut answers = rhai::Map::new();
+        let mut answers = archetect_api::ContextMap::new();
         if let Some(answers_json) = &req.answers {
             if let serde_json::Value::Object(obj) = answers_json {
                 for (k, v) in obj {
-                    if let Ok(dynamic) = serde_json::from_value::<rhai::Dynamic>(v.clone()) {
-                        answers.insert(k.clone().into(), dynamic);
-                    }
+                    answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
                 }
             }
         }

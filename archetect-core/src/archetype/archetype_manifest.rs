@@ -11,7 +11,7 @@ use crate::errors::ArchetypeError;
 
 mod requirements;
 pub mod scripting;
-mod templating;
+pub mod templating;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArchetypeManifest {

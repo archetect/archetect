@@ -1,8 +1,8 @@
 use std::fs;
 
 use mlua::Lua;
-use rhai::Dynamic;
 
+use archetect_api::ContextValue;
 use archetect_templating::Environment;
 
 use crate::archetype::archetype::Archetype;
@@ -14,13 +14,14 @@ pub(crate) mod cases;
 mod context;
 mod modules;
 mod require_modules;
+pub(crate) mod template_engine;
 
 pub(crate) fn execute(
     archetype: &Archetype,
     archetect: &Archetect,
     render_context: &RenderContext,
     environment: &Environment<'static>,
-) -> Result<Dynamic, ArchetypeError> {
+) -> Result<ContextValue, ArchetypeError> {
     let lua = create_lua(archetype, archetect, render_context, environment)?;
 
     let script_path = archetype.directory().script()?;
@@ -34,22 +35,22 @@ pub(crate) fn execute(
 
     match result {
         Ok(value) => {
-            // If the script returns a Context, convert its data to a rhai::Map
+            // If the script returns a Context, convert its data to a ContextMap
             match value {
                 mlua::Value::UserData(ud) => {
                     if let Ok(ctx) = ud.borrow::<context::Context>() {
-                        Ok(Dynamic::from(ctx.to_rhai_map()))
+                        Ok(ContextValue::Map(ctx.to_context_map()))
                     } else {
-                        Ok(Dynamic::UNIT)
+                        Ok(ContextValue::Nil)
                     }
                 }
-                _ => Ok(Dynamic::UNIT),
+                _ => Ok(ContextValue::Nil),
             }
         }
         Err(err) => {
             // Check for clean exit() — not an error, just early termination
             if is_clean_exit(&err) {
-                return Ok(Dynamic::UNIT);
+                return Ok(ContextValue::Nil);
             }
 
             let _ = archetect.request(archetect_api::ScriptMessage::LogError(format!("{}", err)));
@@ -83,6 +84,18 @@ fn create_lua(
     // Register require-based modules
     require_modules::register_require_modules(&lua, archetect, render_context)
         .map_err(|_| ArchetypeError::ScriptAbortError)?;
+
+    // Add archetype's modules directory to Lua package.path
+    let modules_dir = archetype.directory().modules_directory();
+    if modules_dir.exists() {
+        let lua_path_addition = format!("{}/?.lua;{}/?/init.lua", modules_dir, modules_dir);
+        lua.load(format!(
+            "package.path = '{}' .. ';' .. package.path",
+            lua_path_addition.replace('\'', "\\'")
+        ))
+        .exec()
+        .map_err(|_| ArchetypeError::ScriptAbortError)?;
+    }
 
     Ok(lua)
 }

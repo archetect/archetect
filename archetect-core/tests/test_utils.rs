@@ -3,13 +3,11 @@ use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use camino::Utf8PathBuf;
-use rhai::{Dynamic, Map};
-
 use archetect_api::{
-    sync_io_channel, ClientIoHandle, ClientMessage, ScriptMessage, SyncClientIoHandle,
-    BoolPromptInfo, EditorPromptInfo, IntPromptInfo, ListPromptInfo,
+    sync_io_channel, ClientIoHandle, ClientMessage, ContextMap, ContextValue, ScriptMessage,
+    SyncClientIoHandle, BoolPromptInfo, EditorPromptInfo, IntPromptInfo, ListPromptInfo,
     MultiSelectPromptInfo, SelectPromptInfo, TextPromptInfo,
-    WriteDirectoryInfo, WriteFileInfo,
+    WriteFileInfo,
 };
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
@@ -227,7 +225,7 @@ impl TestHarness {
 pub struct TestHarnessBuilder {
     test_file: String,
     configuration: Configuration,
-    answers: Map,
+    answers: ContextMap,
     switches: Vec<String>,
     use_defaults_all: bool,
     destination: Utf8PathBuf,
@@ -238,7 +236,7 @@ impl TestHarnessBuilder {
         TestHarnessBuilder {
             test_file: test_file.to_string(),
             configuration: Configuration::default(),
-            answers: Map::new(),
+            answers: ContextMap::new(),
             switches: Vec::new(),
             use_defaults_all: false,
             destination: Utf8PathBuf::new(),
@@ -255,8 +253,8 @@ impl TestHarnessBuilder {
         self
     }
 
-    pub fn with_answer(mut self, key: &str, value: impl Into<Dynamic>) -> Self {
-        self.answers.insert(key.into(), value.into());
+    pub fn with_answer(mut self, key: &str, value: impl Into<ContextValue>) -> Self {
+        self.answers.insert(key.to_string(), value.into());
         self
     }
 

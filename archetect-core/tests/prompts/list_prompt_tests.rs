@@ -2,7 +2,7 @@ use assert_matches::assert_matches;
 use camino::Utf8PathBuf;
 use function_name::named;
 use indoc::indoc;
-use rhai::Map;
+use archetect_api::ContextMap;
 
 use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoItemsRestrictions};
 use archetect_core::archetype::render_context::RenderContext;
@@ -14,7 +14,7 @@ use crate::test_utils::TestHarness;
 fn test_simple_defaults() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch("test_simple");
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -46,7 +46,7 @@ fn test_simple_defaults() -> anyhow::Result<()> {
 fn test_map_defaults() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch("test_map");
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -78,7 +78,7 @@ fn test_map_defaults() -> anyhow::Result<()> {
 fn test_simple_non_cased_results() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch("test_simple");
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -108,7 +108,7 @@ fn test_simple_non_cased_results() -> anyhow::Result<()> {
 fn test_simple_cased_results() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch("test_simple_cased");
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -139,7 +139,7 @@ fn test_simple_cased_results() -> anyhow::Result<()> {
 fn test_map_cased_with_array_of_strategies() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch(function_name!());
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -173,7 +173,7 @@ fn test_map_cased_with_array_of_strategies() -> anyhow::Result<()> {
 fn  test_map_cased_with_single_strategy() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch(function_name!());
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -203,7 +203,7 @@ fn  test_map_cased_with_single_strategy() -> anyhow::Result<()> {
 fn  test_simple_cased_as_with_single_style() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch(function_name!());
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;
@@ -233,7 +233,7 @@ fn  test_simple_cased_as_with_single_style() -> anyhow::Result<()> {
 fn  test_map_cased_as_with_string_strategy() -> anyhow::Result<()> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers).with_switch(function_name!());
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;

@@ -1,9 +1,9 @@
+use archetect_api::{ContextMap, ContextValue};
 use archetect_core::errors::{AnswerFileError, ArchetectError};
 use camino::Utf8Path;
-use rhai::{Dynamic, Engine, Map};
 use std::fs;
 
-pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<Map, ArchetectError> {
+pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<ContextMap, ArchetectError> {
     let path = path.as_ref();
     if !path.is_file() {
         return Err(ArchetectError::AnswerConfigError {
@@ -27,49 +27,34 @@ pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<Map, ArchetectError> 
     }
 }
 
-fn read_yaml_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
+fn read_yaml_answers(path: &Utf8Path) -> Result<ContextMap, ArchetectError> {
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = serde_yaml::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+    let result: ContextMap = serde_yaml::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
         path: path.to_string(),
         source: AnswerFileError::ParseError(err.to_string()),
     })?;
-
-    if let Some(map) = result.try_cast::<Map>() {
-        Ok(map)
-    } else {
-        Err(ArchetectError::AnswerConfigError {
-            path: path.to_string(),
-            source: AnswerFileError::InvalidYamlAnswerFileStructure,
-        })
-    }
+    Ok(result)
 }
 
-fn read_json_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
+fn read_json_answers(path: &Utf8Path) -> Result<ContextMap, ArchetectError> {
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = serde_json::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+    let result: ContextMap = serde_json::from_str(&contents).map_err(|err| ArchetectError::AnswerConfigError {
         path: path.to_string(),
         source: AnswerFileError::ParseError(err.to_string()),
     })?;
-
-    if let Some(map) = result.try_cast::<Map>() {
-        Ok(map)
-    } else {
-        Err(ArchetectError::AnswerConfigError {
-            path: path.to_string(),
-            source: AnswerFileError::InvalidJsonAnswerFileStructure,
-        })
-    }
+    Ok(result)
 }
 
-fn read_rhai_answers(path: &Utf8Path) -> Result<Map, ArchetectError> {
+fn read_rhai_answers(path: &Utf8Path) -> Result<ContextMap, ArchetectError> {
+    // Parse Rhai answer files via the Rhai engine, then bridge to ContextMap
     let contents = fs::read_to_string(path)?;
-    let result: Dynamic = Engine::new().eval::<Dynamic>(&contents).map_err(|err| ArchetectError::AnswerConfigError {
+    let result: rhai::Dynamic = rhai::Engine::new().eval::<rhai::Dynamic>(&contents).map_err(|err| ArchetectError::AnswerConfigError {
         path: path.to_string(),
         source: AnswerFileError::ParseError(err.to_string()),
     })?;
 
-    if let Some(map) = result.try_cast::<Map>() {
-        Ok(map)
+    if let Some(map) = result.try_cast::<rhai::Map>() {
+        Ok(archetect_core::conversions::rhai_map_to_context_map(&map))
     } else {
         Err(ArchetectError::AnswerConfigError {
             path: path.to_string(),

@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::time::Duration;
 
-use rhai::Map;
+use archetect_api::ContextMap;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_stream::{Stream, StreamExt};
@@ -90,12 +90,12 @@ impl ArchetectService for ArchetectServiceCore {
                                         Some(grpc::client_message::Message::Initialize(initialize)),
                                 } = message
                                 {
-                                    let answers = serde_yaml::from_str::<Map>(
+                                    let answers = serde_yaml::from_str::<ContextMap>(
                                         &initialize.answers_yaml,
                                     )
                                     .unwrap_or_else(|err| {
                                         warn!("Failed to parse answers YAML: {}", err);
-                                        Map::new()
+                                        ContextMap::new()
                                     });
 
                                     let destination = initialize.destination;

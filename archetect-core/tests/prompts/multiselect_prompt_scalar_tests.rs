@@ -6,14 +6,14 @@ use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::ArchetectError;
 use crate::test_utils::TestHarness;
-use rhai::Map;
+use archetect_api::ContextMap;
 
 #[test]
 #[named]
 fn test_scalar_defaults() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;
@@ -48,7 +48,7 @@ fn test_scalar_defaults() -> Result<(), ArchetectError> {
 fn test_map_defaults() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;
@@ -83,7 +83,7 @@ fn test_map_defaults() -> Result<(), ArchetectError> {
 fn test_scalar_cased_as() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;
@@ -120,7 +120,7 @@ fn test_scalar_headless_defaults_headless() -> Result<(), ArchetectError> {
         .with_headless(true)
         ;
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;
@@ -143,7 +143,7 @@ fn test_scalar_headless_defaults_cased_as_headless() -> Result<(), ArchetectErro
         .with_headless(true)
         ;
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;
@@ -164,7 +164,7 @@ fn test_scalar_headless_defaults_cased_as_headless() -> Result<(), ArchetectErro
 fn test_scalar_with_defaults() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
 
-    let answers = Map::new();
+    let answers = ContextMap::new();
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers)
         .with_switch(function_name!())
         ;

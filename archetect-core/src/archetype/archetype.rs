@@ -5,7 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use content_inspector::ContentType;
 use rhai::{Dynamic, EvalAltResult, Map, Scope};
 
-use archetect_api::{ClientMessage, ExistingFilePolicy, ScriptMessage, WriteDirectoryInfo, WriteFileInfo};
+use archetect_api::{ClientMessage, ContextValue, ExistingFilePolicy, ScriptMessage, WriteDirectoryInfo, WriteFileInfo};
 use archetect_templating::Environment;
 
 use crate::Archetect;
@@ -62,7 +62,7 @@ impl Archetype {
         self.root().join(self.manifest().templating().templates_directory())
     }
 
-    pub fn render(&self, render_context: RenderContext) -> Result<Dynamic, ArchetypeError> {
+    pub fn render(&self, render_context: RenderContext) -> Result<ContextValue, ArchetypeError> {
         let environment = create_environment(self, self.archetect.clone(), &render_context);
 
         let (engine, _script_path) = self.resolve_engine_and_script();
@@ -105,11 +105,11 @@ impl Archetype {
         (ScriptEngine::Lua, Utf8PathBuf::from("archetype.lua"))
     }
 
-    fn render_rhai(&self, render_context: RenderContext, environment: Environment<'static>) -> Result<Dynamic, ArchetypeError> {
+    fn render_rhai(&self, render_context: RenderContext, environment: Environment<'static>) -> Result<ContextValue, ArchetypeError> {
         let mut scope = Scope::new();
-        scope.push_constant("ANSWERS", render_context.answers_owned());
-        scope.push_constant("SWITCHES", render_context.switches_as_array());
-        scope.push_constant("USE_DEFAULTS", render_context.use_defaults_as_array());
+        scope.push_constant("ANSWERS", crate::conversions::context_map_to_rhai_map(&render_context.answers_owned()));
+        scope.push_constant("SWITCHES", render_context.switches_as_rhai_array());
+        scope.push_constant("USE_DEFAULTS", render_context.use_defaults_as_rhai_array());
         scope.push_constant("USE_DEFAULTS_ALL", render_context.use_defaults_all());
 
         let engine = create_engine(environment, self.clone(), self.archetect.clone(), render_context);
@@ -118,7 +118,7 @@ impl Archetype {
             Ok(ast) => {
                 match engine.eval_ast_with_scope(&mut scope, &ast) {
                     Ok(result) => {
-                        Ok(result)
+                        Ok(crate::conversions::rhai_dynamic_to_context_value(&result))
                     }
                     Err(error) => {
                         return if let EvalAltResult::ErrorTerminated(_0, _1) = *error {

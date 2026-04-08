@@ -1,12 +1,19 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use mlua::{AnyUserData, Error as LuaError, Lua, Result as LuaResult, Table, Value};
 
 use archetect_templating::Environment;
 
 use crate::archetype::archetype::{render_directory, Archetype, OverwritePolicy};
+use crate::archetype::archetype_manifest::templating::TemplateEngine;
 use crate::archetype::render_context::RenderContext;
 use crate::Archetect;
 
 use super::context::Context;
+use super::template_engine::render::{self as lua_render, TemplateCache};
+#[allow(unused_imports)]
+use super::template_engine;
 
 pub fn register_all(
     lua: &Lua,
@@ -15,17 +22,31 @@ pub fn register_all(
     render_context: &RenderContext,
     environment: &Environment<'static>,
 ) -> LuaResult<()> {
+    let template_engine = archetype.manifest().templating().template_engine();
+
     register_context_constructor(lua, archetect, render_context)?;
     super::cases::register_cases(lua)?;
     register_existing_constants(lua)?;
     register_archetect_module(lua, archetect, render_context)?;
     register_archetype_module(lua, archetype)?;
     register_component_module(lua, archetype, archetect, render_context)?;
-    register_directory_module(lua, archetype, archetect, render_context, environment)?;
+
+    match template_engine {
+        TemplateEngine::Lua => {
+            let filters = create_builtin_filters(lua)?;
+            let cache = Rc::new(RefCell::new(TemplateCache::new()));
+            register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone())?;
+            register_lua_template_module(lua, &filters, cache)?;
+        }
+        TemplateEngine::Jinja => {
+            register_directory_module(lua, archetype, archetect, render_context, environment)?;
+            register_template_module(lua, environment)?;
+        }
+    }
+
     register_runtime_module(lua, archetect)?;
     register_env_module(lua)?;
     register_switches_module(lua, render_context)?;
-    register_template_module(lua, environment)?;
     register_format_module(lua)?;
     register_exit(lua)?;
     register_log(lua, archetect)?;
@@ -70,7 +91,7 @@ fn register_archetect_module(
     archetect_table.set(
         "answers",
         lua.create_function(move |lua, ()| {
-            rhai_map_to_lua_table(lua, &answers)
+            context_map_to_lua_table(lua, &answers)
         })?,
     )?;
 
@@ -127,9 +148,9 @@ fn register_component_module(
         "render",
         lua.create_function(
             move |_, (name, context_ud, opts): (String, AnyUserData, Option<Table>)| {
-                let rhai_map = {
+                let context_map = {
                     let context = context_ud.borrow::<Context>()?;
-                    context.to_rhai_map()
+                    context.to_context_map()
                 };
 
                 let components = parent.manifest().components().ok_or_else(|| {
@@ -157,7 +178,7 @@ fn register_component_module(
                     }
                 }
 
-                let mut child_render_context = RenderContext::new(destination, rhai_map);
+                let mut child_render_context = RenderContext::new(destination, context_map);
 
                 if let Some(ref opts) = opts {
                     if let Ok(switches) = opts.get::<Vec<String>>("switches".to_string()) {
@@ -175,9 +196,9 @@ fn register_component_module(
                     .map_err(|e| LuaError::RuntimeError(format!("Component render error: {}", e)))?;
 
                 // Merge the child's return value (if it's a map) into the parent context
-                if let Some(map) = result.clone().try_cast::<rhai::Map>() {
+                if let archetect_api::ContextValue::Map(map) = &result {
                     let mut context = context_ud.borrow_mut::<Context>()?;
-                    context.merge_rhai_map(&map);
+                    context.merge_context_map(map);
                 }
 
                 Ok(())
@@ -282,7 +303,160 @@ fn register_switches_module(
     Ok(())
 }
 
-// ── template module ─────────────────────────────────────────────────
+// ── Lua-native directory module ─────────────────────────────────────
+
+fn register_lua_directory_module(
+    lua: &Lua,
+    archetype: &Archetype,
+    archetect: &Archetect,
+    render_context: &RenderContext,
+    filters: &Table,
+    cache: Rc<RefCell<TemplateCache>>,
+) -> LuaResult<()> {
+    let directory_table = lua.create_table()?;
+
+    let arch = archetype.clone();
+    let arc = archetect.clone();
+    let ctx = render_context.clone();
+    let filters = filters.clone();
+    let cache = cache.clone();
+
+    directory_table.set(
+        "render",
+        lua.create_function(
+            move |lua, (dir_name, context_ud, opts): (String, AnyUserData, Option<Table>)| {
+                let context = context_ud.borrow::<Context>()?;
+                let ctx_table = context.to_lua_table(lua)?;
+
+                let source = arch.content_directory().join(&dir_name);
+                let mut destination = ctx.destination().to_owned();
+
+                if let Some(ref opts) = opts {
+                    if let Ok(dest_str) = opts.get::<String>("destination".to_string()) {
+                        let dest_str = restrict_path(&dest_str)?;
+                        destination = destination.join(dest_str);
+                    }
+                }
+
+                let overwrite_policy = extract_overwrite_policy(&opts);
+                let mut cache = cache.borrow_mut();
+
+                lua_render::lua_render_directory(
+                    lua,
+                    &arc,
+                    &ctx_table,
+                    &filters,
+                    source,
+                    destination,
+                    overwrite_policy,
+                    &mut cache,
+                )
+                .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))
+            },
+        )?,
+    )?;
+
+    lua.globals().set("directory", directory_table)?;
+    Ok(())
+}
+
+// ── Lua-native template module ──────────────────────────────────────
+
+fn register_lua_template_module(
+    lua: &Lua,
+    filters: &Table,
+    cache: Rc<RefCell<TemplateCache>>,
+) -> LuaResult<()> {
+    let template_table = lua.create_table()?;
+
+    let filters = filters.clone();
+    template_table.set(
+        "render",
+        lua.create_function(move |lua, (tmpl, context_ud): (String, AnyUserData)| {
+            let context = context_ud.borrow::<Context>()?;
+            let ctx_table = context.to_lua_table(lua)?;
+
+            let compiled = super::template_engine::TemplateCompiler::compile(&tmpl, "<inline>")
+                .map_err(|e| LuaError::RuntimeError(format!("Template compile error: {}", e)))?;
+
+            let func: mlua::Function = lua.load(&compiled.source).eval()
+                .map_err(|e| LuaError::RuntimeError(format!("Template load error: {}", e)))?;
+
+            let result: String = func.call::<String>((ctx_table, filters.clone()))
+                .map_err(|e| LuaError::RuntimeError(format!("Template error: {}", e)))?;
+
+            Ok(result)
+        })?,
+    )?;
+
+    // template.register_filters(table) — merge custom filters into the filter table
+    let filters_ref = lua.globals().get::<Table>("__atl_filters")
+        .unwrap_or_else(|_| lua.create_table().unwrap());
+    template_table.set(
+        "register_filters",
+        lua.create_function(move |_, custom_filters: Table| {
+            for pair in custom_filters.pairs::<String, mlua::Function>() {
+                let (name, func) = pair?;
+                filters_ref.set(name, func)?;
+            }
+            Ok(())
+        })?,
+    )?;
+
+    lua.globals().set("template", template_table)?;
+    Ok(())
+}
+
+/// Create the built-in filter table for the Lua template engine.
+/// These are the inflection filters ported as Lua functions.
+fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
+    let filters = lua.create_table()?;
+
+    macro_rules! add_string_filter {
+        ($name:expr, $func:expr) => {
+            filters.set(
+                $name,
+                lua.create_function(|_, value: Value| {
+                    let s = match &value {
+                        Value::String(s) => s.to_string_lossy().to_string(),
+                        other => format!("{:?}", other),
+                    };
+                    Ok($func(&s))
+                })?,
+            )?;
+        };
+    }
+
+    add_string_filter!("camel_case", archetect_inflections::to_camel_case);
+    add_string_filter!("class_case", archetect_inflections::to_class_case);
+    add_string_filter!("cobol_case", archetect_inflections::to_cobol_case);
+    add_string_filter!("constant_case", archetect_inflections::to_screaming_snake_case);
+    add_string_filter!("directory_case", archetect_inflections::to_directory_case);
+    add_string_filter!("kebab_case", archetect_inflections::to_kebab_case);
+    add_string_filter!("lower_case", |s: &str| s.to_lowercase());
+    add_string_filter!("upper_case", |s: &str| s.to_uppercase());
+    add_string_filter!("lower", |s: &str| s.to_lowercase());
+    add_string_filter!("upper", |s: &str| s.to_uppercase());
+    add_string_filter!("pascal_case", archetect_inflections::to_pascal_case);
+    add_string_filter!("package_case", archetect_inflections::to_package_case);
+    add_string_filter!("sentence_case", archetect_inflections::to_sentence_case);
+    add_string_filter!("snake_case", archetect_inflections::to_snake_case);
+    add_string_filter!("train_case", archetect_inflections::to_train_case);
+    add_string_filter!("title_case", archetect_inflections::to_title_case);
+    add_string_filter!("pluralize", archetect_inflections::to_plural);
+    add_string_filter!("plural", archetect_inflections::to_plural);
+    add_string_filter!("singularize", archetect_inflections::to_singular);
+    add_string_filter!("singular", archetect_inflections::to_singular);
+    add_string_filter!("ordinalize", archetect_inflections::ordinalize);
+    add_string_filter!("deordinalize", archetect_inflections::deordinalize);
+
+    // Store globally so template.register_filters can access it
+    lua.globals().set("__atl_filters", filters.clone())?;
+
+    Ok(filters)
+}
+
+// ── template module (MiniJinja) ─────────────────────────────────────
 
 fn register_template_module(lua: &Lua, environment: &Environment<'static>) -> LuaResult<()> {
     let template_table = lua.create_table()?;
@@ -307,8 +481,9 @@ fn register_template_module(lua: &Lua, environment: &Environment<'static>) -> Lu
 fn register_format_module(lua: &Lua) -> LuaResult<()> {
     let format_table = lua.create_table()?;
 
+    // format.to_json(value) → string
     format_table.set(
-        "json",
+        "to_json",
         lua.create_function(|_, value: Value| {
             let json_value = lua_value_to_json(&value)?;
             serde_json::to_string_pretty(&json_value)
@@ -316,8 +491,9 @@ fn register_format_module(lua: &Lua) -> LuaResult<()> {
         })?,
     )?;
 
+    // format.to_yaml(value) → string
     format_table.set(
-        "yaml",
+        "to_yaml",
         lua.create_function(|_, value: Value| {
             let json_value = lua_value_to_json(&value)?;
             serde_yaml::to_string(&json_value)
@@ -325,18 +501,87 @@ fn register_format_module(lua: &Lua) -> LuaResult<()> {
         })?,
     )?;
 
+    // format.to_toml(value) → string
     format_table.set(
-        "toml",
+        "to_toml",
         lua.create_function(|_, value: Value| {
             let json_value = lua_value_to_json(&value)?;
-            // toml requires a table/map at the top level
             toml::to_string_pretty(&json_value)
                 .map_err(|e| LuaError::RuntimeError(format!("TOML serialization error: {}", e)))
         })?,
     )?;
 
+    // format.from_yaml(string) → Lua table
+    format_table.set(
+        "from_yaml",
+        lua.create_function(|lua, yaml_str: String| {
+            let json_value: serde_json::Value = serde_yaml::from_str(&yaml_str)
+                .map_err(|e| LuaError::RuntimeError(format!("YAML parse error: {}", e)))?;
+            json_to_lua_value(lua, &json_value)
+        })?,
+    )?;
+
+    // format.from_json(string) → Lua table
+    format_table.set(
+        "from_json",
+        lua.create_function(|lua, json_str: String| {
+            let json_value: serde_json::Value = serde_json::from_str(&json_str)
+                .map_err(|e| LuaError::RuntimeError(format!("JSON parse error: {}", e)))?;
+            json_to_lua_value(lua, &json_value)
+        })?,
+    )?;
+
+    // format.from_toml(string) → Lua table
+    format_table.set(
+        "from_toml",
+        lua.create_function(|lua, toml_str: String| {
+            let json_value: serde_json::Value = toml::from_str(&toml_str)
+                .map_err(|e| LuaError::RuntimeError(format!("TOML parse error: {}", e)))?;
+            json_to_lua_value(lua, &json_value)
+        })?,
+    )?;
+
+    // Backwards compat aliases: format.yaml(), format.json(), format.toml()
+    // These are the original serialization-only names. Kept to avoid breaking
+    // existing archetypes, but new code should prefer format.to_yaml() etc.
+    format_table.set("yaml", format_table.get::<mlua::Function>("to_yaml")?)?;
+    format_table.set("json", format_table.get::<mlua::Function>("to_json")?)?;
+    format_table.set("toml", format_table.get::<mlua::Function>("to_toml")?)?;
+
     lua.globals().set("format", format_table)?;
     Ok(())
+}
+
+/// Convert a serde_json::Value to a Lua Value.
+fn json_to_lua_value(lua: &Lua, value: &serde_json::Value) -> LuaResult<Value> {
+    match value {
+        serde_json::Value::Null => Ok(Value::Nil),
+        serde_json::Value::Bool(b) => Ok(Value::Boolean(*b)),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(Value::Integer(i))
+            } else if let Some(f) = n.as_f64() {
+                Ok(Value::Number(f))
+            } else {
+                Ok(Value::Nil)
+            }
+        }
+        serde_json::Value::String(s) => Ok(Value::String(lua.create_string(s)?)),
+        serde_json::Value::Array(arr) => {
+            let table = lua.create_table()?;
+            for (i, item) in arr.iter().enumerate() {
+                table.set(i + 1, json_to_lua_value(lua, item)?)?;
+            }
+            Ok(Value::Table(table))
+        }
+        serde_json::Value::Object(map) => {
+            let table = lua.create_table()?;
+            for (key, val) in map {
+                table.set(key.as_str(), json_to_lua_value(lua, val)?)?;
+            }
+            Ok(Value::Table(table))
+        }
+    }
 }
 
 /// Convert a Lua Value to a serde_json::Value for serialization.
@@ -379,12 +624,11 @@ fn lua_value_to_json(value: &Value) -> LuaResult<serde_json::Value> {
         Value::UserData(ud) => {
             // Handle Context userdata
             if let Ok(ctx) = ud.borrow::<Context>() {
-                let rhai_map = ctx.to_rhai_map();
+                let context_map = ctx.to_context_map();
                 let mut map = serde_json::Map::new();
-                for (k, v) in &rhai_map {
-                    if let Ok(json_val) = serde_json::to_value(v) {
-                        map.insert(k.to_string(), json_val);
-                    }
+                for (k, v) in &context_map {
+                    let json_val: serde_json::Value = v.clone().into();
+                    map.insert(k.clone(), json_val);
                 }
                 return Ok(serde_json::Value::Object(map));
             }
@@ -505,34 +749,31 @@ fn restrict_path(path: &str) -> LuaResult<&str> {
     Ok(path)
 }
 
-/// Convert a rhai::Map to a Lua table for the answers() function.
-fn rhai_map_to_lua_table(lua: &Lua, map: &rhai::Map) -> LuaResult<Value> {
+/// Convert a ContextMap to a Lua table for the answers() function.
+fn context_map_to_lua_table(lua: &Lua, map: &archetect_api::ContextMap) -> LuaResult<Value> {
     let table = lua.create_table()?;
     for (key, value) in map {
-        let lua_value = rhai_dynamic_to_lua(lua, value)?;
-        table.set(key.to_string(), lua_value)?;
+        let lua_value = context_value_to_lua(lua, value)?;
+        table.set(key.as_str(), lua_value)?;
     }
     Ok(Value::Table(table))
 }
 
-/// Convert a rhai::Dynamic to a Lua value.
-fn rhai_dynamic_to_lua(lua: &Lua, value: &rhai::Dynamic) -> LuaResult<Value> {
-    if let Some(s) = value.clone().try_cast::<String>() {
-        Ok(Value::String(lua.create_string(&s)?))
-    } else if let Some(i) = value.clone().try_cast::<i64>() {
-        Ok(Value::Integer(i))
-    } else if let Some(b) = value.clone().try_cast::<bool>() {
-        Ok(Value::Boolean(b))
-    } else if let Some(arr) = value.clone().try_cast::<Vec<rhai::Dynamic>>() {
-        let table = lua.create_table()?;
-        for (i, item) in arr.iter().enumerate() {
-            let lua_val = rhai_dynamic_to_lua(lua, item)?;
-            table.set(i + 1, lua_val)?;
+/// Convert a ContextValue to a Lua value.
+fn context_value_to_lua(lua: &Lua, value: &archetect_api::ContextValue) -> LuaResult<Value> {
+    match value {
+        archetect_api::ContextValue::String(s) => Ok(Value::String(lua.create_string(s)?)),
+        archetect_api::ContextValue::Integer(i) => Ok(Value::Integer(*i)),
+        archetect_api::ContextValue::Float(f) => Ok(Value::Number(*f)),
+        archetect_api::ContextValue::Boolean(b) => Ok(Value::Boolean(*b)),
+        archetect_api::ContextValue::Array(arr) => {
+            let table = lua.create_table()?;
+            for (i, item) in arr.iter().enumerate() {
+                table.set(i + 1, context_value_to_lua(lua, item)?)?;
+            }
+            Ok(Value::Table(table))
         }
-        Ok(Value::Table(table))
-    } else if let Some(map) = value.clone().try_cast::<rhai::Map>() {
-        rhai_map_to_lua_table(lua, &map)
-    } else {
-        Ok(Value::Nil)
+        archetect_api::ContextValue::Map(map) => context_map_to_lua_table(lua, map),
+        archetect_api::ContextValue::Nil => Ok(Value::Nil),
     }
 }

@@ -1,6 +1,6 @@
 use assert_matches::assert_matches;
 use camino::Utf8PathBuf;
-use rhai::Map;
+use archetect_api::{ContextMap, ContextValue};
 
 use archetect_api::{ScriptMessage, ClientMessage, PromptInfo, PromptInfoLengthRestrictions};
 use archetect_core::archetype::render_context::RenderContext;
@@ -13,8 +13,8 @@ use crate::test_utils::TestHarness;
 fn test_scalar_int_prompt() -> Result<(), ArchetectError> {
     let configuration = Configuration::default();
 
-    let mut answers = Map::new();
-    answers.insert("debug_port".into(), 8070.into());
+    let mut answers = ContextMap::new();
+    answers.insert("debug_port".to_string(), ContextValue::Integer(8070));
     let render_context = RenderContext::new(Utf8PathBuf::new(), answers);
 
     let harness = TestHarness::new(file!(), configuration, render_context)?;

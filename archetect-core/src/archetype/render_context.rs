@@ -1,20 +1,22 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use rhai::{Dynamic, Map};
 use std::collections::HashSet;
+
+use archetect_api::{ContextMap, ContextValue};
+
 use crate::actions::RenderArchetypeInfo;
 
 #[derive(Clone, Debug)]
 pub struct RenderContext {
     destination: Utf8PathBuf,
-    answers: Map,
+    answers: ContextMap,
     use_defaults: HashSet<String>,
     use_defaults_all: bool,
     switches: HashSet<String>,
-    settings: Map,
+    settings: ContextMap,
 }
 
 impl RenderContext {
-    pub fn new<T: Into<Utf8PathBuf>>(destination: T, answers: Map) -> RenderContext {
+    pub fn new<T: Into<Utf8PathBuf>>(destination: T, answers: ContextMap) -> RenderContext {
         RenderContext {
             destination: destination.into(),
             answers,
@@ -27,8 +29,7 @@ impl RenderContext {
 
     pub fn with_archetype_info(mut self, info: &RenderArchetypeInfo) -> Self {
         if let Some(answers) = info.answers() {
-            let mut answers = answers.clone();
-            self.answers.append(&mut answers);
+            self.answers.extend(answers.clone());
         }
         if let Some(switches) = info.switches() {
             self = self.with_switches(switches.clone());
@@ -42,11 +43,11 @@ impl RenderContext {
         self
     }
 
-    pub fn answers(&self) -> &Map {
+    pub fn answers(&self) -> &ContextMap {
         &self.answers
     }
 
-    pub fn answers_owned(&self) -> Map {
+    pub fn answers_owned(&self) -> ContextMap {
         self.answers.clone()
     }
 
@@ -58,7 +59,8 @@ impl RenderContext {
         &self.switches
     }
 
-    pub fn switches_as_array(&self) -> rhai::Array {
+    /// Convert switches to a rhai::Array for the Rhai scripting engine.
+    pub fn switches_as_rhai_array(&self) -> rhai::Array {
         self.switches.iter().map(|v| v.into()).collect()
     }
 
@@ -76,15 +78,16 @@ impl RenderContext {
         self.switches = switches;
     }
 
-    pub fn settings(&self) -> &Map {
+    pub fn settings(&self) -> &ContextMap {
         &self.settings
     }
 
-    pub fn with_settings(mut self, settings: Map) -> Self {
-        if let Some(switches) = settings.get("switches") {
-            if let Some(switches) = switches.clone().try_cast::<Vec<Dynamic>>() {
-                self.switches = switches.into_iter().map(|v| v.to_string()).collect();
-            }
+    pub fn with_settings(mut self, settings: ContextMap) -> Self {
+        if let Some(ContextValue::Array(switches)) = settings.get("switches") {
+            self.switches = switches
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
         }
         self.settings = settings;
         self
@@ -94,7 +97,8 @@ impl RenderContext {
         &self.use_defaults
     }
 
-    pub fn use_defaults_as_array(&self) -> rhai::Array {
+    /// Convert use_defaults to a rhai::Array for the Rhai scripting engine.
+    pub fn use_defaults_as_rhai_array(&self) -> rhai::Array {
         self.use_defaults.iter().map(|v| v.into()).collect()
     }
 
@@ -102,7 +106,7 @@ impl RenderContext {
         self.use_defaults.insert(default.into());
         self
     }
-    
+
     pub fn with_use_defaults(mut self, defaults: HashSet<String>) -> Self {
         self.set_use_defaults(defaults);
         self
@@ -124,67 +128,4 @@ impl RenderContext {
     pub fn set_use_defaults_all(&mut self, value: bool) {
         self.use_defaults_all = value;
     }
-}
-
-#[cfg(test)]
-mod tests {
-    //     #[test]
-    //     fn test_from_rhai() {
-    //         let map = r#"
-    // #{
-    //     first_name: "Jimmie",
-    //     last_name: "Fulton",
-    // }
-    //         "#;
-    //
-    //         let list = r#"
-    // ["Jimmie", "Shirley", "Bailey"]
-    //          "#;
-    //
-    //         let string = r#"
-    //             "Jimmie"
-    //         "#;
-    //
-    //         let int = r#"
-    //             24
-    //         "#;
-    //
-    //         let engine = Engine::new();
-    //         let result: Dynamic = engine.eval::<Dynamic>(int).unwrap();
-    //         println!("{:?}", result.type_name());
-    //     }
-
-    //     #[test]
-    //     fn test_from_json() {
-    //         let map = r#"
-    // {
-    //     "first_name": "Jimmie",
-    //     "last_name": "Fulton"
-    // }
-    //         "#;
-    //
-    //         let list = r#"
-    // ["Jimmie", "Shirley", "Bailey"]
-    //          "#;
-    //
-    //         let string = r#"
-    //             "Jimmie"
-    //         "#;
-    //
-    //         let int = r#"
-    //             24
-    //         "#;
-    //
-    //         let result: Dynamic = serde_json::from_str(map).unwrap();
-    //         // match result {
-    //         //     Value::Null => println!("Null"),
-    //         //     Value::Bool(value) => println!("Bool: {value:?}"),
-    //         //     Value::Number(value) =>  println!("Number: {value:?}"),
-    //         //     Value::String(value) =>  println!("String: {value:?}"),
-    //         //     Value::Array(value) =>  println!("Array: {value:?}"),
-    //         //     Value::Object(value) =>  println!("Object: {value:?}"),
-    //         // }
-    //         println!("{}", result.type_name());
-    //         println!("{}", serde_json::to_string(&result).unwrap());
-    //     }
 }

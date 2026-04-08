@@ -23,17 +23,19 @@ pub(crate) fn register(engine: &mut Engine, archetect: Archetect, archetype: Arc
     archetype_module.set_native_fn("settings", move || {
         let mut settings = rhai::Map::new();
         settings.insert("use_defaults_all".into(), rc_clone.use_defaults_all().into());
-        settings.insert("use_defaults".into(), rc_clone.use_defaults_as_array().into());
-        settings.insert("switches".into(), rc_clone.switches_as_array().into());
+        settings.insert("use_defaults".into(), rc_clone.use_defaults_as_rhai_array().into());
+        settings.insert("switches".into(), rc_clone.switches_as_rhai_array().into());
         Ok(settings)
     });
     let rc_clone = render_context.clone();
-    archetype_module.set_native_fn("use_defaults", move || Ok(rc_clone.use_defaults_as_array()));
+    archetype_module.set_native_fn("use_defaults", move || Ok(rc_clone.use_defaults_as_rhai_array()));
     let rc_clone = render_context.clone();
     archetype_module.set_native_fn("use_defaults_all", move || Ok(rc_clone.use_defaults().clone()));
     let rc_clone = render_context.clone();
     archetype_module.set_native_fn("switches", move || Ok(rc_clone.switches().clone()));
-    archetype_module.set_native_fn("answers", move || Ok(render_context.clone().answers().clone()));
+    archetype_module.set_native_fn("answers", move || {
+        Ok(crate::conversions::context_map_to_rhai_map(render_context.clone().answers()))
+    });
     module.set_sub_module("archetype", archetype_module.clone());
 
     let archetect_clone = archetect.clone();

@@ -3,6 +3,7 @@ use rhai::{Dynamic, Engine, EvalAltResult, Map, Module, NativeCallContext};
 use crate::Archetect;
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
+use crate::conversions::{rhai_map_to_context_map, context_value_to_rhai_dynamic};
 use crate::errors::ArchetypeError;
 use crate::script::rhai::modules::path_module::Path;
 use crate::utils::restrict_path_manipulation;
@@ -45,7 +46,7 @@ impl ArchetypeFacade {
 
 pub fn render(archetype: &mut ArchetypeFacade, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
     let destination = archetype.render_context.destination().to_path_buf();
-    let render_context = RenderContext::new(destination, answers);
+    let render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers));
     let result = archetype.child
         .render(render_context)
         .map_err(|err| {
@@ -54,12 +55,12 @@ pub fn render(archetype: &mut ArchetypeFacade, answers: Map) -> Result<Dynamic, 
                 Box::new(err),
             ))
         })?;
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 pub fn render_with_settings(archetype: &mut ArchetypeFacade, answers: Map, settings: Map) -> Result<Dynamic, Box<EvalAltResult>> {
     let destination = archetype.render_context.destination().to_path_buf();
-    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    let mut render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers)).with_settings(rhai_map_to_context_map(&settings));
     extract_render_context_settings(&mut render_context, &settings);
 
     let result = archetype.child
@@ -70,7 +71,7 @@ pub fn render_with_settings(archetype: &mut ArchetypeFacade, answers: Map, setti
                 Box::new(err),
             ))
         })?;
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 pub fn render_with_destination(call: NativeCallContext, archetype: &mut ArchetypeFacade, destination: &str, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
@@ -78,7 +79,7 @@ pub fn render_with_destination(call: NativeCallContext, archetype: &mut Archetyp
         .render_context
         .destination()
         .join(restrict_path_manipulation(&call, destination)?);
-    let render_context = RenderContext::new(destination, answers);
+    let render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers));
     let result = archetype.child
         .render(render_context)
         .map_err(|err| {
@@ -87,7 +88,7 @@ pub fn render_with_destination(call: NativeCallContext, archetype: &mut Archetyp
                 Box::new(err),
             ))
         })?;
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 pub fn render_with_path(call: NativeCallContext, archetype: &mut ArchetypeFacade, mut destination: Path, answers: Map) -> Result<Dynamic, Box<EvalAltResult>> {
@@ -95,7 +96,7 @@ pub fn render_with_path(call: NativeCallContext, archetype: &mut ArchetypeFacade
         .render_context
         .destination()
         .join(restrict_path_manipulation(&call, destination.path())?);
-    let render_context = RenderContext::new(destination, answers);
+    let render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers));
     let result = archetype.child
         .render(render_context)
         .map_err(|err| {
@@ -104,7 +105,7 @@ pub fn render_with_path(call: NativeCallContext, archetype: &mut ArchetypeFacade
                 Box::new(err),
             ))
         })?;
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 pub fn render_with_destination_and_settings(
@@ -118,7 +119,7 @@ pub fn render_with_destination_and_settings(
         .render_context
         .destination()
         .join(restrict_path_manipulation(&call, destination)?);
-    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    let mut render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers)).with_settings(rhai_map_to_context_map(&settings));
     extract_render_context_settings(&mut render_context, &settings);
     let result = archetype.child
         .render(render_context)
@@ -129,7 +130,7 @@ pub fn render_with_destination_and_settings(
             ))
         })?;
 
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 
@@ -144,7 +145,7 @@ pub fn render_with_path_and_settings(
         .render_context
         .destination()
         .join(restrict_path_manipulation(&call, destination.path())?);
-    let mut render_context = RenderContext::new(destination, answers).with_settings(settings.clone());
+    let mut render_context = RenderContext::new(destination, rhai_map_to_context_map(&answers)).with_settings(rhai_map_to_context_map(&settings));
     extract_render_context_settings(&mut render_context, &settings);
     let result = archetype.child
         .render(render_context)
@@ -155,7 +156,7 @@ pub fn render_with_path_and_settings(
             ))
         })?;
 
-    Ok(result)
+    Ok(context_value_to_rhai_dynamic(&result))
 }
 
 

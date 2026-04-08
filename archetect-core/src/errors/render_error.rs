@@ -63,4 +63,14 @@ pub enum RenderError {
     ChannelError(#[from] IoError),
     #[error("Unexpected IO response: {0}")]
     UnexpectedResponse(String),
+    #[error("Lua template compile error in `{path}`: {message}")]
+    LuaTemplateCompileError {
+        path: Utf8PathBuf,
+        message: String,
+    },
+    #[error("Lua template runtime error in `{path}`: {message}")]
+    LuaTemplateRuntimeError {
+        path: Utf8PathBuf,
+        message: String,
+    },
 }

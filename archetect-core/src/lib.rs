@@ -7,6 +7,7 @@ pub mod script;
 pub mod source;
 pub mod system;
 mod utils;
+pub mod conversions;
 pub mod caching;
 mod cache_manager;
 pub mod actions;

@@ -85,9 +85,9 @@ fn get_answers<'a, K: AsRef<str> + Clone>(
             }
         };
     }
-    let answers = render_context.answers();
+    let answers = crate::conversions::context_map_to_rhai_map(render_context.answers());
     let mut results = Map::new();
-    results.extend(answers.clone());
+    results.extend(answers);
     return Ok(results);
 }
 
