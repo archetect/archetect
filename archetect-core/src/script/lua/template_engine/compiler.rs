@@ -1,4 +1,6 @@
-use super::tokenizer::{Filter, Token};
+use super::error::TemplateCompileError;
+use super::include_resolver::IncludeResolver;
+use super::tokenizer::{Filter, Token, Tokenizer};
 
 pub struct Compiler;
 
@@ -10,7 +12,15 @@ impl Compiler {
     /// Bare names in `{{ }}` expressions resolve against `__ctx` via `_ENV.__index`.
     /// Variables introduced in `{% %}` logic blocks (e.g., loop variables) shadow
     /// context keys naturally through Lua's scoping rules.
-    pub fn compile(tokens: &[Token]) -> String {
+    ///
+    /// Phase 4: when a `Token::Include` is encountered, the resolver reads
+    /// the included file and the tokens are spliced inline. The included
+    /// body shares `__ctx`, `__filters`, `__out`, and `__w` with the outer
+    /// template. Cycle detection is handled by the resolver.
+    pub fn compile(
+        tokens: &[Token],
+        resolver: &mut IncludeResolver,
+    ) -> Result<String, TemplateCompileError> {
         let mut lua = String::with_capacity(1024);
 
         // Function preamble — set up output buffer and _ENV for context resolution.
@@ -65,52 +75,76 @@ impl Compiler {
         lua.push_str("    }, {__index = __filters})\n");
         lua.push_str("\n");
 
-        let token_count = tokens.len();
-        for (i, token) in tokens.iter().enumerate() {
-            match token {
-                Token::Text(text) => {
-                    // Apply whitespace trimming from adjacent expression/logic tokens
-                    let mut text = text.as_str();
-
-                    // If the previous token had trim_right, strip leading whitespace
-                    if i > 0 && has_trim_right(&tokens[i - 1]) {
-                        text = trim_leading_whitespace(text);
-                    }
-
-                    // If the next token has trim_left, strip trailing whitespace
-                    if i + 1 < token_count && has_trim_left(&tokens[i + 1]) {
-                        text = trim_trailing_whitespace(text);
-                    }
-
-                    if !text.is_empty() {
-                        lua.push_str("    __w(\"");
-                        lua.push_str(&lua_escape(text));
-                        lua.push_str("\")\n");
-                    }
-                }
-                Token::Expression { expr, filters, .. } => {
-                    let safe_expr = make_lua_safe(expr);
-                    let value_expr = apply_filters(&safe_expr, filters);
-                    lua.push_str("    __w(");
-                    lua.push_str(&value_expr);
-                    lua.push_str(")\n");
-                }
-                Token::Logic { code, .. } => {
-                    lua.push_str("    ");
-                    lua.push_str(code);
-                    lua.push('\n');
-                }
-                Token::Comment => {
-                    // Comments are stripped — emit nothing
-                }
-            }
-        }
+        compile_body(tokens, resolver, &mut lua)?;
 
         lua.push_str("\n    return table.concat(__out)\n");
         lua.push_str("end\n");
 
-        lua
+        Ok(lua)
     }
+}
+
+/// Emit body statements for a token stream into `lua`. Recursively splices
+/// included templates inline so they share `__ctx`/`__filters`/`__out`/`__w`
+/// with the outer template.
+fn compile_body(
+    tokens: &[Token],
+    resolver: &mut IncludeResolver,
+    lua: &mut String,
+) -> Result<(), TemplateCompileError> {
+    let token_count = tokens.len();
+    for (i, token) in tokens.iter().enumerate() {
+        match token {
+            Token::Text(text) => {
+                // Apply whitespace trimming from adjacent expression/logic/include tokens
+                let mut text = text.as_str();
+
+                // If the previous token had trim_right, strip leading whitespace
+                if i > 0 && has_trim_right(&tokens[i - 1]) {
+                    text = trim_leading_whitespace(text);
+                }
+
+                // If the next token has trim_left, strip trailing whitespace
+                if i + 1 < token_count && has_trim_left(&tokens[i + 1]) {
+                    text = trim_trailing_whitespace(text);
+                }
+
+                if !text.is_empty() {
+                    lua.push_str("    __w(\"");
+                    lua.push_str(&lua_escape(text));
+                    lua.push_str("\")\n");
+                }
+            }
+            Token::Expression { expr, filters, .. } => {
+                let safe_expr = make_lua_safe(expr);
+                let value_expr = apply_filters(&safe_expr, filters);
+                lua.push_str("    __w(");
+                lua.push_str(&value_expr);
+                lua.push_str(")\n");
+            }
+            Token::Logic { code, .. } => {
+                lua.push_str("    ");
+                lua.push_str(code);
+                lua.push('\n');
+            }
+            Token::Include { path, line, .. } => {
+                // Resolve and read the included file via the resolver
+                // (which checks the cycle stack and the includes-dir
+                // sandbox), then recursively splice its body into the
+                // current output. The resolver tracks the active stack so
+                // cycles are caught here rather than at runtime.
+                let (contents, _resolved) = resolver.read(path, *line)?;
+                let nested_tokens = Tokenizer::tokenize(&contents)?;
+                let result = compile_body(&nested_tokens, resolver, lua);
+                resolver.pop();
+                result?;
+            }
+            Token::Comment => {
+                // Comments are stripped — emit nothing
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Transform an expression so that hyphenated or otherwise non-Lua-safe identifiers
@@ -246,6 +280,7 @@ fn has_trim_right(token: &Token) -> bool {
     match token {
         Token::Expression { trim_right, .. } => *trim_right,
         Token::Logic { trim_right, .. } => *trim_right,
+        Token::Include { trim_right, .. } => *trim_right,
         _ => false,
     }
 }
@@ -254,6 +289,7 @@ fn has_trim_left(token: &Token) -> bool {
     match token {
         Token::Expression { trim_left, .. } => *trim_left,
         Token::Logic { trim_left, .. } => *trim_left,
+        Token::Include { trim_left, .. } => *trim_left,
         _ => false,
     }
 }
@@ -292,6 +328,14 @@ fn trim_trailing_whitespace(s: &str) -> &str {
 mod tests {
     use super::*;
     use super::super::tokenizer::Tokenizer;
+
+    /// Test helper — runs the compiler with a disabled include resolver and
+    /// unwraps. Tests in this module are only concerned with non-include
+    /// constructs; include compilation is exercised in mod.rs.
+    fn compile(tokens: &[Token]) -> String {
+        let mut resolver = IncludeResolver::disabled();
+        Compiler::compile(tokens, &mut resolver).unwrap()
+    }
 
     #[test]
     fn test_lua_escape() {
@@ -351,14 +395,14 @@ mod tests {
     #[test]
     fn test_compile_text_only() {
         let tokens = Tokenizer::tokenize("Hello world").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains(r#"__w("Hello world")"#));
     }
 
     #[test]
     fn test_compile_expression() {
         let tokens = Tokenizer::tokenize("Hello {{ name }}!").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains(r#"__w("Hello ")"#));
         assert!(lua.contains("__w(name)"));
         assert!(lua.contains(r#"__w("!")"#));
@@ -367,14 +411,14 @@ mod tests {
     #[test]
     fn test_compile_expression_with_filter() {
         let tokens = Tokenizer::tokenize("{{ name | snake_case }}").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains("__w(__filters.snake_case(name))"));
     }
 
     #[test]
     fn test_compile_logic_block() {
         let tokens = Tokenizer::tokenize("{% for i, x in ipairs(items) do %}\n{{ x }}\n{% end %}").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains("for i, x in ipairs(items) do"));
         assert!(lua.contains("__w(x)"));
         assert!(lua.contains("    end"));
@@ -383,7 +427,7 @@ mod tests {
     #[test]
     fn test_compile_comment_stripped() {
         let tokens = Tokenizer::tokenize("before{# comment #}after").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains(r#"__w("before")"#));
         assert!(lua.contains(r#"__w("after")"#));
         assert!(!lua.contains("comment"));
@@ -392,7 +436,7 @@ mod tests {
     #[test]
     fn test_compile_dotted_access() {
         let tokens = Tokenizer::tokenize("{{ entity.name.pascal }}").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains("__w(entity.name.pascal)"));
     }
 
@@ -427,7 +471,7 @@ mod tests {
     #[test]
     fn test_compile_hyphenated_key() {
         let tokens = Tokenizer::tokenize("{{ project-name }}").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
         assert!(lua.contains("__w(__ctx[\"project-name\"])"), "Got: {}", lua);
     }
 
@@ -441,7 +485,7 @@ message {{ entity.name.pascal }} {
 {% end %}
 }"#;
         let tokens = Tokenizer::tokenize(template).unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
 
         // Should contain the key parts
         assert!(lua.contains(r#"__w("syntax = \"proto3\";\n\nmessage ")"#));
@@ -455,7 +499,7 @@ message {{ entity.name.pascal }} {
     #[test]
     fn test_compile_generates_valid_function_structure() {
         let tokens = Tokenizer::tokenize("hello").unwrap();
-        let lua = Compiler::compile(&tokens);
+        let lua = compile(&tokens);
 
         assert!(lua.starts_with("return function(__ctx, __filters)"));
         assert!(lua.contains("local __out = {}"));

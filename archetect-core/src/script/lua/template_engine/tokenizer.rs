@@ -28,6 +28,15 @@ pub enum Token {
         trim_left: bool,
         trim_right: bool,
     },
+    /// `{% include "path/to/file.atl" %}` — special-form logic block. The
+    /// path is recorded as parsed (relative to the configured includes
+    /// directory) and resolved at compile time by an `IncludeResolver`.
+    Include {
+        path: String,
+        line: usize,
+        trim_left: bool,
+        trim_right: bool,
+    },
     /// `{# comment #}` — stripped from output.
     Comment,
 }
@@ -91,7 +100,7 @@ impl Tokenizer {
                     }
                 }
                 b'%' => {
-                    // `{%` — logic block
+                    // `{%` — logic block (or `{% include "..." %}` special form)
                     if next_brace > pos {
                         let text = &template[pos..next_brace];
                         line += text.matches('\n').count();
@@ -105,6 +114,28 @@ impl Tokenizer {
                             let trim_left = raw.starts_with('-');
                             let trim_right = raw.ends_with('-');
                             let raw = raw.trim_start_matches('-').trim_end_matches('-').trim();
+
+                            // Special-form: `include "path"`. Recognized at the
+                            // tokenizer so a downstream resolver can inline
+                            // the file at compile time and so malformed
+                            // includes surface as `InvalidInclude` rather than
+                            // a confusing Lua parse error.
+                            if let Some(rest) = raw.strip_prefix("include") {
+                                // Must be followed by whitespace, otherwise
+                                // it could be a Lua identifier like `include_xxx`.
+                                if rest.starts_with(|c: char| c.is_whitespace()) {
+                                    let path = parse_include_path(rest.trim(), start_line)?;
+                                    tokens.push(Token::Include {
+                                        path,
+                                        line: start_line,
+                                        trim_left,
+                                        trim_right,
+                                    });
+                                    pos = content_end + 2;
+                                    continue;
+                                }
+                            }
+
                             tokens.push(Token::Logic {
                                 code: raw.to_string(),
                                 trim_left,
@@ -169,6 +200,43 @@ fn find_closing(template: &str, start: usize, delimiter: &str, line: &mut usize)
     }
 
     None
+}
+
+/// Parse an `{% include "path" %}` body into the bare path string.
+///
+/// Accepts double-quoted (`"path"`) and single-quoted (`'path'`) forms.
+/// The path content itself is returned verbatim — the resolver layer
+/// validates that it stays inside the configured includes directory.
+fn parse_include_path(body: &str, line: usize) -> Result<String, TemplateCompileError> {
+    let body = body.trim();
+    if body.is_empty() {
+        return Err(TemplateCompileError::InvalidInclude {
+            line,
+            detail: "missing path; expected `{% include \"path\" %}`".to_string(),
+        });
+    }
+    let bytes = body.as_bytes();
+    let quote = bytes[0];
+    if quote != b'"' && quote != b'\'' {
+        return Err(TemplateCompileError::InvalidInclude {
+            line,
+            detail: format!("expected quoted path, got `{}`", body),
+        });
+    }
+    if bytes.len() < 2 || bytes[bytes.len() - 1] != quote {
+        return Err(TemplateCompileError::InvalidInclude {
+            line,
+            detail: "unterminated quoted path".to_string(),
+        });
+    }
+    let path = &body[1..body.len() - 1];
+    if path.is_empty() {
+        return Err(TemplateCompileError::InvalidInclude {
+            line,
+            detail: "include path cannot be empty".to_string(),
+        });
+    }
+    Ok(path.to_string())
 }
 
 /// Parse an expression string into the base expression and filter chain.

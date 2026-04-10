@@ -21,9 +21,19 @@ pub fn register_all(
     register_existing_constants(lua)?;
     register_archetect_module(lua, archetect, render_context)?;
     register_archetype_module(lua, archetype)?;
+    register_lua_libraries(lua, archetype)?;
 
     let filters = create_builtin_filters(lua)?;
-    let cache = Rc::new(RefCell::new(TemplateCache::new()));
+    // Build the template cache with the manifest's `templating.includes`
+    // directory so `{% include %}` directives in archetype templates can
+    // resolve at compile time.
+    let mut cache = TemplateCache::new();
+    let includes_relative = archetype.manifest().templating().includes_directory();
+    let includes_abs = archetype.root().join(includes_relative);
+    if includes_abs.exists() {
+        cache = cache.with_includes_dir(includes_abs);
+    }
+    let cache = Rc::new(RefCell::new(cache));
     register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache)?;
     register_lua_template_module(lua, &filters)?;
 
@@ -35,6 +45,58 @@ pub fn register_all(
     register_exit(lua)?;
     register_log(lua, archetect)?;
     register_output(lua, archetect)?;
+    Ok(())
+}
+
+/// Prepend each `scripting.libraries` directory from the manifest to Lua's
+/// `package.path` so `require("foo.bar")` can resolve files in those dirs.
+///
+/// Each entry is resolved relative to the archetype root and validated:
+/// - Absolute paths are rejected (libraries must live inside the archetype).
+/// - `..` segments are rejected (no escape from the archetype root).
+/// - Missing directories are tolerated silently — if no script tries to
+///   `require()` from them, the absence is harmless.
+///
+/// The validation is best-effort and security-relevant: an archetype can
+/// already do anything its main script can, but reading arbitrary files
+/// outside the archetype tree via `require` would be a surprising side
+/// channel.
+fn register_lua_libraries(lua: &Lua, archetype: &Archetype) -> LuaResult<()> {
+    let libraries = archetype.manifest().scripting().libraries();
+    if libraries.is_empty() {
+        return Ok(());
+    }
+
+    let root = archetype.root();
+    let mut prepend_segments: Vec<String> = Vec::with_capacity(libraries.len() * 2);
+    for lib in libraries {
+        if lib.is_absolute() {
+            return Err(LuaError::RuntimeError(format!(
+                "scripting.libraries entry `{}` must be relative to the archetype root",
+                lib
+            )));
+        }
+        if lib.components().any(|c| c.as_str() == "..") {
+            return Err(LuaError::RuntimeError(format!(
+                "scripting.libraries entry `{}` cannot contain `..` segments",
+                lib
+            )));
+        }
+        let resolved = root.join(lib);
+        // Both `?.lua` and `?/init.lua` patterns so `require("foo.bar")` finds
+        // either `lib/foo/bar.lua` or `lib/foo/bar/init.lua`.
+        prepend_segments.push(format!("{}/?.lua", resolved));
+        prepend_segments.push(format!("{}/?/init.lua", resolved));
+    }
+
+    let package: Table = lua.globals().get("package")?;
+    let existing: String = package.get("path").unwrap_or_default();
+    let new_path = if existing.is_empty() {
+        prepend_segments.join(";")
+    } else {
+        format!("{};{}", prepend_segments.join(";"), existing)
+    };
+    package.set("path", new_path)?;
     Ok(())
 }
 

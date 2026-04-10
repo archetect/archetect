@@ -11,6 +11,20 @@ pub enum TemplateCompileError {
     /// logic block contained malformed Lua. The `detail` is the underlying mlua
     /// parser message (which carries its own line offset within the generated source).
     InvalidLuaSyntax { detail: String },
+    /// `{% include "..." %}` was malformed (missing path, unbalanced quotes, etc.).
+    InvalidInclude { line: usize, detail: String },
+    /// An `{% include %}` referenced a path that does not resolve to a file
+    /// inside the configured includes directory.
+    IncludeNotFound { path: String, line: usize },
+    /// An `{% include %}` resolved successfully but the file could not be read.
+    IncludeReadError {
+        path: String,
+        line: usize,
+        detail: String,
+    },
+    /// Including this path would form a cycle. The stack lists the active
+    /// chain of includes, outermost first.
+    IncludeCycle { path: String, stack: Vec<String> },
 }
 
 impl fmt::Display for TemplateCompileError {
@@ -33,6 +47,31 @@ impl fmt::Display for TemplateCompileError {
             }
             Self::InvalidLuaSyntax { detail } => {
                 write!(f, "Invalid Lua syntax in compiled template: {}", detail)
+            }
+            Self::InvalidInclude { line, detail } => {
+                write!(f, "Invalid include at line {}: {}", line, detail)
+            }
+            Self::IncludeNotFound { path, line } => {
+                write!(f, "Include `{}` not found (line {})", path, line)
+            }
+            Self::IncludeReadError {
+                path,
+                line,
+                detail,
+            } => {
+                write!(
+                    f,
+                    "Failed to read include `{}` at line {}: {}",
+                    path, line, detail
+                )
+            }
+            Self::IncludeCycle { path, stack } => {
+                write!(
+                    f,
+                    "Include cycle detected at `{}` (chain: {})",
+                    path,
+                    stack.join(" -> ")
+                )
             }
         }
     }

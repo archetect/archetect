@@ -11,7 +11,7 @@ use crate::archetype::archetype::OverwritePolicy;
 use crate::errors::RenderError;
 use crate::Archetect;
 
-use super::TemplateCompiler;
+use super::{IncludeResolver, TemplateCompiler};
 
 /// Cache for compiled Lua template functions, keyed by file path.
 ///
@@ -25,12 +25,35 @@ use super::TemplateCompiler;
 /// scenario that cannot occur in practice.
 pub struct TemplateCache {
     cache: HashMap<String, String>,
+    /// Optional `templating.includes` directory from the manifest.
+    /// When set, `{% include %}` directives resolve against it. When unset,
+    /// the cache uses a disabled resolver and any `{% include %}` fails
+    /// with `IncludeNotFound`.
+    includes_dir: Option<Utf8PathBuf>,
 }
 
 impl TemplateCache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
+            includes_dir: None,
+        }
+    }
+
+    /// Configure the includes directory used to resolve `{% include %}`
+    /// directives in templates compiled through this cache.
+    pub fn with_includes_dir(mut self, includes_dir: Utf8PathBuf) -> Self {
+        self.includes_dir = Some(includes_dir);
+        self
+    }
+
+    /// Build a fresh include resolver for a single compile. The resolver's
+    /// active stack starts empty for each top-level template, since cycles
+    /// are only meaningful within one compile chain.
+    fn make_resolver(&self) -> IncludeResolver {
+        match &self.includes_dir {
+            Some(dir) => IncludeResolver::new(dir.clone()),
+            None => IncludeResolver::disabled(),
         }
     }
 
@@ -44,7 +67,8 @@ impl TemplateCache {
                     source: err,
                 }
             })?;
-            let compiled = TemplateCompiler::compile(&template_text, path.as_str())
+            let mut resolver = self.make_resolver();
+            let compiled = TemplateCompiler::compile_with(&template_text, path.as_str(), &mut resolver)
                 .map_err(|err| RenderError::LuaTemplateCompileError {
                     path: path.to_owned(),
                     message: err.to_string(),

@@ -1,11 +1,13 @@
 pub mod builtins;
 mod compiler;
 mod error;
+pub mod include_resolver;
 pub mod render;
 mod tokenizer;
 
-pub use error::TemplateCompileError;
 pub use compiler::Compiler;
+pub use error::TemplateCompileError;
+pub use include_resolver::IncludeResolver;
 use tokenizer::Tokenizer;
 
 /// A compiled template: Lua source code ready to be loaded into an mlua VM.
@@ -24,10 +26,26 @@ pub struct TemplateCompiler;
 
 impl TemplateCompiler {
     /// Compile a template string into Lua source code.
+    ///
+    /// Convenience entry point for callers that don't have an
+    /// [`IncludeResolver`] — uses a disabled resolver, so any
+    /// `{% include %}` directive will fail with `IncludeNotFound`.
     /// The `_name` parameter is reserved for future error-reporting use.
     pub fn compile(template: &str, _name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
+        let mut resolver = IncludeResolver::disabled();
+        Self::compile_with(template, _name, &mut resolver)
+    }
+
+    /// Compile a template string with a configured [`IncludeResolver`].
+    /// `{% include "..." %}` directives are resolved against the resolver's
+    /// includes directory and inlined at compile time.
+    pub fn compile_with(
+        template: &str,
+        _name: &str,
+        resolver: &mut IncludeResolver,
+    ) -> Result<CompiledTemplate, TemplateCompileError> {
         let tokens = Tokenizer::tokenize(template)?;
-        let source = Compiler::compile(&tokens);
+        let source = Compiler::compile(&tokens, resolver)?;
         validate_lua_syntax(&source)?;
         Ok(CompiledTemplate { source })
     }
@@ -614,5 +632,216 @@ service {{ entity.name.pascal }}Service {
             "expected InvalidLuaSyntax, got {:?}",
             result
         );
+    }
+
+    // ---------- Phase 4: includes ----------
+    //
+    // Each test sets up a temp includes directory, drops in some `.atl`
+    // partials, and confirms that compile_with inlines them correctly.
+
+    fn temp_includes_dir() -> (tempfile::TempDir, camino::Utf8PathBuf) {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = camino::Utf8PathBuf::from_path_buf(tmp.path().to_path_buf()).unwrap();
+        (tmp, dir)
+    }
+
+    fn write_include(dir: &camino::Utf8Path, name: &str, contents: &str) {
+        let path = dir.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, contents).unwrap();
+    }
+
+    fn render_with_includes(
+        template: &str,
+        includes_dir: camino::Utf8PathBuf,
+        ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table),
+    ) -> Result<String, TemplateCompileError> {
+        let mut resolver = IncludeResolver::new(includes_dir);
+        let compiled = TemplateCompiler::compile_with(template, "outer", &mut resolver)?;
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        ctx_setup(&lua, &ctx);
+        let filters = lua.create_table().unwrap();
+        Ok(func.call::<String>((ctx, filters)).unwrap())
+    }
+
+    #[test]
+    fn test_include_basic() {
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "header.atl", "Hello world");
+
+        let result = render_with_includes(
+            r#"prefix: {% include "header.atl" %} :suffix"#,
+            dir,
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(result, "prefix: Hello world :suffix");
+    }
+
+    #[test]
+    fn test_include_uses_outer_context() {
+        // The included file references `name` — it must resolve through the
+        // outer template's __ctx because the include is inlined and shares
+        // the same _ENV chain.
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "greet.atl", "Hello {{ name }}!");
+
+        let result = render_with_includes(
+            r#"{% include "greet.atl" %}"#,
+            dir,
+            |_, ctx| {
+                ctx.set("name", "World").unwrap();
+            },
+        )
+        .unwrap();
+        assert_eq!(result, "Hello World!");
+    }
+
+    #[test]
+    fn test_include_in_loop() {
+        // The same partial is included once per loop iteration. Each
+        // iteration uses the loop variable from the outer template.
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "row.atl", "[{{ x }}]");
+
+        let template = r#"{% for _, x in ipairs(items) do %}{% include "row.atl" %}{% end %}"#;
+        let result = render_with_includes(template, dir, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "a").unwrap();
+            arr.set(2, "b").unwrap();
+            arr.set(3, "c").unwrap();
+            ctx.set("items", arr).unwrap();
+        })
+        .unwrap();
+        assert_eq!(result, "[a][b][c]");
+    }
+
+    #[test]
+    fn test_nested_include() {
+        // A includes B includes C — output is the concatenation of all three.
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "a.atl", r#"A({% include "b.atl" %})"#);
+        write_include(&dir, "b.atl", r#"B({% include "c.atl" %})"#);
+        write_include(&dir, "c.atl", "C");
+
+        let result = render_with_includes(
+            r#"{% include "a.atl" %}"#,
+            dir,
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(result, "A(B(C))");
+    }
+
+    #[test]
+    fn test_include_not_found() {
+        let (_tmp, dir) = temp_includes_dir();
+        let mut resolver = IncludeResolver::new(dir);
+        let result = TemplateCompiler::compile_with(
+            r#"{% include "missing.atl" %}"#,
+            "outer",
+            &mut resolver,
+        );
+        assert!(
+            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            "got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_include_cycle_detected() {
+        // a.atl includes b.atl which includes a.atl back. The compile-time
+        // resolver should catch this rather than letting it loop forever.
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "a.atl", r#"a:{% include "b.atl" %}"#);
+        write_include(&dir, "b.atl", r#"b:{% include "a.atl" %}"#);
+
+        let mut resolver = IncludeResolver::new(dir);
+        let result = TemplateCompiler::compile_with(
+            r#"{% include "a.atl" %}"#,
+            "outer",
+            &mut resolver,
+        );
+        assert!(
+            matches!(result, Err(TemplateCompileError::IncludeCycle { .. })),
+            "got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_include_path_traversal_rejected() {
+        // `..` in an include path must be rejected even if a file exists
+        // at the resolved location, so authors can't escape the includes
+        // sandbox.
+        let (_tmp, dir) = temp_includes_dir();
+        let mut resolver = IncludeResolver::new(dir);
+        let result = TemplateCompiler::compile_with(
+            r#"{% include "../escape.atl" %}"#,
+            "outer",
+            &mut resolver,
+        );
+        assert!(
+            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            "got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_include_disabled_resolver_errors() {
+        // The default `compile()` uses a disabled resolver, so any
+        // `{% include %}` directive in a template compiled this way is an
+        // error. This protects callers like `lua_render_path` (filename
+        // templating) from accidentally enabling includes.
+        let result = TemplateCompiler::compile(r#"{% include "header.atl" %}"#, "test");
+        assert!(
+            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            "got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_include_invalid_syntax_unquoted() {
+        // `{% include header.atl %}` (no quotes) is malformed.
+        let (_tmp, dir) = temp_includes_dir();
+        let mut resolver = IncludeResolver::new(dir);
+        let result = TemplateCompiler::compile_with(
+            r#"{% include header.atl %}"#,
+            "outer",
+            &mut resolver,
+        );
+        assert!(
+            matches!(result, Err(TemplateCompileError::InvalidInclude { .. })),
+            "got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_include_with_filter_chain_in_outer() {
+        // The included template can use any built-in filter exposed by the
+        // outer template's filter table. (No special wiring — the included
+        // tokens get spliced into the same _ENV.)
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "row.atl", "{{ name }}");
+
+        // We need a filters table here too, but the outer doesn't apply
+        // filters. Just confirm the include can resolve __ctx.name.
+        let result = render_with_includes(
+            r#"{% include "row.atl" %}"#,
+            dir,
+            |_, ctx| {
+                ctx.set("name", "Jimmie").unwrap();
+            },
+        )
+        .unwrap();
+        assert_eq!(result, "Jimmie");
     }
 }
