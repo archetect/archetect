@@ -1145,6 +1145,59 @@ mod tests {
         assert_eq!(out, "c,b,a");
     }
 
+    // ---------- collections: contains ----------
+
+    #[test]
+    fn test_contains_array_hit() {
+        let out = render_with(r#"{{ contains(items, "TOC") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "TOC").unwrap();
+            arr.set(2, "Admonish").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "true");
+    }
+
+    #[test]
+    fn test_contains_array_miss() {
+        let out = render_with(r#"{{ contains(items, "MermaidJS") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "TOC").unwrap();
+            arr.set(2, "Admonish").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "false");
+    }
+
+    #[test]
+    fn test_contains_string_substring() {
+        let out = render_with(r#"{{ contains(name, "world") }}"#, |_, ctx| {
+            ctx.set("name", "hello world").unwrap();
+        });
+        assert_eq!(out, "true");
+    }
+
+    #[test]
+    fn test_contains_nil_haystack() {
+        // Defensive: if the context var is undefined/nil, contains() returns
+        // false instead of erroring. Useful for `{% if contains(features, "X") %}`
+        // when `features` may not be set.
+        let out = render_no_ctx(r#"{{ contains(features, "X") }}"#);
+        assert_eq!(out, "false");
+    }
+
+    #[test]
+    fn test_contains_in_template_logic_block() {
+        // The Jinja-flavored use case: `{% if contains(items, "X") then %}`
+        let template = r#"{% if contains(items, "TOC") then %}has TOC{% end %}"#;
+        let out = render_with(template, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "TOC").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "has TOC");
+    }
+
     #[test]
     fn test_unique() {
         let out = render_with(r#"{{ items | unique | join(",") }}"#, |lua, ctx| {

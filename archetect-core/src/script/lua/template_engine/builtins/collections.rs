@@ -89,6 +89,45 @@ pub fn register(lua: &Lua, filters: &Table) -> LuaResult<()> {
         })?,
     )?;
 
+    // contains(haystack, needle) — true if needle is found in haystack.
+    //
+    // Works on:
+    //   - tables (array form): membership test, scalar equality
+    //   - strings: substring search
+    //   - nil: always false (so missing context vars don't blow up)
+    //
+    // Designed for the Jinja-flavored idiom `{% if "TOC" in features %}`,
+    // which converts to `{% if contains(features, "TOC") then %}`.
+    filters.set(
+        "contains",
+        lua.create_function(|_, (haystack, needle): (Value, Value)| {
+            match (&haystack, &needle) {
+                (Value::Nil, _) => Ok(false),
+                (Value::Table(t), n) => {
+                    let len = t.raw_len();
+                    let needle_key = sort_key(n);
+                    for i in 1..=len {
+                        let v: Value = t.raw_get(i)?;
+                        if sort_key(&v) == needle_key {
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
+                (Value::String(s), Value::String(needle_str)) => {
+                    Ok(s.to_string_lossy().contains(&*needle_str.to_string_lossy()))
+                }
+                (Value::String(s), Value::Integer(i)) => {
+                    Ok(s.to_string_lossy().contains(&i.to_string()))
+                }
+                _ => Err(LuaError::RuntimeError(format!(
+                    "filter `contains`: expected table or string haystack, got {}",
+                    haystack.type_name()
+                ))),
+            }
+        })?,
+    )?;
+
     // unique(arr) — return a deduplicated copy preserving first-occurrence order
     filters.set(
         "unique",
