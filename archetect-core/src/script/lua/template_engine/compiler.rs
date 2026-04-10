@@ -326,7 +326,7 @@ fn is_lua_identifier(s: &str) -> bool {
     chars.all(|c| c.is_alphanumeric() || c == '_')
 }
 
-/// Phase 7: rewrite ergonomic shorthands inside `{% ... %}` logic blocks.
+/// Rewrite ergonomic shorthands inside `{% ... %}` logic blocks.
 ///
 /// Patterns recognized:
 ///
@@ -337,28 +337,22 @@ fn is_lua_identifier(s: &str) -> bool {
 /// | `for i in range(N)`                | `for i = 0, (N) - 1 do`              |
 /// | `for i in range(A, B)`             | `for i = A, (B) - 1 do`              |
 /// | `for i in range(A, B, S)`          | `for i = A, (B) - 1, S do`           |
-/// | `set NAME = EXPR`                  | `local NAME = EXPR`                  |
-/// | `if EXPR`        *(no `then`)*     | `if EXPR then`                       |
-/// | `elseif EXPR`    *(no `then`)*     | `elseif EXPR then`                   |
-/// | `endif`                            | `end`                                |
-/// | `endfor`                           | `end`                                |
 ///
 /// `range()` mirrors Python/Rust semantics — the upper bound is **exclusive**
 /// — so `range(10)` iterates 0..=9 and `range(1, 5)` iterates 1..=4.
 /// Authors who want Lua-native inclusive iteration can fall back to raw
 /// Lua: `{% for i = 1, 10 do %}`.
 ///
-/// The `endif`/`endfor` sugar is for Jinja-flavored compatibility — both
-/// keywords mean the same thing as Lua's `end`. Authors can also write
-/// `{% end %}` directly if they prefer Lua-native vocabulary.
+/// ATL is a Lua-centric templating engine. Control flow inside `{% ... %}`
+/// uses Lua vocabulary — `if x then`, `elseif x then`, `else`, `end`,
+/// `local x = 1`. The for-loop sugar is the one deliberate exception: the
+/// raw Lua form (`for _, x in ipairs(items) do`) is unusably noisy in a
+/// template, and the Pythonic form is the universal expectation across
+/// modern languages. Sugar that *only* hides Lua's `then`/`end`/`local`
+/// vocabulary was deliberately omitted because it would create two ways to
+/// write the same thing without saving meaningful keystrokes.
 ///
-/// The `if`/`elseif` sugar appends an implicit `then` when the body is
-/// missing it, so `{% if x %}` works the same as `{% if x then %}`. The
-/// detection rule is conservative: only fires when no `then` keyword is
-/// already present in the body, so explicit `if x then` and complex
-/// expressions like `if x then y else z end` pass through unchanged.
-///
-/// The detection rule for non-range `for` sugar is also conservative: only
+/// The detection rule for non-range `for` sugar is conservative: only
 /// apply when the body does NOT already contain `do`. Numeric for loops
 /// (`for i = 1, 10 do`) and explicit-iterator forms
 /// (`for k, v in ipairs(items) do`) pass through unchanged so authors can
@@ -367,51 +361,6 @@ fn is_lua_identifier(s: &str) -> bool {
 /// Returns `Some(rewritten)` if a pattern matched, `None` otherwise.
 fn rewrite_sugar(body: &str) -> Option<String> {
     let trimmed = body.trim();
-
-    // Jinja-compat block closers — `endif` and `endfor` both map to `end`.
-    if trimmed == "endif" || trimmed == "endfor" {
-        return Some("end".to_string());
-    }
-
-    // `if EXPR` (without `then`) → `if EXPR then`. Conservative: only fire
-    // if there's no existing `then` keyword in the body.
-    if let Some(rest) = trimmed.strip_prefix("if ") {
-        if !contains_keyword(rest, "then") {
-            let rest = rest.trim();
-            if !rest.is_empty() {
-                return Some(format!("if {} then", rest));
-            }
-        }
-    }
-    if let Some(rest) = trimmed.strip_prefix("elseif ") {
-        if !contains_keyword(rest, "then") {
-            let rest = rest.trim();
-            if !rest.is_empty() {
-                return Some(format!("elseif {} then", rest));
-            }
-        }
-    }
-
-    // `set NAME = EXPR` → `local NAME = EXPR`
-    if let Some(rest) = trimmed.strip_prefix("set ") {
-        let rest = rest.trim_start();
-        // Validate that what follows looks like `IDENT = EXPR`. We require
-        // at least an identifier before the `=` so a Lua variable named
-        // `setattr` doesn't accidentally match.
-        if let Some(eq_pos) = rest.find('=') {
-            let name = rest[..eq_pos].trim();
-            if !name.is_empty()
-                && is_lua_identifier(name)
-                // `==` (equality) is not assignment — leave it alone.
-                && !rest[eq_pos..].starts_with("==")
-            {
-                let expr = rest[eq_pos + 1..].trim();
-                if !expr.is_empty() {
-                    return Some(format!("local {} = {}", name, expr));
-                }
-            }
-        }
-    }
 
     // `for ...` sugar — only apply if no explicit `do` keyword is present.
     if let Some(rest) = trimmed.strip_prefix("for ") {
@@ -892,27 +841,6 @@ message {{ entity.name.pascal }} {
     }
 
     #[test]
-    fn test_sugar_set_simple() {
-        assert_eq!(
-            rewrite_sugar("set name = \"value\"").unwrap(),
-            "local name = \"value\""
-        );
-    }
-
-    #[test]
-    fn test_sugar_set_does_not_match_equality() {
-        assert_eq!(rewrite_sugar("set name == \"value\""), None);
-    }
-
-    #[test]
-    fn test_sugar_set_complex_expr() {
-        assert_eq!(
-            rewrite_sugar("set total = a + b * 2").unwrap(),
-            "local total = a + b * 2"
-        );
-    }
-
-    #[test]
     fn test_sugar_range_one_arg() {
         assert_eq!(
             rewrite_sugar("for i in range(10)").unwrap(),
@@ -946,48 +874,15 @@ message {{ entity.name.pascal }} {
 
     #[test]
     fn test_sugar_unrecognized_passes_through() {
-        // Bare `end` and `else` are valid Lua already — no rewrite.
-        assert_eq!(rewrite_sugar("end"), None);
-        assert_eq!(rewrite_sugar("else"), None);
-    }
-
-    // ---------- Jinja compatibility sugar ----------
-
-    #[test]
-    fn test_sugar_endif_to_end() {
-        assert_eq!(rewrite_sugar("endif").unwrap(), "end");
-        assert_eq!(rewrite_sugar("  endif  ").unwrap(), "end");
-    }
-
-    #[test]
-    fn test_sugar_endfor_to_end() {
-        assert_eq!(rewrite_sugar("endfor").unwrap(), "end");
-    }
-
-    #[test]
-    fn test_sugar_if_appends_then() {
-        assert_eq!(rewrite_sugar("if x").unwrap(), "if x then");
-        assert_eq!(
-            rewrite_sugar("if x and y or z").unwrap(),
-            "if x and y or z then"
-        );
-    }
-
-    #[test]
-    fn test_sugar_if_explicit_then_passes_through() {
-        // Already-explicit `if x then` is valid Lua — no rewrite.
+        // ATL deliberately does not sugar Lua's control-flow vocabulary —
+        // `if x then`, `end`, `else`, `local x = 1` are all written in
+        // their Lua-native form. Verify those pass through untouched.
+        assert_eq!(rewrite_sugar("if x then"), None);
         assert_eq!(rewrite_sugar("if x > 0 then"), None);
-        assert_eq!(rewrite_sugar("if x then y else z end"), None);
-    }
-
-    #[test]
-    fn test_sugar_elseif_appends_then() {
-        assert_eq!(rewrite_sugar("elseif x").unwrap(), "elseif x then");
-    }
-
-    #[test]
-    fn test_sugar_elseif_explicit_then_passes_through() {
         assert_eq!(rewrite_sugar("elseif x then"), None);
+        assert_eq!(rewrite_sugar("else"), None);
+        assert_eq!(rewrite_sugar("end"), None);
+        assert_eq!(rewrite_sugar("local name = 1"), None);
     }
 
     #[test]

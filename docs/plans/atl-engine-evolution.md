@@ -680,18 +680,14 @@ indexed iteration.
 These work today via raw Lua passthrough. Add explicit examples to docs
 showing all three forms.
 
-### 7.3 `set` sugar
+### 7.3 ~~`set` sugar~~ (dropped)
 
-```
-{% set name = "value" %}
-```
-compiles to
-```lua
-local name = "value"
-```
-
-This is sugar for declaring a local in the template. `{{ name }}`
-afterward resolves to the local first (Lua scoping), then `__ctx`.
+Originally planned as `{% set name = "value" %}` → `local name = "value"`,
+but dropped during the post-Phase-8 sugar audit. ATL is Lua-centric;
+authors write `{% local name = "value" %}` directly. The sugar would
+have introduced an alternate vocabulary (`set` vs `local`) for zero
+ergonomic gain (both are 5 characters). See the principle established
+in `rewrite_sugar`'s doc comment in `compiler.rs`.
 
 ### 7.4 Whitespace control via manifest (Phase 5 ties in here)
 
@@ -702,8 +698,7 @@ afterward resolves to the local first (Lua scoping), then `__ctx`.
 - `test_for_sugar_single_var_uses_ipairs`
 - `test_for_sugar_two_var_uses_pairs`
 - `test_for_sugar_explicit_ipairs`
-- `test_set_sugar_declares_local`
-- `test_set_sugar_visible_to_subsequent_expressions`
+- `test_local_declaration_renders` (Lua-native, not sugared)
 - `test_trim_blocks_strips_first_newline`
 - `test_lstrip_blocks_strips_block_only_lines`
 

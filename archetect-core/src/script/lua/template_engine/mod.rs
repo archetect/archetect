@@ -866,9 +866,12 @@ service {{ entity.name.pascal }}Service {
     }
 
     #[test]
-    fn test_set_sugar_renders() {
+    fn test_local_declaration_renders() {
+        // ATL deliberately does not sugar `local` — authors write Lua-native
+        // `local NAME = EXPR` inside `{% ... %}` blocks. The local is in
+        // scope for the rest of the compiled function.
         let result = render_simple(
-            r#"{% set greeting = "Hello" %}{{ greeting }}, {{ name }}!"#,
+            r#"{% local greeting = "Hello" %}{{ greeting }}, {{ name }}!"#,
             |_, ctx| {
                 ctx.set("name", "World").unwrap();
             },
@@ -933,20 +936,20 @@ service {{ entity.name.pascal }}Service {
 
     #[test]
     fn test_trim_blocks_strips_first_newline_after_block() {
-        // Without trim_blocks: the newline after `{% set x = 1 %}` would
+        // Without trim_blocks: the newline after `{% local x = 1 %}` would
         // appear in the output. With trim_blocks: it's stripped.
         let opts = CompileOptions {
             trim_blocks: true,
             ..CompileOptions::default()
         };
-        let result = render_with_opts("{% set x = 1 %}\nLine after", opts, |_, _| {});
+        let result = render_with_opts("{% local x = 1 %}\nLine after", opts, |_, _| {});
         assert_eq!(result, "Line after");
     }
 
     #[test]
     fn test_trim_blocks_off_keeps_newline() {
         let result = render_with_opts(
-            "{% set x = 1 %}\nLine after",
+            "{% local x = 1 %}\nLine after",
             CompileOptions::default(),
             |_, _| {},
         );
@@ -955,14 +958,14 @@ service {{ entity.name.pascal }}Service {
 
     #[test]
     fn test_lstrip_blocks_strips_indent_before_block() {
-        // The leading spaces on the line containing `{% set %}` should be
-        // stripped, but the leading spaces on `Hello` should remain.
+        // The leading spaces on the line containing `{% local x = 1 %}`
+        // should be stripped, but the leading spaces on `Hello` should remain.
         let opts = CompileOptions {
             lstrip_blocks: true,
             trim_blocks: true,
             ..CompileOptions::default()
         };
-        let template = "Hello\n    {% set x = 1 %}\nWorld";
+        let template = "Hello\n    {% local x = 1 %}\nWorld";
         let result = render_with_opts(template, opts, |_, _| {});
         assert_eq!(result, "Hello\nWorld");
     }
