@@ -5,7 +5,7 @@ pub mod include_resolver;
 pub mod render;
 mod tokenizer;
 
-pub use compiler::Compiler;
+pub use compiler::{CompileOptions, Compiler};
 pub use error::TemplateCompileError;
 pub use include_resolver::IncludeResolver;
 use tokenizer::Tokenizer;
@@ -28,25 +28,28 @@ impl TemplateCompiler {
     /// Compile a template string into Lua source code.
     ///
     /// Convenience entry point for callers that don't have an
-    /// [`IncludeResolver`] — uses a disabled resolver, so any
-    /// `{% include %}` directive will fail with `IncludeNotFound`.
+    /// [`IncludeResolver`] or custom [`CompileOptions`] — uses a disabled
+    /// resolver and default options, so any `{% include %}` directive will
+    /// fail with `IncludeNotFound` and strict mode is off.
     /// The `_name` parameter is reserved for future error-reporting use.
     pub fn compile(template: &str, _name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
         let mut resolver = IncludeResolver::disabled();
-        Self::compile_with(template, _name, &mut resolver)
+        Self::compile_with(template, _name, &mut resolver, CompileOptions::default())
     }
 
-    /// Compile a template string with a configured [`IncludeResolver`].
-    /// `{% include "..." %}` directives are resolved against the resolver's
-    /// includes directory and inlined at compile time.
+    /// Compile a template string with a configured [`IncludeResolver`] and
+    /// [`CompileOptions`]. `{% include "..." %}` directives are resolved
+    /// against the resolver's includes directory and inlined at compile
+    /// time. Options control strict-mode resolution and whitespace controls.
     pub fn compile_with(
         template: &str,
-        _name: &str,
+        name: &str,
         resolver: &mut IncludeResolver,
+        opts: CompileOptions,
     ) -> Result<CompiledTemplate, TemplateCompileError> {
         let tokens = Tokenizer::tokenize(template)?;
-        let source = Compiler::compile(&tokens, resolver)?;
-        validate_lua_syntax(&source)?;
+        let source = Compiler::compile(&tokens, resolver, opts)?;
+        validate_lua_syntax(&source, name)?;
         Ok(CompiledTemplate { source })
     }
 }
@@ -57,12 +60,19 @@ impl TemplateCompiler {
 /// This spins up a short-lived `mlua::Lua` purely for parsing — `into_function`
 /// loads but does not execute the chunk. Templates are compile-cached, so the
 /// cost is paid once per unique template per render.
-fn validate_lua_syntax(source: &str) -> Result<(), TemplateCompileError> {
+///
+/// Phase 8.4: `template_name` is the human-readable identifier of the
+/// template being compiled (file path or `<inline>`). It's embedded in the
+/// `InvalidLuaSyntax` error so the user can tell which template a Lua
+/// parse error came from — especially useful when an error originates
+/// inside a transitively included partial.
+fn validate_lua_syntax(source: &str, template_name: &str) -> Result<(), TemplateCompileError> {
     let lua = mlua::Lua::new();
     lua.load(source)
         .into_function()
         .map(|_| ())
         .map_err(|err| TemplateCompileError::InvalidLuaSyntax {
+            template: template_name.to_string(),
             detail: err.to_string(),
         })
 }
@@ -659,7 +669,12 @@ service {{ entity.name.pascal }}Service {
         ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table),
     ) -> Result<String, TemplateCompileError> {
         let mut resolver = IncludeResolver::new(includes_dir);
-        let compiled = TemplateCompiler::compile_with(template, "outer", &mut resolver)?;
+        let compiled = TemplateCompiler::compile_with(
+            template,
+            "outer",
+            &mut resolver,
+            CompileOptions::default(),
+        )?;
         let lua = mlua::Lua::new();
         let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
         let ctx = lua.create_table().unwrap();
@@ -745,6 +760,7 @@ service {{ entity.name.pascal }}Service {
             r#"{% include "missing.atl" %}"#,
             "outer",
             &mut resolver,
+            CompileOptions::default(),
         );
         assert!(
             matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
@@ -757,6 +773,9 @@ service {{ entity.name.pascal }}Service {
     fn test_include_cycle_detected() {
         // a.atl includes b.atl which includes a.atl back. The compile-time
         // resolver should catch this rather than letting it loop forever.
+        // The cycle is detected inside a nested compile, so the error is
+        // wrapped in IncludeChain entries — the root cause should still be
+        // an IncludeCycle.
         let (_tmp, dir) = temp_includes_dir();
         write_include(&dir, "a.atl", r#"a:{% include "b.atl" %}"#);
         write_include(&dir, "b.atl", r#"b:{% include "a.atl" %}"#);
@@ -766,12 +785,19 @@ service {{ entity.name.pascal }}Service {
             r#"{% include "a.atl" %}"#,
             "outer",
             &mut resolver,
+            CompileOptions::default(),
         );
+        let err = result.unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::IncludeCycle { .. })),
+            matches!(err.root_cause(), TemplateCompileError::IncludeCycle { .. }),
             "got {:?}",
-            result
+            err
         );
+        // The chain should mention the partials so the user knows where
+        // the cycle was detected.
+        let msg = err.to_string();
+        assert!(msg.contains("a.atl"), "error should mention a.atl: {}", msg);
+        assert!(msg.contains("b.atl"), "error should mention b.atl: {}", msg);
     }
 
     #[test]
@@ -785,11 +811,333 @@ service {{ entity.name.pascal }}Service {
             r#"{% include "../escape.atl" %}"#,
             "outer",
             &mut resolver,
+            CompileOptions::default(),
         );
         assert!(
             matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
             "got {:?}",
             result
+        );
+    }
+
+    // ---------- Phase 7: sugar — end-to-end render ----------
+
+    fn render_simple(template: &str, ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table)) -> String {
+        let compiled = TemplateCompiler::compile(template, "test").unwrap();
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        ctx_setup(&lua, &ctx);
+        let filters = lua.create_table().unwrap();
+        func.call::<String>((ctx, filters)).unwrap()
+    }
+
+    #[test]
+    fn test_for_sugar_single_var_renders() {
+        let result = render_simple(
+            r#"{% for item in items %}[{{ item }}]{% end %}"#,
+            |lua, ctx| {
+                let arr = lua.create_table().unwrap();
+                arr.set(1, "a").unwrap();
+                arr.set(2, "b").unwrap();
+                arr.set(3, "c").unwrap();
+                ctx.set("items", arr).unwrap();
+            },
+        );
+        assert_eq!(result, "[a][b][c]");
+    }
+
+    #[test]
+    fn test_for_sugar_two_var_renders() {
+        // pairs() iterates a map; the result depends on Lua's hash order so
+        // we sort the output for a deterministic comparison.
+        let result = render_simple(
+            r#"{% for k, v in items %}{{ k }}={{ v }};{% end %}"#,
+            |lua, ctx| {
+                let map = lua.create_table().unwrap();
+                map.set("a", "1").unwrap();
+                map.set("b", "2").unwrap();
+                ctx.set("items", map).unwrap();
+            },
+        );
+        let mut parts: Vec<&str> = result.trim_end_matches(';').split(';').collect();
+        parts.sort();
+        assert_eq!(parts, vec!["a=1", "b=2"]);
+    }
+
+    #[test]
+    fn test_set_sugar_renders() {
+        let result = render_simple(
+            r#"{% set greeting = "Hello" %}{{ greeting }}, {{ name }}!"#,
+            |_, ctx| {
+                ctx.set("name", "World").unwrap();
+            },
+        );
+        assert_eq!(result, "Hello, World!");
+    }
+
+    #[test]
+    fn test_range_sugar_one_arg_renders() {
+        let result = render_simple(
+            r#"{% for i in range(5) %}{{ i }};{% end %}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "0;1;2;3;4;");
+    }
+
+    #[test]
+    fn test_range_sugar_two_args_renders() {
+        let result = render_simple(
+            r#"{% for i in range(2, 6) %}{{ i }};{% end %}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "2;3;4;5;");
+    }
+
+    #[test]
+    fn test_range_sugar_three_args_renders() {
+        let result = render_simple(
+            r#"{% for i in range(0, 10, 2) %}{{ i }};{% end %}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "0;2;4;6;8;");
+    }
+
+    #[test]
+    fn test_explicit_lua_for_still_works() {
+        // Author falls back to raw Lua — no rewrite, runs as-is.
+        let result = render_simple(
+            r#"{% for i = 1, 5 do %}{{ i }};{% end %}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "1;2;3;4;5;");
+    }
+
+    // ---------- Phase 7.3: trim_blocks / lstrip_blocks ----------
+
+    fn render_with_opts(
+        template: &str,
+        opts: CompileOptions,
+        ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table),
+    ) -> String {
+        let mut resolver = IncludeResolver::disabled();
+        let compiled =
+            TemplateCompiler::compile_with(template, "test", &mut resolver, opts).unwrap();
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        ctx_setup(&lua, &ctx);
+        let filters = lua.create_table().unwrap();
+        func.call::<String>((ctx, filters)).unwrap()
+    }
+
+    #[test]
+    fn test_trim_blocks_strips_first_newline_after_block() {
+        // Without trim_blocks: the newline after `{% set x = 1 %}` would
+        // appear in the output. With trim_blocks: it's stripped.
+        let opts = CompileOptions {
+            trim_blocks: true,
+            ..CompileOptions::default()
+        };
+        let result = render_with_opts("{% set x = 1 %}\nLine after", opts, |_, _| {});
+        assert_eq!(result, "Line after");
+    }
+
+    #[test]
+    fn test_trim_blocks_off_keeps_newline() {
+        let result = render_with_opts(
+            "{% set x = 1 %}\nLine after",
+            CompileOptions::default(),
+            |_, _| {},
+        );
+        assert_eq!(result, "\nLine after");
+    }
+
+    #[test]
+    fn test_lstrip_blocks_strips_indent_before_block() {
+        // The leading spaces on the line containing `{% set %}` should be
+        // stripped, but the leading spaces on `Hello` should remain.
+        let opts = CompileOptions {
+            lstrip_blocks: true,
+            trim_blocks: true,
+            ..CompileOptions::default()
+        };
+        let template = "Hello\n    {% set x = 1 %}\nWorld";
+        let result = render_with_opts(template, opts, |_, _| {});
+        assert_eq!(result, "Hello\nWorld");
+    }
+
+    #[test]
+    fn test_lstrip_blocks_does_not_strip_content_indent() {
+        // The leading spaces before "Indented" must be preserved when the
+        // next token is not a block tag.
+        let opts = CompileOptions {
+            lstrip_blocks: true,
+            ..CompileOptions::default()
+        };
+        let result = render_with_opts(
+            "    Indented {{ name }}",
+            opts,
+            |_, ctx| {
+                ctx.set("name", "value").unwrap();
+            },
+        );
+        assert_eq!(result, "    Indented value");
+    }
+
+    // ---------- Phase 6: strict mode ----------
+    //
+    // Strict mode installs a metatable on __ctx so any rawget-nil lookup
+    // raises a Lua RuntimeError that surfaces as a render-time failure
+    // instead of silently rendering empty.
+
+    fn render_strict(
+        template: &str,
+        ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table),
+    ) -> Result<String, mlua::Error> {
+        let mut resolver = IncludeResolver::disabled();
+        let opts = CompileOptions {
+            strict: true,
+            ..CompileOptions::default()
+        };
+        let compiled =
+            TemplateCompiler::compile_with(template, "test", &mut resolver, opts).unwrap();
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        ctx_setup(&lua, &ctx);
+        let filters = lua.create_table().unwrap();
+        func.call::<String>((ctx, filters))
+    }
+
+    #[test]
+    fn test_strict_mode_errors_on_undefined() {
+        // No `name` set in context — strict mode should error.
+        let err = render_strict("Hello {{ name }}!", |_, _| {}).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("undefined template variable"),
+            "expected undefined-variable error, got: {}",
+            msg
+        );
+        assert!(msg.contains("name"), "error should name the missing key, got: {}", msg);
+    }
+
+    #[test]
+    fn test_strict_mode_allows_defined_var() {
+        let result = render_strict("Hello {{ name }}!", |_, ctx| {
+            ctx.set("name", "World").unwrap();
+        })
+        .unwrap();
+        assert_eq!(result, "Hello World!");
+    }
+
+    #[test]
+    fn test_strict_mode_errors_on_undefined_in_logic_block() {
+        // The metatable also fires inside `{% %}` Lua code, since logic
+        // blocks resolve names through the same _ENV chain.
+        let err = render_strict(
+            r#"{% for _, x in ipairs(items) do %}{{ x }}{% end %}"#,
+            |_, _| {},
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("items"),
+            "expected error mentioning `items`, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_strict_mode_lenient_mode_still_works() {
+        // Default options should NOT be strict — undefined renders empty.
+        let mut resolver = IncludeResolver::disabled();
+        let compiled = TemplateCompiler::compile_with(
+            "Hello {{ name }}!",
+            "test",
+            &mut resolver,
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        let filters = lua.create_table().unwrap();
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "Hello !");
+    }
+
+    #[test]
+    fn test_strict_mode_does_not_break_filter_lookup() {
+        // Filters live in __filters, which is checked BEFORE __ctx in the
+        // lookup chain. The strict metatable on __ctx must not interfere
+        // with filter resolution.
+        let mut resolver = IncludeResolver::disabled();
+        let opts = CompileOptions {
+            strict: true,
+            ..CompileOptions::default()
+        };
+        let compiled = TemplateCompiler::compile_with(
+            "{{ name | upper_case }}",
+            "test",
+            &mut resolver,
+            opts,
+        )
+        .unwrap();
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "hello").unwrap();
+        let filters = lua.create_table().unwrap();
+        let upper = lua.create_function(|_, s: String| Ok(s.to_uppercase())).unwrap();
+        filters.set("upper_case", upper).unwrap();
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "HELLO");
+    }
+
+    #[test]
+    fn test_include_chain_error_names_partial() {
+        // Phase 8.4: when an inner include has a tokenizer error, the
+        // outer error message should name the partial so the user knows
+        // where to look. The leaf error stays accessible via root_cause().
+        let (_tmp, dir) = temp_includes_dir();
+        write_include(&dir, "broken.atl", "Hello {{ unterminated");
+
+        let mut resolver = IncludeResolver::new(dir);
+        let result = TemplateCompiler::compile_with(
+            r#"{% include "broken.atl" %}"#,
+            "outer",
+            &mut resolver,
+            CompileOptions::default(),
+        );
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("broken.atl"),
+            "error should name the partial: {}",
+            msg
+        );
+        assert!(
+            matches!(
+                err.root_cause(),
+                TemplateCompileError::UnterminatedExpression { .. }
+            ),
+            "root cause should be UnterminatedExpression, got {:?}",
+            err.root_cause()
+        );
+    }
+
+    #[test]
+    fn test_invalid_lua_syntax_includes_template_name() {
+        // Phase 8.4: InvalidLuaSyntax errors carry the template name so
+        // the user can tell which template the bad logic block came from.
+        let result = TemplateCompiler::compile("{% if then %}oops{% end %}", "my_template.atl");
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("my_template.atl"),
+            "error should mention template name: {}",
+            msg
         );
     }
 
@@ -816,6 +1164,7 @@ service {{ entity.name.pascal }}Service {
             r#"{% include header.atl %}"#,
             "outer",
             &mut resolver,
+            CompileOptions::default(),
         );
         assert!(
             matches!(result, Err(TemplateCompileError::InvalidInclude { .. })),

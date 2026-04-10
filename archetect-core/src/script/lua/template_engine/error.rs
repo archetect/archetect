@@ -8,9 +8,10 @@ pub enum TemplateCompileError {
     EmptyExpression { line: usize },
     InvalidFilter { line: usize, detail: String },
     /// The generated Lua source failed to parse. This typically means a `{% ... %}`
-    /// logic block contained malformed Lua. The `detail` is the underlying mlua
-    /// parser message (which carries its own line offset within the generated source).
-    InvalidLuaSyntax { detail: String },
+    /// logic block contained malformed Lua. The `template` field is the
+    /// human-readable name of the template (file path or `<inline>`); the
+    /// `detail` is the underlying mlua parser message.
+    InvalidLuaSyntax { template: String, detail: String },
     /// `{% include "..." %}` was malformed (missing path, unbalanced quotes, etc.).
     InvalidInclude { line: usize, detail: String },
     /// An `{% include %}` referenced a path that does not resolve to a file
@@ -25,6 +26,13 @@ pub enum TemplateCompileError {
     /// Including this path would form a cycle. The stack lists the active
     /// chain of includes, outermost first.
     IncludeCycle { path: String, stack: Vec<String> },
+    /// An error that originated inside a nested include. Wraps the
+    /// underlying error with the include path so the user can tell which
+    /// partial template the failure came from. Phase 8.4.
+    IncludeChain {
+        include_path: String,
+        source: Box<TemplateCompileError>,
+    },
 }
 
 impl fmt::Display for TemplateCompileError {
@@ -45,8 +53,16 @@ impl fmt::Display for TemplateCompileError {
             Self::InvalidFilter { line, detail } => {
                 write!(f, "Invalid filter at line {}: {}", line, detail)
             }
-            Self::InvalidLuaSyntax { detail } => {
-                write!(f, "Invalid Lua syntax in compiled template: {}", detail)
+            Self::InvalidLuaSyntax { template, detail } => {
+                if template.is_empty() {
+                    write!(f, "Invalid Lua syntax in compiled template: {}", detail)
+                } else {
+                    write!(
+                        f,
+                        "Invalid Lua syntax in compiled template `{}`: {}",
+                        template, detail
+                    )
+                }
             }
             Self::InvalidInclude { line, detail } => {
                 write!(f, "Invalid include at line {}: {}", line, detail)
@@ -73,8 +89,25 @@ impl fmt::Display for TemplateCompileError {
                     stack.join(" -> ")
                 )
             }
+            Self::IncludeChain { include_path, source } => {
+                write!(f, "while compiling include `{}`: {}", include_path, source)
+            }
         }
     }
 }
 
 impl std::error::Error for TemplateCompileError {}
+
+impl TemplateCompileError {
+    /// Walk past any `IncludeChain` wrappers to the underlying error.
+    /// Useful for callers (and tests) that want to inspect the leaf
+    /// variant without caring about the include trace.
+    #[allow(dead_code)] // exposed for test introspection and future API consumers
+    pub fn root_cause(&self) -> &TemplateCompileError {
+        let mut cur = self;
+        while let TemplateCompileError::IncludeChain { source, .. } = cur {
+            cur = source;
+        }
+        cur
+    }
+}

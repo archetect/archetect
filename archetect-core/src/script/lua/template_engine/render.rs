@@ -11,7 +11,7 @@ use crate::archetype::archetype::OverwritePolicy;
 use crate::errors::RenderError;
 use crate::Archetect;
 
-use super::{IncludeResolver, TemplateCompiler};
+use super::{CompileOptions, IncludeResolver, TemplateCompiler};
 
 /// Cache for compiled Lua template functions, keyed by file path.
 ///
@@ -30,6 +30,10 @@ pub struct TemplateCache {
     /// the cache uses a disabled resolver and any `{% include %}` fails
     /// with `IncludeNotFound`.
     includes_dir: Option<Utf8PathBuf>,
+    /// Compile options sourced from the manifest's `templating:` section
+    /// (strict, trim_blocks, lstrip_blocks). Applied to every template
+    /// compiled through this cache.
+    options: CompileOptions,
 }
 
 impl TemplateCache {
@@ -37,6 +41,7 @@ impl TemplateCache {
         Self {
             cache: HashMap::new(),
             includes_dir: None,
+            options: CompileOptions::default(),
         }
     }
 
@@ -44,6 +49,13 @@ impl TemplateCache {
     /// directives in templates compiled through this cache.
     pub fn with_includes_dir(mut self, includes_dir: Utf8PathBuf) -> Self {
         self.includes_dir = Some(includes_dir);
+        self
+    }
+
+    /// Configure compile options applied to every template compiled
+    /// through this cache.
+    pub fn with_options(mut self, options: CompileOptions) -> Self {
+        self.options = options;
         self
     }
 
@@ -68,11 +80,16 @@ impl TemplateCache {
                 }
             })?;
             let mut resolver = self.make_resolver();
-            let compiled = TemplateCompiler::compile_with(&template_text, path.as_str(), &mut resolver)
-                .map_err(|err| RenderError::LuaTemplateCompileError {
-                    path: path.to_owned(),
-                    message: err.to_string(),
-                })?;
+            let compiled = TemplateCompiler::compile_with(
+                &template_text,
+                path.as_str(),
+                &mut resolver,
+                self.options,
+            )
+            .map_err(|err| RenderError::LuaTemplateCompileError {
+                path: path.to_owned(),
+                message: err.to_string(),
+            })?;
             self.cache.insert(key.clone(), compiled.source);
         }
         Ok(&self.cache[&key])

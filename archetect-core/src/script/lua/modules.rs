@@ -24,11 +24,19 @@ pub fn register_all(
     register_lua_libraries(lua, archetype)?;
 
     let filters = create_builtin_filters(lua)?;
-    // Build the template cache with the manifest's `templating.includes`
-    // directory so `{% include %}` directives in archetype templates can
-    // resolve at compile time.
-    let mut cache = TemplateCache::new();
-    let includes_relative = archetype.manifest().templating().includes_directory();
+    // Build the template cache with manifest-driven configuration:
+    //   - `templating.includes` directory for {% include %} resolution
+    //   - `templating.undefined: strict | lenient` for variable resolution
+    //   - `templating.trim_blocks` / `lstrip_blocks` for whitespace controls
+    use crate::archetype::archetype_manifest::templating::UndefinedMode;
+    use crate::script::lua::template_engine::CompileOptions;
+    let templating = archetype.manifest().templating();
+    let mut cache = TemplateCache::new().with_options(CompileOptions {
+        strict: matches!(templating.undefined(), UndefinedMode::Strict),
+        trim_blocks: templating.trim_blocks(),
+        lstrip_blocks: templating.lstrip_blocks(),
+    });
+    let includes_relative = templating.includes_directory();
     let includes_abs = archetype.root().join(includes_relative);
     if includes_abs.exists() {
         cache = cache.with_includes_dir(includes_abs);
@@ -419,7 +427,12 @@ fn register_lua_template_module(
 ) -> LuaResult<()> {
     let template_table = lua.create_table()?;
 
-    let filters = filters.clone();
+    // Phase 8.3: capture the filter table directly via closures rather
+    // than bridging through a `__atl_filters` Lua global. Both `render`
+    // and `register_filters` close over independent clones of the same
+    // underlying Lua table — Lua tables are reference types, so writes
+    // through one clone are visible through the other.
+    let filters_for_render = filters.clone();
     template_table.set(
         "render",
         lua.create_function(move |lua, (tmpl, context_ud): (String, AnyUserData)| {
@@ -432,22 +445,20 @@ fn register_lua_template_module(
             let func: mlua::Function = lua.load(&compiled.source).eval()
                 .map_err(|e| LuaError::RuntimeError(format!("Template load error: {}", e)))?;
 
-            let result: String = func.call::<String>((ctx_table, filters.clone()))
+            let result: String = func.call::<String>((ctx_table, filters_for_render.clone()))
                 .map_err(|e| LuaError::RuntimeError(format!("Template error: {}", e)))?;
 
             Ok(result)
         })?,
     )?;
 
-    // template.register_filters(table) — merge custom filters into the filter table
-    let filters_ref = lua.globals().get::<Table>("__atl_filters")
-        .unwrap_or_else(|_| lua.create_table().unwrap());
+    let filters_for_register = filters.clone();
     template_table.set(
         "register_filters",
         lua.create_function(move |_, custom_filters: Table| {
             for pair in custom_filters.pairs::<String, mlua::Function>() {
                 let (name, func) = pair?;
-                filters_ref.set(name, func)?;
+                filters_for_register.set(name, func)?;
             }
             Ok(())
         })?,
@@ -523,9 +534,6 @@ fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
     // both as `{{ x | foo }}` and `{{ foo(x) }}` per the filter/function
     // symmetry implemented in the template engine compiler.
     super::template_engine::builtins::register_all(lua, &filters)?;
-
-    // Store globally so template.register_filters can access it
-    lua.globals().set("__atl_filters", filters.clone())?;
 
     Ok(filters)
 }
