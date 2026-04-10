@@ -1,3 +1,4 @@
+pub mod builtins;
 mod compiler;
 mod error;
 pub mod render;
@@ -310,6 +311,241 @@ service {{ entity.name.pascal }}Service {
         let result: String = func.call::<String>((ctx, filters)).unwrap();
         assert_eq!(result, "Hello !");
     }
+
+    // ---------- Phase 3.0: filter/function symmetry ----------
+
+    #[test]
+    fn test_bare_function_call_resolves_through_filters() {
+        // {{ upper_case(name) }} — `upper_case` is a bare identifier inside the
+        // expression. It should resolve via _ENV → __filters at render time.
+        let compiled = TemplateCompiler::compile("{{ upper_case(name) }}", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "hello").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let upper_case = lua
+            .create_function(|_, s: String| Ok(s.to_uppercase()))
+            .unwrap();
+        filters.set("upper_case", upper_case).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "HELLO");
+    }
+
+    #[test]
+    fn test_pipe_and_function_forms_produce_same_output() {
+        // The principle: every filter is also a callable function. Both forms
+        // should yield identical output for the same inputs.
+        let pipe_form = TemplateCompiler::compile("{{ name | upper_case }}", "test").unwrap();
+        let fn_form = TemplateCompiler::compile("{{ upper_case(name) }}", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let pipe_fn: mlua::Function = lua.load(&pipe_form.source).eval().unwrap();
+        let call_fn: mlua::Function = lua.load(&fn_form.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "world").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let upper_case = lua
+            .create_function(|_, s: String| Ok(s.to_uppercase()))
+            .unwrap();
+        filters.set("upper_case", upper_case).unwrap();
+
+        let pipe_result: String = pipe_fn.call::<String>((ctx.clone(), filters.clone())).unwrap();
+        let call_result: String = call_fn.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(pipe_result, "WORLD");
+        assert_eq!(call_result, "WORLD");
+        assert_eq!(pipe_result, call_result);
+    }
+
+    #[test]
+    fn test_nested_function_call_resolves_through_filters() {
+        // {{ upper_case(snake_case(name)) }} — both names resolve via _ENV.
+        let compiled = TemplateCompiler::compile(
+            "{{ upper_case(snake_case(name)) }}",
+            "test",
+        )
+        .unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "HelloWorld").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        filters
+            .set(
+                "snake_case",
+                lua.create_function(|_, s: String| {
+                    Ok(s.chars()
+                        .enumerate()
+                        .flat_map(|(i, c)| {
+                            if c.is_uppercase() && i > 0 {
+                                vec!['_', c.to_ascii_lowercase()]
+                            } else {
+                                vec![c.to_ascii_lowercase()]
+                            }
+                        })
+                        .collect::<String>())
+                })
+                .unwrap(),
+            )
+            .unwrap();
+        filters
+            .set(
+                "upper_case",
+                lua.create_function(|_, s: String| Ok(s.to_uppercase())).unwrap(),
+            )
+            .unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "HELLO_WORLD");
+    }
+
+    #[test]
+    fn test_filter_takes_precedence_over_context() {
+        // If a context key shadows a filter name, the filter wins. This is the
+        // documented behavior — built-ins are precedence-protected so that
+        // `ctx:set("now", ...)` cannot accidentally break templates that call
+        // the `now()` builtin.
+        let compiled = TemplateCompiler::compile("{{ greet(name) }}", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "World").unwrap();
+        ctx.set("greet", "I am a string, not a function").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let greet = lua
+            .create_function(|_, name: String| Ok(format!("Hello, {}!", name)))
+            .unwrap();
+        filters.set("greet", greet).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "Hello, World!");
+    }
+
+    // ---------- Phase 2: filter argument coverage ----------
+
+    #[test]
+    fn test_filter_with_single_arg_renders() {
+        // {{ name | truncate(5) }} should call __filters.truncate(name, 5).
+        let compiled = TemplateCompiler::compile("{{ name | truncate(5) }}", "test").unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "abcdefghij").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let truncate = lua
+            .create_function(|_, (s, n): (String, usize)| {
+                Ok(s.chars().take(n).collect::<String>())
+            })
+            .unwrap();
+        filters.set("truncate", truncate).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "abcde");
+    }
+
+    #[test]
+    fn test_filter_with_multiple_args_renders() {
+        // {{ name | replace("a", "b") }}
+        let compiled = TemplateCompiler::compile(
+            r#"{{ name | replace("a", "b") }}"#,
+            "test",
+        )
+        .unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "banana").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let replace = lua
+            .create_function(|_, (s, from, to): (String, String, String)| {
+                Ok(s.replace(&from, &to))
+            })
+            .unwrap();
+        filters.set("replace", replace).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "bbnbnb");
+    }
+
+    #[test]
+    fn test_filter_arg_resolves_context_var() {
+        // {{ greeting | with_name(name) }} — the arg is a bare identifier that
+        // must resolve through _ENV → __ctx at render time.
+        let compiled = TemplateCompiler::compile(
+            "{{ greeting | with_name(name) }}",
+            "test",
+        )
+        .unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("greeting", "Hello").unwrap();
+        ctx.set("name", "World").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let with_name = lua
+            .create_function(|_, (greeting, name): (String, String)| {
+                Ok(format!("{}, {}!", greeting, name))
+            })
+            .unwrap();
+        filters.set("with_name", with_name).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "Hello, World!");
+    }
+
+    #[test]
+    fn test_filter_chain_with_args_renders() {
+        // {{ name | truncate(3) | upper_case }}
+        let compiled = TemplateCompiler::compile(
+            "{{ name | truncate(3) | upper_case }}",
+            "test",
+        )
+        .unwrap();
+
+        let lua = mlua::Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+
+        let ctx = lua.create_table().unwrap();
+        ctx.set("name", "hello world").unwrap();
+
+        let filters = lua.create_table().unwrap();
+        let truncate = lua
+            .create_function(|_, (s, n): (String, usize)| {
+                Ok(s.chars().take(n).collect::<String>())
+            })
+            .unwrap();
+        filters.set("truncate", truncate).unwrap();
+        let upper_case = lua
+            .create_function(|_, s: String| Ok(s.to_uppercase()))
+            .unwrap();
+        filters.set("upper_case", upper_case).unwrap();
+
+        let result: String = func.call::<String>((ctx, filters)).unwrap();
+        assert_eq!(result, "HEL");
+    }
+
+    // ---------- Original Phase 1 tests ----------
 
     #[test]
     fn test_explicit_nil_renders_empty() {

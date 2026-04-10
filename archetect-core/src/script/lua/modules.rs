@@ -456,6 +456,12 @@ fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
     add_string_filter!("ordinalize", archetect_inflections::ordinalize);
     add_string_filter!("deordinalize", archetect_inflections::deordinalize);
 
+    // Register the Phase 3 built-in primitives (strings, collections,
+    // datetime, uuids, paths). Each entry registered here is reachable
+    // both as `{{ x | foo }}` and `{{ foo(x) }}` per the filter/function
+    // symmetry implemented in the template engine compiler.
+    super::template_engine::builtins::register_all(lua, &filters)?;
+
     // Store globally so template.register_filters can access it
     lua.globals().set("__atl_filters", filters.clone())?;
 
@@ -856,5 +862,369 @@ mod tests {
         assert!(result.is_err(), "expected error, got {:?}", result);
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("upper_case"), "error should name the filter: {}", msg);
+    }
+
+    // ---------- Phase 3: built-in primitives ----------
+    //
+    // The helpers below render an ATL template through the full pipeline
+    // (compile → eval → call) using the actual built-in filter table. Each
+    // builtin is tested twice where applicable: once via the pipe form
+    // (`{{ x | foo }}`) and once via the function form (`{{ foo(x) }}`),
+    // confirming the filter/function symmetry from Phase 3.0.
+
+    fn render_with(template: &str, setup: impl FnOnce(&Lua, &Table)) -> String {
+        let compiled = TemplateCompiler::compile(template, "test").unwrap();
+        let lua = Lua::new();
+        let func: mlua::Function = lua.load(&compiled.source).eval().unwrap();
+        let ctx = lua.create_table().unwrap();
+        setup(&lua, &ctx);
+        let filters = create_builtin_filters(&lua).unwrap();
+        func.call::<String>((ctx, filters)).unwrap()
+    }
+
+    fn render_no_ctx(template: &str) -> String {
+        render_with(template, |_, _| {})
+    }
+
+    // ---------- strings: default ----------
+
+    #[test]
+    fn test_default_returns_value_when_present() {
+        let out = render_with("{{ name | default(\"anon\") }}", |_, ctx| {
+            ctx.set("name", "Jimmie").unwrap();
+        });
+        assert_eq!(out, "Jimmie");
+    }
+
+    #[test]
+    fn test_default_returns_fallback_for_nil() {
+        let out = render_no_ctx("{{ name | default(\"anon\") }}");
+        assert_eq!(out, "anon");
+    }
+
+    #[test]
+    fn test_default_returns_fallback_for_empty_string() {
+        let out = render_with("{{ name | default(\"anon\") }}", |_, ctx| {
+            ctx.set("name", "").unwrap();
+        });
+        assert_eq!(out, "anon");
+    }
+
+    // ---------- strings: truncate ----------
+
+    #[test]
+    fn test_truncate_pipe_form() {
+        let out = render_with("{{ name | truncate(5) }}", |_, ctx| {
+            ctx.set("name", "abcdefghij").unwrap();
+        });
+        assert_eq!(out, "abcde…");
+    }
+
+    #[test]
+    fn test_truncate_function_form() {
+        // Filter/function symmetry: same builtin via call syntax.
+        let out = render_with("{{ truncate(name, 5) }}", |_, ctx| {
+            ctx.set("name", "abcdefghij").unwrap();
+        });
+        assert_eq!(out, "abcde…");
+    }
+
+    #[test]
+    fn test_truncate_with_custom_suffix() {
+        let out = render_with(r#"{{ name | truncate(5, "...") }}"#, |_, ctx| {
+            ctx.set("name", "abcdefghij").unwrap();
+        });
+        assert_eq!(out, "abcde...");
+    }
+
+    #[test]
+    fn test_truncate_short_string_unchanged() {
+        let out = render_with("{{ name | truncate(20) }}", |_, ctx| {
+            ctx.set("name", "short").unwrap();
+        });
+        assert_eq!(out, "short");
+    }
+
+    // ---------- strings: replace, trim ----------
+
+    #[test]
+    fn test_replace() {
+        let out = render_with(r#"{{ name | replace("a", "b") }}"#, |_, ctx| {
+            ctx.set("name", "banana").unwrap();
+        });
+        assert_eq!(out, "bbnbnb");
+    }
+
+    #[test]
+    fn test_trim() {
+        let out = render_with("{{ name | trim }}", |_, ctx| {
+            ctx.set("name", "  hello  ").unwrap();
+        });
+        assert_eq!(out, "hello");
+    }
+
+    #[test]
+    fn test_trim_start_end() {
+        let out = render_with("{{ name | trim_start }}", |_, ctx| {
+            ctx.set("name", "  hello  ").unwrap();
+        });
+        assert_eq!(out, "hello  ");
+
+        let out = render_with("{{ name | trim_end }}", |_, ctx| {
+            ctx.set("name", "  hello  ").unwrap();
+        });
+        assert_eq!(out, "  hello");
+    }
+
+    // ---------- strings: indent, string_repeat ----------
+
+    #[test]
+    fn test_indent() {
+        let out = render_with("{{ block | indent(4) }}", |_, ctx| {
+            ctx.set("block", "line1\nline2\nline3").unwrap();
+        });
+        assert_eq!(out, "    line1\n    line2\n    line3");
+    }
+
+    #[test]
+    fn test_string_repeat_pipe_and_function() {
+        let pipe = render_no_ctx(r#"{{ "ab" | string_repeat(3) }}"#);
+        let call = render_no_ctx(r#"{{ string_repeat("ab", 3) }}"#);
+        assert_eq!(pipe, "ababab");
+        assert_eq!(call, "ababab");
+    }
+
+    // ---------- strings: split, length, concat ----------
+
+    #[test]
+    fn test_split_then_length() {
+        // {{ csv | split(",") | length }}
+        let out = render_with(r#"{{ csv | split(",") | length }}"#, |_, ctx| {
+            ctx.set("csv", "a,b,c,d").unwrap();
+        });
+        assert_eq!(out, "4");
+    }
+
+    #[test]
+    fn test_length_of_string() {
+        let out = render_with("{{ name | length }}", |_, ctx| {
+            ctx.set("name", "hello").unwrap();
+        });
+        assert_eq!(out, "5");
+    }
+
+    #[test]
+    fn test_concat_function_form() {
+        let out = render_with(r#"{{ concat(prefix, "-", name) }}"#, |_, ctx| {
+            ctx.set("prefix", "p6m").unwrap();
+            ctx.set("name", "service").unwrap();
+        });
+        assert_eq!(out, "p6m-service");
+    }
+
+    // ---------- collections: join, first, last ----------
+
+    #[test]
+    fn test_join() {
+        let out = render_with(r#"{{ items | join(", ") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "a").unwrap();
+            arr.set(2, "b").unwrap();
+            arr.set(3, "c").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "a, b, c");
+    }
+
+    #[test]
+    fn test_first_last() {
+        let setup = |lua: &Lua, ctx: &Table| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "alpha").unwrap();
+            arr.set(2, "beta").unwrap();
+            arr.set(3, "gamma").unwrap();
+            ctx.set("items", arr).unwrap();
+        };
+        assert_eq!(render_with("{{ items | first }}", setup), "alpha");
+        assert_eq!(render_with("{{ items | last }}", setup), "gamma");
+    }
+
+    // ---------- collections: sort, reverse, unique ----------
+
+    #[test]
+    fn test_sort() {
+        let out = render_with(r#"{{ items | sort | join(",") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "charlie").unwrap();
+            arr.set(2, "alpha").unwrap();
+            arr.set(3, "bravo").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "alpha,bravo,charlie");
+    }
+
+    #[test]
+    fn test_reverse() {
+        let out = render_with(r#"{{ items | reverse | join(",") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "a").unwrap();
+            arr.set(2, "b").unwrap();
+            arr.set(3, "c").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "c,b,a");
+    }
+
+    #[test]
+    fn test_unique() {
+        let out = render_with(r#"{{ items | unique | join(",") }}"#, |lua, ctx| {
+            let arr = lua.create_table().unwrap();
+            arr.set(1, "a").unwrap();
+            arr.set(2, "b").unwrap();
+            arr.set(3, "a").unwrap();
+            arr.set(4, "c").unwrap();
+            arr.set(5, "b").unwrap();
+            ctx.set("items", arr).unwrap();
+        });
+        assert_eq!(out, "a,b,c");
+    }
+
+    // ---------- datetime ----------
+
+    #[test]
+    fn test_year_returns_current_year() {
+        let out = render_no_ctx("{{ year() }}");
+        let year: i32 = out.parse().expect("year should parse as integer");
+        assert!(year >= 2026, "year should be at least 2026, got {}", year);
+        assert!(year < 2100, "year should be reasonable, got {}", year);
+    }
+
+    #[test]
+    fn test_today_format() {
+        let out = render_no_ctx("{{ today() }}");
+        // YYYY-MM-DD
+        assert_eq!(out.len(), 10, "today() should be YYYY-MM-DD, got {}", out);
+        assert_eq!(&out[4..5], "-");
+        assert_eq!(&out[7..8], "-");
+    }
+
+    #[test]
+    fn test_now_is_rfc3339() {
+        let out = render_no_ctx("{{ now() }}");
+        chrono::DateTime::parse_from_rfc3339(&out)
+            .unwrap_or_else(|e| panic!("now() should be RFC3339, got {} ({})", out, e));
+    }
+
+    #[test]
+    fn test_date_filter_extracts_year() {
+        let out = render_no_ctx(r#"{{ today() | date("%Y") }}"#);
+        let year: i32 = out.parse().expect("year format should parse");
+        assert!(year >= 2026, "got year {}", year);
+    }
+
+    // ---------- uuids ----------
+
+    #[test]
+    fn test_uuid_v4_format() {
+        let out = render_no_ctx("{{ uuid_v4() }}");
+        // 8-4-4-4-12
+        let parts: Vec<&str> = out.split('-').collect();
+        assert_eq!(parts.len(), 5, "uuid should have 5 hyphenated parts: {}", out);
+        assert_eq!(parts[0].len(), 8);
+        assert_eq!(parts[1].len(), 4);
+        assert_eq!(parts[2].len(), 4);
+        assert_eq!(parts[3].len(), 4);
+        assert_eq!(parts[4].len(), 12);
+    }
+
+    #[test]
+    fn test_uuid_v7_format() {
+        let out = render_no_ctx("{{ uuid_v7() }}");
+        let parts: Vec<&str> = out.split('-').collect();
+        assert_eq!(parts.len(), 5, "uuid should have 5 hyphenated parts: {}", out);
+    }
+
+    #[test]
+    fn test_uuid_default_is_v4_shape() {
+        let out = render_no_ctx("{{ uuid() }}");
+        let parts: Vec<&str> = out.split('-').collect();
+        assert_eq!(parts.len(), 5);
+    }
+
+    #[test]
+    fn test_uuid_nil() {
+        let out = render_no_ctx("{{ uuid_nil() }}");
+        assert_eq!(out, "00000000-0000-0000-0000-000000000000");
+    }
+
+    // ---------- paths ----------
+
+    #[test]
+    fn test_path_join() {
+        let out = render_no_ctx(r#"{{ path_join("a", "b", "c") }}"#);
+        assert_eq!(out, "a/b/c");
+    }
+
+    #[test]
+    fn test_path_join_collapses_separators() {
+        let out = render_no_ctx(r#"{{ path_join("a/", "/b", "c/") }}"#);
+        assert_eq!(out, "a/b/c");
+    }
+
+    #[test]
+    fn test_basename() {
+        let out = render_with("{{ p | basename }}", |_, ctx| {
+            ctx.set("p", "/foo/bar/baz.rs").unwrap();
+        });
+        assert_eq!(out, "baz.rs");
+    }
+
+    #[test]
+    fn test_dirname() {
+        let out = render_with("{{ p | dirname }}", |_, ctx| {
+            ctx.set("p", "/foo/bar/baz.rs").unwrap();
+        });
+        assert_eq!(out, "/foo/bar");
+    }
+
+    #[test]
+    fn test_extname() {
+        let out = render_with("{{ p | extname }}", |_, ctx| {
+            ctx.set("p", "/foo/bar/baz.tar.gz").unwrap();
+        });
+        assert_eq!(out, ".gz");
+    }
+
+    #[test]
+    fn test_extname_no_extension() {
+        let out = render_with("{{ p | extname }}", |_, ctx| {
+            ctx.set("p", "Makefile").unwrap();
+        });
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn test_extname_dotfile() {
+        // Leading dot does not count as an extension.
+        let out = render_with("{{ p | extname }}", |_, ctx| {
+            ctx.set("p", ".gitignore").unwrap();
+        });
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn test_path_normalize_dots() {
+        let out = render_with("{{ p | path_normalize }}", |_, ctx| {
+            ctx.set("p", "a/./b/../c").unwrap();
+        });
+        assert_eq!(out, "a/c");
+    }
+
+    #[test]
+    fn test_path_normalize_absolute() {
+        let out = render_with("{{ p | path_normalize }}", |_, ctx| {
+            ctx.set("p", "/a/b/../c/").unwrap();
+        });
+        assert_eq!(out, "/a/c");
     }
 }

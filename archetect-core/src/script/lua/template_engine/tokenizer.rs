@@ -3,6 +3,12 @@ use super::error::TemplateCompileError;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Filter {
     pub name: String,
+    /// Raw Lua expressions for additional arguments to the filter, e.g.
+    /// `truncate(40, "...")` parses to `args: ["40", "\"...\""]`.
+    /// Args are not pre-evaluated — they are emitted verbatim into the
+    /// generated Lua, so they resolve through `_ENV → __filters → __ctx`
+    /// like any other expression.
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -166,7 +172,7 @@ fn find_closing(template: &str, start: usize, delimiter: &str, line: &mut usize)
 }
 
 /// Parse an expression string into the base expression and filter chain.
-/// Handles `expr | filter1 | filter2`.
+/// Handles `expr | filter1 | filter2(arg1, arg2)`.
 fn parse_expression(raw: &str, line: usize) -> Result<(String, Vec<Filter>), TemplateCompileError> {
     // Split on `|` but respect nested parentheses, brackets, and strings
     let parts = split_filters(raw);
@@ -178,17 +184,138 @@ fn parse_expression(raw: &str, line: usize) -> Result<(String, Vec<Filter>), Tem
 
     let mut filters = Vec::new();
     for part in &parts[1..] {
-        let name = part.trim().to_string();
-        if name.is_empty() {
+        let segment = part.trim();
+        if segment.is_empty() {
             return Err(TemplateCompileError::InvalidFilter {
                 line,
                 detail: "empty filter name".to_string(),
             });
         }
-        filters.push(Filter { name });
+        filters.push(parse_filter(segment, line)?);
     }
 
     Ok((expr, filters))
+}
+
+/// Parse a single filter segment into name and (optional) argument list.
+///
+/// Examples:
+///   `snake_case`              → Filter { name: "snake_case", args: [] }
+///   `truncate(40)`            → Filter { name: "truncate",   args: ["40"] }
+///   `truncate(40, "...")`     → Filter { name: "truncate",   args: ["40", "\"...\""] }
+///   `replace("a", "b")`       → Filter { name: "replace",    args: ["\"a\"", "\"b\""] }
+///   `default(other_var)`      → Filter { name: "default",    args: ["other_var"] }
+///
+/// Args are *not* pre-evaluated — they're substituted verbatim into the
+/// generated Lua, so they resolve at render time through the same `_ENV`
+/// chain as any other expression.
+fn parse_filter(segment: &str, line: usize) -> Result<Filter, TemplateCompileError> {
+    let segment = segment.trim();
+    let bytes = segment.as_bytes();
+
+    // Find the first `(` at the top level (no opening parens precede it).
+    let paren_pos = bytes.iter().position(|&b| b == b'(');
+
+    let Some(paren_pos) = paren_pos else {
+        // Bare filter name, no args.
+        if !is_valid_filter_name(segment) {
+            return Err(TemplateCompileError::InvalidFilter {
+                line,
+                detail: format!("invalid filter name `{}`", segment),
+            });
+        }
+        return Ok(Filter {
+            name: segment.to_string(),
+            args: Vec::new(),
+        });
+    };
+
+    let name = segment[..paren_pos].trim();
+    if !is_valid_filter_name(name) {
+        return Err(TemplateCompileError::InvalidFilter {
+            line,
+            detail: format!("invalid filter name `{}`", name),
+        });
+    }
+
+    // The matching `)` must be the LAST character. Anything after it is a
+    // syntax error in this segment.
+    if !segment.ends_with(')') {
+        return Err(TemplateCompileError::InvalidFilter {
+            line,
+            detail: format!(
+                "filter `{}` has unbalanced or trailing characters after argument list",
+                name
+            ),
+        });
+    }
+
+    // The arg substring is what's between the parens.
+    let args_raw = &segment[paren_pos + 1..segment.len() - 1];
+    let args = split_filter_args(args_raw);
+
+    // Empty `()` is allowed and means a zero-arg call (functionally identical
+    // to a bare filter name, but explicit).
+    Ok(Filter {
+        name: name.to_string(),
+        args,
+    })
+}
+
+/// True if `s` is a valid filter identifier: letters/digits/underscores,
+/// must not start with a digit.
+fn is_valid_filter_name(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// Split a filter argument list on top-level commas, respecting nested
+/// parens, brackets, and string literals (single + double quoted, with
+/// backslash escapes).
+fn split_filter_args(s: &str) -> Vec<String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let mut parts: Vec<String> = Vec::new();
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut string_char = b' ';
+    let mut last_split = 0;
+    let bytes = s.as_bytes();
+
+    for (i, &b) in bytes.iter().enumerate() {
+        if in_string {
+            if b == string_char && (i == 0 || bytes[i - 1] != b'\\') {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match b {
+            b'"' | b'\'' => {
+                in_string = true;
+                string_char = b;
+            }
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth -= 1,
+            b',' if depth == 0 => {
+                parts.push(s[last_split..i].trim().to_string());
+                last_split = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(s[last_split..].trim().to_string());
+    parts
 }
 
 /// Split on `|` while respecting parentheses, brackets, and string literals.
@@ -257,7 +384,7 @@ mod tests {
         assert_eq!(tokens, vec![
             Token::Expression {
                 expr: "name".to_string(),
-                filters: vec![Filter { name: "snake_case".to_string() }],
+                filters: vec![Filter { name: "snake_case".to_string(), args: vec![] }],
                 trim_left: false,
                 trim_right: false,
             },
@@ -271,13 +398,163 @@ mod tests {
             Token::Expression {
                 expr: "name".to_string(),
                 filters: vec![
-                    Filter { name: "snake_case".to_string() },
-                    Filter { name: "upper".to_string() },
+                    Filter { name: "snake_case".to_string(), args: vec![] },
+                    Filter { name: "upper".to_string(), args: vec![] },
                 ],
                 trim_left: false,
                 trim_right: false,
             },
         ]);
+    }
+
+    #[test]
+    fn test_filter_with_single_arg() {
+        let tokens = Tokenizer::tokenize("{{ name | truncate(40) }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "name".to_string(),
+                filters: vec![Filter {
+                    name: "truncate".to_string(),
+                    args: vec!["40".to_string()],
+                }],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_with_multiple_args() {
+        let tokens = Tokenizer::tokenize(r#"{{ name | replace("a", "b") }}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "name".to_string(),
+                filters: vec![Filter {
+                    name: "replace".to_string(),
+                    args: vec![r#""a""#.to_string(), r#""b""#.to_string()],
+                }],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_with_nested_paren_arg() {
+        // Inner f(g(y)) is one argument as far as the outer filter is concerned.
+        let tokens = Tokenizer::tokenize("{{ x | f(g(y)) }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "x".to_string(),
+                filters: vec![Filter {
+                    name: "f".to_string(),
+                    args: vec!["g(y)".to_string()],
+                }],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_with_string_containing_comma() {
+        // Comma inside a string literal must NOT split the args.
+        let tokens = Tokenizer::tokenize(r#"{{ items | join(", ") }}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "items".to_string(),
+                filters: vec![Filter {
+                    name: "join".to_string(),
+                    args: vec![r#"", ""#.to_string()],
+                }],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_with_zero_arg_parens() {
+        // Explicit `()` is allowed and is equivalent to a bare filter name.
+        let tokens = Tokenizer::tokenize("{{ name | upper_case() }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "name".to_string(),
+                filters: vec![Filter {
+                    name: "upper_case".to_string(),
+                    args: vec![],
+                }],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_chain_mixed_args() {
+        // {{ name | truncate(10) | upper_case }}
+        let tokens = Tokenizer::tokenize("{{ name | truncate(10) | upper_case }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "name".to_string(),
+                filters: vec![
+                    Filter { name: "truncate".to_string(), args: vec!["10".to_string()] },
+                    Filter { name: "upper_case".to_string(), args: vec![] },
+                ],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_filter_invalid_name_rejected() {
+        let result = Tokenizer::tokenize("{{ name | 123bad }}");
+        assert!(matches!(
+            result,
+            Err(TemplateCompileError::InvalidFilter { .. })
+        ));
+    }
+
+    #[test]
+    fn test_filter_trailing_chars_after_args_rejected() {
+        let result = Tokenizer::tokenize("{{ name | truncate(40)oops }}");
+        assert!(matches!(
+            result,
+            Err(TemplateCompileError::InvalidFilter { .. })
+        ));
+    }
+
+    #[test]
+    fn test_split_filter_args_empty() {
+        assert_eq!(split_filter_args(""), Vec::<String>::new());
+        assert_eq!(split_filter_args("   "), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_split_filter_args_single() {
+        assert_eq!(split_filter_args("40"), vec!["40".to_string()]);
+    }
+
+    #[test]
+    fn test_split_filter_args_multiple() {
+        assert_eq!(
+            split_filter_args(r#"40, "..." , true"#),
+            vec!["40".to_string(), r#""...""#.to_string(), "true".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_split_filter_args_respects_nested_parens() {
+        assert_eq!(split_filter_args("f(a, b), c"), vec!["f(a, b)".to_string(), "c".to_string()]);
+    }
+
+    #[test]
+    fn test_split_filter_args_respects_string_commas() {
+        assert_eq!(
+            split_filter_args(r#""a, b", c"#),
+            vec![r#""a, b""#.to_string(), "c".to_string()],
+        );
     }
 
     #[test]

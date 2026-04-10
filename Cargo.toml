@@ -93,5 +93,6 @@ version = "1.0"
 features = [
     "serde",
     "v4",
+    "v7",
 ]
 version = "1.6"

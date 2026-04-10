@@ -13,13 +13,31 @@ impl Compiler {
     pub fn compile(tokens: &[Token]) -> String {
         let mut lua = String::with_capacity(1024);
 
-        // Function preamble — set up output buffer and _ENV for context resolution
+        // Function preamble — set up output buffer and _ENV for context resolution.
+        //
+        // Resolution chain for bare names like `{{ now() }}` or `{{ name }}`:
+        //
+        //   _ENV (stdlib + __out/__w/etc.)
+        //     └─ __index → __filters
+        //                    └─ __index → __ctx
+        //
+        // This is the filter/function symmetry from Phase 3 of the ATL evolution
+        // plan: every entry in `__filters` is reachable both as `{{ x | foo }}`
+        // (compiled to `__filters.foo(x)`) AND as `{{ foo(x) }}` (resolved at
+        // render time via the metatable chain). One implementation, two surface
+        // forms — authors pick whichever reads better.
+        //
+        // Filters take precedence over context. An author who calls
+        // `ctx:set("now", ...)` will not shadow the `now` builtin.
         lua.push_str("return function(__ctx, __filters)\n");
         lua.push_str("    local __out = {}\n");
         // nil is dropped silently — emitting the literal "nil" into a generated source
         // file is far worse than an empty interpolation. Strict mode (Phase 6) will
         // offer fail-on-undefined as an opt-in.
         lua.push_str("    local __w = function(s) if s ~= nil then __out[#__out+1] = tostring(s) end end\n");
+        // Chain __filters → __ctx so that bare names in `{{ }}` resolve through
+        // both. The setmetatable call is per-render but idempotent.
+        lua.push_str("    setmetatable(__filters, {__index = __ctx})\n");
         lua.push_str("    local _ENV = setmetatable({\n");
         lua.push_str("        __ctx = __ctx,\n");
         lua.push_str("        __filters = __filters,\n");
@@ -44,7 +62,7 @@ impl Compiler {
         lua.push_str("        rawset = rawset,\n");
         lua.push_str("        setmetatable = setmetatable,\n");
         lua.push_str("        getmetatable = getmetatable,\n");
-        lua.push_str("    }, {__index = __ctx})\n");
+        lua.push_str("    }, {__index = __filters})\n");
         lua.push_str("\n");
 
         let token_count = tokens.len();
@@ -177,7 +195,15 @@ fn is_lua_identifier(s: &str) -> bool {
 }
 
 /// Wrap an expression with its filter chain.
-/// `apply_filters("name", [snake_case, upper])` → `__filters.upper(__filters.snake_case(name))`
+///
+/// Without args: `[snake_case, upper]` → `__filters.upper(__filters.snake_case(name))`
+///
+/// With args: `[truncate(40), upper]` → `__filters.upper(__filters.truncate(name, 40))`
+///
+/// Args are emitted verbatim — they're raw Lua expressions that will be
+/// evaluated at render time inside `_ENV`, so things like
+/// `{{ x | default(other_var) }}` resolve `other_var` through the same
+/// context-lookup chain as any other identifier.
 fn apply_filters(expr: &str, filters: &[Filter]) -> String {
     if filters.is_empty() {
         return expr.to_string();
@@ -185,7 +211,16 @@ fn apply_filters(expr: &str, filters: &[Filter]) -> String {
 
     let mut result = expr.to_string();
     for filter in filters {
-        result = format!("__filters.{}({})", filter.name, result);
+        if filter.args.is_empty() {
+            result = format!("__filters.{}({})", filter.name, result);
+        } else {
+            result = format!(
+                "__filters.{}({}, {})",
+                filter.name,
+                result,
+                filter.args.join(", ")
+            );
+        }
     }
     result
 }
@@ -273,19 +308,43 @@ mod tests {
 
     #[test]
     fn test_apply_filters_one() {
-        let filters = vec![Filter { name: "upper".to_string() }];
+        let filters = vec![Filter { name: "upper".to_string(), args: vec![] }];
         assert_eq!(apply_filters("name", &filters), "__filters.upper(name)");
     }
 
     #[test]
     fn test_apply_filters_chain() {
         let filters = vec![
-            Filter { name: "snake_case".to_string() },
-            Filter { name: "upper".to_string() },
+            Filter { name: "snake_case".to_string(), args: vec![] },
+            Filter { name: "upper".to_string(), args: vec![] },
         ];
         assert_eq!(
             apply_filters("name", &filters),
             "__filters.upper(__filters.snake_case(name))"
+        );
+    }
+
+    #[test]
+    fn test_apply_filters_with_args() {
+        let filters = vec![Filter {
+            name: "truncate".to_string(),
+            args: vec!["40".to_string(), "\"...\"".to_string()],
+        }];
+        assert_eq!(
+            apply_filters("name", &filters),
+            "__filters.truncate(name, 40, \"...\")"
+        );
+    }
+
+    #[test]
+    fn test_apply_filters_chain_with_args() {
+        let filters = vec![
+            Filter { name: "truncate".to_string(), args: vec!["10".to_string()] },
+            Filter { name: "upper".to_string(), args: vec![] },
+        ];
+        assert_eq!(
+            apply_filters("name", &filters),
+            "__filters.upper(__filters.truncate(name, 10))"
         );
     }
 
