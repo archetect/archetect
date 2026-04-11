@@ -52,6 +52,20 @@ pub struct Manifest {
 }
 
 /// A recursive catalog entry. Either a leaf (has `source`) or a group (has `catalog`).
+///
+/// Per the v3 ecosystem design, an entry has two independent flags that control
+/// how the consumer treats it:
+///
+/// - `library: true` — eagerly resolve at archetype load time, stage the
+///   resolved archetype's `lib/` and `includes/` directories under this
+///   entry's local name, and add them to the consumer's `package.path` and
+///   includes search list before any script runs.
+/// - `show: false` — hide this entry from `catalog.render()` menus. Still
+///   resolvable from a script via `catalog.render("name")`. Useful for
+///   private dependencies the script invokes by name.
+///
+/// The two flags are completely independent — `library: true` does NOT imply
+/// `show: false`. A library can also appear in menus if the consumer wants.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CatalogEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -74,6 +88,24 @@ pub struct CatalogEntry {
     /// Use defaults for all prompts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_defaults_all: Option<bool>,
+    /// When true, eagerly resolve this entry at archetype load and stage its
+    /// `lib/` and `includes/` directories into the consumer's runtime.
+    /// Default: false (lazy resolution on use).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub library: bool,
+    /// When false, hide this entry from `catalog.render()` menus. The entry
+    /// remains resolvable by name from scripts. Default: true (visible).
+    #[serde(default = "default_show", skip_serializing_if = "is_default_show")]
+    pub show: bool,
+}
+
+fn default_show() -> bool {
+    true
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde requires &T
+fn is_default_show(value: &bool) -> bool {
+    *value
 }
 
 impl CatalogEntry {
@@ -383,6 +415,8 @@ mod tests {
             switches: None,
             use_defaults: None,
             use_defaults_all: None,
+            library: false,
+            show: true,
         };
 
         assert_eq!(entry.display_description("my-archetype"), "my-archetype");
@@ -392,5 +426,66 @@ mod tests {
             ..entry
         };
         assert_eq!(entry_with_desc.display_description("my-archetype"), "My Thing");
+    }
+
+    // ---------- v3 ecosystem catalog entry flags ----------
+
+    #[test]
+    fn test_catalog_entry_defaults() {
+        let yaml = indoc! {r#"
+            description: "Test"
+            source: "git@github.com:org/thing.git"
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(!entry.library, "library defaults to false");
+        assert!(entry.show, "show defaults to true");
+    }
+
+    #[test]
+    fn test_catalog_entry_with_library_true() {
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            library: true
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.library);
+        assert!(entry.show, "show is independent of library");
+    }
+
+    #[test]
+    fn test_catalog_entry_with_show_false() {
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            show: false
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(!entry.show);
+        assert!(!entry.library, "library is independent of show");
+    }
+
+    #[test]
+    fn test_catalog_entry_flags_independent() {
+        // All four corners of (library, show) are valid and independent.
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            library: true
+            show: false
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.library);
+        assert!(!entry.show);
+    }
+
+    #[test]
+    fn test_catalog_entry_library_visible_in_menu() {
+        // The "show this library in menus too" case.
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            library: true
+            show: true
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.library);
+        assert!(entry.show);
     }
 }

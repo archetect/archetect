@@ -146,6 +146,8 @@ fn default_catalog() -> LinkedHashMap<String, CatalogEntry> {
             switches: None,
             use_defaults: None,
             use_defaults_all: None,
+            library: false,
+            show: true,
         },
     );
     catalog

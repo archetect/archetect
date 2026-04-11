@@ -221,6 +221,8 @@ mod tests {
                     switches: None,
                     use_defaults: None,
                     use_defaults_all: None,
+                    library: false,
+                    show: true,
                 },
             );
         }
@@ -410,6 +412,8 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                library: false,
+                show: true,
             },
         );
         catalog.insert(
@@ -422,6 +426,8 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                library: false,
+                show: true,
             },
         );
 
@@ -484,6 +490,8 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                library: false,
+                show: true,
             },
         );
 
@@ -498,6 +506,8 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                library: false,
+                show: true,
             },
         );
 
