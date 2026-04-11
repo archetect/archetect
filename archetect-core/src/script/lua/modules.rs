@@ -491,7 +491,10 @@ fn register_lua_directory_module(
                 let context = context_ud.borrow::<Context>()?;
                 let ctx_table = context.to_lua_table(lua)?;
 
-                let source = arch.content_directory().join(&dir_name);
+                // Phase 1, commit 6: directory.render(path, ...) is
+                // now resolved directly against the archetype root.
+                // There is no longer a templating.content prefix.
+                let source = arch.root().join(&dir_name);
                 let mut destination = ctx.destination().to_owned();
 
                 if let Some(ref opts) = opts {

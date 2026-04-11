@@ -51,12 +51,15 @@ impl Archetype {
         self.inner.directory.root()
     }
 
-    pub fn content_directory(&self) -> Utf8PathBuf {
-        self.root().join(self.manifest().templating().content_directory())
-    }
-
-    pub fn template_directory(&self) -> Utf8PathBuf {
-        self.root().join(self.manifest().templating().templates_directory())
+    /// Resolve a path relative to the archetype root.
+    ///
+    /// Phase 1 of catalog-driven dependencies removed the
+    /// `templating.content` field — there is no separate "content
+    /// directory" prefix. The script's `directory.render(path, context)`
+    /// is interpreted directly as a root-relative path. This helper
+    /// remains as a convenience for the wiring code.
+    pub fn root_path<P: AsRef<Utf8Path>>(&self, relative: P) -> Utf8PathBuf {
+        self.root().join(relative)
     }
 
     pub fn render(&self, render_context: RenderContext) -> Result<ContextValue, ArchetypeError> {
@@ -78,7 +81,12 @@ impl Archetype {
                 crate::script::lua::execute(self, &self.archetect, &render_context)
             }
             None => {
-                // No script — if there are catalog entries, auto-present them
+                // No script — if there are catalog entries, auto-present them.
+                // If there are NO catalog entries either, this is a "library
+                // archetype" — a repo that exists purely to expose lib/ and
+                // includes/ for other archetypes to consume. Print a friendly
+                // message and exit cleanly so the user understands the
+                // situation isn't an error.
                 if self.manifest().has_catalog() {
                     crate::catalog::auto_present_catalog(self, render_context)
                         .map_err(|e| match e {
@@ -88,13 +96,21 @@ impl Archetype {
                             ),
                         })
                 } else {
-                    let error_msg = format!(
-                        "Archetype at '{}' has no script file and no catalog entries. \
-                         Add an archetype.lua script or catalog entries to archetect.yaml.",
-                        self.root()
+                    let msg = format!(
+                        "{} has no script and no catalog —\n\
+                         it's probably a library, intended for use as a dependency.\n\
+                         \n\
+                         To use it from another archetype, declare it in your catalog:\n\
+                         \n\
+                         catalog:\n  \
+                           <local-name>:\n    \
+                             source: {}\n    \
+                             library: true",
+                        self.root().file_name().unwrap_or("(this archetype)"),
+                        self.root(),
                     );
-                    let _ = self.archetect.request(archetect_api::ScriptMessage::LogError(error_msg.clone()));
-                    Err(ArchetypeError::ScriptAbortError)
+                    let _ = self.archetect.request(archetect_api::ScriptMessage::LogInfo(msg));
+                    Ok(archetect_api::ContextValue::Nil)
                 }
             }
         }

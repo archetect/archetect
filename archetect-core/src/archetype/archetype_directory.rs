@@ -23,8 +23,14 @@ impl ArchetypeDirectory {
         self.root.as_ref()
     }
 
+    /// The archetype's standardized Lua modules directory: `<root>/lib/`.
+    ///
+    /// Phase 1 of catalog-driven dependencies removed the `scripting.modules`
+    /// manifest field. The author's own Lua helpers always live in `lib/`
+    /// (which is automatically on `package.path` per commit 3) — no
+    /// configuration needed.
     pub fn modules_directory(&self) -> Utf8PathBuf {
-        self.root.join(self.manifest().scripting().modules())
+        self.root.join("lib")
     }
 
     /// Returns the script path if a script file exists, or `None` if this is a

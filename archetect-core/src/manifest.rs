@@ -311,7 +311,7 @@ mod tests {
               main: "archetype.lua"
 
             templating:
-              content_directory: "contents"
+              undefined: strict
         "#};
 
         let manifest: Manifest = serde_yaml::from_str(yaml).unwrap();

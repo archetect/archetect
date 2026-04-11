@@ -1,24 +1,22 @@
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
-
-const DEFAULT_MODULES_DIRECTORIES: &str = "modules";
 
 /// Scripting configuration declared in `archetype.yaml`.
 ///
-/// Phase 5 of the ATL evolution plan added `libraries` — a list of
-/// additional directories prepended to Lua's `package.path` so that
-/// `require("foo.bar")` can locate shared library code that ships with
-/// the archetype, separate from the author's per-archetype `modules/`.
+/// Phase 1 of catalog-driven dependencies removed the `libraries` and
+/// `modules` fields. Lua module locations are now standardized:
+///
+/// - The consumer's own `<root>/lib/` is on `package.path` automatically.
+/// - External library code is declared via `catalog:` entries with
+///   `library: true`.
+///
+/// What's left is the optional `main` field for archetypes that use a
+/// non-default script filename.
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct ScriptingConfig {
-    #[serde(default = "default_main")]
+    /// Override the main script filename. Default: `archetype.lua`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main: Option<Utf8PathBuf>,
-    #[serde(default = "default_modules")]
-    modules: Utf8PathBuf,
-    /// Additional directories appended to Lua's `package.path` for
-    /// `require()` resolution. Paths are relative to the archetype root.
-    #[serde(default)]
-    libraries: Vec<Utf8PathBuf>,
 }
 
 impl ScriptingConfig {
@@ -28,22 +26,6 @@ impl ScriptingConfig {
             None => Utf8PathBuf::from("archetype.lua"),
         }
     }
-
-    pub fn modules(&self) -> &Utf8Path {
-        &self.modules
-    }
-
-    pub fn libraries(&self) -> &[Utf8PathBuf] {
-        &self.libraries
-    }
-}
-
-fn default_main() -> Option<Utf8PathBuf> {
-    None
-}
-
-fn default_modules() -> Utf8PathBuf {
-    Utf8PathBuf::from(DEFAULT_MODULES_DIRECTORIES)
 }
 
 #[cfg(test)]
@@ -52,34 +34,34 @@ mod tests {
     use indoc::indoc;
 
     #[test]
-    fn test_default_libraries_empty() {
-        let config = ScriptingConfig::default();
-        assert!(config.libraries().is_empty());
-    }
-
-    #[test]
-    fn test_parse_libraries() {
-        let yaml = indoc! {r#"
-            main: "archetype.lua"
-            libraries:
-              - "lib/utils"
-              - "lib/codegen"
-        "#};
-        let config: ScriptingConfig = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(
-            config.libraries(),
-            &[
-                Utf8PathBuf::from("lib/utils"),
-                Utf8PathBuf::from("lib/codegen"),
-            ]
-        );
-    }
-
-    #[test]
     fn test_parse_minimal_uses_defaults() {
         let yaml = "{}";
         let config: ScriptingConfig = serde_yaml::from_str(yaml).unwrap();
-        assert!(config.libraries().is_empty());
-        assert_eq!(config.modules(), Utf8Path::new("modules"));
+        assert_eq!(config.main(), Utf8PathBuf::from("archetype.lua"));
+    }
+
+    #[test]
+    fn test_parse_main_override() {
+        let yaml = indoc! {r#"
+            main: "custom.lua"
+        "#};
+        let config: ScriptingConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.main(), Utf8PathBuf::from("custom.lua"));
+    }
+
+    #[test]
+    fn test_legacy_libraries_field_silently_ignored() {
+        // The old scripting.libraries field is gone. Existing manifests
+        // mentioning it parse without error — serde drops unknown keys —
+        // and the field has no effect.
+        let yaml = indoc! {r#"
+            main: "archetype.lua"
+            libraries:
+              - "old/path/one"
+              - "old/path/two"
+            modules: "old_modules"
+        "#};
+        let config: ScriptingConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.main(), Utf8PathBuf::from("archetype.lua"));
     }
 }
