@@ -3,8 +3,9 @@
 ## Status
 
 Strategic spec. Drafted 2026-04-10 during the v3 ecosystem build-out
-planning. Captures naming, taxonomy, org structure, and the foundational
-set of archetypes and libraries to build before v3 ships.
+planning, revised the same day after the catalog-as-universal-dependency
+collapse. Captures naming, the single-archetype model, and the
+foundational set of repos to build before v3 ships.
 
 ## Why this document exists
 
@@ -20,11 +21,12 @@ gives us free reign to design from principle.
 
 This document is the reference for that re-imagining. It defines:
 
-1. The naming convention for v3 archetypes, catalogs, and libraries
-2. The taxonomy of archetype types we recognize as first-class
-3. The org structure (which archetypes live where)
-4. The foundational set of archetypes and libraries to build first
-5. The phased plan for ecosystem build-out
+1. The naming convention for v3 archetypes, libraries, and catalogs
+2. The single-archetype model — there is no type system
+3. How `catalog.render` works as the universal dispatch
+4. The org structure (which archetypes live where)
+5. The foundational set of archetypes and libraries to build first
+6. The phased plan for ecosystem build-out
 
 It is *not* a plan for the v3 binary itself — that lives in the various
 phase plans under `docs/plans/`. This is about the *content* that v3
@@ -38,7 +40,7 @@ Three eras of archetect have used three distinct naming schemes:
 |-----|--------|---------|--------|
 | v1 | `archetype-NAME` / `catalog-NAME` (prefix) | `archetype-rust-cli` | Archived 2026-04-10 |
 | v2 | `NAME.archetype` / `NAME.catalog` (dot suffix) | `rust-cli.archetype` | Frozen, in use |
-| v3 | `NAME-archetype` / `NAME-catalog` (hyphen suffix) | `rust-cli-archetype` | New, building out |
+| v3 | `NAME-archetype` / `NAME-library` / `NAME-catalog` / `NAME-component` | `rust-cli-archetype` | New, building out |
 
 The v3 hyphen-suffix convention was chosen because:
 
@@ -49,164 +51,252 @@ The v3 hyphen-suffix convention was chosen because:
 - A hyphenated name reads as a normal repo name — no shell-escape concerns,
   no `.gitignore`-style oddness, no issues with tooling that doesn't
   handle dots in repo names
-- When v3 fully takes over, `-archetype` becomes the canonical form
+- When v3 fully takes over, the hyphen-suffix forms become canonical
   forever; the dot-suffix form fades out as v2 archetypes are archived
 
-There is no rename event planned in this convention. v2 repos stay where
-they are with their original names. v3 repos exist alongside them with
-new names. When the v2 binary is renamed `archetect2` and v3 takes over
-as `archetect`, the old dot-suffix repos can be archived in place.
+There is no rename event planned. v2 repos stay where they are with
+their original names. v3 repos exist alongside them with new names. When
+the v2 binary is renamed `archetect2` and v3 takes over as `archetect`,
+the old dot-suffix repos can be archived in place.
 
-### The `-library-archetype` infix
+### The four suffixes are conventions, not types
 
-Library archetypes (see taxonomy below) carry an extra `-library-` infix:
+| Suffix | Convention | Typically contains |
+|--------|------------|--------------------|
+| `-archetype` | Generates a project | `archetype.lua` + content directory |
+| `-library` | Exposes Lua and template partials for reuse | `lib/` and/or `includes/` |
+| `-catalog` | Browseable hierarchy of other archetypes | `catalog:` section, no script |
+| `-component` | Contributes prompts/context to a parent archetype | `archetype.lua` with prompts, no content |
 
-```
-inflect-helpers-library-archetype
-git-helpers-library-archetype
-license-headers-library-archetype
-```
+**These are social signals only.** archetect does not read the suffix or
+enforce anything based on it. A repo named `inflect-helpers-library` is
+*by convention* a library, but technically nothing stops it from also
+having an `archetype.lua` that runs prompts and renders content. A repo
+named `rust-cli-archetype` is by convention a project archetype, but
+nothing stops it from also exposing a `lib/` directory that other
+archetypes consume. Conventions guide; the tool doesn't enforce.
 
-The infix is visible at a glance in `gh repo list`, signals the type
-without needing to look inside the manifest, and reads as a normal
-hyphenated name. Component archetypes (the other non-project type) do
-*not* get a special infix because they are functionally similar to
-project archetypes and the distinction is mostly internal.
+The suffix tells humans what the repo is *intended* for. The contents of
+the directory determine what the repo can *actually do*.
 
-## Archetype taxonomy
+## The single-archetype model
 
-Five first-class types. Each has a clear purpose and a clear way to
-declare itself.
+There is no `type:` field in the manifest. There is no taxonomy of
+"project archetypes" vs "component archetypes" vs "library archetypes".
+There is just **archetype**. Every repo with an `archetype.yaml` is an
+archetype, period.
 
-| Type | Purpose | Manifest signal | Example |
-|------|---------|-----------------|---------|
-| **Project archetype** | Generates a complete deliverable | (default) | `rust-cli-archetype` |
-| **Component archetype** | Reusable prompts and sub-renders, invoked by parent | `type: component` | `org-prompts-archetype` |
-| **Library archetype** | Shared Lua modules and template partials, no rendering | `type: library` | `inflect-helpers-library-archetype` |
-| **Catalog** | Lists and orchestrates archetypes | `catalog:` field set | `rust-catalog` |
-| **Tooling** | Not an archetype at all (binaries, actions, docs) | (no manifest) | `archetect-render-action` |
+What an archetype *can do* depends on what's in its directory:
 
-### Project archetype
+| Has on disk | Capability |
+|-------------|------------|
+| `archetype.lua` | Can be executed (drives prompts, rendering, sub-renders) |
+| Content directories (any name) | Can be rendered via `directory.render(path, context)` from a script |
+| `lib/` | Lua modules become `require()`-able by consumers that pull this archetype as `library: true` |
+| `includes/` | Template partials become `{% include %}`-able by consumers that pull this archetype as `library: true` |
+| `catalog:` section in manifest | Declares external archetype dependencies and/or browseable children |
 
-The default. A project archetype:
+These capabilities compose freely. An archetype can have any subset.
 
-- Has prompts that collect parameters from the user
-- Renders one or more directories of templates into a destination
-- Optionally orchestrates `git`, `archive`, `github`, and other modules
-- May depend on component and library archetypes for shared functionality
+### The two standardized directories
 
-### Component archetype
+`lib/` and `includes/` are **always** at those exact paths. There is no
+manifest field to customize them. This is a deliberate choice to remove
+a dimension of variability that adds nothing — predictability of
+"where do I find this archetype's exports" is more valuable than
+flexibility for the few authors who might want a different layout.
 
-A component archetype is invoked by a parent project (or another
-component) via `component.render("name", context)`. It:
-
-- Has prompts that contribute to the parent's context
-- May render its own templates into the parent's destination
-- Acts as a stateful participant in the parent's run, not a passive
-  resource
-
-Marker: `type: component` in the manifest. This:
-
-- Prevents the archetype from being rendered standalone (top-level
-  invocation produces a clear error)
-- Documents intent for catalog tools and IDE features
-
-Examples to build first:
-
-- `org-prompts-archetype` — collects org name, solution name, generates
-  case variants and `org-solution-name` derivative
-- `project-prompts-archetype` — collects project prefix/suffix, generates
-  `project-name` and case variants
-- `author-prompts-archetype` — collects author name, email, license choice
-- `github-prompts-archetype` — collects repo visibility, default branch,
-  remote configuration
-
-### Library archetype
-
-A library archetype is *passive*. It provides Lua modules and template
-partials for other archetypes to consume. It has no prompts, no
-rendering, no main script — just exports.
-
-Marker: `type: library` in the manifest. This:
-
-- Prevents `directory.render()` and prompt calls from being valid
-- Causes archetect to skip the main script entirely (libraries are
-  loaded, not executed)
-- Causes the manifest validator to require an `exports:` block
-
-Manifest sketch:
-
-```yaml
-description: "Inflection and identifier helpers"
-authors: ["Jimmie Fulton"]
-
-requires:
-  archetect: "3.0.0"
-
-type: library
-
-exports:
-  lua: "lib/"           # everything under lib/ becomes require()-able
-  includes: "includes/" # everything under includes/ becomes {% include %}-able
-```
-
-When another archetype declares this as a dependency, archetect:
-
-1. Resolves the source (git URL or local path), caches it
-2. Adds the library's `lib/` directory to Lua's `package.path`
-3. Adds the library's `includes/` directory to the template engine's
-   includes search path
-4. Does *not* execute any script — libraries are loaded, not invoked
-
-Consumer manifest:
-
-```yaml
-libraries:
-  inflect-helpers:
-    source: git@github.com:archetect-common/inflect-helpers-library-archetype.git
-    version: "0.1.0"
-  license-headers:
-    source: git@github.com:archetect-common/license-headers-library-archetype.git
-```
-
-Consumer script:
+Content directories, by contrast, **are** flexible. Authors organize
+them however they want — `contents/`, `templates/`, `base/`, or any
+other name — and reference them by full root-relative path:
 
 ```lua
-local inflect = require("inflect-helpers.casing")
-local license = require("license-headers")
-
-context:set("license-text", license.apache_2(context:get("author_full")))
+directory.render("contents/base", context)
+if features.includes("monitoring") then
+    directory.render("contents/monitoring", context)
+end
 ```
 
-Consumer template:
+There is no `templating.content` field. The string passed to
+`directory.render` is the path from the archetype root. No hidden
+prefix.
+
+### What `archetect render <archetype>` does
+
+The default render flow follows a single rule:
 
 ```
-{% include "license-headers/apache_2.atl" %}
+load the archetype
+if it has an archetype.lua:
+    run the script (the script decides everything)
+else if it has a catalog: section:
+    catalog.render()    # show the catalog menu (browse mode)
+else:
+    print a friendly message and exit 0:
+      "<name> has no script and no catalog —
+       it's probably a library, intended for use as a dependency"
 ```
 
-### Catalog
+The script always wins when present. A script can do whatever it wants:
+prompt the user, render content, call `catalog.render()` to delegate to
+a child, call `catalog.render()` at the very end to show a menu of
+follow-up archetypes — anything. archetect's job is just to load the
+archetype and execute the script.
 
-A catalog is a manifest with a `catalog:` field listing archetypes,
-nested catalogs, and sub-groups. Catalogs may also have prompts and
-scripts that prep context before dispatching to a chosen archetype.
+### `catalog.render` is the universal dispatch
 
-Catalogs *do not* take the `type:` field — the presence of `catalog:`
-is the signal. A single repo can be both a project archetype and a
-catalog (it can be rendered standalone, *or* it can be browsed as a
-catalog). The conventional naming is to suffix the repo with `-catalog`
-when the catalog dispatch is its primary purpose.
+There is one render function for invoking other archetypes:
 
-### Tooling
+```lua
+catalog.render(path?, context?)
+```
 
-Anything that doesn't fit the four types above. Examples:
+- `path` (optional): name of an entry in this archetype's catalog. If
+  omitted, presents a menu of all visible (`show != false`) catalog
+  entries and renders whichever one the user picks.
+- `context` (optional): a `Context` object. The child archetype receives
+  a **copy**, not a reference — mutations the child makes to its context
+  are *not* visible to the parent.
 
-- `archetect-3` — the v3 codebase itself
-- `archetect-render-action` — GitHub Action wrapping archetect
-- `templatize` — CLI for converting existing projects into archetypes
-- `homebrew-tap` — Homebrew distribution
+The function returns the child's resulting context. Parents decide what
+to do with it:
 
-These have no manifest, no `-archetype` suffix, and live wherever makes
-sense organizationally.
+```lua
+-- Replace via Lua's normal assignment — child's full state becomes ours
+context = catalog.render("org-prompts", context)
+
+-- Or merge explicitly into our existing context
+context:merge(catalog.render("project-prompts", context))
+
+-- Or sandbox: throw away the child's mutations
+local sub = catalog.render("preview-tool", context)
+-- `context` is unchanged
+```
+
+Replace-via-assign is the natural Lua pattern and the most common case.
+Merge is for when the parent wants to take only some of the child's
+output. Sandbox-and-discard is for fire-and-forget child renders.
+
+There is no separate `component.render`. Components, libraries, project
+archetypes, and catalogs are all *just* archetypes. `catalog.render`
+loads whichever one the path resolves to and applies the same default
+render flow recursively:
+
+```
+catalog.render("org-prompts") →
+    look up "org-prompts" in this archetype's catalog →
+    resolve its source (lazy) →
+    load the resolved archetype →
+    apply the default render flow:
+        has script    → run it (returns the modified context)
+        has catalog   → catalog.render() over its entries
+        has neither   → friendly message
+```
+
+The path argument is a single name today. Future enhancement may allow
+slash-separated paths (`catalog.render("rust-services/rust-cli")`) to
+skip intermediate menus.
+
+## Catalog entries
+
+A `catalog:` section is a map from local name → entry definition. Each
+entry declares where to fetch the dependency and how it should behave at
+load time:
+
+```yaml
+catalog:
+  inflect-helpers:
+    source: git@github.com:archetect-common/inflect-helpers-library.git
+    library: true              # eager-resolve at load; expose lib/ and includes/
+
+  org-prompts:
+    source: git@github.com:archetect-common/org-prompts-archetype.git
+    show: false                # available via catalog.render("org-prompts"),
+                               # but hidden from the catalog menu
+
+  rust-cli:
+    source: git@github.com:archetect-rust/rust-cli-archetype.git
+    description: "Rust CLI with clap"
+    # show: true (default), library: false (default)
+```
+
+### Entry fields
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `source` | required | Git URL, local path, or other resolvable source |
+| `library` | `false` | Eager-resolve at archetype load; add `lib/` to `package.path` and `includes/` to includes search list |
+| `show` | `true` | Display in `catalog.render()` menus |
+| `description` | (from manifest) | Override for menu display |
+
+`library` and `show` are **independent**. Setting `library: true` does
+*not* automatically set `show: false`. If you want a catalog entry to be
+both an importable library AND a menu choice, set both `library: true`
+and `show: true`. If you want a private dependency that's only used by
+the script, set `show: false` and (typically) leave `library: false`.
+
+### How a catalog entry's libraries become available
+
+When a consumer loads an archetype with this in its manifest:
+
+```yaml
+catalog:
+  inflect-helpers:
+    source: git@github.com:archetect-common/inflect-helpers-library.git
+    library: true
+```
+
+archetect:
+
+1. Resolves the source (caches if not present)
+2. Loads the resolved archetype's manifest
+3. If the resolved archetype has a `lib/` directory: appends
+   `<cache>/inflect-helpers/lib/?.lua` (and `?/init.lua`) to
+   `package.path`
+4. If the resolved archetype has an `includes/` directory: appends
+   `<cache>/inflect-helpers/includes/` to the consumer's include search
+   list
+
+The map key (`inflect-helpers`) becomes the namespace prefix:
+
+```lua
+local casing = require("inflect-helpers.casing")
+```
+
+```
+{% include "inflect-helpers/header.atl" %}
+```
+
+The map key is the consumer's chosen name. The repo can be renamed
+locally:
+
+```yaml
+catalog:
+  inflect:                   # shorter local alias
+    source: git@github.com:archetect-common/inflect-helpers-library.git
+    library: true
+```
+
+```lua
+local casing = require("inflect.casing")
+```
+
+This gives consumers rename freedom and prevents namespace collisions
+across catalog entries.
+
+### Lazy resolution by default
+
+Catalog entries without `library: true` are **resolved lazily**. They
+are not fetched at archetype load. They're only fetched when:
+
+- The script calls `catalog.render("name")`, OR
+- The user picks the entry from a `catalog.render()` menu
+
+This means a catalog of 50 entries does not pay 50 git fetches at
+startup. It pays for the entries actually used.
+
+`library: true` is the explicit opt-in to eager resolution because the
+library's contents need to be on `package.path` *before* the script runs.
 
 ## Org structure
 
@@ -239,29 +329,37 @@ components and libraries must exist. These are the day-1 set, all in
 
 ### Components (in `archetect-common/`)
 
+These are archetypes by convention named with the `-component` suffix.
+Each has an `archetype.lua` that collects prompts and returns a
+populated context. They have no content directory (or a minimal one).
+
 | Repo | Purpose |
 |------|---------|
-| `org-prompts-archetype` | Collects org-name, solution-name, generates `org-solution-name` and case variants |
-| `project-prompts-archetype` | Collects project prefix/suffix, generates `project-name` and case variants |
-| `author-prompts-archetype` | Collects author name, email, optional license choice |
-| `github-prompts-archetype` | Collects repo visibility, default branch, owner |
+| `org-prompts-component` | Collects org-name, solution-name, generates `org-solution-name` and case variants |
+| `project-prompts-component` | Collects project prefix/suffix, generates `project-name` and case variants |
+| `author-prompts-component` | Collects author name, email, optional license choice |
+| `github-prompts-component` | Collects repo visibility, default branch, owner |
 
 ### Libraries (in `archetect-common/`)
 
+These are archetypes by convention named with the `-library` suffix.
+Each has a `lib/` and/or `includes/` directory and (typically) no
+script.
+
 | Repo | Purpose |
 |------|---------|
-| `git-helpers-library-archetype` | `git init`, `git add`, `git commit`, branch helpers |
-| `github-helpers-library-archetype` | `gh repo create`, push helpers, visibility |
-| `license-headers-library-archetype` | Apache 2.0, MIT, GPL boilerplate as templates |
-| `gitignore-fragments-library-archetype` | Language-specific .gitignore fragments |
-| `editor-config-library-archetype` | `.editorconfig`, `.gitattributes` standard contents |
-| `github-actions-library-archetype` | Common GitHub Actions workflow patterns |
+| `git-helpers-library` | `git init`, `git add`, `git commit`, branch helpers |
+| `github-helpers-library` | `gh repo create`, push helpers, visibility |
+| `license-headers-library` | Apache 2.0, MIT, GPL boilerplate as templates |
+| `gitignore-fragments-library` | Language-specific .gitignore fragments |
+| `editor-config-library` | `.editorconfig`, `.gitattributes` standard contents |
+| `github-actions-library` | Common GitHub Actions workflow patterns |
 
 ### Foundational project archetypes (in `archetect-common/`)
 
 | Repo | Purpose |
 |------|---------|
-| `dot-gitignore-archetype` | Generates a single `.gitignore` file (consumes `gitignore-fragments-library-archetype`) |
+| `dot-gitignore-archetype` | Generates a single `.gitignore` file (consumes `gitignore-fragments-library` as a `library: true` catalog entry) |
 
 The existing v2 `dot-gitignore.archetype` in `archetect-common/` becomes
 the v3 model — port it cleanly to use the new library + the new naming.
@@ -273,8 +371,8 @@ built incrementally. Pattern (using Rust as the example):
 
 ```
 archetect-rust/
-  rust-prompts-archetype                      (component)
-  rust-toolchain-library-archetype            (library: rust-toolchain.toml, rustfmt, clippy config)
+  rust-prompts-component                      (component)
+  rust-toolchain-library                      (library: rust-toolchain.toml, rustfmt, clippy)
   rust-cli-archetype                          (project: simple Clap CLI)
   rust-axum-service-archetype                 (project: HTTP service)
   rust-tonic-service-archetype                (project: gRPC service)
@@ -283,87 +381,130 @@ archetect-rust/
   rust-catalog                                (catalog: lists everything Rust)
 ```
 
-Each project archetype consumes:
+Each project archetype's manifest declares the components and libraries
+it depends on as catalog entries:
 
-- `org-prompts-archetype` (component, from common)
-- `project-prompts-archetype` (component, from common)
-- `author-prompts-archetype` (component, from common)
-- `rust-prompts-archetype` (component, from rust)
-- `git-helpers-library-archetype` (library, from common)
-- `license-headers-library-archetype` (library, from common)
-- `rust-toolchain-library-archetype` (library, from rust)
+```yaml
+catalog:
+  org-prompts:
+    source: git@github.com:archetect-common/org-prompts-component.git
+    show: false
+  project-prompts:
+    source: git@github.com:archetect-common/project-prompts-component.git
+    show: false
+  author-prompts:
+    source: git@github.com:archetect-common/author-prompts-component.git
+    show: false
+  rust-prompts:
+    source: git@github.com:archetect-rust/rust-prompts-component.git
+    show: false
+  git-helpers:
+    source: git@github.com:archetect-common/git-helpers-library.git
+    library: true
+  license-headers:
+    source: git@github.com:archetect-common/license-headers-library.git
+    library: true
+  rust-toolchain:
+    source: git@github.com:archetect-rust/rust-toolchain-library.git
+    library: true
+```
 
-The components run in sequence at the top of `archetype.lua`, populate
-the context, and then `directory.render()` produces the project. The
-libraries are loaded once at script start and used throughout.
+The script runs the components in sequence, then renders content using
+the libraries' helpers and includes:
+
+```lua
+local context = Context.new()
+context = catalog.render("org-prompts", context)
+context = catalog.render("project-prompts", context)
+context = catalog.render("author-prompts", context)
+context = catalog.render("rust-prompts", context)
+
+local git = require("git-helpers")
+local license = require("license-headers")
+context:set("license-text", license.apache_2(context:get("author_full")))
+
+directory.render("contents", context)
+
+if switches.is_enabled("git-init") then
+    git.init(context:get("project-name"))
+end
+```
 
 ## Phased build-out plan
 
 | Phase | Milestone | Effort | Output |
 |-------|-----------|--------|--------|
 | **0** | Archive v1 repos | 1 cmd | Cleaner orgs |
-| **1** | v3 feature: `type: library` + external library resolution + multi-includes search path | 1 session | v3 supports library archetypes |
-| **2** | v3 feature: `component.render()` + external component resolution | 1 session | v3 supports component archetypes |
-| **3** | Build foundational components in `archetect-common/` | 2-3 sessions | 4 component repos |
-| **4** | Build foundational libraries in `archetect-common/` | 2-3 sessions | 6 library repos |
-| **5** | Port `dot-gitignore-archetype` as the first end-to-end exemplar | 1 session | Foundation validated |
-| **6** | Build `archetect-rust/` from scratch using the foundation | 3-4 sessions | Rust ecosystem complete |
-| **7** | Build other language orgs (Java, Go, Python, etc.) | many sessions | Full ecosystem |
-| **8** | Build root catalogs (`rust-catalog`, etc.) and master catalog | 1 session | Discoverability |
-| **9** | Convert Ybor production archetypes (separate effort) | many sessions | Production ready |
-| **10** | Release v3: rename binary, archive v2 repos, redirect docs | 1 session | Cutover |
+| **1** | v3 features for catalog-driven dependencies (multi-includes path, library/show flags, library staging, unified `catalog.render`, default render flow, `templating.content` removal) | 1 session | v3 supports the unified model |
+| **2** | Build foundational components in `archetect-common/` | 2-3 sessions | 4 component repos |
+| **3** | Build foundational libraries in `archetect-common/` | 2-3 sessions | 6 library repos |
+| **4** | Port `dot-gitignore-archetype` as the first end-to-end exemplar | 1 session | Foundation validated |
+| **5** | Build `archetect-rust/` from scratch using the foundation | 3-4 sessions | Rust ecosystem complete |
+| **6** | Build other language orgs (Java, Go, Python, etc.) | many sessions | Full ecosystem |
+| **7** | Build root catalogs (`rust-catalog`, etc.) and master catalog | 1 session | Discoverability |
+| **8** | Convert Ybor production archetypes (separate effort) | many sessions | Production ready |
+| **9** | Release v3: rename binary, archive v2 repos, redirect docs | 1 session | Cutover |
 
-Phases 1 and 2 are blockers for everything else — they add the v3 features
-that the foundational layer relies on. They should land before any
+Phase 1 is the blocker for everything else — it adds the v3 features
+that the foundational layer relies on. It should land before any
 ecosystem repos are created.
 
 ## Design principles
 
 These principles inform every decision in the ecosystem build-out:
 
-1. **One purpose per repo.** A library archetype does one thing well.
-   A component archetype prompts for one logical group of things. A
-   project archetype generates one type of project. Resist the urge to
-   bundle.
+1. **One purpose per repo.** A library does one thing well. A component
+   prompts for one logical group of things. A project archetype generates
+   one type of project. Resist the urge to bundle.
 
 2. **Composition over duplication.** When two project archetypes share
-   functionality, that functionality lives in a library or component,
-   not copy-pasted into both.
+   functionality, that functionality lives in a library or component as
+   a catalog entry, not copy-pasted into both.
 
-3. **Leafs before branches.** Build the libraries first, then the
+3. **Convention, not enforcement.** archetect does not read repo
+   suffixes, does not enforce a type system, does not prevent any repo
+   from being used in any way another archetype's script calls for. The
+   conventions in this document tell humans what's intended; the tool
+   trusts the script.
+
+4. **Leafs before branches.** Build the libraries first, then the
    components, then the project archetypes that consume them. Don't try
    to build a tree top-down.
 
-4. **Versioned dependencies.** Library and component dependencies declare
-   a version (tag or branch). Breaking changes in a library bump its
-   major version. Consumers pin to the version they were tested against.
+5. **Versioned dependencies.** Catalog entries declare a version (tag,
+   branch, or commit). Breaking changes in a library bump its major
+   version. Consumers pin to the version they were tested against.
 
-5. **Lua-native, not Jinja-flavored.** ATL templates use Lua vocabulary
+6. **Lua-native, not Jinja-flavored.** ATL templates use Lua vocabulary
    (`if x then`, `end`, `local`). Library template partials follow the
    same convention. No two-vocabulary footguns.
 
-6. **Strict mode by default for new archetypes.** New v3 archetypes
+7. **Strict mode by default for new archetypes.** New v3 archetypes
    declare `templating.undefined: strict` in their manifest. This catches
    missing context vars at render time instead of producing silent empty
    output. Phase 1 footgun fix in action.
 
-7. **Sourced, not vendored.** Library and component dependencies are
-   resolved from git sources at archetype-cache populate time. No vendoring
-   into the consumer's repo. The cache is the single source of truth.
+8. **Sourced, not vendored.** Dependencies are resolved from git sources
+   at archetype-cache populate time. No vendoring into the consumer's
+   repo. The cache is the single source of truth.
 
-8. **Human-friendly errors.** When a library version mismatches, when a
-   required component isn't found, when a template fails to render —
-   the error message names the archetype, the file, the line, and what
-   to do about it. Phase 8.4 of the ATL evolution plan codified this
-   for templates; the same standard applies to library/component
-   resolution.
+9. **Standardized exports paths.** `lib/` and `includes/` are at fixed
+   locations in every archetype that has them. No manifest knob to
+   customize. Predictability beats flexibility for these.
+
+10. **Human-friendly errors.** When a library version mismatches, when
+    a catalog entry can't be resolved, when a template fails to render —
+    the error message names the archetype, the file, the line, and what
+    to do about it. Phase 8.4 of the ATL evolution plan codified this
+    for templates; the same standard applies to catalog and library
+    resolution.
 
 ## Open questions
 
 These are unresolved and will need decisions before the relevant phase
 can start:
 
-1. **Library version constraints.** Do consumers pin to exact tags
+1. **Catalog version constraints.** Do consumers pin to exact tags
    (`version: "0.1.0"`) or accept ranges (`version: "^0.1"`)? Ranges
    need a resolver; tags don't but force coordination on every release.
    Recommendation: start with exact tags, add range support only if it
@@ -374,32 +515,29 @@ can start:
    detection for template includes — extend the same pattern to library
    resolution.
 
-3. **Component context isolation.** When a parent calls
-   `component.render("org-prompts", context)`, does the component see
-   the parent's full context, or just the parent's destination? Most
-   v2 archetypes pass the full context, which lets components read
-   prior answers but also lets them accidentally clobber state.
-   Recommendation: components see a *view* of parent context (read-only
-   for keys not in their declared output schema, write for keys in
-   their schema). Defer the schema piece until we have real usage.
-
-4. **Library helper discovery.** When a Lua script does
+3. **Library helper discovery.** When a Lua script does
    `require("inflect-helpers.casing")`, how does it know what's
    available? Recommendation: each library exports a `README.md` with
-   a Lua API table, and IDE annotations live in `lib/.archetect/` for
-   LuaLS-style hover docs. Optional deferred enhancement.
+   a Lua API table, and IDE annotations live somewhere LuaLS can find
+   for hover docs. Optional deferred enhancement.
 
-5. **Catalog entry metadata.** Catalogs need to display per-archetype
+4. **Catalog entry metadata in menus.** Catalogs need to display per-archetype
    summaries in MCP/CLI/IDE listings. The existing
    `archetect.archetype.description()` works for v2 archetypes; v3
    should also expose `tags`, `languages`, `frameworks` from the manifest.
    Already largely supported — needs verification.
 
+5. **Slash-separated catalog paths.** Should `catalog.render("a/b/c")`
+   be supported as a way to drill through nested catalogs without
+   intermediate menus? Useful for scripted automation. Recommendation:
+   single-name only for v3.0; add slash paths if a use case emerges.
+
 ## Relationship to other docs
 
-- **`docs/plans/library-archetypes.md`** — implementation plan for the
-  v3 features Phase 1 needs (the `type: library` field, external
-  resolution, multi-includes path)
+- **`docs/plans/catalog-driven-dependencies.md`** — implementation plan
+  for the v3 features Phase 1 needs (catalog entry schema with
+  `library`/`show`, multi-includes path, `catalog.render`, default
+  render flow, `templating.content` removal)
 - **`docs/plans/atl-engine-evolution.md`** — completed 8-phase plan for
   the ATL templating engine. The ecosystem build-out depends on the
   features delivered there.
