@@ -133,14 +133,16 @@ impl Default for Configuration {
 
 fn default_catalog() -> LinkedHashMap<String, CatalogEntry> {
     let mut catalog = LinkedHashMap::new();
-    // TODO(v3-catalog-repo): point this at the v3 master catalog once the
-    // archetect/* git org is reorganized for v3. The current URL points at
-    // the v2 catalog; v3 needs its own repo with unified Manifest format.
+    // The v3 master catalog lives at archetect/archetect-catalog (new repo,
+    // not the v2 `archetect.catalog` repo which has a dot-suffixed name and
+    // a different manifest format). Once version-aware source resolution
+    // (docs/specs/version-aware-source-resolution.md) lands, this bare URL
+    // will auto-resolve to the highest matching v3.* tag in that repo.
     catalog.insert(
         "archetect".to_string(),
         CatalogEntry {
             description: Some("Archetect Catalog".to_string()),
-            source: Some("https://github.com/archetect/archetect.catalog.git".to_string()),
+            source: Some("https://github.com/archetect/archetect-catalog.git".to_string()),
             catalog: None,
             answers: None,
             switches: None,

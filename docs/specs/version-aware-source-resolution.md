@@ -61,10 +61,10 @@ Migration workflow per archetype:
 Write bare URLs in configs. Archetect resolves the right version automatically.
 
 ```yaml
-# Works for both archetect v2 and archetect3 — each resolves appropriately
-actions:
-  default:
-    source: git@github.com:archetect/archetect.catalog.git
+# v3 default catalog — bare URL, version-aware resolution picks v3.* tags
+catalog:
+  archetect:
+    source: https://github.com/archetect/archetect-catalog.git
 ```
 
 ### Independent archetype authors
@@ -121,19 +121,22 @@ This means:
 
 ## Catalog transition
 
-Catalogs follow the same pattern as archetypes:
+v2 and v3 master catalogs live in **separate repos** because the top-level
+manifest formats diverged too much to cleanly coexist on different tags of
+the same repo:
 
-```
-archetect.catalog.git
-├── v1 tag → catalog.yaml referencing v1/v2 archetypes (Rhai)
-├── v3 tag → catalog.yaml with incremental Lua migration
-└── main   → eventually becomes v3
-```
+- **v2**: `github.com/archetect/archetect.catalog` (dot-suffixed legacy name,
+  v2-only, unchanged)
+- **v3**: `github.com/archetect/archetect-catalog` (new repo, v3 unified
+  manifest format)
 
-The v3 catalog can reference a mix of `#v1` and `#v3` archetypes during
-transition. As each archetype gets its v3 tag, the catalog updates to
-reference it. Users on archetect3 see the migrated archetypes; users on
-v2 continue using the v1 catalog unchanged.
+The v3 default config in archetect3 points at the v3 repo. v2 users are
+completely unaffected — their catalog stays at the v2 URL.
+
+Individual leaf archetypes (referenced by either catalog) can still coexist
+on tags within a single repo. Version-aware resolution then picks the right
+tag per client major version. The two-repo split only applies to the master
+catalogs themselves.
 
 ## Implementation notes
 
