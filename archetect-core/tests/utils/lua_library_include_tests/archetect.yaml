@@ -1,0 +1,10 @@
+---
+description: "Library-include consumer test"
+
+requires:
+  archetect: "3.0.0"
+
+catalog:
+  test-lib:
+    source: "test-library"
+    library: true

@@ -1,0 +1,5 @@
+---
+description: "Inline test library — provides a partial template"
+
+requires:
+  archetect: "3.0.0"

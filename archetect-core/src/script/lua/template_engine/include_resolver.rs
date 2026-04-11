@@ -25,37 +25,66 @@ use super::error::TemplateCompileError;
 /// as the compiler descends into nested includes. The compiler pushes the
 /// path onto the stack before descending and pops it on the way back up.
 pub struct IncludeResolver {
-    /// Ordered list of directories to search for includes. The first
-    /// directory containing a matching file wins. Empty list = no resolution
-    /// (any `{% include %}` errors out).
+    /// Ordered list of directories to search for includes, paired with
+    /// each one's trust level. The first directory containing a matching
+    /// file wins. Empty list = no resolution (any `{% include %}` errors out).
     ///
     /// Multiple dirs are needed because library archetypes contribute
     /// their own `includes/` directories that layer onto the consumer's
     /// own `includes/`. The consumer's dirs come first so consumer
     /// templates can shadow library partials with the same name.
-    includes_dirs: Vec<Utf8PathBuf>,
+    ///
+    /// The trust level distinguishes user-provided directories (which
+    /// need symlink-escape sandbox checks) from system-provided staging
+    /// directories (where symlinks are *intentional* — we built them).
+    includes_dirs: Vec<IncludeDir>,
     stack: Vec<Utf8PathBuf>,
 }
 
+/// An include search root with its trust level.
+#[derive(Debug, Clone)]
+struct IncludeDir {
+    path: Utf8PathBuf,
+    trust: IncludeTrust,
+}
+
+/// Determines whether the resolver enforces a "no symlink escape" sandbox
+/// check on files found inside this directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IncludeTrust {
+    /// User-provided directory (the consumer's own `<root>/includes/`).
+    /// Files inside must canonicalize to a path that's still within this
+    /// directory after symlink resolution — prevents an evil archetype
+    /// from putting a symlink at `includes/header.atl` that points to
+    /// `/etc/passwd`.
+    User,
+    /// System-provided staging directory built by library staging.
+    /// archetect created the symlinks itself, pointing at known library
+    /// sources, so canonicalization is allowed to escape this dir.
+    System,
+}
+
 impl IncludeResolver {
-    /// Build a resolver from a list of include directories, searched in
-    /// order. The first directory containing a matching file wins.
+    /// Build a resolver from a list of (directory, trust) pairs.
     ///
-    /// If a directory doesn't exist on disk, it's silently skipped at
-    /// resolution time — only an error if NO directory contains the
-    /// requested include.
-    pub fn new(includes_dirs: Vec<Utf8PathBuf>) -> Self {
+    /// Directories are searched in order. The first directory containing
+    /// a matching file wins. If a directory doesn't exist on disk, it's
+    /// silently skipped at resolution time.
+    pub fn new(includes_dirs: Vec<(Utf8PathBuf, IncludeTrust)>) -> Self {
         Self {
-            includes_dirs,
+            includes_dirs: includes_dirs
+                .into_iter()
+                .map(|(path, trust)| IncludeDir { path, trust })
+                .collect(),
             stack: Vec::new(),
         }
     }
 
-    /// Convenience constructor for the single-directory case. Used in tests
-    /// where the full multi-dir form would be needless ceremony.
+    /// Convenience constructor for the single-user-directory case. Used
+    /// in tests where the full multi-dir form would be needless ceremony.
     #[cfg(test)]
     pub fn single(includes_dir: Utf8PathBuf) -> Self {
-        Self::new(vec![includes_dir])
+        Self::new(vec![(includes_dir, IncludeTrust::User)])
     }
 
     /// A resolver with no includes directories configured. Any `{% include %}`
@@ -117,8 +146,16 @@ impl IncludeResolver {
 
     /// Resolve `relative` against the configured includes directories.
     /// Searches each directory in order; the first one containing a
-    /// matching file wins. Each candidate is sandbox-checked against its
-    /// own root after canonicalization to prevent symlink escape.
+    /// matching file wins.
+    ///
+    /// For `User`-trust directories, the resolved file is sandbox-checked
+    /// against the directory root after canonicalization to prevent
+    /// symlink escape (e.g., an archetype putting a symlink at
+    /// `includes/header.atl` that points to `/etc/passwd`).
+    ///
+    /// For `System`-trust directories (the staging dirs built by library
+    /// staging), canonicalization is allowed to escape because archetect
+    /// created the symlinks itself, pointing at known library sources.
     fn resolve(
         &self,
         relative: &str,
@@ -148,24 +185,34 @@ impl IncludeResolver {
         }
 
         // Walk each include directory in order. First match wins.
-        for includes_dir in &self.includes_dirs {
-            let joined = includes_dir.join(candidate);
+        for include_dir in &self.includes_dirs {
+            let joined = include_dir.path.join(candidate);
             if !joined.exists() {
                 continue;
             }
 
-            // Defense in depth — canonicalize and confirm the file is still
-            // inside THIS directory after symlink resolution. If a symlink
-            // would escape this dir, fall through to the next candidate.
             let Ok(canonical_file) = joined.canonicalize_utf8() else {
                 continue;
             };
-            let Ok(canonical_root) = includes_dir.canonicalize_utf8() else {
-                continue;
-            };
 
-            if canonical_file.starts_with(&canonical_root) {
-                return Ok(canonical_file);
+            match include_dir.trust {
+                IncludeTrust::User => {
+                    // Sandbox check: confirm the file is still inside
+                    // THIS directory after symlink resolution. If a
+                    // symlink would escape this dir, fall through to
+                    // the next candidate.
+                    let Ok(canonical_root) = include_dir.path.canonicalize_utf8() else {
+                        continue;
+                    };
+                    if canonical_file.starts_with(&canonical_root) {
+                        return Ok(canonical_file);
+                    }
+                }
+                IncludeTrust::System => {
+                    // Trust the staging dir's symlinks. archetect built
+                    // them itself, pointing at known library sources.
+                    return Ok(canonical_file);
+                }
             }
         }
 
@@ -297,7 +344,7 @@ mod tests {
         write(&dir_first, "header.atl", "FIRST");
         write(&dir_second, "header.atl", "SECOND");
 
-        let mut resolver = IncludeResolver::new(vec![dir_first, dir_second]);
+        let mut resolver = IncludeResolver::new(vec![(dir_first, IncludeTrust::User), (dir_second, IncludeTrust::User)]);
         let (contents, _) = resolver.read("header.atl", 1).unwrap();
         assert_eq!(contents, "FIRST");
     }
@@ -312,7 +359,7 @@ mod tests {
         std::fs::create_dir_all(&dir_second).unwrap();
         write(&dir_second, "footer.atl", "footer content");
 
-        let mut resolver = IncludeResolver::new(vec![dir_first, dir_second]);
+        let mut resolver = IncludeResolver::new(vec![(dir_first, IncludeTrust::User), (dir_second, IncludeTrust::User)]);
         let (contents, _) = resolver.read("footer.atl", 1).unwrap();
         assert_eq!(contents, "footer content");
     }
@@ -325,7 +372,7 @@ mod tests {
         std::fs::create_dir_all(&dir_a).unwrap();
         std::fs::create_dir_all(&dir_b).unwrap();
 
-        let mut resolver = IncludeResolver::new(vec![dir_a, dir_b]);
+        let mut resolver = IncludeResolver::new(vec![(dir_a, IncludeTrust::User), (dir_b, IncludeTrust::User)]);
         let err = resolver.read("missing.atl", 7).unwrap_err();
         assert!(matches!(
             err,
@@ -344,14 +391,14 @@ mod tests {
         std::fs::create_dir_all(&lib_includes).unwrap();
         write(&lib_includes, "header.atl", "INFLECT HEADER");
 
-        let mut resolver = IncludeResolver::new(vec![staging]);
+        let mut resolver = IncludeResolver::new(vec![(staging, IncludeTrust::User)]);
         let (contents, _) = resolver.read("inflect-helpers/header.atl", 1).unwrap();
         assert_eq!(contents, "INFLECT HEADER");
     }
 
     #[test]
     fn test_empty_dirs_list_acts_disabled() {
-        let mut resolver = IncludeResolver::new(vec![]);
+        let mut resolver = IncludeResolver::new(Vec::new());
         let err = resolver.read("anything.atl", 1).unwrap_err();
         assert!(matches!(err, TemplateCompileError::IncludeNotFound { .. }));
     }

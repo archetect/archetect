@@ -1,0 +1,2 @@
+{% include "test-lib/banner.atl" %}
+project: {{ project_name }}

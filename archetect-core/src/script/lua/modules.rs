@@ -48,23 +48,31 @@ pub fn register_all(
     use crate::script::lua::template_engine::CompileOptions;
     let templating = archetype.manifest().templating();
 
-    let mut includes_dirs: Vec<camino::Utf8PathBuf> = Vec::new();
+    use crate::script::lua::template_engine::include_resolver::IncludeTrust;
+    let mut includes_dirs: Vec<(camino::Utf8PathBuf, IncludeTrust)> = Vec::new();
     // Consumer's own includes/ wins over library includes (more specific).
+    // User trust: this is content the archetype author put in their own
+    // tree, so the sandbox check enforces no symlink escape.
     let local_includes = archetype.root().join("includes");
     if local_includes.exists() {
-        includes_dirs.push(local_includes);
+        includes_dirs.push((local_includes, IncludeTrust::User));
     }
     // Each staged library contributes its parent dir (the namespace mount
     // point), so `{% include "lib-name/file.atl" %}` resolves under it.
     // We add the SHARED parent <staging>/includes/ once if any library
     // staged an includes/ — all libraries' staged includes live as
     // siblings inside it, so a single search root catches all of them.
+    //
+    // System trust: archetect built these symlinks itself, pointing at
+    // known library sources. The sandbox check is intentionally bypassed
+    // because the canonicalized files live in the libraries' source dirs,
+    // not under the staging root.
     if let Some(first_with_includes) = staged_libraries
         .iter()
         .find_map(|lib| lib.includes_dir.as_ref())
     {
         if let Some(parent) = first_with_includes.parent() {
-            includes_dirs.push(parent.to_owned());
+            includes_dirs.push((parent.to_owned(), IncludeTrust::System));
         }
     }
 

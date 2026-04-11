@@ -11,6 +11,7 @@ use crate::archetype::archetype::OverwritePolicy;
 use crate::errors::RenderError;
 use crate::Archetect;
 
+pub use super::include_resolver::IncludeTrust;
 use super::{CompileOptions, IncludeResolver, TemplateCompiler};
 
 /// Cache for compiled Lua template functions, keyed by file path.
@@ -25,10 +26,11 @@ use super::{CompileOptions, IncludeResolver, TemplateCompiler};
 /// scenario that cannot occur in practice.
 pub struct TemplateCache {
     cache: HashMap<String, String>,
-    /// Ordered list of include search directories. The consumer's own
-    /// `<root>/includes` is conventionally first, followed by any library
-    /// staging dirs. Empty list = `{% include %}` always fails.
-    includes_dirs: Vec<Utf8PathBuf>,
+    /// Ordered list of include search directories with their trust level.
+    /// The consumer's own `<root>/includes` is conventionally first
+    /// (trust: User), followed by any library staging dirs (trust:
+    /// System). Empty list = `{% include %}` always fails.
+    includes_dirs: Vec<(Utf8PathBuf, IncludeTrust)>,
     /// Compile options sourced from the manifest's `templating:` section
     /// (strict, trim_blocks, lstrip_blocks). Applied to every template
     /// compiled through this cache.
@@ -46,8 +48,13 @@ impl TemplateCache {
 
     /// Configure the include search directories used to resolve
     /// `{% include %}` directives in templates compiled through this cache.
-    /// Searched in order — first match wins.
-    pub fn with_includes_dirs(mut self, includes_dirs: Vec<Utf8PathBuf>) -> Self {
+    /// Searched in order — first match wins. Each directory is tagged with
+    /// a trust level: user-provided dirs get sandbox checks, system-provided
+    /// staging dirs trust their (archetect-built) symlinks.
+    pub fn with_includes_dirs(
+        mut self,
+        includes_dirs: Vec<(Utf8PathBuf, IncludeTrust)>,
+    ) -> Self {
         self.includes_dirs = includes_dirs;
         self
     }
