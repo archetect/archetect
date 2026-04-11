@@ -21,25 +21,51 @@ pub fn register_all(
     register_existing_constants(lua)?;
     register_archetect_module(lua, archetect, render_context)?;
     register_archetype_module(lua, archetype)?;
-    register_lua_libraries(lua, archetype)?;
+
+    // Phase 1, commit 4: stage any catalog entries marked `library: true`
+    // before wiring Lua paths. The stager resolves the source via the
+    // existing source layer (git/local/cached), then symlinks (or copies
+    // on Windows) the resolved archetype's lib/ and includes/ into a
+    // synthetic per-consumer staging dir under the archetect cache.
+    let staged_libraries = if let Some(catalog) = archetype.manifest().catalog() {
+        let mut stager = crate::library::LibraryStager::new(archetect.clone(), archetype.root());
+        stager.stage(catalog).map_err(|e| {
+            LuaError::RuntimeError(format!("library staging failed: {}", e))
+        })?
+    } else {
+        Vec::new()
+    };
+
+    register_lua_libraries(lua, archetype, &staged_libraries)?;
 
     let filters = create_builtin_filters(lua)?;
     // Build the template cache with manifest-driven configuration:
     //   - `templating.undefined: strict | lenient` for variable resolution
     //   - `templating.trim_blocks` / `lstrip_blocks` for whitespace controls
-    //   - includes search list (consumer's own <root>/includes always first;
-    //     library staging dirs added by Phase 1 commit 4)
+    //   - includes search list: consumer's own <root>/includes first, then
+    //     each staged library's includes/ namespace dir
     use crate::archetype::archetype_manifest::templating::UndefinedMode;
     use crate::script::lua::template_engine::CompileOptions;
     let templating = archetype.manifest().templating();
 
-    // Build the includes search list. The consumer's own <root>/includes is
-    // the standardized location and is always added implicitly when present.
-    // Library staging will append more dirs to this list in commit 4.
     let mut includes_dirs: Vec<camino::Utf8PathBuf> = Vec::new();
+    // Consumer's own includes/ wins over library includes (more specific).
     let local_includes = archetype.root().join("includes");
     if local_includes.exists() {
         includes_dirs.push(local_includes);
+    }
+    // Each staged library contributes its parent dir (the namespace mount
+    // point), so `{% include "lib-name/file.atl" %}` resolves under it.
+    // We add the SHARED parent <staging>/includes/ once if any library
+    // staged an includes/ — all libraries' staged includes live as
+    // siblings inside it, so a single search root catches all of them.
+    if let Some(first_with_includes) = staged_libraries
+        .iter()
+        .find_map(|lib| lib.includes_dir.as_ref())
+    {
+        if let Some(parent) = first_with_includes.parent() {
+            includes_dirs.push(parent.to_owned());
+        }
     }
 
     let cache = TemplateCache::new()
@@ -64,34 +90,52 @@ pub fn register_all(
     Ok(())
 }
 
-/// Prepend the consumer's own `<root>/lib/` directory to Lua's
-/// `package.path` so `require("foo.bar")` can resolve from it.
+/// Wire `package.path` so the script can `require()` Lua modules from:
 ///
-/// `lib/` is a standardized location in the v3 ecosystem design — every
-/// archetype that wants to expose Lua modules puts them there, with no
-/// manifest declaration needed. Authors of project archetypes can use it
-/// for their own internal helpers (`lib/my_helpers.lua` →
-/// `require("my_helpers")`); library archetypes use it as their export
-/// mechanism, mounted under their consumer-chosen namespace by the
-/// library staging code.
+/// 1. The consumer's own `<root>/lib/` directory — implicit, no declaration
+///    needed. Authors of project archetypes drop helpers into `lib/` and
+///    `require("helpers")` from their main script.
+/// 2. Each staged library's mounted lib directory, namespaced under the
+///    consumer-chosen catalog map key. So `require("inflect-helpers.casing")`
+///    resolves to `<staging>/lib/inflect-helpers/casing.lua` because the
+///    library's own `lib/` was symlinked under that namespace.
 ///
-/// If `<root>/lib/` doesn't exist, this is a silent no-op.
+/// All entries are prepended to `package.path` in order, so they take
+/// precedence over Lua's default search paths.
 ///
-/// Phase 1, commit 3: this replaces the old behavior of reading paths
-/// from `scripting.libraries` in the manifest. The old field is parsed
-/// but ignored; commit 6 removes it entirely.
-fn register_lua_libraries(lua: &Lua, archetype: &Archetype) -> LuaResult<()> {
-    let lib_dir = archetype.root().join("lib");
-    if !lib_dir.exists() {
-        return Ok(());
+/// Phase 1, commit 4: extends commit 3's local-lib behavior with the
+/// staged-library wiring.
+fn register_lua_libraries(
+    lua: &Lua,
+    archetype: &Archetype,
+    staged_libraries: &[crate::library::StagedLibrary],
+) -> LuaResult<()> {
+    let mut prepend_segments: Vec<String> = Vec::new();
+
+    // 1. Consumer's own lib/ — implicit local helpers.
+    let local_lib = archetype.root().join("lib");
+    if local_lib.exists() {
+        prepend_segments.push(format!("{}/?.lua", local_lib));
+        prepend_segments.push(format!("{}/?/init.lua", local_lib));
     }
 
-    // Both `?.lua` and `?/init.lua` patterns so `require("foo.bar")` finds
-    // either `lib/foo/bar.lua` or `lib/foo/bar/init.lua`.
-    let prepend_segments = vec![
-        format!("{}/?.lua", lib_dir),
-        format!("{}/?/init.lua", lib_dir),
-    ];
+    // 2. Staged library lib dirs share a common parent
+    //    (<staging>/lib/), and each library's lib/ is symlinked underneath
+    //    its catalog map key. We add the SHARED parent so a single
+    //    package.path entry covers every library.
+    if let Some(first_with_lib) = staged_libraries
+        .iter()
+        .find_map(|lib| lib.lib_dir.as_ref())
+    {
+        if let Some(parent) = first_with_lib.parent() {
+            prepend_segments.push(format!("{}/?.lua", parent));
+            prepend_segments.push(format!("{}/?/init.lua", parent));
+        }
+    }
+
+    if prepend_segments.is_empty() {
+        return Ok(());
+    }
 
     let package: Table = lua.globals().get("package")?;
     let existing: String = package.get("path").unwrap_or_default();

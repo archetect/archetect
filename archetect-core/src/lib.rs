@@ -1,5 +1,6 @@
 pub mod archetype;
 pub mod catalog;
+pub mod library;
 pub mod configuration;
 pub mod errors;
 mod archetect;

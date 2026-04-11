@@ -1,0 +1,5 @@
+---
+description: "Inline test library — provides shout() helper"
+
+requires:
+  archetect: "3.0.0"
