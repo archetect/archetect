@@ -1,0 +1,5 @@
+---
+description: "Local lib + includes test"
+
+requires:
+  archetect: "3.0.0"

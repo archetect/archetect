@@ -25,22 +25,30 @@ pub fn register_all(
 
     let filters = create_builtin_filters(lua)?;
     // Build the template cache with manifest-driven configuration:
-    //   - `templating.includes` directory for {% include %} resolution
     //   - `templating.undefined: strict | lenient` for variable resolution
     //   - `templating.trim_blocks` / `lstrip_blocks` for whitespace controls
+    //   - includes search list (consumer's own <root>/includes always first;
+    //     library staging dirs added by Phase 1 commit 4)
     use crate::archetype::archetype_manifest::templating::UndefinedMode;
     use crate::script::lua::template_engine::CompileOptions;
     let templating = archetype.manifest().templating();
-    let mut cache = TemplateCache::new().with_options(CompileOptions {
-        strict: matches!(templating.undefined(), UndefinedMode::Strict),
-        trim_blocks: templating.trim_blocks(),
-        lstrip_blocks: templating.lstrip_blocks(),
-    });
-    let includes_relative = templating.includes_directory();
-    let includes_abs = archetype.root().join(includes_relative);
-    if includes_abs.exists() {
-        cache = cache.with_includes_dir(includes_abs);
+
+    // Build the includes search list. The consumer's own <root>/includes is
+    // the standardized location and is always added implicitly when present.
+    // Library staging will append more dirs to this list in commit 4.
+    let mut includes_dirs: Vec<camino::Utf8PathBuf> = Vec::new();
+    let local_includes = archetype.root().join("includes");
+    if local_includes.exists() {
+        includes_dirs.push(local_includes);
     }
+
+    let cache = TemplateCache::new()
+        .with_options(CompileOptions {
+            strict: matches!(templating.undefined(), UndefinedMode::Strict),
+            trim_blocks: templating.trim_blocks(),
+            lstrip_blocks: templating.lstrip_blocks(),
+        })
+        .with_includes_dirs(includes_dirs);
     let cache = Rc::new(RefCell::new(cache));
     register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache)?;
     register_lua_template_module(lua, &filters)?;
@@ -56,46 +64,34 @@ pub fn register_all(
     Ok(())
 }
 
-/// Prepend each `scripting.libraries` directory from the manifest to Lua's
-/// `package.path` so `require("foo.bar")` can resolve files in those dirs.
+/// Prepend the consumer's own `<root>/lib/` directory to Lua's
+/// `package.path` so `require("foo.bar")` can resolve from it.
 ///
-/// Each entry is resolved relative to the archetype root and validated:
-/// - Absolute paths are rejected (libraries must live inside the archetype).
-/// - `..` segments are rejected (no escape from the archetype root).
-/// - Missing directories are tolerated silently — if no script tries to
-///   `require()` from them, the absence is harmless.
+/// `lib/` is a standardized location in the v3 ecosystem design — every
+/// archetype that wants to expose Lua modules puts them there, with no
+/// manifest declaration needed. Authors of project archetypes can use it
+/// for their own internal helpers (`lib/my_helpers.lua` →
+/// `require("my_helpers")`); library archetypes use it as their export
+/// mechanism, mounted under their consumer-chosen namespace by the
+/// library staging code.
 ///
-/// The validation is best-effort and security-relevant: an archetype can
-/// already do anything its main script can, but reading arbitrary files
-/// outside the archetype tree via `require` would be a surprising side
-/// channel.
+/// If `<root>/lib/` doesn't exist, this is a silent no-op.
+///
+/// Phase 1, commit 3: this replaces the old behavior of reading paths
+/// from `scripting.libraries` in the manifest. The old field is parsed
+/// but ignored; commit 6 removes it entirely.
 fn register_lua_libraries(lua: &Lua, archetype: &Archetype) -> LuaResult<()> {
-    let libraries = archetype.manifest().scripting().libraries();
-    if libraries.is_empty() {
+    let lib_dir = archetype.root().join("lib");
+    if !lib_dir.exists() {
         return Ok(());
     }
 
-    let root = archetype.root();
-    let mut prepend_segments: Vec<String> = Vec::with_capacity(libraries.len() * 2);
-    for lib in libraries {
-        if lib.is_absolute() {
-            return Err(LuaError::RuntimeError(format!(
-                "scripting.libraries entry `{}` must be relative to the archetype root",
-                lib
-            )));
-        }
-        if lib.components().any(|c| c.as_str() == "..") {
-            return Err(LuaError::RuntimeError(format!(
-                "scripting.libraries entry `{}` cannot contain `..` segments",
-                lib
-            )));
-        }
-        let resolved = root.join(lib);
-        // Both `?.lua` and `?/init.lua` patterns so `require("foo.bar")` finds
-        // either `lib/foo/bar.lua` or `lib/foo/bar/init.lua`.
-        prepend_segments.push(format!("{}/?.lua", resolved));
-        prepend_segments.push(format!("{}/?/init.lua", resolved));
-    }
+    // Both `?.lua` and `?/init.lua` patterns so `require("foo.bar")` finds
+    // either `lib/foo/bar.lua` or `lib/foo/bar/init.lua`.
+    let prepend_segments = vec![
+        format!("{}/?.lua", lib_dir),
+        format!("{}/?/init.lua", lib_dir),
+    ];
 
     let package: Table = lua.globals().get("package")?;
     let existing: String = package.get("path").unwrap_or_default();

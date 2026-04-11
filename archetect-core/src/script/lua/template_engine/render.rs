@@ -25,11 +25,10 @@ use super::{CompileOptions, IncludeResolver, TemplateCompiler};
 /// scenario that cannot occur in practice.
 pub struct TemplateCache {
     cache: HashMap<String, String>,
-    /// Optional `templating.includes` directory from the manifest.
-    /// When set, `{% include %}` directives resolve against it. When unset,
-    /// the cache uses a disabled resolver and any `{% include %}` fails
-    /// with `IncludeNotFound`.
-    includes_dir: Option<Utf8PathBuf>,
+    /// Ordered list of include search directories. The consumer's own
+    /// `<root>/includes` is conventionally first, followed by any library
+    /// staging dirs. Empty list = `{% include %}` always fails.
+    includes_dirs: Vec<Utf8PathBuf>,
     /// Compile options sourced from the manifest's `templating:` section
     /// (strict, trim_blocks, lstrip_blocks). Applied to every template
     /// compiled through this cache.
@@ -40,15 +39,16 @@ impl TemplateCache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
-            includes_dir: None,
+            includes_dirs: Vec::new(),
             options: CompileOptions::default(),
         }
     }
 
-    /// Configure the includes directory used to resolve `{% include %}`
-    /// directives in templates compiled through this cache.
-    pub fn with_includes_dir(mut self, includes_dir: Utf8PathBuf) -> Self {
-        self.includes_dir = Some(includes_dir);
+    /// Configure the include search directories used to resolve
+    /// `{% include %}` directives in templates compiled through this cache.
+    /// Searched in order — first match wins.
+    pub fn with_includes_dirs(mut self, includes_dirs: Vec<Utf8PathBuf>) -> Self {
+        self.includes_dirs = includes_dirs;
         self
     }
 
@@ -63,10 +63,7 @@ impl TemplateCache {
     /// active stack starts empty for each top-level template, since cycles
     /// are only meaningful within one compile chain.
     fn make_resolver(&self) -> IncludeResolver {
-        match &self.includes_dir {
-            Some(dir) => IncludeResolver::single(dir.clone()),
-            None => IncludeResolver::disabled(),
-        }
+        IncludeResolver::new(self.includes_dirs.clone())
     }
 
     /// Get or compile a template, returning the Lua source code.

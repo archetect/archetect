@@ -51,8 +51,9 @@ impl IncludeResolver {
         }
     }
 
-    /// Convenience constructor for the single-directory case (the most
-    /// common scenario when there are no library dependencies).
+    /// Convenience constructor for the single-directory case. Used in tests
+    /// where the full multi-dir form would be needless ceremony.
+    #[cfg(test)]
     pub fn single(includes_dir: Utf8PathBuf) -> Self {
         Self::new(vec![includes_dir])
     }
