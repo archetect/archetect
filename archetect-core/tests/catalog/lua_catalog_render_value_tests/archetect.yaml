@@ -1,0 +1,8 @@
+description: "Catalog render value-semantics test"
+requires:
+  archetect: "3.0.0"
+
+catalog:
+  org-prompts:
+    source: "component-archetype"
+    show: false

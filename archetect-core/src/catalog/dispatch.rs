@@ -17,6 +17,8 @@ use std::fmt::{Display, Formatter};
 use inquire::{InquireError, Select};
 use linked_hash_map::LinkedHashMap;
 
+use archetect_api::ContextValue;
+
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetectError;
@@ -53,12 +55,16 @@ pub fn resolve_path<'a>(
 /// - `path` resolves to a **group** → present that group as a submenu
 /// - `path` resolves to a **leaf** → render the referenced archetype
 /// - `path` doesn't resolve → return an error listing available entries
+///
+/// Returns the child's resulting `ContextValue` (typically a `Map` if the
+/// child's script returned a Context, or `Nil` otherwise). Top-level
+/// callers that don't care about the return value can ignore it.
 pub fn dispatch(
     archetect: &Archetect,
     catalog: &LinkedHashMap<String, CatalogEntry>,
     path: Option<&str>,
     render_context: RenderContext,
-) -> Result<(), ArchetectError> {
+) -> Result<ContextValue, ArchetectError> {
     match path {
         None | Some("") => present_entries(archetect, catalog, &render_context),
         Some(p) => {
@@ -87,12 +93,16 @@ pub fn dispatch(
 
 /// Render a leaf catalog entry — i.e., resolve its source and render the archetype.
 /// Applies any pre-configured answers, switches, and defaults from the entry.
+///
+/// Returns the child archetype's final `ContextValue`. Components that
+/// `return context` at the end of their script will produce a `Map` here;
+/// project archetypes that don't return anything will produce `Nil`.
 pub fn render_leaf(
     archetect: &Archetect,
     entry: &CatalogEntry,
     path: &str,
     mut render_context: RenderContext,
-) -> Result<(), ArchetectError> {
+) -> Result<ContextValue, ArchetectError> {
     let source = entry.source.as_ref().ok_or_else(|| {
         ArchetectError::GeneralError(format!(
             "Catalog entry '{}' has no source", path
@@ -117,29 +127,43 @@ pub fn render_leaf(
 
     let child = archetect.new_archetype(source)?;
     child.check_requirements()?;
-    child.render(render_context)?;
-    Ok(())
+    let result = child.render(render_context)?;
+    Ok(result)
 }
 
 /// Present catalog entries interactively as a select menu.
 /// Groups recurse, leaves render the archetype, then loop back.
+///
+/// Entries with `show: false` are filtered out — they remain addressable
+/// by name from scripts via `catalog.render("name")` but don't appear in
+/// menus.
+///
+/// Returns the most recently rendered child's `ContextValue`, or `Nil` if
+/// the user cancels without picking anything.
 pub fn present_entries(
     archetect: &Archetect,
     entries: &LinkedHashMap<String, CatalogEntry>,
     render_context: &RenderContext,
-) -> Result<(), ArchetectError> {
-    if entries.is_empty() {
-        return Ok(());
+) -> Result<ContextValue, ArchetectError> {
+    let visible: LinkedHashMap<String, CatalogEntry> = entries
+        .iter()
+        .filter(|(_, entry)| entry.show)
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    if visible.is_empty() {
+        return Ok(ContextValue::Nil);
     }
 
+    let mut last_result = ContextValue::Nil;
     loop {
-        let choices: Vec<EntryItem> = entries
+        let choices: Vec<EntryItem> = visible
             .iter()
             .enumerate()
             .map(|(idx, (name, entry))| {
                 let icon = if entry.is_group() { "📂" } else { "📦" };
                 let label = entry.display_description(name);
-                let width = if entries.len() <= 99 { 2 } else { 3 };
+                let width = if visible.len() <= 99 { 2 } else { 3 };
                 EntryItem {
                     text: format!("{:>0width$}: {} {}", idx + 1, icon, label),
                     name: name.clone(),
@@ -154,14 +178,15 @@ pub fn present_entries(
             Ok(item) => {
                 if item.entry.is_group() {
                     if let Some(ref nested) = item.entry.catalog {
-                        present_entries(archetect, nested, render_context)?;
+                        last_result = present_entries(archetect, nested, render_context)?;
                     }
                 } else {
-                    render_leaf(archetect, &item.entry, &item.name, render_context.clone())?;
+                    last_result =
+                        render_leaf(archetect, &item.entry, &item.name, render_context.clone())?;
                 }
             }
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                return Ok(());
+                return Ok(last_result);
             }
             Err(err) => {
                 return Err(ArchetectError::GeneralError(err.to_string()));

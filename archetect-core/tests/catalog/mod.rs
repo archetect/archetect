@@ -1,1 +1,2 @@
 mod lua_catalog_render_tests;
+mod lua_catalog_render_value_tests;

@@ -1,0 +1,3 @@
+description: "Mock component that sets a key and returns context"
+requires:
+  archetect: "3.0.0"

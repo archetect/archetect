@@ -224,23 +224,7 @@ impl LibraryStager {
     /// detection mirrors what `SourceType::create` does — anything with
     /// `://` or matching the SSH-git pattern is left alone.
     fn normalize_source(&self, source: &str) -> String {
-        // Quick checks for things that are clearly not local relative paths.
-        if source.contains("://") || source.starts_with("git@") {
-            return source.to_string();
-        }
-        let candidate = Utf8Path::new(source);
-        if candidate.is_absolute() {
-            return source.to_string();
-        }
-        // Resolve against the consumer's archetype root. If the joined
-        // path doesn't exist, fall through to the unchanged source so the
-        // downstream resolver gets to produce its own (better) error.
-        let joined = self.consumer_root.join(candidate);
-        if joined.exists() {
-            joined.to_string()
-        } else {
-            source.to_string()
-        }
+        normalize_source(&self.consumer_root, source)
     }
 
     fn stage_one(
@@ -314,6 +298,37 @@ impl LibraryStager {
             lib_dir,
             includes_dir,
         })
+    }
+}
+
+/// Normalize a catalog source string against a consumer archetype's root.
+///
+/// Git URLs and absolute paths are passed through unchanged. Relative
+/// local paths are interpreted as relative to `consumer_root` and
+/// rewritten to an absolute form when the joined path exists on disk. If
+/// the joined path doesn't exist, the original source string is returned
+/// unchanged so the downstream source resolver can produce its own
+/// (better) error.
+///
+/// Shared by:
+/// - `LibraryStager` (eager `library: true` resolution)
+/// - The Lua `catalog.render` callsite (lazy resolution via `dispatch::dispatch`)
+///
+/// Both need the same normalization so authors can write portable
+/// `source: "subdir"` declarations relative to their consumer archetype.
+pub fn normalize_source(consumer_root: &Utf8Path, source: &str) -> String {
+    if source.contains("://") || source.starts_with("git@") {
+        return source.to_string();
+    }
+    let candidate = Utf8Path::new(source);
+    if candidate.is_absolute() {
+        return source.to_string();
+    }
+    let joined = consumer_root.join(candidate);
+    if joined.exists() {
+        joined.to_string()
+    } else {
+        source.to_string()
     }
 }
 

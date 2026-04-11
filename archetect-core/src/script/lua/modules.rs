@@ -247,9 +247,18 @@ fn register_catalog_module(
             move |_, args: mlua::MultiValue| {
                 let (path, context_ud, opts) = parse_catalog_render_args(&args)?;
 
-                let catalog = parent.manifest().catalog().ok_or_else(|| {
+                let raw_catalog = parent.manifest().catalog().ok_or_else(|| {
                     LuaError::RuntimeError("No catalog entries defined in archetect.yaml".to_string())
                 })?;
+
+                // Normalize relative source paths against the consumer
+                // archetype's root before dispatching. This makes
+                // catalog entries portable across the directories
+                // archetect might be invoked from. Library staging in
+                // commit 4 already does this; mirror it here so the
+                // dispatch path has the same semantics.
+                let catalog = normalize_catalog_sources(parent.root(), raw_catalog);
+                let catalog = &catalog;
 
                 let context_map = {
                     let context = context_ud.borrow::<Context>()?;
@@ -283,16 +292,71 @@ fn register_catalog_module(
                     }
                 }
 
-                crate::catalog::dispatch::dispatch(&arc, catalog, path.as_deref(), child_context)
+                let result = crate::catalog::dispatch::dispatch(&arc, catalog, path.as_deref(), child_context)
                     .map_err(|e| LuaError::RuntimeError(format!("Catalog error: {}", e)))?;
 
-                Ok(())
+                // Convert the child's resulting ContextValue back into a fresh
+                // Lua Context userdata. The parent's `context` argument is
+                // unchanged — value semantics — and the parent decides what
+                // to do with the returned value via Lua's normal assignment
+                // (`context = catalog.render(...)`) or by calling
+                // `context:merge(catalog.render(...))`.
+                child_value_to_context(&arc, &ctx, result)
             },
         )?,
     )?;
 
     lua.globals().set("catalog", catalog_table)?;
     Ok(())
+}
+
+/// Walk a catalog and rewrite each entry's `source:` against the consumer
+/// archetype's root, recursing into nested catalog groups. Returns a new
+/// `LinkedHashMap` so the original manifest is unchanged.
+fn normalize_catalog_sources(
+    consumer_root: &camino::Utf8Path,
+    catalog: &linked_hash_map::LinkedHashMap<String, crate::manifest::CatalogEntry>,
+) -> linked_hash_map::LinkedHashMap<String, crate::manifest::CatalogEntry> {
+    let mut out = linked_hash_map::LinkedHashMap::new();
+    for (name, entry) in catalog {
+        let mut cloned = entry.clone();
+        if let Some(ref src) = cloned.source {
+            cloned.source = Some(crate::library::normalize_source(consumer_root, src));
+        }
+        if let Some(ref nested) = cloned.catalog {
+            cloned.catalog = Some(normalize_catalog_sources(consumer_root, nested));
+        }
+        out.insert(name.clone(), cloned);
+    }
+    out
+}
+
+/// Convert a child archetype's returned `ContextValue` into a freshly
+/// constructed Lua `Context` userdata. The new Context is independent of
+/// the parent's — assigning the returned value back to the parent's
+/// variable replaces it; calling `parent:merge(child)` combines them.
+fn child_value_to_context(
+    archetect: &Archetect,
+    render_context: &RenderContext,
+    value: archetect_api::ContextValue,
+) -> LuaResult<Context> {
+    use archetect_api::ContextMap;
+    let map: ContextMap = match value {
+        archetect_api::ContextValue::Map(m) => m,
+        // The child returned nothing meaningful (no `return context` at end
+        // of script, or no script at all). Hand the parent an empty context
+        // — they can choose to ignore it.
+        _ => ContextMap::new(),
+    };
+
+    // Build a fresh RenderContext seeded with the child's resulting map,
+    // then construct a Context against it. This is the same path
+    // Context.new() takes from a script.
+    let child_render_context = RenderContext::new(
+        render_context.destination().to_path_buf(),
+        map,
+    );
+    Ok(Context::new(archetect.clone(), child_render_context))
 }
 
 /// Parse variadic args for catalog.render(): (context), (path, context), or (path, context, opts).
