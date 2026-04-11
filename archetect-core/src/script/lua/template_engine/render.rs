@@ -64,7 +64,7 @@ impl TemplateCache {
     /// are only meaningful within one compile chain.
     fn make_resolver(&self) -> IncludeResolver {
         match &self.includes_dir {
-            Some(dir) => IncludeResolver::new(dir.clone()),
+            Some(dir) => IncludeResolver::single(dir.clone()),
             None => IncludeResolver::disabled(),
         }
     }

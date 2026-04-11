@@ -25,29 +25,45 @@ use super::error::TemplateCompileError;
 /// as the compiler descends into nested includes. The compiler pushes the
 /// path onto the stack before descending and pops it on the way back up.
 pub struct IncludeResolver {
-    includes_dir: Option<Utf8PathBuf>,
+    /// Ordered list of directories to search for includes. The first
+    /// directory containing a matching file wins. Empty list = no resolution
+    /// (any `{% include %}` errors out).
+    ///
+    /// Multiple dirs are needed because library archetypes contribute
+    /// their own `includes/` directories that layer onto the consumer's
+    /// own `includes/`. The consumer's dirs come first so consumer
+    /// templates can shadow library partials with the same name.
+    includes_dirs: Vec<Utf8PathBuf>,
     stack: Vec<Utf8PathBuf>,
 }
 
 impl IncludeResolver {
-    /// Build a resolver pointing at `includes_dir`.
+    /// Build a resolver from a list of include directories, searched in
+    /// order. The first directory containing a matching file wins.
     ///
-    /// If the directory doesn't exist on disk, that's not an error here —
-    /// it only becomes one if a template actually uses `{% include %}`.
-    pub fn new(includes_dir: Utf8PathBuf) -> Self {
+    /// If a directory doesn't exist on disk, it's silently skipped at
+    /// resolution time — only an error if NO directory contains the
+    /// requested include.
+    pub fn new(includes_dirs: Vec<Utf8PathBuf>) -> Self {
         Self {
-            includes_dir: Some(includes_dir),
+            includes_dirs,
             stack: Vec::new(),
         }
     }
 
-    /// A resolver with no includes directory configured. Any `{% include %}`
+    /// Convenience constructor for the single-directory case (the most
+    /// common scenario when there are no library dependencies).
+    pub fn single(includes_dir: Utf8PathBuf) -> Self {
+        Self::new(vec![includes_dir])
+    }
+
+    /// A resolver with no includes directories configured. Any `{% include %}`
     /// directive will fail with `IncludeNotFound`. Used by callsites that
     /// don't have a manifest available (e.g. compiling a path-name template,
     /// rendering a one-off string).
     pub fn disabled() -> Self {
         Self {
-            includes_dir: None,
+            includes_dirs: Vec::new(),
             stack: Vec::new(),
         }
     }
@@ -98,21 +114,24 @@ impl IncludeResolver {
         self.stack.pop();
     }
 
-    /// Resolve `relative` against the configured includes directory and
-    /// validate that the result is a descendant of it.
+    /// Resolve `relative` against the configured includes directories.
+    /// Searches each directory in order; the first one containing a
+    /// matching file wins. Each candidate is sandbox-checked against its
+    /// own root after canonicalization to prevent symlink escape.
     fn resolve(
         &self,
         relative: &str,
         line: usize,
     ) -> Result<Utf8PathBuf, TemplateCompileError> {
-        let Some(ref includes_dir) = self.includes_dir else {
+        if self.includes_dirs.is_empty() {
             return Err(TemplateCompileError::IncludeNotFound {
                 path: relative.to_string(),
                 line,
             });
-        };
+        }
 
-        // Reject absolute paths and any `..` segment up front.
+        // Reject absolute paths and any `..` segment up front. These checks
+        // are independent of which directory we'd search and apply once.
         let candidate = Utf8Path::new(relative);
         if candidate.is_absolute() {
             return Err(TemplateCompileError::IncludeNotFound {
@@ -127,39 +146,32 @@ impl IncludeResolver {
             });
         }
 
-        let joined = includes_dir.join(candidate);
-        if !joined.exists() {
-            return Err(TemplateCompileError::IncludeNotFound {
-                path: relative.to_string(),
-                line,
-            });
-        }
-
-        // Defense in depth — canonicalize and confirm the file is still
-        // inside the includes directory after symlink resolution.
-        let canonical_file = joined
-            .canonicalize_utf8()
-            .map_err(|err| TemplateCompileError::IncludeReadError {
-                path: relative.to_string(),
-                line,
-                detail: err.to_string(),
-            })?;
-        let canonical_root = includes_dir.canonicalize_utf8().map_err(|err| {
-            TemplateCompileError::IncludeReadError {
-                path: relative.to_string(),
-                line,
-                detail: err.to_string(),
+        // Walk each include directory in order. First match wins.
+        for includes_dir in &self.includes_dirs {
+            let joined = includes_dir.join(candidate);
+            if !joined.exists() {
+                continue;
             }
-        })?;
 
-        if !canonical_file.starts_with(&canonical_root) {
-            return Err(TemplateCompileError::IncludeNotFound {
-                path: relative.to_string(),
-                line,
-            });
+            // Defense in depth — canonicalize and confirm the file is still
+            // inside THIS directory after symlink resolution. If a symlink
+            // would escape this dir, fall through to the next candidate.
+            let Ok(canonical_file) = joined.canonicalize_utf8() else {
+                continue;
+            };
+            let Ok(canonical_root) = includes_dir.canonicalize_utf8() else {
+                continue;
+            };
+
+            if canonical_file.starts_with(&canonical_root) {
+                return Ok(canonical_file);
+            }
         }
 
-        Ok(canonical_file)
+        Err(TemplateCompileError::IncludeNotFound {
+            path: relative.to_string(),
+            line,
+        })
     }
 }
 
@@ -189,7 +201,7 @@ mod tests {
     fn test_read_basic() {
         let (_tmp, includes) = temp_includes();
         write(&includes, "header.atl", "Hello {{ name }}!");
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         let (contents, _) = resolver.read("header.atl", 1).unwrap();
         assert_eq!(contents, "Hello {{ name }}!");
     }
@@ -198,7 +210,7 @@ mod tests {
     fn test_read_nested_directory() {
         let (_tmp, includes) = temp_includes();
         write(&includes, "partials/header.atl", "Header");
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         let (contents, _) = resolver.read("partials/header.atl", 1).unwrap();
         assert_eq!(contents, "Header");
     }
@@ -206,7 +218,7 @@ mod tests {
     #[test]
     fn test_read_missing_returns_not_found() {
         let (_tmp, includes) = temp_includes();
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         let err = resolver.read("missing.atl", 5).unwrap_err();
         assert!(
             matches!(
@@ -228,7 +240,7 @@ mod tests {
     #[test]
     fn test_absolute_path_rejected() {
         let (_tmp, includes) = temp_includes();
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         let err = resolver.read("/etc/passwd", 1).unwrap_err();
         assert!(matches!(err, TemplateCompileError::IncludeNotFound { .. }));
     }
@@ -236,7 +248,7 @@ mod tests {
     #[test]
     fn test_dotdot_rejected() {
         let (_tmp, includes) = temp_includes();
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         let err = resolver.read("../escape.atl", 1).unwrap_err();
         assert!(matches!(err, TemplateCompileError::IncludeNotFound { .. }));
     }
@@ -246,7 +258,7 @@ mod tests {
         let (_tmp, includes) = temp_includes();
         write(&includes, "a.atl", "{% include \"b.atl\" %}");
         write(&includes, "b.atl", "{% include \"a.atl\" %}");
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
 
         // Push a then attempt to push it again — should fail.
         let _ = resolver.read("a.atl", 1).unwrap();
@@ -262,10 +274,84 @@ mod tests {
     fn test_pop_reduces_stack() {
         let (_tmp, includes) = temp_includes();
         write(&includes, "a.atl", "x");
-        let mut resolver = IncludeResolver::new(includes);
+        let mut resolver = IncludeResolver::single(includes);
         resolver.read("a.atl", 1).unwrap();
         assert_eq!(resolver.stack.len(), 1);
         resolver.pop();
         assert_eq!(resolver.stack.len(), 0);
+    }
+
+    // ---------- Multi-directory search ----------
+
+    #[test]
+    fn test_multi_dir_first_match_wins() {
+        // Two include dirs, both have header.atl. The first one in the
+        // list wins (this is how a consumer's own includes/ shadows a
+        // library include of the same name).
+        let tmp = TempDir::new().unwrap();
+        let dir_first = Utf8PathBuf::from_path_buf(tmp.path().join("first")).unwrap();
+        let dir_second = Utf8PathBuf::from_path_buf(tmp.path().join("second")).unwrap();
+        std::fs::create_dir_all(&dir_first).unwrap();
+        std::fs::create_dir_all(&dir_second).unwrap();
+        write(&dir_first, "header.atl", "FIRST");
+        write(&dir_second, "header.atl", "SECOND");
+
+        let mut resolver = IncludeResolver::new(vec![dir_first, dir_second]);
+        let (contents, _) = resolver.read("header.atl", 1).unwrap();
+        assert_eq!(contents, "FIRST");
+    }
+
+    #[test]
+    fn test_multi_dir_falls_through_to_second() {
+        // First dir doesn't have the file; second dir does.
+        let tmp = TempDir::new().unwrap();
+        let dir_first = Utf8PathBuf::from_path_buf(tmp.path().join("first")).unwrap();
+        let dir_second = Utf8PathBuf::from_path_buf(tmp.path().join("second")).unwrap();
+        std::fs::create_dir_all(&dir_first).unwrap();
+        std::fs::create_dir_all(&dir_second).unwrap();
+        write(&dir_second, "footer.atl", "footer content");
+
+        let mut resolver = IncludeResolver::new(vec![dir_first, dir_second]);
+        let (contents, _) = resolver.read("footer.atl", 1).unwrap();
+        assert_eq!(contents, "footer content");
+    }
+
+    #[test]
+    fn test_multi_dir_not_found_in_any() {
+        let tmp = TempDir::new().unwrap();
+        let dir_a = Utf8PathBuf::from_path_buf(tmp.path().join("a")).unwrap();
+        let dir_b = Utf8PathBuf::from_path_buf(tmp.path().join("b")).unwrap();
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+
+        let mut resolver = IncludeResolver::new(vec![dir_a, dir_b]);
+        let err = resolver.read("missing.atl", 7).unwrap_err();
+        assert!(matches!(
+            err,
+            TemplateCompileError::IncludeNotFound { line: 7, .. }
+        ));
+    }
+
+    #[test]
+    fn test_multi_dir_namespace_prefix() {
+        // The library staging convention: each library's includes/ is
+        // mounted under a namespace dir. The resolver sees a single
+        // staging root and the namespace is part of the include path.
+        let tmp = TempDir::new().unwrap();
+        let staging = Utf8PathBuf::from_path_buf(tmp.path().join("staging")).unwrap();
+        let lib_includes = staging.join("inflect-helpers");
+        std::fs::create_dir_all(&lib_includes).unwrap();
+        write(&lib_includes, "header.atl", "INFLECT HEADER");
+
+        let mut resolver = IncludeResolver::new(vec![staging]);
+        let (contents, _) = resolver.read("inflect-helpers/header.atl", 1).unwrap();
+        assert_eq!(contents, "INFLECT HEADER");
+    }
+
+    #[test]
+    fn test_empty_dirs_list_acts_disabled() {
+        let mut resolver = IncludeResolver::new(vec![]);
+        let err = resolver.read("anything.atl", 1).unwrap_err();
+        assert!(matches!(err, TemplateCompileError::IncludeNotFound { .. }));
     }
 }

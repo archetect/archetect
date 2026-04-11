@@ -668,7 +668,7 @@ service {{ entity.name.pascal }}Service {
         includes_dir: camino::Utf8PathBuf,
         ctx_setup: impl FnOnce(&mlua::Lua, &mlua::Table),
     ) -> Result<String, TemplateCompileError> {
-        let mut resolver = IncludeResolver::new(includes_dir);
+        let mut resolver = IncludeResolver::single(includes_dir);
         let compiled = TemplateCompiler::compile_with(
             template,
             "outer",
@@ -755,7 +755,7 @@ service {{ entity.name.pascal }}Service {
     #[test]
     fn test_include_not_found() {
         let (_tmp, dir) = temp_includes_dir();
-        let mut resolver = IncludeResolver::new(dir);
+        let mut resolver = IncludeResolver::single(dir);
         let result = TemplateCompiler::compile_with(
             r#"{% include "missing.atl" %}"#,
             "outer",
@@ -780,7 +780,7 @@ service {{ entity.name.pascal }}Service {
         write_include(&dir, "a.atl", r#"a:{% include "b.atl" %}"#);
         write_include(&dir, "b.atl", r#"b:{% include "a.atl" %}"#);
 
-        let mut resolver = IncludeResolver::new(dir);
+        let mut resolver = IncludeResolver::single(dir);
         let result = TemplateCompiler::compile_with(
             r#"{% include "a.atl" %}"#,
             "outer",
@@ -806,7 +806,7 @@ service {{ entity.name.pascal }}Service {
         // at the resolved location, so authors can't escape the includes
         // sandbox.
         let (_tmp, dir) = temp_includes_dir();
-        let mut resolver = IncludeResolver::new(dir);
+        let mut resolver = IncludeResolver::single(dir);
         let result = TemplateCompiler::compile_with(
             r#"{% include "../escape.atl" %}"#,
             "outer",
@@ -1106,7 +1106,7 @@ service {{ entity.name.pascal }}Service {
         let (_tmp, dir) = temp_includes_dir();
         write_include(&dir, "broken.atl", "Hello {{ unterminated");
 
-        let mut resolver = IncludeResolver::new(dir);
+        let mut resolver = IncludeResolver::single(dir);
         let result = TemplateCompiler::compile_with(
             r#"{% include "broken.atl" %}"#,
             "outer",
@@ -1162,7 +1162,7 @@ service {{ entity.name.pascal }}Service {
     fn test_include_invalid_syntax_unquoted() {
         // `{% include header.atl %}` (no quotes) is malformed.
         let (_tmp, dir) = temp_includes_dir();
-        let mut resolver = IncludeResolver::new(dir);
+        let mut resolver = IncludeResolver::single(dir);
         let result = TemplateCompiler::compile_with(
             r#"{% include header.atl %}"#,
             "outer",
