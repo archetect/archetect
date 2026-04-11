@@ -194,6 +194,25 @@ fn get_opt_bool(opts: &Table, key: &str) -> LuaResult<Option<bool>> {
     }
 }
 
+fn get_opt_string_array(opts: &Table, key: &str) -> LuaResult<Option<Vec<String>>> {
+    match opts.get::<Value>(key)? {
+        Value::Table(t) => {
+            let len = t.raw_len();
+            let mut out = Vec::with_capacity(len);
+            for i in 1..=len {
+                match t.raw_get::<Value>(i)? {
+                    Value::String(s) => out.push(s.to_string_lossy().to_string()),
+                    Value::Nil => {}
+                    _ => return Ok(None),
+                }
+            }
+            Ok(Some(out))
+        }
+        Value::Nil => Ok(None),
+        _ => Ok(None),
+    }
+}
+
 /// Extract CaseSpec list from an opts table's "cases" field.
 fn extract_cases(opts: &Option<Table>) -> Vec<CaseSpec> {
     let opts = match opts {
@@ -516,6 +535,7 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
                 info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
                 info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
+                info.defaults = get_opt_string_array(opts, "default")?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -542,6 +562,14 @@ impl UserData for Context {
             }
 
             if this.use_default(&key) {
+                if let Some(ref defaults) = info.defaults {
+                    let arr: Vec<ContextValue> = defaults.iter()
+                        .cloned()
+                        .map(ContextValue::String)
+                        .collect();
+                    this.data.insert(key, ContextValue::Array(arr));
+                    return Ok(());
+                }
                 if info.optional {
                     return Ok(());
                 }
@@ -567,6 +595,7 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
                 info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
                 info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
+                info.defaults = get_opt_string_array(opts, "default")?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -593,6 +622,14 @@ impl UserData for Context {
             }
 
             if this.use_default(&key) {
+                if let Some(ref defaults) = info.defaults {
+                    let arr: Vec<ContextValue> = defaults.iter()
+                        .cloned()
+                        .map(ContextValue::String)
+                        .collect();
+                    this.data.insert(key, ContextValue::Array(arr));
+                    return Ok(());
+                }
                 if info.optional {
                     return Ok(());
                 }

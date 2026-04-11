@@ -23,3 +23,15 @@ if switches.is_enabled("test_lua_list_prompt_with_options") then
         end
     end
 end
+
+if switches.is_enabled("test_lua_list_prompt_with_default") then
+    ctx:prompt_list("Dependencies:", "dependencies", {
+        default = {"serde", "tokio"},
+    })
+    local deps = ctx:get("dependencies")
+    if deps then
+        for i, v in ipairs(deps) do
+            log.info(v)
+        end
+    end
+end

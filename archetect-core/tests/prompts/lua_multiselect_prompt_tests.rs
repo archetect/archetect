@@ -62,3 +62,20 @@ fn test_lua_multiselect_prompt_non_optional() -> Result<(), ArchetectError> {
     assert!(harness.render_succeeded());
     Ok(())
 }
+
+#[test]
+#[named]
+fn test_lua_multiselect_prompt_with_default() -> Result<(), ArchetectError> {
+    // In headless mode with a default provided in opts, no prompt is
+    // sent — the default is applied directly and stored in context.
+    let harness = TestHarnessBuilder::new(file!())
+        .headless()
+        .with_switch(function_name!())
+        .build()?;
+
+    assert_eq!(harness.expect_log_info(), "Rust");
+    assert_eq!(harness.expect_log_info(), "Go");
+
+    assert!(harness.render_succeeded());
+    Ok(())
+}

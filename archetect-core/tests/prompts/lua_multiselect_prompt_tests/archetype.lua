@@ -33,3 +33,15 @@ if switches.is_enabled("test_lua_multiselect_prompt_non_optional") then
         end
     end
 end
+
+if switches.is_enabled("test_lua_multiselect_prompt_with_default") then
+    ctx:prompt_multi_select("Languages:", "languages", {"Rust", "Java", "Go"}, {
+        default = {"Rust", "Go"},
+    })
+    local langs = ctx:get("languages")
+    if langs then
+        for i, v in ipairs(langs) do
+            log.info(v)
+        end
+    end
+end

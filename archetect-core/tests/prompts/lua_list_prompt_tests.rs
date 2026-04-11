@@ -48,3 +48,20 @@ fn test_lua_list_prompt_with_options() -> Result<(), ArchetectError> {
     assert!(harness.render_succeeded());
     Ok(())
 }
+
+#[test]
+#[named]
+fn test_lua_list_prompt_with_default() -> Result<(), ArchetectError> {
+    // In headless mode with a default list provided in opts, no prompt
+    // is sent — the default is applied directly and stored in context.
+    let harness = TestHarnessBuilder::new(file!())
+        .headless()
+        .with_switch(function_name!())
+        .build()?;
+
+    assert_eq!(harness.expect_log_info(), "serde");
+    assert_eq!(harness.expect_log_info(), "tokio");
+
+    assert!(harness.render_succeeded());
+    Ok(())
+}
