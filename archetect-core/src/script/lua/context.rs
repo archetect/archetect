@@ -137,6 +137,38 @@ fn lua_value_to_context_value(value: &Value) -> LuaResult<ContextValue> {
     }
 }
 
+/// Deep-merge one ContextValue into a map under `key`.
+///
+/// Map∪Map recurses; any other combination replaces. This keeps
+/// composition of namespaced contribution bags (e.g., `components.xtask`,
+/// `components.tracing`) from clobbering each other at the parent level.
+fn merge_into(dest: &mut BTreeMap<String, ContextValue>, key: String, incoming: ContextValue) {
+    match (dest.get_mut(&key), incoming) {
+        (Some(ContextValue::Map(existing)), ContextValue::Map(new_map)) => {
+            for (k, v) in new_map {
+                merge_context_map(existing, k, v);
+            }
+        }
+        (_, incoming) => {
+            dest.insert(key, incoming);
+        }
+    }
+}
+
+/// Same as `merge_into` but operating on a `ContextMap` reference directly.
+fn merge_context_map(dest: &mut ContextMap, key: String, incoming: ContextValue) {
+    match (dest.get_mut(&key), incoming) {
+        (Some(ContextValue::Map(existing)), ContextValue::Map(new_map)) => {
+            for (k, v) in new_map {
+                merge_context_map(existing, k, v);
+            }
+        }
+        (_, incoming) => {
+            dest.insert(key, incoming);
+        }
+    }
+}
+
 /// Convert a Lua table to a ContextValue (map or array).
 fn lua_table_to_context_value(table: &Table) -> LuaResult<ContextValue> {
     let len = table.raw_len();
@@ -332,6 +364,45 @@ impl UserData for Context {
                 }
                 _ => Ok(false),
             }
+        });
+
+        // ctx:merge(value) — deep-merge another Context or a Lua table into this one.
+        //
+        // Map ∪ Map  → recursive merge (incoming keys win on leaf conflicts).
+        // Everything else → replace.
+        //
+        // This is how components compose into a parent archetype's context.
+        // Parents typically do:  context:merge(catalog.render("xtask", context))
+        methods.add_method_mut("merge", |_, this, value: Value| {
+            let incoming: ContextMap = match value {
+                Value::UserData(ud) => {
+                    if let Ok(other) = ud.borrow::<Context>() {
+                        other.data.clone()
+                    } else {
+                        return Err(LuaError::RuntimeError(
+                            "context:merge() expected a Context or table".to_string(),
+                        ));
+                    }
+                }
+                Value::Table(table) => match lua_table_to_context_value(&table)? {
+                    ContextValue::Map(m) => m,
+                    _ => {
+                        return Err(LuaError::RuntimeError(
+                            "context:merge() table must be a map (string keys), not an array".to_string(),
+                        ));
+                    }
+                },
+                Value::Nil => return Ok(()),
+                _ => {
+                    return Err(LuaError::RuntimeError(
+                        "context:merge() expected a Context or table".to_string(),
+                    ));
+                }
+            };
+            for (k, v) in incoming {
+                merge_into(&mut this.data, k, v);
+            }
+            Ok(())
         });
 
         // ctx:set(key, value, opts?)
