@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use archetect_core::errors::ArchetectError;
+use archetect_core::manifest::MANIFEST_FILE_NAMES;
 use archetect_core::system::SystemLayout;
 
 const ARCHETECT_LUA: &str = include_str!("../../../archetect-core/lua/annotations/archetect.lua");
@@ -35,8 +36,7 @@ fn maybe_create_luarc(annotations_dir: &Path) -> Result<(), ArchetectError> {
     let cwd = std::env::current_dir()
         .map_err(|e| ArchetectError::GeneralError(format!("Failed to get current directory: {}", e)))?;
 
-    let has_manifest = cwd.join("archetype.yaml").exists()
-        || cwd.join("archetype.yml").exists();
+    let has_manifest = MANIFEST_FILE_NAMES.iter().any(|name| cwd.join(name).exists());
     let has_lua_script = cwd.join("archetype.lua").exists();
 
     if has_manifest && has_lua_script {
