@@ -111,6 +111,17 @@ impl Compiler {
         lua.push_str("        rawset = rawset,\n");
         lua.push_str("        setmetatable = setmetatable,\n");
         lua.push_str("        getmetatable = getmetatable,\n");
+        // Built-in template escape constants for emitting literal template
+        // delimiters. Authors use these in meta-archetypes (starters, generators)
+        // or any template that needs to emit raw `{{`, `}}`, `{%`, `%}` sequences
+        // without the engine interpreting them as tags.
+        //
+        // Long form: LEFT_EXPR/RIGHT_EXPR/LEFT_STMT/RIGHT_STMT
+        // Short form (aliases): LE/RE/LS/RS
+        lua.push_str("        LEFT_EXPR = \"{{\", LE = \"{{\",\n");
+        lua.push_str("        RIGHT_EXPR = \"}}\", RE = \"}}\",\n");
+        lua.push_str("        LEFT_STMT = \"{%\", LS = \"{%\",\n");
+        lua.push_str("        RIGHT_STMT = \"%}\", RS = \"%}\",\n");
         lua.push_str("    }, {__index = __filters})\n");
         lua.push_str("\n");
 

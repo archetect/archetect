@@ -1196,4 +1196,35 @@ service {{ entity.name.pascal }}Service {
         .unwrap();
         assert_eq!(result, "Jimmie");
     }
+
+    // ---------- Built-in escape constants ----------
+
+    #[test]
+    fn test_builtin_left_expr_right_expr() {
+        let result = render_simple("${{ LE }} var {{ RE }}", |_, _| {});
+        assert_eq!(result, "${{ var }}");
+    }
+
+    #[test]
+    fn test_builtin_left_stmt_right_stmt() {
+        let result = render_simple("{{ LS }} if x then {{ RS }}", |_, _| {});
+        assert_eq!(result, "{% if x then %}");
+    }
+
+    #[test]
+    fn test_builtin_long_form_aliases() {
+        let result = render_simple("{{ LEFT_EXPR }} v {{ RIGHT_EXPR }} and {{ LEFT_STMT }} s {{ RIGHT_STMT }}", |_, _| {});
+        assert_eq!(result, "{{ v }} and {% s %}");
+    }
+
+    #[test]
+    fn test_builtin_constants_mixed_with_context() {
+        // Escape constants and context variables coexist: LE/RE produce
+        // literal delimiters while context vars resolve normally.
+        let result = render_simple(
+            "{{ LE }} {{ name }} {{ RE }}",
+            |_, ctx| { ctx.set("name", "project").unwrap(); },
+        );
+        assert_eq!(result, "{{ project }}");
+    }
 }
