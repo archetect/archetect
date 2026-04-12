@@ -10,6 +10,7 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
     let min_items = prompt_info.min_items();
     let max_items = prompt_info.max_items();
     let help_str = prompt_info.help().map(|v| v.to_string());
+    let is_optional = prompt_info.optional();
 
     let mut items: Vec<String> = Vec::new();
 
@@ -24,15 +25,15 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
         let mut prompt = Text::new(&message).with_render_config(get_render_config());
         prompt.help_message = help_str.as_deref();
 
+        // List items always use prompt_skippable so empty input = done.
+        // Escape during item entry aborts the whole prompt.
         match prompt.prompt_skippable() {
             Ok(Some(value)) => {
                 if value.is_empty() {
-                    // Empty input = done
                     break;
                 }
                 items.push(value);
 
-                // If we've hit max, stop
                 if let Some(max) = max_items {
                     if items.len() >= max {
                         break;
@@ -40,8 +41,12 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
                 }
             }
             Ok(None) => {
-                // Skipped (Esc)
-                responses.respond(ClientMessage::None);
+                // Escape pressed — abort if mandatory, accept empty if optional
+                if is_optional {
+                    responses.respond(ClientMessage::None);
+                } else {
+                    responses.respond(ClientMessage::Abort);
+                }
                 return;
             }
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
@@ -57,7 +62,6 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
 
     // Validate list constraints
     if let Err(message) = validate_list(min_items, max_items, &items) {
-        // Re-prompt would be complex; for now, report the error
         responses.respond(ClientMessage::Error(message));
         return;
     }

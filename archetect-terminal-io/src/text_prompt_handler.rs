@@ -23,21 +23,23 @@ pub fn handle_prompt_text(prompt_info: TextPromptInfo, responses: &dyn Responder
         Err(message) => Ok(Validation::Invalid(message.into())),
     };
     prompt = prompt.with_validator(validator);
-    match prompt.prompt_skippable() {
-        Ok(answer) => {
-            if let Some(answer) = answer {
-                responses.respond(ClientMessage::String(answer));
-            } else {
-                responses.respond(ClientMessage::None);
-            }
-        }
-        Err(error) => match error {
-            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+
+    if prompt_info.optional() {
+        match prompt.prompt_skippable() {
+            Ok(Some(answer)) => responses.respond(ClientMessage::String(answer)),
+            Ok(None) => responses.respond(ClientMessage::None),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
             }
-            _ => {
-                responses.respond(ClientMessage::Error(error.to_string()));
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
+    } else {
+        match prompt.prompt() {
+            Ok(answer) => responses.respond(ClientMessage::String(answer)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
             }
-        },
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
     }
 }

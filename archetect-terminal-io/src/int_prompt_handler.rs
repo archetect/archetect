@@ -10,6 +10,7 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &dyn Responder) 
     let default_str = prompt_info.default().map(|v| v.to_string());
     let placeholder_str = prompt_info.placeholder().map(|v| v.to_string());
     let help_str = prompt_info.help().map(|v| v.to_string());
+    let is_optional = prompt_info.optional();
 
     let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
     prompt.default = default_str.as_deref();
@@ -22,22 +23,28 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &dyn Responder) 
         Err(message) => Ok(Validation::Invalid(message.into())),
     };
     prompt = prompt.with_validator(validator);
-    match prompt.prompt_skippable() {
-        Ok(answer) => {
-            if let Some(answer) = answer {
+
+    if is_optional {
+        match prompt.prompt_skippable() {
+            Ok(Some(answer)) => {
                 responses.respond(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
-            } else {
-                responses.respond(ClientMessage::None);
             }
-        }
-        Err(error) => match error {
-            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+            Ok(None) => responses.respond(ClientMessage::None),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
             }
-            _ => {
-                responses.respond(ClientMessage::Error(error.to_string()));
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
+    } else {
+        match prompt.prompt() {
+            Ok(answer) => {
+                responses.respond(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
             }
-        },
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
+            }
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
     }
 }
 

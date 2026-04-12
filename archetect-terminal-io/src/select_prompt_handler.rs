@@ -8,6 +8,7 @@ use crate::responder::Responder;
 
 pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Responder) {
     let help_str = prompt_info.help().map(|v| v.to_string());
+    let is_optional = prompt_info.optional();
 
     let mut prompt =
         Select::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
@@ -30,21 +31,22 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
         prompt.page_size = page_size;
     }
 
-    match prompt.prompt_skippable() {
-        Ok(answer) => {
-            if let Some(answer) = answer {
-                responses.respond(ClientMessage::String(answer));
-            } else {
-                responses.respond(ClientMessage::None);
-            }
-        }
-        Err(error) => match error {
-            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+    if is_optional {
+        match prompt.prompt_skippable() {
+            Ok(Some(answer)) => responses.respond(ClientMessage::String(answer)),
+            Ok(None) => responses.respond(ClientMessage::None),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
             }
-            _ => {
-                responses.respond(ClientMessage::Error(error.to_string()));
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
+    } else {
+        match prompt.prompt() {
+            Ok(answer) => responses.respond(ClientMessage::String(answer)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
             }
-        },
+            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+        }
     }
 }
