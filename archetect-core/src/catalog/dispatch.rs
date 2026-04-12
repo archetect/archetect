@@ -3,8 +3,8 @@
 //! This module is the single source of truth for resolving and rendering
 //! catalog entries. It is used by:
 //!
-//! - The archetype auto-present path (when an archetype has a `catalog` and
-//!   no script — see `auto_present.rs`)
+//! - The archetype render path (when an archetype has a `catalog` and
+//!   no script — see `Archetype::render_with_action`)
 //! - The Lua `catalog.render()` function (see `script/lua/modules.rs`)
 //! - The CLI dispatch (`archetect [path]` — see `archetect-bin/src/main.rs`)
 //!

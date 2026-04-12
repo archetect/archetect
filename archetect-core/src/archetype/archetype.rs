@@ -63,6 +63,21 @@ impl Archetype {
     }
 
     pub fn render(&self, render_context: RenderContext) -> Result<ContextValue, ArchetypeError> {
+        self.render_with_action(render_context, None)
+    }
+
+    /// Render with an optional catalog action path. When `action` is `Some`,
+    /// the path is resolved against the archetype's catalog entries —
+    /// groups recurse, leaves render. When `None`, the catalog is presented
+    /// as an interactive menu (or the script runs, if one exists).
+    ///
+    /// Called from the CLI `render` subcommand when the user passes an
+    /// `[action]` positional argument (e.g., `archetect render <url> common/gitignore`).
+    pub fn render_with_action(
+        &self,
+        render_context: RenderContext,
+        action: Option<&str>,
+    ) -> Result<ContextValue, ArchetypeError> {
         match self.directory().script() {
             Some(script_path) => {
                 // Check for .rhai scripts and emit a helpful error
@@ -81,20 +96,32 @@ impl Archetype {
                 crate::script::lua::execute(self, &self.archetect, &render_context)
             }
             None => {
-                // No script — if there are catalog entries, auto-present them.
+                // No script — if there are catalog entries, dispatch them.
                 // If there are NO catalog entries either, this is a "library
                 // archetype" — a repo that exists purely to expose lib/ and
                 // includes/ for other archetypes to consume. Print a friendly
                 // message and exit cleanly so the user understands the
                 // situation isn't an error.
                 if self.manifest().has_catalog() {
-                    crate::catalog::auto_present_catalog(self, render_context)
-                        .map_err(|e| match e {
-                            ArchetectError::ArchetypeError(ae) => ae,
-                            other => ArchetypeError::SourceError(
-                                crate::errors::SourceError::SourceNotFound(other.to_string()),
+                    let catalog = self.manifest().catalog().ok_or_else(|| {
+                        ArchetypeError::SourceError(
+                            crate::errors::SourceError::SourceNotFound(
+                                "No catalog entries found in manifest".to_string(),
                             ),
-                        })
+                        )
+                    })?;
+                    crate::catalog::dispatch::dispatch(
+                        self.archetect(),
+                        catalog,
+                        action,
+                        render_context,
+                    )
+                    .map_err(|e| match e {
+                        ArchetectError::ArchetypeError(ae) => ae,
+                        other => ArchetypeError::SourceError(
+                            crate::errors::SourceError::SourceNotFound(other.to_string()),
+                        ),
+                    })
                 } else {
                     let msg = format!(
                         "{} has no script and no catalog —\n\

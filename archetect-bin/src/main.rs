@@ -251,16 +251,29 @@ fn execute_catalog_dispatch(
 }
 
 pub fn render(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -> Result<(), ArchetectError> {
+    use clap::parser::ValueSource;
+
     let source = matches.get_one::<String>("source").expect("`source` is a required clap argument");
     let source = archetect.new_source(source)?;
     let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
     let destination = Utf8PathBuf::from(destination);
     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+
+    // Read the global `action` arg. If the user didn't supply one
+    // explicitly, treat it as None (menu / default script path).
+    let action_name = matches.get_one::<String>("action").cloned().unwrap_or_default();
+    let action_was_default = matches.value_source("action") == Some(ValueSource::DefaultValue);
+    let action = if action_was_default || action_name.is_empty() {
+        None
+    } else {
+        Some(action_name.as_str())
+    };
+
     match source.source_contents() {
         SourceContents::Archetype => {
             let archetype = Archetype::new(archetect, source)?;
             archetype.check_requirements()?;
-            Ok(archetype.render(render_context).map(|_| ())?)
+            Ok(archetype.render_with_action(render_context, action).map(|_| ())?)
         }
         SourceContents::Unknown => {
             Err(SourceError::UnknownSourceContent.into())
