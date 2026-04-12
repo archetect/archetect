@@ -107,22 +107,10 @@ pub fn command() -> Command {
         )
         .subcommand(
             Command::new("system")
-                .about("archetect system configuration")
+                .about("Show Archetect system information")
                 .subcommand(
                     Command::new("layout")
-                        .about("Get layout of system paths")
-                        .subcommand(
-                            Command::new("git")
-                                .about("The location where git repos are cloned.  Used for offline mode."),
-                        )
-                        .subcommand(
-                            Command::new("http")
-                                .about("The location where http resources are cached.  Used for offline mode."),
-                        )
-                        .subcommand(
-                            Command::new("config").about("The location where archetect config files are stored."),
-                        )
-                        .subcommand(Command::new("answers").about("The location where answers are specified.")),
+                        .about("Show system directory paths (config, cache, data)"),
                 ),
         )
         .subcommand(

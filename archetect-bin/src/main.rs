@@ -137,6 +137,17 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 _ => {}
             }
         }
+        Some(("system", args)) => {
+            match args.subcommand() {
+                Some(("layout", _)) => {
+                    print!("{}", archetect.layout().as_ref());
+                }
+                _ => {
+                    // Bare `archetect system` — show layout by default
+                    print!("{}", archetect.layout().as_ref());
+                }
+            }
+        }
         Some(("mcp", _)) => subcommands::handle_mcp_subcommand(archetect)?,
         Some(("server", args)) => subcommands::handle_server_subcommand(args, archetect)?,
         Some(("connect", args)) => {
