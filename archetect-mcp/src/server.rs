@@ -440,15 +440,10 @@ impl ArchetectMcpServer {
             ));
         }
 
-        // Resolve the catalog path to find the source and pre-configured settings
-        let catalog = match self.archetect.configuration().catalog() {
-            Some(c) => c,
-            None => {
-                return to_json(&ToolResponse::error("No catalog configured"));
-            }
-        };
-
-        let entry = match archetect_core::catalog::resolve_path(catalog, &req.path) {
+        // Resolve the catalog path via the catalog index. The index walks
+        // sub-catalogs (unlike the manifest-only `resolve_path`), so nested
+        // paths like `archetect/common/starters/archetype-starter` work.
+        let entry = match self.catalog_index.get(&req.path) {
             Some(e) => e,
             None => {
                 return to_json(&ToolResponse::error(format!(
@@ -468,16 +463,10 @@ impl ArchetectMcpServer {
             }
         };
 
-        // Build render context — merge catalog-level and request-level settings
+        // Build render context — request-level answers only for now. The
+        // catalog index does not yet carry entry-level answers/switches;
+        // when it does, merge them here (catalog first, request overrides).
         let mut answers = archetect_api::ContextMap::new();
-
-        // Catalog-entry-level answers first
-        if let Some(ref entry_answers) = entry.answers {
-            for (k, v) in entry_answers {
-                answers.insert(k.clone(), v.clone());
-            }
-        }
-        // Request-level answers override
         if let Some(answers_json) = &req.answers {
             if let serde_json::Value::Object(obj) = answers_json {
                 for (k, v) in obj {
@@ -491,20 +480,17 @@ impl ArchetectMcpServer {
             answers,
         );
 
-        // Merge switches: catalog-entry + request
-        let mut switch_set = entry.switches.clone().unwrap_or_default();
+        // Switches: request-level only for now (see note above).
         if let Some(req_switches) = &req.switches {
-            switch_set.extend(req_switches.iter().cloned());
-        }
-        if !switch_set.is_empty() {
-            render_context = render_context.with_switches(switch_set);
+            if !req_switches.is_empty() {
+                render_context = render_context.with_switches(
+                    req_switches.iter().cloned().collect(),
+                );
+            }
         }
 
-        // Merge defaults
-        if let Some(ref use_defaults) = entry.use_defaults {
-            render_context.set_use_defaults(use_defaults.clone());
-        }
-        if entry.use_defaults_all.unwrap_or(false) || req.use_defaults_all.unwrap_or(false) {
+        // Defaults: request-level only for now (see note above).
+        if req.use_defaults_all.unwrap_or(false) {
             render_context = render_context.with_use_defaults_all(true);
         }
 

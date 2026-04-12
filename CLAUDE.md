@@ -314,6 +314,63 @@ jj bookmark set    # instead of git branch
 - **Specs** go in `docs/specs/` — technical specifications for features and systems
 - **Plans** go in `docs/plans/` — implementation plans and design documents
 
+## Dogfooding: creating new archetypes, catalogs, libraries, components
+
+**Always scaffold new Archetect artifacts from our own starters** — do not
+hand-write from scratch. If the starter is missing something you need,
+**fix the starter first**, then re-scaffold. This keeps the starters
+battle-tested and the ecosystem consistent.
+
+| Creating a new... | Use this starter |
+|---|---|
+| Archetype | `archetect-rust/archetype-starter-archetype` (or `archetect-common/archetype-starter-archetype` — master catalog aliases it under `common/starters/archetype-starter`) |
+| Component | `common/starters/component-starter` |
+| Catalog | `common/starters/catalog-starter` |
+| Library | `common/starters/library-starter` |
+
+### Use the archetect MCP from agent sessions
+
+When working in a Claude Code (or other MCP-capable agent) session,
+prefer the `archetect` MCP server over shelling out to `archetect`
+directly. It exposes catalog discovery and render as structured tool
+calls — better than parsing terminal output.
+
+One-time session registration (via mcp-loader or your MCP manager):
+
+```
+transport: stdio
+command: archetect
+args: ["mcp"]
+```
+
+Tools provided:
+- `catalog_search { query }` — discover archetypes by keyword (AND terms)
+- `catalog_browse { path? }` — walk the catalog tree
+- `catalog_render { path, destination, answers?, switches?, use_defaults_all? }` — render by catalog path
+- `render { source, destination, ... }` — render from a URL or local path
+- `respond { value }` — answer an interactive prompt in an active session
+- `cancel` — abort the current render
+
+Users working interactively at the CLI still use `archetect render` directly.
+
+### Typical agent flow
+
+```
+catalog_search { query: "archetype starter" }
+→ discover archetect/common/starters/archetype-starter
+catalog_render { path: "<full path>", destination: "<scratch-dir>" }
+→ respond to prompts via `respond` until complete
+```
+
+Afterward, edit the generated `archetype.lua`, templates, and README in
+place — do **not** regenerate from the starter once you've begun
+authoring, or you'll clobber your work.
+
+If the starters diverge from what new archetypes actually need (e.g.,
+missing a common file, wrong author default, outdated manifest), open
+an improvement on the starter rather than working around it in the
+generated artifact.
+
 ## Common Development Patterns
 
 - **Adding a new Rhai function**: Add to appropriate module in `archetect-core/src/script/rhai/modules/`, register in the module's `register()` function
