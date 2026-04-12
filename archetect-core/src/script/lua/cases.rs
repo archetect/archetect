@@ -181,15 +181,14 @@ pub fn register_cases(lua: &Lua) -> LuaResult<()> {
         })?,
     )?;
 
-    lua.globals().set("Cases", cases_table)?;
-
-    // Case.input("key") — preserve untransformed input under an explicit key
-    let case_table: mlua::Table = lua.globals().get("Case")?;
-    case_table.set(
+    // Cases.input("key") — preserve untransformed input under an explicit key
+    cases_table.set(
         "input",
         lua.create_function(|_, key: String| {
             Ok(CaseSpecEntry(CaseSpec::Input { key }))
         })?,
     )?;
+
+    lua.globals().set("Cases", cases_table)?;
     Ok(())
 }
