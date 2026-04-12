@@ -68,9 +68,9 @@ impl Archetype {
                 // Check for .rhai scripts and emit a helpful error
                 if script_path.extension() == Some("rhai") {
                     let error_msg = format!(
-                        "Rhai scripts (.rhai) are no longer supported in Archetect 3. \
-                         This archetype uses '{}'. Please convert to Lua (.lua) or use \
-                         Archetect 2.x to render this archetype.",
+                        "Rhai scripts (.rhai) are not supported. This archetype uses \
+                         '{}'. Please convert to Lua (.lua), or use `archetect2` to \
+                         render legacy archetypes.",
                         script_path
                     );
                     let _ = self.archetect.request(archetect_api::ScriptMessage::LogError(error_msg.clone()));

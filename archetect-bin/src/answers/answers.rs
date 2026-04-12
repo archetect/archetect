@@ -17,8 +17,8 @@ pub fn read_answers<P: AsRef<Utf8Path>>(path: P) -> Result<ContextMap, Archetect
         Some("rhai") => Err(ArchetectError::AnswerConfigError {
             path: path.to_string(),
             source: AnswerFileError::ParseError(
-                "Rhai answer files (.rhai) are no longer supported in Archetect 3. \
-                 Use YAML or JSON instead."
+                "Rhai answer files (.rhai) are not supported. Use YAML or JSON instead, \
+                 or use `archetect2` for legacy archetypes."
                     .to_string(),
             ),
         }),

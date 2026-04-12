@@ -12,7 +12,7 @@ use crate::vendor::loggerv;
 
 pub fn command() -> Command {
     command!()
-        .name("archetect3")
+        .name("archetect")
         .help_expected(true)
         .args(render_args(false))
         .subcommand(

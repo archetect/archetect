@@ -13,7 +13,7 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "archetect3"
+name = "archetect"
 path = "src/main.rs"
 
 [dependencies]
