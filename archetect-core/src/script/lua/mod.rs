@@ -52,6 +52,11 @@ pub(crate) fn execute(
                 return Ok(ContextValue::Nil);
             }
 
+            // User cancelled a prompt (Escape / Ctrl-C) — exit cleanly
+            if is_prompt_abort(&err) {
+                return Ok(ContextValue::Nil);
+            }
+
             let _ = archetect.request(archetect_api::ScriptMessage::LogError(format!("{}", err)));
             let _ = archetect.request(archetect_api::ScriptMessage::CompleteError(format!("{}", err)));
             Err(ArchetypeError::ScriptAbortError)
@@ -64,6 +69,15 @@ fn is_clean_exit(err: &mlua::Error) -> bool {
     match err {
         mlua::Error::RuntimeError(msg) if msg.contains(modules::EXIT_SENTINEL) => true,
         mlua::Error::CallbackError { cause, .. } => is_clean_exit(cause),
+        _ => false,
+    }
+}
+
+/// Check if a Lua error is a user-initiated prompt abort (Escape / Ctrl-C).
+fn is_prompt_abort(err: &mlua::Error) -> bool {
+    match err {
+        mlua::Error::RuntimeError(msg) if msg.contains("Prompt aborted") => true,
+        mlua::Error::CallbackError { cause, .. } => is_prompt_abort(cause),
         _ => false,
     }
 }
