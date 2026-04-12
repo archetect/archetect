@@ -1197,6 +1197,36 @@ service {{ entity.name.pascal }}Service {
         assert_eq!(result, "Jimmie");
     }
 
+    // ---------- Lua-string-aware tokenizer ----------
+
+    #[test]
+    fn test_string_literal_emits_literal_delimiters() {
+        // The motivating case: `{{ "{{ var }}" }}` produces `{{ var }}`
+        let result = render_simple(
+            r#"${{ "{{ github.event.inputs.x }}" }}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "${{ github.event.inputs.x }}");
+    }
+
+    #[test]
+    fn test_string_concat_emits_closing_braces() {
+        let result = render_simple(
+            r#"{{ "}" .. "}" }}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "}}");
+    }
+
+    #[test]
+    fn test_long_string_emits_raw_content() {
+        let result = render_simple(
+            "{{ [[ raw }} text ]] }}",
+            |_, _| {},
+        );
+        assert_eq!(result, " raw }} text ");
+    }
+
     // ---------- Built-in escape constants ----------
 
     #[test]

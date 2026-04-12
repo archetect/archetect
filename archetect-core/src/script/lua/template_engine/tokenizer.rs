@@ -239,22 +239,138 @@ impl Tokenizer {
 /// Find the closing delimiter (e.g., `}}`, `%}`, `#}`) starting from `start`.
 /// Updates `line` to track newlines within the content.
 /// Returns the byte position of the closing delimiter start, or None.
+///
+/// The scan is Lua-string-aware: occurrences of the delimiter inside Lua
+/// string literals (single/double-quoted short strings and `[[`/`[=[` long
+/// strings) and comments (`--` line comments, `--[[` block comments) are
+/// skipped. This means `{{ "{{ x }}" }}` correctly treats the inner `}}`
+/// as part of the Lua string, not as the end of the expression tag.
 fn find_closing(template: &str, start: usize, delimiter: &str, line: &mut usize) -> Option<usize> {
     let delim_bytes = delimiter.as_bytes();
     let bytes = template.as_bytes();
+    let len = bytes.len();
     let mut pos = start;
 
-    while pos + delim_bytes.len() <= bytes.len() {
+    while pos + delim_bytes.len() <= len {
+        let b = bytes[pos];
+
+        // Check for the closing delimiter at top level
         if &bytes[pos..pos + delim_bytes.len()] == delim_bytes {
             return Some(pos);
         }
-        if bytes[pos] == b'\n' {
+
+        // Track newlines
+        if b == b'\n' {
             *line += 1;
+            pos += 1;
+            continue;
         }
+
+        // Short string: "..." or '...'
+        if b == b'"' || b == b'\'' {
+            let quote = b;
+            pos += 1; // skip opening quote
+            while pos < len {
+                if bytes[pos] == b'\\' {
+                    // Escape sequence — skip next char
+                    pos += 1;
+                    if pos < len && bytes[pos] == b'\n' {
+                        *line += 1;
+                    }
+                    pos += 1;
+                    continue;
+                }
+                if bytes[pos] == b'\n' {
+                    *line += 1;
+                }
+                if bytes[pos] == quote {
+                    pos += 1; // skip closing quote
+                    break;
+                }
+                pos += 1;
+            }
+            continue;
+        }
+
+        // Long string: [[...]] or [=[...]=] etc.
+        if b == b'[' {
+            if let Some(level) = long_bracket_level(bytes, pos) {
+                pos = skip_long_string(bytes, pos, level, line);
+                continue;
+            }
+        }
+
+        // Lua comments: -- (line) or --[[ (block)
+        if b == b'-' && pos + 1 < len && bytes[pos + 1] == b'-' {
+            pos += 2; // skip --
+            // Block comment: --[[...]] or --[=[...]=]
+            if pos < len && bytes[pos] == b'[' {
+                if let Some(level) = long_bracket_level(bytes, pos) {
+                    pos = skip_long_string(bytes, pos, level, line);
+                    continue;
+                }
+            }
+            // Line comment: skip to end of line
+            while pos < len && bytes[pos] != b'\n' {
+                pos += 1;
+            }
+            continue;
+        }
+
         pos += 1;
     }
 
     None
+}
+
+/// Check if position `pos` starts a Lua long-bracket `[====[` and return
+/// the level (number of `=` signs). Returns `None` if not a long bracket.
+fn long_bracket_level(bytes: &[u8], pos: usize) -> Option<usize> {
+    if bytes[pos] != b'[' {
+        return None;
+    }
+    let mut level = 0;
+    let mut i = pos + 1;
+    while i < bytes.len() && bytes[i] == b'=' {
+        level += 1;
+        i += 1;
+    }
+    if i < bytes.len() && bytes[i] == b'[' {
+        Some(level)
+    } else {
+        None
+    }
+}
+
+/// Skip past a Lua long string `[====[......]====]` starting at `pos`.
+/// `pos` points to the opening `[`. Returns the position after the
+/// closing long bracket, or `bytes.len()` if unterminated.
+fn skip_long_string(bytes: &[u8], pos: usize, level: usize, line: &mut usize) -> usize {
+    // Skip opening bracket: `[` + level * `=` + `[`
+    let mut i = pos + 2 + level;
+
+    while i < bytes.len() {
+        if bytes[i] == b'\n' {
+            *line += 1;
+            i += 1;
+            continue;
+        }
+        if bytes[i] == b']' {
+            // Check for closing long bracket: `]` + level * `=` + `]`
+            let mut j = i + 1;
+            let mut eq_count = 0;
+            while j < bytes.len() && bytes[j] == b'=' {
+                eq_count += 1;
+                j += 1;
+            }
+            if eq_count == level && j < bytes.len() && bytes[j] == b']' {
+                return j + 1; // past closing `]`
+            }
+        }
+        i += 1;
+    }
+
+    bytes.len() // unterminated — consume to end
 }
 
 /// Parse an `{% include "path" %}` body into the bare path string.
@@ -855,6 +971,129 @@ mod tests {
         // Raw content is emitted as Token::Text
         assert_eq!(tokens, vec![
             Token::Text("content".to_string()),
+        ]);
+    }
+
+    // ---------- Lua-string awareness in tag bodies ----------
+
+    #[test]
+    fn test_double_quoted_string_hides_closing_braces() {
+        // The `}}` inside the Lua string should not close the expression tag
+        let tokens = Tokenizer::tokenize(r#"{{ "}}" }}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: r#""}}""#.to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_single_quoted_string_hides_closing_braces() {
+        let tokens = Tokenizer::tokenize("{{ '}}' }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "'}}'" .to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_escaped_quote_in_string() {
+        // Escaped quotes shouldn't end the string prematurely
+        let tokens = Tokenizer::tokenize(r#"{{ "hello \"}}\" world" }}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: r#""hello \"}}\" world""#.to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_long_string_hides_closing_braces() {
+        let tokens = Tokenizer::tokenize("{{ [[ }} ]] }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "[[ }} ]]".to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_leveled_long_string_hides_closing_braces() {
+        let tokens = Tokenizer::tokenize("{{ [=[ }} ]=] }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "[=[ }} ]=]".to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_line_comment_hides_closing_braces() {
+        // Lua line comment inside expression body hides `}}`
+        let tokens = Tokenizer::tokenize("{{ 1 + 1 -- }}\n}}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "1 + 1 -- }}".to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_block_comment_hides_closing_braces() {
+        let tokens = Tokenizer::tokenize("{{ 1 --[[ }} ]] }}").unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: "1 --[[ }} ]]".to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_stmt_tag_string_hides_closing() {
+        // Same awareness applies to {% %} tags: `%}` inside a string shouldn't close
+        let tokens = Tokenizer::tokenize(r#"{% local x = "%}" %}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Logic {
+                code: r#"local x = "%}""#.to_string(),
+                trim_left: false,
+                trim_right: false,
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_full_expression_with_string_literal_template() {
+        // The motivating use case: {{ "{{ var }}" }} should produce {{ var }}
+        let tokens = Tokenizer::tokenize(r#"{{ "{{ var }}" }}"#).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Expression {
+                expr: r#""{{ var }}""#.to_string(),
+                filters: vec![],
+                trim_left: false,
+                trim_right: false,
+            },
         ]);
     }
 }
