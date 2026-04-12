@@ -132,14 +132,14 @@ pub fn render_leaf(
 }
 
 /// Present catalog entries interactively as a select menu.
-/// Groups recurse, leaves render the archetype, then loop back.
+/// Groups recurse; selecting a leaf renders the archetype and exits.
 ///
 /// Entries with `show: false` are filtered out — they remain addressable
 /// by name from scripts via `catalog.render("name")` but don't appear in
 /// menus.
 ///
-/// Returns the most recently rendered child's `ContextValue`, or `Nil` if
-/// the user cancels without picking anything.
+/// Returns the rendered child's `ContextValue`, or `Nil` if the user
+/// cancels without picking anything.
 pub fn present_entries(
     archetect: &Archetect,
     entries: &LinkedHashMap<String, CatalogEntry>,
@@ -155,42 +155,40 @@ pub fn present_entries(
         return Ok(ContextValue::Nil);
     }
 
-    let mut last_result = ContextValue::Nil;
-    loop {
-        let choices: Vec<EntryItem> = visible
-            .iter()
-            .enumerate()
-            .map(|(idx, (name, entry))| {
-                let icon = if entry.is_group() { "📂" } else { "📦" };
-                let label = entry.display_description(name);
-                let width = if visible.len() <= 99 { 2 } else { 3 };
-                EntryItem {
-                    text: format!("{:>0width$}: {} {}", idx + 1, icon, label),
-                    name: name.clone(),
-                    entry: entry.clone(),
-                }
-            })
-            .collect();
+    let choices: Vec<EntryItem> = visible
+        .iter()
+        .enumerate()
+        .map(|(idx, (name, entry))| {
+            let icon = if entry.is_group() { "📂" } else { "📦" };
+            let label = entry.display_description(name);
+            let width = if visible.len() <= 99 { 2 } else { 3 };
+            EntryItem {
+                text: format!("{:>0width$}: {} {}", idx + 1, icon, label),
+                name: name.clone(),
+                entry: entry.clone(),
+            }
+        })
+        .collect();
 
-        let prompt = Select::new("Select:", choices).with_page_size(30);
+    let prompt = Select::new("Select:", choices).with_page_size(30);
 
-        match prompt.prompt() {
-            Ok(item) => {
-                if item.entry.is_group() {
-                    if let Some(ref nested) = item.entry.catalog {
-                        last_result = present_entries(archetect, nested, render_context)?;
-                    }
+    match prompt.prompt() {
+        Ok(item) => {
+            if item.entry.is_group() {
+                if let Some(ref nested) = item.entry.catalog {
+                    present_entries(archetect, nested, render_context)
                 } else {
-                    last_result =
-                        render_leaf(archetect, &item.entry, &item.name, render_context.clone())?;
+                    Ok(ContextValue::Nil)
                 }
+            } else {
+                render_leaf(archetect, &item.entry, &item.name, render_context.clone())
             }
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                return Ok(last_result);
-            }
-            Err(err) => {
-                return Err(ArchetectError::GeneralError(err.to_string()));
-            }
+        }
+        Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+            Ok(ContextValue::Nil)
+        }
+        Err(err) => {
+            Err(ArchetectError::GeneralError(err.to_string()))
         }
     }
 }

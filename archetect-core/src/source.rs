@@ -332,12 +332,27 @@ fn cache_git_repo(
     } else {
         let repo = Repository::open(cache_destination.join(".git"))?;
         let mut should_fetch = force_pull || should_pull(&repo, archetect)?;
-        
+
+        // If the cache was cloned from an empty repo (no remote branches),
+        // force a re-fetch — the repo likely has content now.
+        if !should_fetch && !archetect.is_offline() {
+            let has_remote_refs = handle_git(
+                Command::new("git")
+                    .current_dir(cache_destination)
+                    .args(["show-ref", "--heads", "-q"]),
+            )
+            .is_ok();
+            if !has_remote_refs {
+                debug!("Cached repo has no branches — re-fetching (was likely cloned empty)");
+                should_fetch = true;
+            }
+        }
+
         // Check if the requested gitref exists, and if not, force a fetch unless offline
         if let Some(gitref_str) = gitref.as_ref().filter(|_| !should_fetch) {
             let gitref_exists = is_branch(cache_destination.as_str(), gitref_str) ||
                                is_tag_or_commit(cache_destination.as_str(), gitref_str);
-            
+
             if !gitref_exists && !archetect.is_offline() {
                 debug!("Requested gitref '{}' not found in cache, fetching latest", gitref_str);
                 should_fetch = true;
@@ -347,7 +362,7 @@ fn cache_git_repo(
                 )));
             }
         }
-        
+
         if should_fetch {
             if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
                 info!("Fetching {}", url);

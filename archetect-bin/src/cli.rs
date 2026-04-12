@@ -131,31 +131,31 @@ pub fn command() -> Command {
                 .subcommand(Command::new("clear").about("Remove Archetect's entire Repository Cache"))
                 .subcommand(
                     Command::new("pull")
-                        .about("Recursively pull all archetypes/catalogs reachable from a source")
+                        .about("Recursively pull all archetypes/catalogs reachable from a source or the configured catalog")
                         .long_about(
-                            "Resolves the source, walks its catalog tree, and pulls every reachable archetype.\n\
-                             Following the 'archetypes all the way down' model: if a leaf entry points to an\n\
-                             archetype that itself has a catalog, those entries are pulled too. Idempotent\n\
-                             within a single run — sources are deduplicated."
+                            "Resolves the source (or the configured catalog if no source is given), walks its\n\
+                             catalog tree, and pulls every reachable archetype. Following the 'archetypes all\n\
+                             the way down' model: if a leaf entry points to an archetype that itself has a\n\
+                             catalog, those entries are pulled too. Idempotent within a single run — sources\n\
+                             are deduplicated."
                         )
                         .arg(
                             Arg::new("source")
-                                .help("The archetype/catalog source (Git URL or local path)")
-                                .required(true)
+                                .help("The archetype/catalog source (Git URL or local path). If omitted, pulls the configured catalog.")
                                 .action(ArgAction::Set)
                         )
                 )
                 .subcommand(
                     Command::new("invalidate")
-                        .about("Recursively invalidate cached archetypes/catalogs reachable from a source")
+                        .about("Recursively invalidate cached archetypes/catalogs reachable from a source or the configured catalog")
                         .long_about(
                             "Walks the catalog tree and invalidates the cache timestamp for each reachable\n\
-                             archetype, forcing a re-fetch on next render."
+                             archetype, forcing a re-fetch on next render. If no source is given, invalidates\n\
+                             the configured catalog."
                         )
                         .arg(
                             Arg::new("source")
-                                .help("The archetype/catalog source (Git URL or local path)")
-                                .required(true)
+                                .help("The archetype/catalog source (Git URL or local path). If omitted, invalidates the configured catalog.")
                                 .action(ArgAction::Set)
                         )
                 ),
