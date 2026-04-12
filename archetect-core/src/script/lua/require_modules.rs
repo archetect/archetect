@@ -1,10 +1,39 @@
 use std::env;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use camino::Utf8PathBuf;
 use mlua::{Error as LuaError, Lua, Result as LuaResult, Table, UserData, UserDataMethods};
 
 use archetect_api::ScriptMessage;
+
+/// Run a shell command, capturing stdout/stderr and forwarding them as log
+/// messages through the Archetect IO channel.
+///
+/// This is mandatory for stdio-based IO drivers (MCP): letting subprocesses
+/// inherit stdin/stdout/stderr would pollute the JSON-RPC protocol stream and
+/// crash the transport. Capturing also gives the `log` module a chance to
+/// surface output coherently regardless of driver.
+fn run_logged(archetect: &Archetect, cmd: &mut Command, label: &str) -> LuaResult<std::process::ExitStatus> {
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let output = cmd
+        .output()
+        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", label, e)))?;
+
+    if !output.stdout.is_empty() {
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            let _ = archetect.request(ScriptMessage::LogInfo(line.to_string()));
+        }
+    }
+    if !output.stderr.is_empty() {
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            let _ = archetect.request(ScriptMessage::LogInfo(line.to_string()));
+        }
+    }
+    Ok(output.status)
+}
 
 use crate::archetype::render_context::RenderContext;
 use crate::Archetect;
@@ -199,9 +228,7 @@ fn create_shell_module(lua: &Lua, archetect: &Archetect, render_context: &Render
             cmd.args(&args);
             cmd.current_dir(&working_dir);
 
-            let status = cmd.status().map_err(|e| {
-                LuaError::RuntimeError(format!("Failed to run '{}': {}", program, e))
-            })?;
+            let status = run_logged(&arc, &mut cmd, &format!("Failed to run '{}'", program))?;
 
             if !status.success() {
                 return Err(LuaError::RuntimeError(format!(
@@ -324,46 +351,45 @@ fn format_command(program: &str, args: &[String]) -> String {
 #[derive(Clone, Debug)]
 struct GitRepo {
     path: String,
+    archetect: Archetect,
 }
 
 impl UserData for GitRepo {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("add", |_, this, pattern: String| {
-            git_cmd(&this.path, &["add", &pattern])
+            git_cmd(&this.archetect, &this.path, &["add", &pattern])
         });
 
         methods.add_method("add_all", |_, this, ()| {
-            git_cmd(&this.path, &["add", "-A"])
+            git_cmd(&this.archetect, &this.path, &["add", "-A"])
         });
 
         methods.add_method("commit", |_, this, message: String| {
-            git_cmd(&this.path, &["commit", "-m", &message])
+            git_cmd(&this.archetect, &this.path, &["commit", "-m", &message])
         });
 
         methods.add_method("branch", |_, this, name: String| {
-            git_cmd(&this.path, &["branch", &name])
+            git_cmd(&this.archetect, &this.path, &["branch", &name])
         });
 
         methods.add_method("checkout", |_, this, name: String| {
-            git_cmd(&this.path, &["checkout", &name])
+            git_cmd(&this.archetect, &this.path, &["checkout", &name])
         });
 
         methods.add_method("remote_add", |_, this, (name, url): (String, String)| {
-            git_cmd(&this.path, &["remote", "add", &name, &url])
+            git_cmd(&this.archetect, &this.path, &["remote", "add", &name, &url])
         });
 
         methods.add_method("push", |_, this, (remote, branch): (String, String)| {
-            git_cmd(&this.path, &["push", &remote, &branch])
+            git_cmd(&this.archetect, &this.path, &["push", &remote, &branch])
         });
     }
 }
 
-fn git_cmd(path: &str, args: &[&str]) -> LuaResult<()> {
-    let status = Command::new("git")
-        .args(args)
-        .current_dir(path)
-        .status()
-        .map_err(|e| LuaError::RuntimeError(format!("git error: {}", e)))?;
+fn git_cmd(archetect: &Archetect, path: &str, args: &[&str]) -> LuaResult<()> {
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(path);
+    let status = run_logged(archetect, &mut cmd, "git error")?;
 
     if !status.success() {
         return Err(LuaError::RuntimeError(format!(
@@ -375,18 +401,16 @@ fn git_cmd(path: &str, args: &[&str]) -> LuaResult<()> {
     Ok(())
 }
 
-fn create_git_module(lua: &Lua, _archetect: &Archetect, render_context: &RenderContext) -> LuaResult<Table> {
+fn create_git_module(lua: &Lua, archetect: &Archetect, render_context: &RenderContext) -> LuaResult<Table> {
     let module = lua.create_table()?;
     let default_dest = render_context.destination().to_string();
+    let arc = archetect.clone();
 
     module.set(
         "init",
         lua.create_function(move |_, (path, opts): (Option<String>, Option<Table>)| {
             let repo_path = match path {
-                Some(p) => {
-                    let full = format!("{}/{}", default_dest, p);
-                    full
-                }
+                Some(p) => format!("{}/{}", default_dest, p),
                 None => default_dest.clone(),
             };
 
@@ -403,16 +427,15 @@ fn create_git_module(lua: &Lua, _archetect: &Archetect, render_context: &RenderC
             }
             args.push(&repo_path);
 
-            let status = Command::new("git")
-                .args(&args)
-                .status()
-                .map_err(|e| LuaError::RuntimeError(format!("git init error: {}", e)))?;
+            let mut cmd = Command::new("git");
+            cmd.args(&args);
+            let status = run_logged(&arc, &mut cmd, "git init error")?;
 
             if !status.success() {
                 return Err(LuaError::RuntimeError("git init failed".to_string()));
             }
 
-            Ok(GitRepo { path: repo_path })
+            Ok(GitRepo { path: repo_path, archetect: arc.clone() })
         })?,
     )?;
 
