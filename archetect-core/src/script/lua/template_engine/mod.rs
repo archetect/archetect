@@ -1217,6 +1217,28 @@ service {{ entity.name.pascal }}Service {
         assert_eq!(result, "{{ v }} and {% s %}");
     }
 
+    // ---------- {% raw %} / {% endraw %} ----------
+
+    #[test]
+    fn test_raw_block_renders_verbatim() {
+        let result = render_simple(
+            "before{% raw %}${{ github.event.inputs.x }}{% endraw %}after",
+            |_, _| {},
+        );
+        assert_eq!(result, "before${{ github.event.inputs.x }}after");
+    }
+
+    #[test]
+    fn test_raw_block_with_context_around_it() {
+        let result = render_simple(
+            "{{ name }} {% raw %}{{ not_evaluated }}{% endraw %} {{ name }}",
+            |_, ctx| { ctx.set("name", "ok").unwrap(); },
+        );
+        assert_eq!(result, "ok {{ not_evaluated }} ok");
+    }
+
+    // ---------- Built-in escape constants ----------
+
     #[test]
     fn test_builtin_constants_mixed_with_context() {
         // Escape constants and context variables coexist: LE/RE produce

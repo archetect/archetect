@@ -136,6 +136,61 @@ impl Tokenizer {
                                 }
                             }
 
+                            // Special-form: `raw` / `endraw`. A `{% raw %}`
+                            // block emits everything between it and the
+                            // matching `{% endraw %}` as literal text — no
+                            // tokenization of `{{ }}`, `{% %}`, or `{# #}`
+                            // inside. Useful for embedding GitHub Actions
+                            // workflows, Jinja templates, or other content
+                            // that happens to use `{{ }}` syntax.
+                            if raw == "raw" {
+                                let raw_body_start = content_end + 2;
+                                let mut scan_pos = raw_body_start;
+                                let mut found_endraw = false;
+
+                                while scan_pos < len {
+                                    // Scan for the next `{%`
+                                    let brace_offset = memchr::memchr(b'{', &bytes[scan_pos..]);
+                                    let brace_pos = match brace_offset {
+                                        Some(offset) => scan_pos + offset,
+                                        None => break,
+                                    };
+
+                                    if brace_pos + 1 < len && bytes[brace_pos + 1] == b'%' {
+                                        let inner_start = brace_pos + 2;
+                                        let mut inner_line = line;
+                                        if let Some(inner_end) = find_closing(template, inner_start, "%}", &mut inner_line) {
+                                            let inner_trimmed = template[inner_start..inner_end]
+                                                .trim()
+                                                .trim_start_matches('-')
+                                                .trim_end_matches('-')
+                                                .trim();
+                                            if inner_trimmed == "endraw" {
+                                                // Capture everything between {% raw %} close and {% endraw %} open
+                                                let raw_content = &template[raw_body_start..brace_pos];
+                                                // Count newlines across the entire raw span (content + endraw tag body)
+                                                line += raw_content.matches('\n').count()
+                                                    + (inner_line - line);
+                                                if !raw_content.is_empty() {
+                                                    tokens.push(Token::Text(raw_content.to_string()));
+                                                }
+                                                pos = inner_end + 2;
+                                                found_endraw = true;
+                                                break;
+                                            }
+                                        }
+                                        scan_pos = brace_pos + 2;
+                                    } else {
+                                        scan_pos = brace_pos + 1;
+                                    }
+                                }
+
+                                if !found_endraw {
+                                    return Err(TemplateCompileError::UnterminatedRaw { line: start_line });
+                                }
+                                continue;
+                            }
+
                             tokens.push(Token::Logic {
                                 code: raw.to_string(),
                                 trim_left,
@@ -732,5 +787,74 @@ mod tests {
     fn test_brace_at_end() {
         let tokens = Tokenizer::tokenize("hello {").unwrap();
         assert_eq!(tokens, vec![Token::Text("hello {".to_string())]);
+    }
+
+    // ---------- {% raw %} / {% endraw %} ----------
+
+    #[test]
+    fn test_raw_block_passes_through_expression_syntax() {
+        let tokens = Tokenizer::tokenize(
+            "before{% raw %}{{ var }} and {% if x %}{% endraw %}after"
+        ).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Text("before".to_string()),
+            Token::Text("{{ var }} and {% if x %}".to_string()),
+            Token::Text("after".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn test_raw_block_empty() {
+        let tokens = Tokenizer::tokenize("{% raw %}{% endraw %}").unwrap();
+        assert_eq!(tokens, Vec::<Token>::new());
+    }
+
+    #[test]
+    fn test_raw_block_with_comments() {
+        let tokens = Tokenizer::tokenize(
+            "{% raw %}{# comment #} and {{ expr }}{% endraw %}"
+        ).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Text("{# comment #} and {{ expr }}".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn test_raw_block_unterminated() {
+        let result = Tokenizer::tokenize("{% raw %}missing endraw");
+        assert!(matches!(
+            result,
+            Err(TemplateCompileError::UnterminatedRaw { line: 1 })
+        ));
+    }
+
+    #[test]
+    fn test_raw_block_with_github_actions_syntax() {
+        let template = "release_type: {% raw %}${{ github.event.inputs.release_type }}{% endraw %}";
+        let tokens = Tokenizer::tokenize(template).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Text("release_type: ".to_string()),
+            Token::Text("${{ github.event.inputs.release_type }}".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn test_raw_block_preserves_multiline() {
+        let template = "{% raw %}\nline one\nline two\n{% endraw %}";
+        let tokens = Tokenizer::tokenize(template).unwrap();
+        assert_eq!(tokens, vec![
+            Token::Text("\nline one\nline two\n".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn test_raw_block_with_trim_markers() {
+        let tokens = Tokenizer::tokenize(
+            "{%- raw %}content{%- endraw -%}"
+        ).unwrap();
+        // Raw content is emitted as Token::Text
+        assert_eq!(tokens, vec![
+            Token::Text("content".to_string()),
+        ]);
     }
 }

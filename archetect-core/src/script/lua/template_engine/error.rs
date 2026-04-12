@@ -33,6 +33,8 @@ pub enum TemplateCompileError {
         include_path: String,
         source: Box<TemplateCompileError>,
     },
+    /// `{% raw %}` was opened but no matching `{% endraw %}` was found.
+    UnterminatedRaw { line: usize },
 }
 
 impl fmt::Display for TemplateCompileError {
@@ -91,6 +93,9 @@ impl fmt::Display for TemplateCompileError {
             }
             Self::IncludeChain { include_path, source } => {
                 write!(f, "while compiling include `{}`: {}", include_path, source)
+            }
+            Self::UnterminatedRaw { line } => {
+                write!(f, "Unterminated '{{% raw %}}' block at line {}", line)
             }
         }
     }
