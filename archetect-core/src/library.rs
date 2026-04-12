@@ -450,7 +450,7 @@ mod tests {
         fs::write(lib.join("hello.lua"), "return { greet = function() return \"hi\" end }").unwrap();
         fs::write(includes.join("header.atl"), "header content").unwrap();
         fs::write(
-            dir.join("archetect.yaml"),
+            dir.join("archetype.yaml"),
             "description: \"test library\"\nrequires:\n  archetect: \"3.0.0\"\n",
         )
         .unwrap();
@@ -538,7 +538,7 @@ mod tests {
         fs::create_dir_all(lib_dir.join("lib")).unwrap();
         fs::write(lib_dir.join("lib").join("util.lua"), "return {}").unwrap();
         fs::write(
-            lib_dir.join("archetect.yaml"),
+            lib_dir.join("archetype.yaml"),
             "description: \"only-lib\"\nrequires:\n  archetect: \"3.0.0\"\n",
         )
         .unwrap();

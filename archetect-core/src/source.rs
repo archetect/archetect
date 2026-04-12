@@ -68,14 +68,14 @@ impl Source {
     pub fn source_contents(&self) -> SourceContents {
         let dir = self.source_type().directory();
 
-        // Unified manifest (v3): archetect.yaml/yml
+        // Archetype manifest: archetype.yaml/yml (canonical) or archetect.yaml/yml (alias).
         // May also contain catalog entries — handled at render time.
-        if dir.join("archetect.yaml").is_file() || dir.join("archetect.yml").is_file() {
+        if dir.join("archetype.yaml").is_file() || dir.join("archetype.yml").is_file() {
             return SourceContents::Archetype;
         }
 
-        // Legacy manifest (v2): archetype.yaml/yml
-        if dir.join("archetype.yaml").is_file() || dir.join("archetype.yml").is_file() {
+        // Alias form: archetect.yaml/yml (accepted for compatibility)
+        if dir.join("archetect.yaml").is_file() || dir.join("archetect.yml").is_file() {
             return SourceContents::Archetype;
         }
 

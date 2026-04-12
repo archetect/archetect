@@ -256,7 +256,7 @@ fn register_catalog_module(
                 let (path, context_ud, opts) = parse_catalog_render_args(&args)?;
 
                 let raw_catalog = parent.manifest().catalog().ok_or_else(|| {
-                    LuaError::RuntimeError("No catalog entries defined in archetect.yaml".to_string())
+                    LuaError::RuntimeError("No catalog entries defined in archetype.yaml".to_string())
                 })?;
 
                 // Normalize relative source paths against the consumer

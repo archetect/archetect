@@ -13,16 +13,23 @@ use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
 
 /// Manifest file name candidates in priority order.
+///
+/// `archetype.yaml` is the canonical v3 name — it describes the archetype
+/// itself, in contrast to `archetect.yaml` which is the *tool's* config
+/// (found in `~/.config/archetect/` and as project-level `.archetect.yaml`
+/// overrides). The `archetect.yaml` and `archetect.yml` variants are
+/// accepted as aliases for backwards compatibility with early v3 development
+/// but should not be used for new archetypes.
 pub const MANIFEST_FILE_NAMES: &[&str] = &[
-    "archetect.yaml",
-    "archetect.yml",
     "archetype.yaml",
     "archetype.yml",
+    "archetect.yaml",
+    "archetect.yml",
 ];
 
 /// Unified manifest for both archetypes and catalogs.
 ///
-/// When loaded from an `archetect.yaml` (or legacy `archetype.yaml`),
+/// When loaded from an `archetype.yaml` (or the `archetect.yaml` alias),
 /// all fields are optional except `description` and `requires`. The presence of
 /// a `catalog` field and/or a Lua script file determines runtime behavior.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -131,7 +138,7 @@ impl Manifest {
     /// Load a manifest from a directory or file path.
     ///
     /// Searches for manifest files in priority order:
-    /// `archetect.yaml` > `archetect.yml` > `archetype.yaml` > `archetype.yml`
+    /// `archetype.yaml` > `archetype.yml` > `archetect.yaml` > `archetect.yml`
     pub fn load<P: Into<Utf8PathBuf>>(path: P) -> Result<Manifest, ArchetypeError> {
         let mut path = path.into();
 

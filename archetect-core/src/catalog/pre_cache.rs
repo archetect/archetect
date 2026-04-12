@@ -159,7 +159,7 @@ mod tests {
 
     fn write_manifest(dir: &Utf8PathBuf, yaml: &str) {
         fs::create_dir_all(dir).unwrap();
-        fs::write(dir.join("archetect.yaml"), yaml).unwrap();
+        fs::write(dir.join("archetype.yaml"), yaml).unwrap();
     }
 
     fn build_archetect() -> (TempDir, Archetect) {

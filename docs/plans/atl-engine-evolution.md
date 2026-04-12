@@ -21,7 +21,7 @@ The driving principles:
    can be defined by users.
 4. **The manifest declares what the engine loads.** Includes for
    templates and library directories for scripts both belong in
-   `archetect.yaml`, not implicit conventions.
+   `archetype.yaml`, not implicit conventions.
 
 ## Phase Order Rationale
 
@@ -483,7 +483,7 @@ read-cache keyed by include path. **Defer the read-cache.**
 
 ## Phase 5: Manifest Configuration Overhaul
 
-**Goal:** `archetect.yaml` declares everything the engine loads:
+**Goal:** `archetype.yaml` declares everything the engine loads:
 template includes, scripting library directories, and per-engine
 behavior toggles. No more implicit conventions buried in code.
 
