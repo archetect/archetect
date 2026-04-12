@@ -8,6 +8,10 @@ pub enum CaseSpec {
     Auto(CaseStyle),
     /// Fixed key name, value transformed with given style.
     Fixed { key: String, style: CaseStyle },
+    /// Preserve the untransformed input under an explicit key name.
+    /// `Case.input("project_name_raw")` stores the original value
+    /// before any case transformations are applied.
+    Input { key: String },
 }
 
 #[derive(Clone, Debug)]
@@ -178,5 +182,14 @@ pub fn register_cases(lua: &Lua) -> LuaResult<()> {
     )?;
 
     lua.globals().set("Cases", cases_table)?;
+
+    // Case.input("key") — preserve untransformed input under an explicit key
+    let case_table: mlua::Table = lua.globals().get("Case")?;
+    case_table.set(
+        "input",
+        lua.create_function(|_, key: String| {
+            Ok(CaseSpecEntry(CaseSpec::Input { key }))
+        })?,
+    )?;
     Ok(())
 }

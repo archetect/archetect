@@ -33,3 +33,25 @@ if switches.is_enabled("test_lua_cases_enum_fixed") then
     log.info(tostring(ctx:get("name")))            -- original: "Hello World"
     log.info(tostring(ctx:get("display_name")))    -- fixed key, title-cased value
 end
+
+if switches.is_enabled("test_lua_cases_input") then
+    -- Case.input("key") preserves the untransformed input under an explicit key.
+    -- Useful when Cases.programming() auto-cases the primary key's value but
+    -- you still need access to the literal user input.
+    ctx:set("project_name", "My Cool Project", {
+        cases = { Cases.programming(), Case.input("project_name_raw") }
+    })
+    log.info(tostring(ctx:get("project_name")))       -- snake-cased: "my_cool_project"
+    log.info(tostring(ctx:get("project_name_raw")))   -- untransformed: "My Cool Project"
+    log.info(tostring(ctx:get("ProjectName")))         -- pascal still works: "MyCoolProject"
+end
+
+if switches.is_enabled("test_lua_cases_input_with_prompt") then
+    -- Same pattern but via prompt_text (headless + answer)
+    ctx:prompt_text("Name:", "widget_name", {
+        cases = { Cases.programming(), Case.input("widget_name_raw") }
+    })
+    log.info(tostring(ctx:get("widget_name")))         -- snake-cased
+    log.info(tostring(ctx:get("widget_name_raw")))     -- untransformed
+    log.info(tostring(ctx:get("widget-name")))          -- kebab variant
+end

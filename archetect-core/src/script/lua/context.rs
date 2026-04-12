@@ -74,6 +74,9 @@ impl Context {
                         self.data.insert(kebab, ContextValue::String(new_value));
                     }
                 }
+                CaseSpec::Input { key: input_key } => {
+                    self.data.insert(input_key.clone(), ContextValue::String(value.to_string()));
+                }
             }
         }
     }

@@ -65,3 +65,45 @@ fn test_lua_cases_enum_fixed() -> Result<(), ArchetectError> {
     assert!(harness.render_succeeded());
     Ok(())
 }
+
+#[test]
+#[named]
+fn test_lua_cases_input() -> Result<(), ArchetectError> {
+    let harness = TestHarnessBuilder::new(file!())
+        .with_switch(function_name!())
+        .build()?;
+
+    // Primary key gets snake-cased (expected Cases.programming() behavior)
+    assert_eq!(harness.expect_log_info(), "my_cool_project");
+
+    // Case.input("project_name_raw") preserves the untransformed value
+    assert_eq!(harness.expect_log_info(), "My Cool Project");
+
+    // Pascal variant still works alongside Case.input()
+    assert_eq!(harness.expect_log_info(), "MyCoolProject");
+
+    assert!(harness.render_succeeded());
+    Ok(())
+}
+
+#[test]
+#[named]
+fn test_lua_cases_input_with_prompt() -> Result<(), ArchetectError> {
+    let harness = TestHarnessBuilder::new(file!())
+        .headless()
+        .with_switch(function_name!())
+        .with_answer("widget_name", "My-Widget")
+        .build()?;
+
+    // Primary key gets snake-cased by Cases.programming()
+    assert_eq!(harness.expect_log_info(), "my_widget");
+
+    // Case.input() preserves untransformed input from the prompt
+    assert_eq!(harness.expect_log_info(), "My-Widget");
+
+    // Kebab variant from Cases.programming()
+    assert_eq!(harness.expect_log_info(), "my-widget");
+
+    assert!(harness.render_succeeded());
+    Ok(())
+}
