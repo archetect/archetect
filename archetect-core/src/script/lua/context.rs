@@ -572,6 +572,10 @@ impl UserData for Context {
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
+                if let Some(allow_other) = get_opt_bool(opts, "allow_other")? {
+                    info.allow_other = allow_other;
+                }
+                info.other_label = get_opt_string(opts, "other_label")?;
             }
 
             let answer_key = get_answer_key(&opts, &key);

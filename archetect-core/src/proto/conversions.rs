@@ -69,6 +69,8 @@ impl From<ApiScriptMessage> for grpc::script_message::Message {
                     placeholder: info.placeholder,
                     page_size: info.page_size.map(|v| v as u32),
                     optional: info.optional,
+                    allow_other: info.allow_other,
+                    other_label: info.other_label,
                 })
             }
             ApiScriptMessage::PromptForMultiSelect(info) => {
@@ -182,6 +184,8 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 placeholder: p.placeholder,
                 page_size: p.page_size.map(|v| v as usize),
                 optional: p.optional,
+                allow_other: p.allow_other,
+                other_label: p.other_label,
             }),
             Message::PromptForMultiSelect(p) => {
                 ApiScriptMessage::PromptForMultiSelect(MultiSelectPromptInfo {

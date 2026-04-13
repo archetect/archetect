@@ -113,10 +113,12 @@ function Context:prompt_editor(message, key, opts) end
 ---@field answer_key? string Alternate key to look up pre-supplied answers
 
 ---@class SelectPromptOpts
----@field default? string Default selection
+---@field default? string Default selection (may be an off-list value when allow_other = true)
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
+---@field allow_other? boolean Append an "Other..." entry that opens a free-text prompt
+---@field other_label? string Label for the "other" entry (default: "Other...")
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
 ---@field answer_key? string Alternate key to look up pre-supplied answers
 

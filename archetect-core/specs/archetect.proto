@@ -59,6 +59,8 @@ message PromptForSelect {
     optional string placeholder = 6;
     optional uint32 page_size = 7;
     bool optional = 8;
+    bool allow_other = 9;
+    optional string other_label = 10;
 }
 
 message PromptForMultiSelect {

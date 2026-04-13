@@ -82,3 +82,27 @@ fn test_lua_select_prompt_with_answer() -> Result<(), ArchetectError> {
     assert!(harness.render_succeeded());
     Ok(())
 }
+
+#[test]
+#[named]
+fn test_lua_select_prompt_allow_other() -> Result<(), ArchetectError> {
+    let harness = TestHarnessBuilder::new(file!())
+        .with_switch(function_name!())
+        .build()?;
+
+    let prompt_info = harness.expect_select_prompt();
+    assert_eq!(prompt_info.options(), &["Rust", "Java", "Go"]);
+    assert!(prompt_info.allow_other());
+    assert_eq!(prompt_info.other_label(), "Custom...");
+
+    // The terminal client would render an "Other..." entry and, on
+    // selection, prompt for free text. The IO contract is just: the
+    // client returns whatever string the user produced — on-list or off.
+    harness.respond_text("Zig");
+
+    let output = harness.expect_log_info();
+    assert_eq!(output, "Zig");
+
+    assert!(harness.render_succeeded());
+    Ok(())
+}

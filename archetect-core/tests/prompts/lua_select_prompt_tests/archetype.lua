@@ -22,3 +22,11 @@ if switches.is_enabled("test_lua_select_prompt_with_answer") then
     ctx:prompt_select("Language:", "language", {"Rust", "Java", "Go"})
     log.info(tostring(ctx:get("language")))
 end
+
+if switches.is_enabled("test_lua_select_prompt_allow_other") then
+    ctx:prompt_select("Language:", "language", {"Rust", "Java", "Go"}, {
+        allow_other = true,
+        other_label = "Custom...",
+    })
+    log.info(tostring(ctx:get("language")))
+end

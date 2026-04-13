@@ -13,6 +13,15 @@ pub struct SelectPromptInfo {
     pub placeholder: Option<String>,
     pub optional: bool,
     pub page_size: Option<usize>,
+    /// When true, the client should append an "other" entry to the menu;
+    /// selecting it triggers a free-text prompt that returns whatever the
+    /// user types. Lets a `prompt_select` accept values outside the curated
+    /// list without forcing the author to fall back to `prompt_text`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub allow_other: bool,
+    /// Label for the "other" menu entry. Defaults to "Other..." when None.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other_label: Option<String>,
 }
 
 impl PromptInfo for SelectPromptInfo {
@@ -71,7 +80,27 @@ impl SelectPromptInfo {
             placeholder: Default::default(),
             optional: Default::default(),
             page_size: Some(10),
+            allow_other: false,
+            other_label: None,
         }
+    }
+
+    pub fn allow_other(&self) -> bool {
+        self.allow_other
+    }
+
+    pub fn other_label(&self) -> &str {
+        self.other_label.as_deref().unwrap_or("Other...")
+    }
+
+    pub fn with_allow_other(mut self, allow: bool) -> Self {
+        self.allow_other = allow;
+        self
+    }
+
+    pub fn with_other_label(mut self, label: Option<String>) -> Self {
+        self.other_label = label;
+        self
     }
 
     pub fn options(&self) -> &[String] {
