@@ -1,6 +1,7 @@
 use log::warn;
 
 use archetect_api::{ClientMessage, PromptInfo, PromptInfoPageable, SelectPromptInfo};
+use inquire::validator::Validation;
 use inquire::{InquireError, Select, Text};
 
 use crate::get_render_config;
@@ -68,6 +69,19 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
             if let Some(ref pre) = prefill_other {
                 text.initial_value = Some(pre);
             }
+            // Required prompts must reject empty input; inquire reprompts
+            // automatically when the validator returns Invalid.
+            let text = if !is_optional {
+                text.with_validator(|input: &str| {
+                    if input.is_empty() {
+                        Ok(Validation::Invalid("Answer is required.".into()))
+                    } else {
+                        Ok(Validation::Valid)
+                    }
+                })
+            } else {
+                text
+            };
             let text_result = if is_optional {
                 text.prompt_skippable().map(|opt| opt.filter(|s| !s.is_empty()))
             } else {

@@ -18,13 +18,22 @@ pub fn handle_prompt_text(prompt_info: TextPromptInfo, responses: &dyn Responder
 
     let min = prompt_info.min();
     let max = prompt_info.max();
-    let validator = move |input: &str| match validate_text_length(min, max, input) {
-        Ok(_) => Ok(Validation::Valid),
-        Err(message) => Ok(Validation::Invalid(message.into())),
+    let is_optional = prompt_info.optional();
+    // Empty input is a skip. For required prompts it must be rejected —
+    // inquire will auto-reprompt on Invalid, which matches the user
+    // expectation: "reprompt on escape/empty; abort on Ctrl+C".
+    let validator = move |input: &str| {
+        if !is_optional && input.is_empty() {
+            return Ok(Validation::Invalid("Answer is required.".into()));
+        }
+        match validate_text_length(min, max, input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(message) => Ok(Validation::Invalid(message.into())),
+        }
     };
     prompt = prompt.with_validator(validator);
 
-    if prompt_info.optional() {
+    if is_optional {
         match prompt.prompt_skippable() {
             Ok(Some(answer)) => responses.respond(ClientMessage::String(answer)),
             Ok(None) => responses.respond(ClientMessage::None),
