@@ -38,4 +38,11 @@ pub enum ArchetypeError {
     RequirementsError(#[from] RequirementsError),
     #[error("Archetype Script Aborted")]
     ScriptAbortError,
+    /// User cancelled an interactive prompt (Esc / Ctrl-C). Propagates
+    /// through nested render chains so a cancel inside a composed
+    /// component also kills the parent archetype. The top-level CLI
+    /// handler translates this into a clean, quiet exit (no stack
+    /// trace / error dump).
+    #[error("Cancelled")]
+    PromptAborted,
 }

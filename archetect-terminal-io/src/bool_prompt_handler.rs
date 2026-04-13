@@ -8,37 +8,52 @@ pub fn handle_prompt_bool(prompt_info: BoolPromptInfo, responses: &dyn Responder
     let placeholder_str = prompt_info.placeholder().map(|v| v.to_string());
     let help_str = prompt_info.help().map(|v| v.to_string());
     let is_optional = prompt_info.optional();
+    let default = prompt_info.default();
+    let message = prompt_info.message().to_string();
 
-    let mut prompt = Confirm::new(prompt_info.message()).with_render_config(get_render_config());
-    prompt.default = prompt_info.default();
-    prompt.placeholder = placeholder_str.as_deref();
-    prompt.help_message = help_str.as_deref();
-
-    let prompt_info = prompt_info.clone();
-    let parser = |ans: &str| {
+    let parser = move |ans: &str| {
         if ans.len() > 5 {
             return Err(());
         }
-        get_boolean::<&str>(ans, prompt_info.message(), None, ValueSource::Value).map_err(|_| ())
+        get_boolean::<&str>(ans, &message, None, ValueSource::Value).map_err(|_| ())
     };
-    prompt.parser = &parser;
 
-    if is_optional {
-        match prompt.prompt_skippable() {
-            Ok(Some(answer)) => responses.respond(ClientMessage::Boolean(answer)),
-            Ok(None) => responses.respond(ClientMessage::None),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
+    // Required: Esc reprompts, Ctrl+C aborts. Optional: Esc skips, Ctrl+C aborts.
+    loop {
+        let mut prompt = Confirm::new(prompt_info.message()).with_render_config(get_render_config());
+        prompt.default = default;
+        prompt.placeholder = placeholder_str.as_deref();
+        prompt.help_message = help_str.as_deref();
+        prompt.parser = &parser;
+
+        let result = if is_optional {
+            prompt.prompt_skippable()
+        } else {
+            prompt.prompt().map(Some)
+        };
+
+        match result {
+            Ok(Some(answer)) => {
+                responses.respond(ClientMessage::Boolean(answer));
+                return;
             }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
-        }
-    } else {
-        match prompt.prompt() {
-            Ok(answer) => responses.respond(ClientMessage::Boolean(answer)),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
+            Ok(None) => {
+                responses.respond(ClientMessage::None);
+                return;
             }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+            Err(InquireError::OperationCanceled) if !is_optional => continue,
+            Err(InquireError::OperationCanceled) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
+                return;
+            }
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
+            }
         }
     }
 }

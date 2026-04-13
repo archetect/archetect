@@ -12,7 +12,7 @@ use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError, Sourc
 use archetect_core::source::SourceContents;
 use archetect_core::system::{SystemLayout, XdgSystemLayout};
 use archetect_terminal_io::TerminalScriptIoHandle;
-use ArchetypeError::ScriptAbortError;
+use ArchetypeError::{PromptAborted, ScriptAbortError};
 
 use crate::answers::{insert_dotted, parse_answer_pair, parse_answer_value};
 use crate::subcommands::handle_commands_subcommand;
@@ -44,6 +44,11 @@ fn main() {
                 // Handled when the script ends by the IO Driver
                 ArchetectError::ArchetypeError(ScriptAbortError) => {}
                 ArchetectError::CatalogError(CatalogError::SelectionCancelled) => {}
+                // User-initiated cancel (Esc / Ctrl-C at a prompt). Exit
+                // quietly — no stack trace, no error banner.
+                ArchetectError::ArchetypeError(PromptAborted) => {
+                    std::process::exit(130);
+                }
                 _ => {
                     let _ = driver.send(ScriptMessage::LogError(format!("{}", error)));
                 }

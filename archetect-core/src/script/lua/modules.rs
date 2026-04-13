@@ -301,7 +301,16 @@ fn register_catalog_module(
                 }
 
                 let result = crate::catalog::dispatch::dispatch(&arc, catalog, path.as_deref(), child_context)
-                    .map_err(|e| LuaError::RuntimeError(format!("Catalog error: {}", e)))?;
+                    .map_err(|e| match e {
+                        // Preserve the "Prompt aborted" sentinel so the
+                        // outer execute() detects the cancel via
+                        // is_prompt_abort and propagates it up as a
+                        // clean exit rather than a generic error.
+                        crate::errors::ArchetectError::ArchetypeError(
+                            crate::errors::ArchetypeError::PromptAborted,
+                        ) => LuaError::RuntimeError("Prompt aborted".to_string()),
+                        other => LuaError::RuntimeError(format!("Catalog error: {}", other)),
+                    })?;
 
                 // Convert the child's resulting ContextValue back into a fresh
                 // Lua Context userdata. The parent's `context` argument is

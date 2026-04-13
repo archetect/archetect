@@ -52,9 +52,15 @@ pub(crate) fn execute(
                 return Ok(ContextValue::Nil);
             }
 
-            // User cancelled a prompt (Escape / Ctrl-C) — exit cleanly
+            // User cancelled a prompt (Escape / Ctrl-C). We used to swallow
+            // this into a Nil return, but that let composed archetypes keep
+            // going after a cancel inside a nested `catalog.render(...)` —
+            // the parent's next prompt would fire anyway. Propagate a
+            // dedicated error variant so the cancel bubbles through any
+            // render chain, and let the CLI entry point translate it into
+            // a quiet exit at the very top.
             if is_prompt_abort(&err) {
-                return Ok(ContextValue::Nil);
+                return Err(ArchetypeError::PromptAborted);
             }
 
             let _ = archetect.request(archetect_api::ScriptMessage::LogError(format!("{}", err)));

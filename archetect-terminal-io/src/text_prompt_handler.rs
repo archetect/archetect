@@ -34,21 +34,44 @@ pub fn handle_prompt_text(prompt_info: TextPromptInfo, responses: &dyn Responder
     prompt = prompt.with_validator(validator);
 
     if is_optional {
+        // Optional: Esc skips, Ctrl+C aborts.
         match prompt.prompt_skippable() {
             Ok(Some(answer)) => responses.respond(ClientMessage::String(answer)),
             Ok(None) => responses.respond(ClientMessage::None),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+            Err(InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
+            }
+            Err(InquireError::OperationCanceled) => {
+                // Shouldn't happen in skippable mode, but be defensive.
+                responses.respond(ClientMessage::None);
             }
             Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
         }
     } else {
-        match prompt.prompt() {
-            Ok(answer) => responses.respond(ClientMessage::String(answer)),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
+        // Required: Esc reprompts, Ctrl+C aborts. inquire's non-skippable
+        // prompt() returns OperationCanceled on Esc — loop and reprompt
+        // in that case so required values cannot be silently skipped.
+        loop {
+            match prompt.clone().prompt() {
+                Ok(answer) => {
+                    responses.respond(ClientMessage::String(answer));
+                    break;
+                }
+                Err(InquireError::OperationCanceled) => {
+                    // Esc: redraw the same prompt. inquire has already
+                    // printed a "< Cancelled >" line, so the user sees
+                    // the prompt re-appear and can continue typing.
+                    continue;
+                }
+                Err(InquireError::OperationInterrupted) => {
+                    responses.respond(ClientMessage::Abort);
+                    break;
+                }
+                Err(error) => {
+                    responses.respond(ClientMessage::Error(error.to_string()));
+                    break;
+                }
             }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
         }
     }
 }

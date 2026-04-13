@@ -13,94 +13,143 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
     let allow_other = prompt_info.allow_other();
     let other_label = prompt_info.other_label().to_string();
 
-    // When allow_other is set, append the sentinel entry. We render against
-    // an extended option list but answer with the user's typed value (or the
-    // selected canonical option) — never the sentinel itself.
     let mut display_options: Vec<String> = prompt_info.options().to_vec();
     if allow_other {
         display_options.push(other_label.clone());
     }
 
-    let mut prompt = Select::new(prompt_info.message(), display_options.clone())
-        .with_render_config(get_render_config());
-
-    // Default cursor placement:
-    //   - default matches an option → cursor on that option
-    //   - default doesn't match AND allow_other → cursor on the "other" entry,
-    //     and we'll pre-fill the follow-up text prompt with the default
-    //   - default doesn't match AND no allow_other → warn (existing behavior)
-    let mut prefill_other: Option<String> = None;
-    if let Some(defaults_with) = prompt_info.default() {
-        let position = prompt_info
-            .options()
-            .iter()
-            .position(|item| item.as_str() == defaults_with);
-        match position {
-            Some(idx) => prompt.starting_cursor = idx,
-            None if allow_other => {
-                prompt.starting_cursor = display_options.len() - 1;
-                prefill_other = Some(defaults_with);
+    // Compute default cursor placement once; rebuild the Select each loop
+    // iteration so inquire can redraw cleanly when we reprompt on Esc.
+    let default_cursor = prompt_info
+        .default()
+        .map(|d| {
+            let in_opts = prompt_info
+                .options()
+                .iter()
+                .position(|item| item.as_str() == d);
+            match (in_opts, allow_other) {
+                (Some(idx), _) => Some((idx, None)),
+                (None, true) => Some((display_options.len() - 1, Some(d))),
+                (None, false) => {
+                    warn!("A 'defaults_with' was set, but did not match any of the options.");
+                    None
+                }
             }
-            None => warn!("A 'defaults_with' was set, but did not match any of the options."),
+        })
+        .flatten();
+
+    let page_size = prompt_info.page_size();
+
+    // Required prompts: Esc reprompts, Ctrl+C aborts. Optional prompts:
+    // Esc skips (→ None), Ctrl+C aborts. Loop only for the required path.
+    let raw_answer = loop {
+        let mut select =
+            Select::new(prompt_info.message(), display_options.clone()).with_render_config(get_render_config());
+        select.help_message = help_str.as_deref();
+        if let Some(p) = page_size {
+            select.page_size = p;
         }
-    }
-
-    prompt.help_message = help_str.as_deref();
-
-    if let Some(page_size) = prompt_info.page_size() {
-        prompt.page_size = page_size;
-    }
-
-    let select_result = if is_optional {
-        match prompt.prompt_skippable() {
-            Ok(Some(answer)) => Ok(Some(answer)),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
+        if let Some((idx, _)) = default_cursor.as_ref() {
+            select.starting_cursor = *idx;
         }
-    } else {
-        prompt.prompt().map(Some)
+
+        let result = if is_optional {
+            select.prompt_skippable()
+        } else {
+            select.prompt().map(Some)
+        };
+
+        match result {
+            Ok(Some(v)) => break Some(v),
+            Ok(None) => break None,
+            Err(InquireError::OperationCanceled) if !is_optional => continue,
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                if matches!(
+                    result,
+                    Err(InquireError::OperationInterrupted)
+                ) {
+                    responses.respond(ClientMessage::Abort);
+                } else {
+                    responses.respond(ClientMessage::None);
+                }
+                return;
+            }
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
+            }
+        }
     };
 
-    match select_result {
-        Ok(Some(answer)) if allow_other && answer == other_label => {
-            // User picked the sentinel — collect the freeform value.
-            let mut text = Text::new(prompt_info.message()).with_render_config(get_render_config());
-            text.help_message = help_str.as_deref();
-            if let Some(ref pre) = prefill_other {
-                text.initial_value = Some(pre);
-            }
-            // Required prompts must reject empty input; inquire reprompts
-            // automatically when the validator returns Invalid.
-            let text = if !is_optional {
-                text.with_validator(|input: &str| {
-                    if input.is_empty() {
-                        Ok(Validation::Invalid("Answer is required.".into()))
-                    } else {
-                        Ok(Validation::Valid)
-                    }
-                })
-            } else {
-                text
-            };
-            let text_result = if is_optional {
-                text.prompt_skippable().map(|opt| opt.filter(|s| !s.is_empty()))
-            } else {
-                text.prompt().map(Some)
-            };
-            match text_result {
-                Ok(Some(value)) => responses.respond(ClientMessage::String(value)),
-                Ok(None) => responses.respond(ClientMessage::None),
-                Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                    responses.respond(ClientMessage::Abort);
+    let answer = match raw_answer {
+        Some(a) => a,
+        None => {
+            responses.respond(ClientMessage::None);
+            return;
+        }
+    };
+
+    // User picked the "Other..." sentinel — collect freeform text.
+    if allow_other && answer == other_label {
+        let prefill = default_cursor.as_ref().and_then(|(_, pre)| pre.clone());
+        collect_other_text(prompt_info.message(), help_str.as_deref(), is_optional, prefill, responses);
+        return;
+    }
+
+    responses.respond(ClientMessage::String(answer));
+}
+
+fn collect_other_text(
+    message: &str,
+    help: Option<&str>,
+    is_optional: bool,
+    prefill: Option<String>,
+    responses: &dyn Responder,
+) {
+    loop {
+        let mut text = Text::new(message).with_render_config(get_render_config());
+        text.help_message = help;
+        if let Some(ref pre) = prefill {
+            text.initial_value = Some(pre);
+        }
+        if !is_optional {
+            text = text.with_validator(|input: &str| {
+                if input.is_empty() {
+                    Ok(Validation::Invalid("Answer is required.".into()))
+                } else {
+                    Ok(Validation::Valid)
                 }
-                Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+            });
+        }
+
+        let result = if is_optional {
+            text.prompt_skippable().map(|opt| opt.filter(|s| !s.is_empty()))
+        } else {
+            text.prompt().map(Some)
+        };
+
+        match result {
+            Ok(Some(v)) => {
+                responses.respond(ClientMessage::String(v));
+                return;
+            }
+            Ok(None) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationCanceled) if !is_optional => continue,
+            Err(InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
+                return;
+            }
+            Err(InquireError::OperationCanceled) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
             }
         }
-        Ok(Some(answer)) => responses.respond(ClientMessage::String(answer)),
-        Ok(None) => responses.respond(ClientMessage::None),
-        Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-            responses.respond(ClientMessage::Abort);
-        }
-        Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
     }
 }

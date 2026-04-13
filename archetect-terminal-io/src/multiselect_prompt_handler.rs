@@ -7,10 +7,9 @@ use crate::responder::Responder;
 pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: &dyn Responder) {
     let help_str = prompt_info.help().map(|v| v.to_string());
     let is_optional = prompt_info.optional();
+    let page_size = prompt_info.page_size();
 
-    let mut prompt =
-        MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec()).with_render_config(get_render_config());
-
+    // Precompute default indices once.
     let mut indices = vec![];
     if let Some(defaults) = prompt_info.defaults() {
         for default in defaults.iter() {
@@ -22,31 +21,48 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
                 indices.push(position);
             }
         }
-        prompt = prompt.with_default(&indices);
     }
 
-    prompt.help_message = help_str.as_deref();
-
-    if let Some(page_size) = prompt_info.page_size() {
-        prompt.page_size = page_size;
-    }
-
-    if is_optional {
-        match prompt.prompt_skippable() {
-            Ok(Some(answer)) => responses.respond(ClientMessage::Array(answer)),
-            Ok(None) => responses.respond(ClientMessage::None),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
-            }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+    // Required: Esc reprompts, Ctrl+C aborts. Optional: Esc skips, Ctrl+C aborts.
+    loop {
+        let mut prompt = MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec())
+            .with_render_config(get_render_config());
+        prompt.help_message = help_str.as_deref();
+        if let Some(p) = page_size {
+            prompt.page_size = p;
         }
-    } else {
-        match prompt.prompt() {
-            Ok(answer) => responses.respond(ClientMessage::Array(answer)),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
+        if !indices.is_empty() {
+            prompt = prompt.with_default(&indices);
+        }
+
+        let result = if is_optional {
+            prompt.prompt_skippable()
+        } else {
+            prompt.prompt().map(Some)
+        };
+
+        match result {
+            Ok(Some(answer)) => {
+                responses.respond(ClientMessage::Array(answer));
+                return;
             }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
+            Ok(None) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationCanceled) if !is_optional => continue,
+            Err(InquireError::OperationCanceled) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationInterrupted) => {
+                responses.respond(ClientMessage::Abort);
+                return;
+            }
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
+            }
         }
     }
 }

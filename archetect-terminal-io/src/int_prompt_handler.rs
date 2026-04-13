@@ -11,39 +11,52 @@ pub fn handle_prompt_int(prompt_info: IntPromptInfo, responses: &dyn Responder) 
     let placeholder_str = prompt_info.placeholder().map(|v| v.to_string());
     let help_str = prompt_info.help().map(|v| v.to_string());
     let is_optional = prompt_info.optional();
+    let min = prompt_info.min();
+    let max = prompt_info.max();
 
-    let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
-    prompt.default = default_str.as_deref();
-    prompt.placeholder = placeholder_str.as_deref();
-    prompt.help_message = help_str.as_deref();
+    // Required prompts: Esc reprompts, Ctrl+C aborts. Optional prompts:
+    // Esc skips (→ None), Ctrl+C aborts. Rebuild the prompt each iteration
+    // so inquire redraws cleanly after a reprompt.
+    loop {
+        let mut prompt = Text::new(prompt_info.message()).with_render_config(get_render_config());
+        prompt.default = default_str.as_deref();
+        prompt.placeholder = placeholder_str.as_deref();
+        prompt.help_message = help_str.as_deref();
+        prompt = prompt.with_validator(move |input: &str| match validate(min, max, input) {
+            Ok(_) => Ok(Validation::Valid),
+            Err(message) => Ok(Validation::Invalid(message.into())),
+        });
 
-    let prompt_info = prompt_info.clone();
-    let validator = move |input: &str| match validate(prompt_info.min(), prompt_info.max(), input) {
-        Ok(_) => Ok(Validation::Valid),
-        Err(message) => Ok(Validation::Invalid(message.into())),
-    };
-    prompt = prompt.with_validator(validator);
+        let result = if is_optional {
+            prompt.prompt_skippable()
+        } else {
+            prompt.prompt().map(Some)
+        };
 
-    if is_optional {
-        match prompt.prompt_skippable() {
+        match result {
             Ok(Some(answer)) => {
-                responses.respond(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
+                responses.respond(ClientMessage::Integer(
+                    answer.parse::<i64>().expect("Pre-validated"),
+                ));
+                return;
             }
-            Ok(None) => responses.respond(ClientMessage::None),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+            Ok(None) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationCanceled) if !is_optional => continue,
+            Err(InquireError::OperationCanceled) => {
+                responses.respond(ClientMessage::None);
+                return;
+            }
+            Err(InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
+                return;
             }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
-        }
-    } else {
-        match prompt.prompt() {
-            Ok(answer) => {
-                responses.respond(ClientMessage::Integer(answer.parse::<i64>().expect("Pre-validated")));
+            Err(error) => {
+                responses.respond(ClientMessage::Error(error.to_string()));
+                return;
             }
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                responses.respond(ClientMessage::Abort);
-            }
-            Err(error) => responses.respond(ClientMessage::Error(error.to_string())),
         }
     }
 }

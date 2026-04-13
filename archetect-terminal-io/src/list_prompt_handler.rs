@@ -25,8 +25,10 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
         let mut prompt = Text::new(&message).with_render_config(get_render_config());
         prompt.help_message = help_str.as_deref();
 
-        // List items always use prompt_skippable so empty input = done.
-        // Escape during item entry aborts the whole prompt.
+        // Items always use prompt_skippable so empty input = done adding.
+        // Esc behavior: for required lists, re-prompt the current item
+        // (don't terminate the list); for optional lists, Esc ends input
+        // at whatever's been collected so far. Ctrl+C always aborts.
         match prompt.prompt_skippable() {
             Ok(Some(value)) => {
                 if value.is_empty() {
@@ -41,17 +43,25 @@ pub fn handle_list_prompt(prompt_info: ListPromptInfo, responses: &dyn Responder
                 }
             }
             Ok(None) => {
-                // Escape pressed — abort if mandatory, accept empty if optional
+                // Esc pressed. Optional list: finalize with what we have.
+                // Required list: fall through to break and let the size
+                // validator decide; if minimum not met, caller sees
+                // Error and can retry at the script level. (We can't
+                // meaningfully re-prompt for "empty" since Esc IS the
+                // finish signal during list entry.)
                 if is_optional {
-                    responses.respond(ClientMessage::None);
-                } else {
-                    responses.respond(ClientMessage::Abort);
+                    break;
                 }
-                return;
+                break;
             }
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+            Err(InquireError::OperationInterrupted) => {
                 responses.respond(ClientMessage::Abort);
                 return;
+            }
+            Err(InquireError::OperationCanceled) => {
+                // Unexpected in skippable mode, but be defensive: treat
+                // the same as Ok(None).
+                break;
             }
             Err(error) => {
                 responses.respond(ClientMessage::Error(error.to_string()));
