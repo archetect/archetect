@@ -1,6 +1,6 @@
 local ctx = Context.new()
 
-if switches.is_enabled("test_lua_cases_programming") then
+if archetect.switches.is_enabled("test_lua_cases_programming") then
     ctx:set("project_name", "My Cool Project", {
         cases = Cases.programming()
     })
@@ -15,7 +15,7 @@ if switches.is_enabled("test_lua_cases_programming") then
     log.info(tostring(ctx:get("PROJECT_NAME")))        -- constant value
 end
 
-if switches.is_enabled("test_lua_cases_enum_set") then
+if archetect.switches.is_enabled("test_lua_cases_enum_set") then
     -- Cases.set() with Case enum constants
     ctx:set("app_name", "My App", {
         cases = Cases.set(Case.Snake, Case.Kebab, Case.Constant)
@@ -25,7 +25,7 @@ if switches.is_enabled("test_lua_cases_enum_set") then
     log.info(tostring(ctx:get("APP_NAME")))        -- constant: "MY_APP"
 end
 
-if switches.is_enabled("test_lua_cases_enum_fixed") then
+if archetect.switches.is_enabled("test_lua_cases_enum_fixed") then
     -- Cases.fixed() with Case enum constant
     ctx:set("name", "Hello World", {
         cases = Cases.fixed("display_name", Case.Title)
@@ -34,7 +34,7 @@ if switches.is_enabled("test_lua_cases_enum_fixed") then
     log.info(tostring(ctx:get("display_name")))    -- fixed key, title-cased value
 end
 
-if switches.is_enabled("test_lua_cases_input") then
+if archetect.switches.is_enabled("test_lua_cases_input") then
     -- Cases.input("key") preserves the untransformed input under an explicit key.
     -- Useful when Cases.programming() auto-cases the primary key's value but
     -- you still need access to the literal user input.
@@ -46,7 +46,7 @@ if switches.is_enabled("test_lua_cases_input") then
     log.info(tostring(ctx:get("ProjectName")))         -- pascal still works: "MyCoolProject"
 end
 
-if switches.is_enabled("test_lua_cases_input_with_prompt") then
+if archetect.switches.is_enabled("test_lua_cases_input_with_prompt") then
     -- Same pattern but via prompt_text (headless + answer)
     ctx:prompt_text("Name:", "widget_name", {
         cases = { Cases.programming(), Cases.input("widget_name_raw") }

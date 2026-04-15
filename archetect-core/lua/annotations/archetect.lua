@@ -226,11 +226,15 @@ function Cases.fixed(key, style) end
 --
 
 ---@class archetect
----Archetect binary version and raw answers access.
+---Runtime context of the currently-rendering archetype: version info,
+---supplied answers, switches, and platform env. For rendering a
+---*different* archetype (composition), use `archetype.render(...)`.
 ---@field version string Full version string (e.g., "3.0.0")
 ---@field version_major integer Major version number
 ---@field version_minor integer Minor version number
 ---@field version_patch integer Patch version number
+---@field switches Switches Switches supplied to the current invocation
+---@field env Env Platform info (os / arch / family / is_* booleans)
 archetect = {}
 
 ---Get the raw answers table from CLI/YAML/parent archetype.
@@ -238,6 +242,23 @@ archetect = {}
 ---you need to inspect answers independently of the Context.
 ---@return table answers Key-value pairs
 function archetect.answers() end
+
+---@class Switches
+local Switches = {}
+
+---Check whether a named switch was supplied to the current invocation.
+---@param name string Switch name
+---@return boolean enabled
+function Switches.is_enabled(name) end
+
+---@class Env
+---@field os string Target OS (e.g., "linux", "macos", "windows")
+---@field arch string Target architecture (e.g., "x86_64", "aarch64")
+---@field family string "unix" or "windows"
+---@field is_unix boolean True when family == "unix"
+---@field is_windows boolean True when family == "windows"
+---@field is_macos boolean True when os == "macos"
+Env = {}
 
 --
 -- archetype (current archetype introspection)
@@ -400,7 +421,7 @@ switches = {}
 ---Check if a switch is enabled.
 ---@param name string Switch name
 ---@return boolean
-function switches.is_enabled(name) end
+function archetect.switches.is_enabled(name) end
 
 --
 -- Existing (enum constants)

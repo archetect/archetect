@@ -1,6 +1,6 @@
 local ctx = Context.new()
 
-if switches.is_enabled("test_lua_list_prompt") then
+if archetect.switches.is_enabled("test_lua_list_prompt") then
     ctx:prompt_list("Dependencies:", "dependencies")
     local deps = ctx:get("dependencies")
     if deps then
@@ -10,7 +10,7 @@ if switches.is_enabled("test_lua_list_prompt") then
     end
 end
 
-if switches.is_enabled("test_lua_list_prompt_with_options") then
+if archetect.switches.is_enabled("test_lua_list_prompt_with_options") then
     ctx:prompt_list("Dependencies:", "dependencies", {
         help = "Enter dependencies one at a time",
         min = 1,
@@ -24,7 +24,7 @@ if switches.is_enabled("test_lua_list_prompt_with_options") then
     end
 end
 
-if switches.is_enabled("test_lua_list_prompt_with_default") then
+if archetect.switches.is_enabled("test_lua_list_prompt_with_default") then
     ctx:prompt_list("Dependencies:", "dependencies", {
         default = {"serde", "tokio"},
     })

@@ -90,8 +90,6 @@ pub fn register_all(
 
     register_catalog_module(lua, archetype, archetect, render_context)?;
     register_runtime_module(lua, archetect)?;
-    register_env_module(lua)?;
-    register_switches_module(lua, render_context)?;
     register_format_module(lua)?;
     register_exit(lua)?;
     register_log(lua, archetect)?;
@@ -184,6 +182,11 @@ fn register_archetect_module(
 ) -> LuaResult<()> {
     let archetect_table = lua.create_table()?;
 
+    // `archetect` represents the runtime context of the currently-rendering
+    // archetype. Version info, pre-supplied answers, switches, and platform
+    // env all hang off here. (`archetype.render(...)` is separate — that's
+    // for rendering a different archetype, i.e. composition.)
+
     let version = archetect.version().clone();
     archetect_table.set("version", version.to_string())?;
     archetect_table.set("version_major", version.major as i64)?;
@@ -197,6 +200,12 @@ fn register_archetect_module(
             context_map_to_lua_table(lua, &answers)
         })?,
     )?;
+
+    // archetect.switches — switches supplied to the current invocation.
+    archetect_table.set("switches", build_switches_table(lua, render_context)?)?;
+
+    // archetect.env — platform info (os, arch, family, is_* booleans).
+    archetect_table.set("env", build_env_table(lua)?)?;
 
     lua.globals().set("archetect", archetect_table)?;
     Ok(())
@@ -452,36 +461,31 @@ fn register_runtime_module(lua: &Lua, archetect: &Archetect) -> LuaResult<()> {
 
 // ── env module ──────────────────────────────────────────────────────
 
-fn register_env_module(lua: &Lua) -> LuaResult<()> {
+/// Build the `archetect.env` sub-table. Reached as `archetect.env` from
+/// Lua — there is no top-level `env` global. See register_archetect_module
+/// for the attachment point.
+fn build_env_table(lua: &Lua) -> LuaResult<Table> {
     let env_table = lua.create_table()?;
-
     env_table.set("os", std::env::consts::OS)?;
     env_table.set("arch", std::env::consts::ARCH)?;
     env_table.set("family", std::env::consts::FAMILY)?;
     env_table.set("is_unix", std::env::consts::FAMILY == "unix")?;
     env_table.set("is_windows", std::env::consts::FAMILY == "windows")?;
     env_table.set("is_macos", std::env::consts::OS == "macos")?;
-
-    lua.globals().set("env", env_table)?;
-    Ok(())
+    Ok(env_table)
 }
 
-// ── switches module ─────────────────────────────────────────────────
-
-fn register_switches_module(
-    lua: &Lua,
-    render_context: &RenderContext,
-) -> LuaResult<()> {
+/// Build the `archetect.switches` sub-table with a single `is_enabled(name)`
+/// method. Reached as `archetect.switches.is_enabled(...)` from Lua — there
+/// is no top-level `switches` global.
+fn build_switches_table(lua: &Lua, render_context: &RenderContext) -> LuaResult<Table> {
     let switches_table = lua.create_table()?;
-
     let switches = render_context.switches().clone();
     switches_table.set(
         "is_enabled",
         lua.create_function(move |_, name: String| Ok(switches.contains(&name)))?,
     )?;
-
-    lua.globals().set("switches", switches_table)?;
-    Ok(())
+    Ok(switches_table)
 }
 
 // ── Lua-native directory module ─────────────────────────────────────
