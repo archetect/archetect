@@ -422,6 +422,21 @@ fn handle_response_array(response: ClientMessage) -> LuaResult<Option<Vec<String
 
 impl UserData for Context {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+        // tostring(ctx) — yields YAML of the context's data. Round-trips
+        // as a valid archetect answer file, so `log.debug(tostring(ctx))`
+        // doubles as "what answers would reproduce this render".
+        // Equivalent to format.to_yaml(ctx).
+        methods.add_meta_method("__tostring", |_, this, ()| -> LuaResult<String> {
+            let context_map = this.to_context_map();
+            let mut json_map = serde_json::Map::new();
+            for (k, v) in &context_map {
+                let json_val: serde_json::Value = v.clone().into();
+                json_map.insert(k.clone(), json_val);
+            }
+            serde_yaml::to_string(&serde_json::Value::Object(json_map))
+                .map_err(|e| LuaError::RuntimeError(format!("YAML serialization error: {}", e)))
+        });
+
         // ctx:get(key) -> value
         methods.add_method("get", |lua, this, key: String| {
             match this.data.get(&key) {
