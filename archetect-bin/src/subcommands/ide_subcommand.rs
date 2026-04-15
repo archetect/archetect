@@ -46,12 +46,20 @@ fn maybe_create_luarc(annotations_dir: &Path) -> Result<(), ArchetectError> {
             annotations_dir.display()
         );
 
-        if luarc_path.exists() {
-            eprintln!("archetect: .luarc.json already exists, skipping");
-        } else {
+        // Idempotent write: if the on-disk content is byte-identical
+        // to what we'd produce, do nothing. If it differs (or is
+        // missing), overwrite and log what happened. Avoids staleness
+        // when the annotations dir moves (e.g., XDG dir change) while
+        // staying silent in the no-op case.
+        let needs_write = match fs::read(&luarc_path) {
+            Ok(existing) => existing != luarc_content.as_bytes(),
+            Err(_) => true,
+        };
+        if needs_write {
+            let action = if luarc_path.exists() { "Updated" } else { "Created" };
             fs::write(&luarc_path, luarc_content)
                 .map_err(|e| ArchetectError::GeneralError(format!("Failed to write .luarc.json: {}", e)))?;
-            eprintln!("archetect: Created .luarc.json for IDE support");
+            eprintln!("archetect: {} .luarc.json for IDE support", action);
         }
     } else if has_manifest && !has_lua_script {
         eprintln!("archetect: Archetype detected but no archetype.lua found — skipping .luarc.json");

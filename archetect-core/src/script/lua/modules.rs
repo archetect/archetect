@@ -19,6 +19,7 @@ pub fn register_all(
     register_context_constructor(lua, archetect, render_context)?;
     super::cases::register_cases(lua)?;
     register_existing_constants(lua)?;
+    register_location_constants(lua)?;
     register_archetect_module(lua, archetect, render_context)?;
     register_archetype_module(lua, archetype)?;
 
@@ -693,9 +694,34 @@ fn register_lua_file_module(
     Ok(())
 }
 
+// ── Location enum ──────────────────────────────────────────────────
+//
+// Typed enum for file-resolution scope. Exposed in Lua as:
+//   Location.Archetype   (default — archetype source root)
+//   Location.Cwd         (invocation working directory)
+//
+// Used via:  file.read("foo.yaml", { within = Location.Cwd })
+
+#[derive(Copy, Clone, Debug)]
+enum FileLocation {
+    Archetype,
+    Cwd,
+}
+
+impl mlua::UserData for FileLocation {}
+
+fn register_location_constants(lua: &Lua) -> LuaResult<()> {
+    let table = lua.create_table()?;
+    table.set("Archetype", FileLocation::Archetype)?;
+    table.set("Cwd", FileLocation::Cwd)?;
+    lua.globals().set("Location", table)?;
+    Ok(())
+}
+
 /// Resolve a Lua-supplied relative path against either the archetype
-/// root (default) or the invocation CWD (opts.scope = "cwd"), applying
-/// the sandbox rules from restrict_path plus absolute-path rejection.
+/// root (default) or the invocation CWD (`within = Location.Cwd`),
+/// applying the sandbox rules from restrict_path plus absolute-path
+/// rejection.
 fn resolve_file_path(
     archetype_root: &camino::Utf8Path,
     path: &str,
@@ -709,26 +735,28 @@ fn resolve_file_path(
         )));
     }
 
-    let scope = opts
+    let location = opts
         .as_ref()
-        .and_then(|o| o.get::<String>("scope".to_string()).ok())
-        .unwrap_or_else(|| "archetype".to_string());
+        .and_then(|o| {
+            o.get::<mlua::Value>("within".to_string()).ok().and_then(|v| {
+                if let mlua::Value::UserData(ud) = v {
+                    ud.borrow::<FileLocation>().ok().map(|l| *l)
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap_or(FileLocation::Archetype);
 
-    let root: camino::Utf8PathBuf = match scope.as_str() {
-        "archetype" => archetype_root.to_owned(),
-        "cwd" => {
+    let root: camino::Utf8PathBuf = match location {
+        FileLocation::Archetype => archetype_root.to_owned(),
+        FileLocation::Cwd => {
             let cwd = std::env::current_dir().map_err(|err| {
                 LuaError::RuntimeError(format!("file.*: could not read cwd: {}", err))
             })?;
             camino::Utf8PathBuf::from_path_buf(cwd).map_err(|bad| {
                 LuaError::RuntimeError(format!("file.*: cwd is not valid UTF-8: {:?}", bad))
             })?
-        }
-        other => {
-            return Err(LuaError::RuntimeError(format!(
-                "file.*: unknown scope '{}', expected 'archetype' or 'cwd'",
-                other
-            )));
         }
     };
 

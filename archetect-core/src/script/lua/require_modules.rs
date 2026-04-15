@@ -356,8 +356,34 @@ struct GitRepo {
 
 impl UserData for GitRepo {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method("add", |_, this, pattern: String| {
-            git_cmd(&this.archetect, &this.path, &["add", &pattern])
+        // repo:add(pattern) where pattern is a String or an array of
+        // Strings. Passing a table runs a single `git add` invocation
+        // with all patterns, which matches how the CLI handles it.
+        methods.add_method("add", |_, this, patterns: mlua::Value| {
+            let pattern_list: Vec<String> = match patterns {
+                mlua::Value::String(s) => vec![s.to_str()?.to_string()],
+                mlua::Value::Table(t) => {
+                    let mut out = Vec::new();
+                    for pair in t.sequence_values::<String>() {
+                        out.push(pair?);
+                    }
+                    if out.is_empty() {
+                        return Err(LuaError::RuntimeError(
+                            "repo:add requires at least one pattern".to_string(),
+                        ));
+                    }
+                    out
+                }
+                other => {
+                    return Err(LuaError::RuntimeError(format!(
+                        "repo:add expects a string or a table of strings, got {}",
+                        other.type_name()
+                    )));
+                }
+            };
+            let mut args: Vec<&str> = vec!["add"];
+            args.extend(pattern_list.iter().map(String::as_str));
+            git_cmd(&this.archetect, &this.path, &args)
         });
 
         methods.add_method("add_all", |_, this, ()| {
@@ -414,18 +440,17 @@ fn create_git_module(lua: &Lua, archetect: &Archetect, render_context: &RenderCo
                 None => default_dest.clone(),
             };
 
+            // Default the initial branch to "main" so behavior is
+            // deterministic across machines (init.defaultBranch in the
+            // user's git config is frequently unset, defaulting to
+            // "master" on older installs). Authors can override via
+            // { branch = "..." }.
             let branch = opts
                 .as_ref()
-                .and_then(|o| o.get::<String>("branch".to_string()).ok());
+                .and_then(|o| o.get::<String>("branch".to_string()).ok())
+                .unwrap_or_else(|| "main".to_string());
 
-            let mut args = vec!["init"];
-            let branch_str;
-            if let Some(ref b) = branch {
-                args.push("-b");
-                branch_str = b.clone();
-                args.push(&branch_str);
-            }
-            args.push(&repo_path);
+            let args: Vec<&str> = vec!["init", "-b", branch.as_str(), &repo_path];
 
             let mut cmd = Command::new("git");
             cmd.args(&args);

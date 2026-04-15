@@ -100,6 +100,12 @@ pub fn command() -> Command {
             Command::new("ls")
                 .visible_alias("list")
                 .about("List the resolved catalog tree (project's if present, otherwise global)")
+                .long_about(
+                    "Walks the catalog declared in your .archetect.yaml (project) or global\n\
+                     config and prints the entries. Always offline — does not fetch remote\n\
+                     sources. Leaf entries that point at remote catalogs are listed but\n\
+                     not recursed into."
+                )
         )
         .arg(
             Arg::new("verbosity")

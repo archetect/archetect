@@ -341,14 +341,14 @@ function directory.render(path, context, opts) end
 
 ---@class file
 ---Single-file helpers. Paths resolve against the archetype root by
----default; pass `{ scope = "cwd" }` to resolve against the invocation
----working directory instead. Absolute paths, `..` traversal, and
----`~` expansion are rejected regardless of scope.
+---default; pass `{ within = Location.Cwd }` to resolve against the
+---invocation working directory instead. Absolute paths, `..` traversal,
+---and `~` expansion are rejected regardless of location.
 file = {}
 
 ---Check whether a file exists at the given path.
 ---@param path string Relative path
----@param opts? FileScopeOpts
+---@param opts? FileOpts
 ---@return boolean exists
 function file.exists(path, opts) end
 
@@ -357,12 +357,12 @@ function file.exists(path, opts) end
 ---/ `from_json` / `from_toml` to deserialize, then `context:merge(...)`
 ---to fold into the current context.
 ---@param path string Relative path
----@param opts? FileScopeOpts
+---@param opts? FileOpts
 ---@return string contents
 function file.read(path, opts) end
 
 ---Render a single template file from the archetype root to destination.
----Source always resolves against the archetype root (no `scope` here —
+---Source always resolves against the archetype root (no `within` here —
 ---rendering from the caller's cwd would be a footgun). By default the
 ---destination mirrors the source-relative path; override via
 ---`opts.destination`.
@@ -371,12 +371,21 @@ function file.read(path, opts) end
 ---@param opts? FileRenderOpts
 function file.render(path, context, opts) end
 
----@class FileScopeOpts
----@field scope? "archetype"|"cwd" Default: `"archetype"`
+---@class FileOpts
+---@field within? LocationPolicy Where to resolve the path. Default: `Location.Archetype`.
 
 ---@class FileRenderOpts
 ---@field destination? string Destination path (relative to render destination). Defaults to the source path.
 ---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
+
+---@class LocationPolicy
+---Typed enum for file-resolution scope.
+
+---@class Location
+---Where to resolve file paths.
+---@field Archetype LocationPolicy Archetype source root (default)
+---@field Cwd LocationPolicy Invocation working directory
+Location = {}
 
 --
 -- format
