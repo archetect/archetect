@@ -12,4 +12,8 @@ pub enum ExistingFilePolicy {
     Overwrite,
     Preserve,
     Prompt,
+    /// Hard-fail the render if the destination file already exists.
+    /// Useful for CI / idempotent pipelines where a collision should
+    /// block the build rather than silently resolve either way.
+    Error,
 }

@@ -908,6 +908,7 @@ fn register_existing_constants(lua: &Lua) -> LuaResult<()> {
     table.set("Overwrite", OverwritePolicy::Overwrite)?;
     table.set("Preserve", OverwritePolicy::Preserve)?;
     table.set("Prompt", OverwritePolicy::Prompt)?;
+    table.set("Error", OverwritePolicy::Error)?;
     lua.globals().set("Existing", table)?;
     Ok(())
 }

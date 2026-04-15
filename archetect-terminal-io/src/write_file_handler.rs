@@ -33,6 +33,14 @@ pub fn handle_write_file(write_info: WriteFileInfo, responses: &dyn Responder) {
                 }
                 debug!("Overwriting {:?}", path);
             }
+            ExistingFilePolicy::Error => {
+                // Hard-fail — idempotent-render contract violation.
+                responses.respond(ClientMessage::Error(format!(
+                    "File already exists: {} (if_exists = Existing.Error)",
+                    path
+                )));
+                return;
+            }
         }
     } else {
         debug!("Writing {:?}", path);

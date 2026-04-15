@@ -154,6 +154,10 @@ pub enum OverwritePolicy {
     Overwrite,
     Preserve,
     Prompt,
+    /// Fail the render with an error when the destination file already
+    /// exists. Intended for CI / idempotent renders where a collision
+    /// means the invocation was misconfigured.
+    Error,
 }
 
 impl Default for OverwritePolicy {
@@ -168,6 +172,7 @@ impl From<OverwritePolicy> for ExistingFilePolicy {
             OverwritePolicy::Overwrite => ExistingFilePolicy::Overwrite,
             OverwritePolicy::Preserve => ExistingFilePolicy::Preserve,
             OverwritePolicy::Prompt => ExistingFilePolicy::Prompt,
+            OverwritePolicy::Error => ExistingFilePolicy::Error,
         }
     }
 }

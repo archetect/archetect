@@ -291,6 +291,7 @@ fn api_policy_to_proto(policy: ExistingFilePolicy) -> grpc::ExistingFilePolicy {
         ExistingFilePolicy::Overwrite => grpc::ExistingFilePolicy::Overwrite,
         ExistingFilePolicy::Preserve => grpc::ExistingFilePolicy::Preserve,
         ExistingFilePolicy::Prompt => grpc::ExistingFilePolicy::Prompt,
+        ExistingFilePolicy::Error => grpc::ExistingFilePolicy::Error,
     }
 }
 
@@ -298,6 +299,7 @@ fn proto_policy_to_api(value: i32) -> ExistingFilePolicy {
     match grpc::ExistingFilePolicy::try_from(value) {
         Ok(grpc::ExistingFilePolicy::Overwrite) => ExistingFilePolicy::Overwrite,
         Ok(grpc::ExistingFilePolicy::Prompt) => ExistingFilePolicy::Prompt,
+        Ok(grpc::ExistingFilePolicy::Error) => ExistingFilePolicy::Error,
         _ => ExistingFilePolicy::Preserve,
     }
 }
