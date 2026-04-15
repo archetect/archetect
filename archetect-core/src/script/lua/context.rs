@@ -287,6 +287,83 @@ fn extract_cases(opts: &Option<Table>) -> Vec<CaseSpec> {
     }
 }
 
+/// Shared body for `prompt_multiselect` and its deprecated alias
+/// `prompt_multi_select`. Kept as a free function so both method
+/// registrations can hand it directly to `add_method_mut`.
+fn multiselect_prompt(
+    _lua: &mlua::Lua,
+    this: &mut Context,
+    (message, key, options, opts): (String, String, Vec<String>, Option<Table>),
+) -> LuaResult<Option<Vec<String>>> {
+    let mut info = MultiSelectPromptInfo::new(&message, Some(&key), options);
+
+    if let Some(ref opts) = opts {
+        info.help = get_opt_string(opts, "help")?;
+        info.placeholder = get_opt_string(opts, "placeholder")?;
+        info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
+        info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
+        info.defaults = get_opt_string_array(opts, "default")?;
+        if let Some(optional) = get_opt_bool(opts, "optional")? {
+            info.optional = optional;
+        }
+    }
+
+    let answer_key = get_answer_key(&opts, &key);
+    if let Some(answer) = this.data.get(&answer_key).cloned() {
+        match answer {
+            ContextValue::Array(arr) => {
+                let strings: Vec<String> = arr
+                    .iter()
+                    .filter_map(|v| match v {
+                        ContextValue::String(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                if answer_key != key {
+                    this.data.insert(key, ContextValue::Array(arr));
+                }
+                return Ok(Some(strings));
+            }
+            ContextValue::String(s) => {
+                let strings: Vec<String> = s.split(',').map(|s| s.trim().to_string()).collect();
+                let items: Vec<ContextValue> =
+                    strings.iter().cloned().map(ContextValue::String).collect();
+                this.data.insert(key, ContextValue::Array(items));
+                return Ok(Some(strings));
+            }
+            _ => {}
+        }
+    }
+
+    if this.use_default(&key) {
+        if let Some(ref defaults) = info.defaults {
+            let arr: Vec<ContextValue> = defaults
+                .iter()
+                .cloned()
+                .map(ContextValue::String)
+                .collect();
+            this.data.insert(key, ContextValue::Array(arr));
+            return Ok(Some(defaults.clone()));
+        }
+        if info.optional {
+            return Ok(None);
+        }
+        return Err(LuaError::RuntimeError(format!(
+            "Headless mode: no answer or default for '{}'", message
+        )));
+    }
+
+    let response = this.send_prompt(ScriptMessage::PromptForMultiSelect(info))?;
+    if let Some(value) = handle_response_array(response)? {
+        let arr: Vec<ContextValue> =
+            value.iter().cloned().map(ContextValue::String).collect();
+        this.data.insert(key, ContextValue::Array(arr));
+        Ok(Some(value))
+    } else {
+        Ok(None)
+    }
+}
+
 fn handle_response_string(response: ClientMessage) -> LuaResult<Option<String>> {
     match response {
         ClientMessage::String(s) => Ok(Some(s)),
@@ -435,7 +512,11 @@ impl UserData for Context {
         });
 
         // ctx:prompt_text(message, key, opts?)
-        methods.add_method_mut("prompt_text", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // Returns the user's raw input as a string (or nil if the prompt
+        // was skipped). Cases, when supplied, still expand into
+        // context-side-effect keys — the return value remains the
+        // single user-typed value.
+        methods.add_method_mut("prompt_text", |_, this, (message, key, opts): (String, String, Option<Table>)| -> LuaResult<Option<String>> {
             let mut info = TextPromptInfo::new(&message, Some(&key));
             let cases = extract_cases(&opts);
 
@@ -453,16 +534,16 @@ impl UserData for Context {
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::String(answer)) = this.data.get(&answer_key).cloned() {
                 this.store_string_with_cases(&key, &answer, &cases);
-                return Ok(());
+                return Ok(Some(answer));
             }
 
             if this.use_default(&key) {
                 if let Some(ref default) = info.default {
                     this.store_string_with_cases(&key, default, &cases);
-                    return Ok(());
+                    return Ok(Some(default.clone()));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -472,12 +553,14 @@ impl UserData for Context {
             let response = this.send_prompt(ScriptMessage::PromptForText(info))?;
             if let Some(value) = handle_response_string(response)? {
                 this.store_string_with_cases(&key, &value, &cases);
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
 
-        // ctx:prompt_int(message, key, opts?)
-        methods.add_method_mut("prompt_int", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_int(message, key, opts?) — returns the int (or nil).
+        methods.add_method_mut("prompt_int", |_, this, (message, key, opts): (String, String, Option<Table>)| -> LuaResult<Option<i64>> {
             let mut info = IntPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -496,16 +579,16 @@ impl UserData for Context {
                 if answer_key != key {
                     this.data.insert(key, ContextValue::Integer(v));
                 }
-                return Ok(());
+                return Ok(Some(v));
             }
 
             if this.use_default(&key) {
                 if let Some(default) = info.default {
                     this.data.insert(key, ContextValue::Integer(default));
-                    return Ok(());
+                    return Ok(Some(default));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -515,12 +598,14 @@ impl UserData for Context {
             let response = this.send_prompt(ScriptMessage::PromptForInt(info))?;
             if let Some(value) = handle_response_int(response)? {
                 this.data.insert(key, ContextValue::Integer(value));
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
 
-        // ctx:prompt_confirm(message, key, opts?)
-        methods.add_method_mut("prompt_confirm", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_confirm(message, key, opts?) — returns the bool (or nil).
+        methods.add_method_mut("prompt_confirm", |_, this, (message, key, opts): (String, String, Option<Table>)| -> LuaResult<Option<bool>> {
             let mut info = BoolPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -537,16 +622,16 @@ impl UserData for Context {
                 if answer_key != key {
                     this.data.insert(key, ContextValue::Boolean(v));
                 }
-                return Ok(());
+                return Ok(Some(v));
             }
 
             if this.use_default(&key) {
                 if let Some(default) = info.default {
                     this.data.insert(key, ContextValue::Boolean(default));
-                    return Ok(());
+                    return Ok(Some(default));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -556,12 +641,14 @@ impl UserData for Context {
             let response = this.send_prompt(ScriptMessage::PromptForBool(info))?;
             if let Some(value) = handle_response_bool(response)? {
                 this.data.insert(key, ContextValue::Boolean(value));
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
 
-        // ctx:prompt_select(message, key, options, opts?)
-        methods.add_method_mut("prompt_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
+        // ctx:prompt_select(...) — returns the selected string (or nil).
+        methods.add_method_mut("prompt_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| -> LuaResult<Option<String>> {
             let mut info = SelectPromptInfo::new(&message, Some(&key), options);
             let cases = extract_cases(&opts);
 
@@ -581,16 +668,16 @@ impl UserData for Context {
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::String(v)) = this.data.get(&answer_key).cloned() {
                 this.store_string_with_cases(&key, &v, &cases);
-                return Ok(());
+                return Ok(Some(v));
             }
 
             if this.use_default(&key) {
                 if let Some(ref default) = info.default {
                     this.store_string_with_cases(&key, default, &cases);
-                    return Ok(());
+                    return Ok(Some(default.clone()));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -600,72 +687,32 @@ impl UserData for Context {
             let response = this.send_prompt(ScriptMessage::PromptForSelect(info))?;
             if let Some(value) = handle_response_string(response)? {
                 this.store_string_with_cases(&key, &value, &cases);
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
 
-        // ctx:prompt_multi_select(message, key, options, opts?)
-        methods.add_method_mut("prompt_multi_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| {
-            let mut info = MultiSelectPromptInfo::new(&message, Some(&key), options);
+        // ctx:prompt_multiselect(message, key, options, opts?)
+        //
+        // Canonical name — matches the single-word suffix convention used by
+        // the other prompt methods (prompt_text, prompt_int, prompt_select,
+        // prompt_list, prompt_confirm, prompt_editor).
+        methods.add_method_mut("prompt_multiselect", multiselect_prompt);
 
-            if let Some(ref opts) = opts {
-                info.help = get_opt_string(opts, "help")?;
-                info.placeholder = get_opt_string(opts, "placeholder")?;
-                info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
-                info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
-                info.defaults = get_opt_string_array(opts, "default")?;
-                if let Some(optional) = get_opt_bool(opts, "optional")? {
-                    info.optional = optional;
-                }
-            }
-
-            let answer_key = get_answer_key(&opts, &key);
-            if let Some(answer) = this.data.get(&answer_key).cloned() {
-                match answer {
-                    ContextValue::Array(arr) => {
-                        if answer_key != key {
-                            this.data.insert(key, ContextValue::Array(arr));
-                        }
-                        return Ok(());
-                    }
-                    ContextValue::String(s) => {
-                        let items: Vec<ContextValue> = s.split(',')
-                            .map(|s| ContextValue::String(s.trim().to_string()))
-                            .collect();
-                        this.data.insert(key, ContextValue::Array(items));
-                        return Ok(());
-                    }
-                    _ => {}
-                }
-            }
-
-            if this.use_default(&key) {
-                if let Some(ref defaults) = info.defaults {
-                    let arr: Vec<ContextValue> = defaults.iter()
-                        .cloned()
-                        .map(ContextValue::String)
-                        .collect();
-                    this.data.insert(key, ContextValue::Array(arr));
-                    return Ok(());
-                }
-                if info.optional {
-                    return Ok(());
-                }
-                return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
-                )));
-            }
-
-            let response = this.send_prompt(ScriptMessage::PromptForMultiSelect(info))?;
-            if let Some(value) = handle_response_array(response)? {
-                let arr: Vec<ContextValue> = value.into_iter().map(ContextValue::String).collect();
-                this.data.insert(key, ContextValue::Array(arr));
-            }
-            Ok(())
+        // ctx:prompt_multi_select(...) — deprecated alias, logs a warning.
+        //
+        // Kept so archetypes written before the rename keep working. Remove
+        // in a future version once the ecosystem has had time to migrate.
+        methods.add_method_mut("prompt_multi_select", |lua, this, args: (String, String, Vec<String>, Option<Table>)| {
+            let _ = this.archetect.request(ScriptMessage::LogWarn(
+                "prompt_multi_select is deprecated; use prompt_multiselect instead.".to_string(),
+            ));
+            multiselect_prompt(lua, this, args)
         });
 
-        // ctx:prompt_list(message, key, opts?)
-        methods.add_method_mut("prompt_list", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_list(...) — returns the list of strings (or nil).
+        methods.add_method_mut("prompt_list", |_, this, (message, key, opts): (String, String, Option<Table>)| -> LuaResult<Option<Vec<String>>> {
             let mut info = ListPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -683,17 +730,25 @@ impl UserData for Context {
             if let Some(answer) = this.data.get(&answer_key).cloned() {
                 match answer {
                     ContextValue::Array(arr) => {
+                        let strings: Vec<String> = arr
+                            .iter()
+                            .filter_map(|v| match v {
+                                ContextValue::String(s) => Some(s.clone()),
+                                _ => None,
+                            })
+                            .collect();
                         if answer_key != key {
                             this.data.insert(key, ContextValue::Array(arr));
                         }
-                        return Ok(());
+                        return Ok(Some(strings));
                     }
                     ContextValue::String(s) => {
-                        let items: Vec<ContextValue> = s.split(',')
-                            .map(|s| ContextValue::String(s.trim().to_string()))
-                            .collect();
+                        let strings: Vec<String> =
+                            s.split(',').map(|s| s.trim().to_string()).collect();
+                        let items: Vec<ContextValue> =
+                            strings.iter().cloned().map(ContextValue::String).collect();
                         this.data.insert(key, ContextValue::Array(items));
-                        return Ok(());
+                        return Ok(Some(strings));
                     }
                     _ => {}
                 }
@@ -706,10 +761,10 @@ impl UserData for Context {
                         .map(ContextValue::String)
                         .collect();
                     this.data.insert(key, ContextValue::Array(arr));
-                    return Ok(());
+                    return Ok(Some(defaults.clone()));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -718,14 +773,17 @@ impl UserData for Context {
 
             let response = this.send_prompt(ScriptMessage::PromptForList(info))?;
             if let Some(value) = handle_response_array(response)? {
-                let arr: Vec<ContextValue> = value.into_iter().map(ContextValue::String).collect();
+                let arr: Vec<ContextValue> =
+                    value.iter().cloned().map(ContextValue::String).collect();
                 this.data.insert(key, ContextValue::Array(arr));
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
 
-        // ctx:prompt_editor(message, key, opts?)
-        methods.add_method_mut("prompt_editor", |_, this, (message, key, opts): (String, String, Option<Table>)| {
+        // ctx:prompt_editor(...) — returns the captured string (or nil).
+        methods.add_method_mut("prompt_editor", |_, this, (message, key, opts): (String, String, Option<Table>)| -> LuaResult<Option<String>> {
             let mut info = EditorPromptInfo::new(&message, Some(&key));
 
             if let Some(ref opts) = opts {
@@ -737,18 +795,18 @@ impl UserData for Context {
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::String(v)) = this.data.get(&answer_key).cloned() {
                 if answer_key != key {
-                    this.data.insert(key, ContextValue::String(v));
+                    this.data.insert(key, ContextValue::String(v.clone()));
                 }
-                return Ok(());
+                return Ok(Some(v));
             }
 
             if this.use_default(&key) {
                 if let Some(ref default) = info.default {
                     this.data.insert(key, ContextValue::String(default.clone()));
-                    return Ok(());
+                    return Ok(Some(default.clone()));
                 }
                 if info.optional {
-                    return Ok(());
+                    return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
                     "Headless mode: no answer or default for '{}'", message
@@ -757,9 +815,11 @@ impl UserData for Context {
 
             let response = this.send_prompt(ScriptMessage::PromptForEditor(info))?;
             if let Some(value) = handle_response_string(response)? {
-                this.data.insert(key, ContextValue::String(value));
+                this.data.insert(key, ContextValue::String(value.clone()));
+                Ok(Some(value))
+            } else {
+                Ok(None)
             }
-            Ok(())
         });
     }
 }

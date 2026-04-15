@@ -42,48 +42,65 @@ function Context:contains(key, value) end
 ---@param opts? {cases?: CaseSpec|CaseSpec[]} Optional case expansion
 function Context:set(key, value, opts) end
 
----Prompt for text input and store in context.
+---Prompt for text input, store in context, and return the value.
+---Returns the user's raw input; use `ctx:get(key)` to read case-expanded
+---variants produced by `opts.cases`. Returns `nil` when an optional
+---prompt is skipped.
 ---@param message string Prompt message displayed to the user
 ---@param key string Key to store the result under
 ---@param opts? TextPromptOpts
+---@return string? value
 function Context:prompt_text(message, key, opts) end
 
----Prompt for integer input and store in context.
+---Prompt for integer input, store in context, and return the value.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? IntPromptOpts
+---@return integer? value
 function Context:prompt_int(message, key, opts) end
 
----Prompt for boolean confirmation and store in context.
+---Prompt for boolean confirmation, store in context, and return the value.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? ConfirmPromptOpts
+---@return boolean? value
 function Context:prompt_confirm(message, key, opts) end
 
----Prompt for selection from a list and store in context.
+---Prompt for selection from a list, store in context, and return the value.
+---Returns the selected string; use `ctx:get(key)` for case-expanded variants.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param options string[] Available options
 ---@param opts? SelectPromptOpts
+---@return string? value
 function Context:prompt_select(message, key, options, opts) end
 
----Prompt for multiple selections and store in context.
+---Prompt for multiple selections, store in context, and return the list.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param options string[] Available options
 ---@param opts? MultiSelectPromptOpts
-function Context:prompt_multi_select(message, key, options, opts) end
+---@return string[]? value
+function Context:prompt_multiselect(message, key, options, opts) end
 
----Prompt for a list of strings and store in context.
+---Prompt for a list of strings, store in context, and return the list.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? ListPromptOpts
+---@return string[]? value
 function Context:prompt_list(message, key, opts) end
 
----Prompt for text via editor and store in context.
+---Prompt for text via editor, store in context, and return the value.
+---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
 ---@param opts? EditorPromptOpts
+---@return string? value
 function Context:prompt_editor(message, key, opts) end
 
 ---@class TextPromptOpts
