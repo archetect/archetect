@@ -293,6 +293,31 @@ function component.render(name, context, opts) end
 ---@field use_defaults_all? boolean Use defaults for all prompts in child archetype
 
 --
+-- catalog (sibling-archetype dispatch)
+--
+
+---@class catalog
+---Compose another archetype declared in this archetype's `catalog:` map.
+---Returns a Context populated by the child's render so the parent can merge
+---its prompt answers / contributions back in.
+catalog = {}
+
+---Dispatch to a named catalog entry: prompts / renders the child archetype
+---and returns its resulting context. Path may be slash-separated for nested
+---catalog navigation (`'services/grpc'`).
+---@param path string Catalog entry path
+---@param context Context Parent context (passed through to child)
+---@param opts? CatalogRenderOpts
+---@return Context child_context
+function catalog.render(path, context, opts) end
+
+---@class CatalogRenderOpts
+---@field destination? string Subdirectory to render into (relative to current destination)
+---@field switches? string[] Switches to pass to the child render
+---@field use_defaults? string[] Keys to use defaults for in the child render
+---@field use_defaults_all? boolean Use defaults for all prompts in the child render
+
+--
 -- directory
 --
 
@@ -358,22 +383,53 @@ function file.render(path, context, opts) end
 --
 
 ---@class format
----Serialize values to structured text formats. Accepts Context or plain tables.
+---Serialize values to / parse values from structured text formats.
+---to_* accepts Context or plain tables; from_* returns Lua tables.
 format = {}
 
 ---Serialize a value to pretty-printed JSON.
 ---@param value Context|table The value to serialize
----@return string json The JSON string
-function format.json(value) end
+---@return string json
+function format.to_json(value) end
 
 ---Serialize a value to YAML.
 ---@param value Context|table The value to serialize
----@return string yaml The YAML string
-function format.yaml(value) end
+---@return string yaml
+function format.to_yaml(value) end
 
----Serialize a value to TOML.
----@param value Context|table The value to serialize (must be a table/map at top level)
----@return string toml The TOML string
+---Serialize a value to TOML. The top-level value must be a table.
+---@param value Context|table The value to serialize
+---@return string toml
+function format.to_toml(value) end
+
+---Parse JSON into a Lua table.
+---@param json string JSON-formatted string
+---@return table value
+function format.from_json(json) end
+
+---Parse YAML into a Lua table.
+---@param yaml string YAML-formatted string
+---@return table value
+function format.from_yaml(yaml) end
+
+---Parse TOML into a Lua table.
+---@param toml string TOML-formatted string
+---@return table value
+function format.from_toml(toml) end
+
+-- Deprecated aliases kept for compatibility with older archetypes.
+-- Prefer the to_* / from_* names above; these may be removed.
+---@deprecated
+---@param value Context|table
+---@return string
+function format.json(value) end
+---@deprecated
+---@param value Context|table
+---@return string
+function format.yaml(value) end
+---@deprecated
+---@param value Context|table
+---@return string
 function format.toml(value) end
 
 --
@@ -396,32 +452,9 @@ runtime = {}
 ---when further processing is not needed.
 function exit() end
 
---
--- env
---
-
----@class env
----Host environment information.
----@field os string Operating system: "macos", "linux", "windows", etc.
----@field arch string CPU architecture: "aarch64", "x86_64", etc.
----@field family string OS family: "unix" or "windows"
----@field is_unix boolean True if running on a Unix-like OS
----@field is_windows boolean True if running on Windows
----@field is_macos boolean True if running on macOS
-env = {}
-
---
--- switches
---
-
----@class switches
----Query CLI switches passed via `--switch name`.
-switches = {}
-
----Check if a switch is enabled.
----@param name string Switch name
----@return boolean
-function archetect.switches.is_enabled(name) end
+-- (env and switches now hang off `archetect.env` / `archetect.switches`;
+-- top-level globals were removed during the v3 refinement phase. See
+-- the `archetect`, `Switches`, and `Env` classes above.)
 
 --
 -- Existing (enum constants)
@@ -433,8 +466,9 @@ function archetect.switches.is_enabled(name) end
 ---@class Existing
 ---Policies for handling existing files during rendering.
 ---@field Overwrite ExistingPolicy Replace existing files
----@field Preserve ExistingPolicy Keep existing files unchanged
----@field Prompt ExistingPolicy Ask the user what to do
+---@field Preserve ExistingPolicy Keep existing files unchanged (default)
+---@field Prompt ExistingPolicy Ask the user what to do (interactive)
+---@field Error ExistingPolicy Fail the render — useful for CI / idempotent pipelines
 Existing = {}
 
 --
