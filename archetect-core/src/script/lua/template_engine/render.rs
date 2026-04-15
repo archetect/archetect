@@ -272,3 +272,47 @@ fn send_write_file(
         other => Err(RenderError::UnexpectedResponse(format!("{:?}", other))),
     }
 }
+
+/// Render a single template file from `source` and write it to `destination`.
+///
+/// Binary files are passed through untouched; text files are compiled via
+/// the Lua template engine with `ctx_table` + `filters_table` in scope.
+/// Used by `file.render(...)` in Lua — the single-file analogue of
+/// `directory.render(...)`.
+pub fn lua_render_file(
+    lua: &Lua,
+    archetect: &Archetect,
+    ctx_table: &Table,
+    filters_table: &Table,
+    source: &Utf8Path,
+    destination: &Utf8Path,
+    overwrite_policy: OverwritePolicy,
+    cache: &mut TemplateCache,
+) -> Result<(), RenderError> {
+    // Ensure the destination's parent directory exists. directory.render
+    // recurses through subdirs; file.render may land in any subpath and
+    // needs to mkdir -p on its way.
+    if let Some(parent) = destination.parent() {
+        if !parent.as_str().is_empty() {
+            send_write_directory(archetect, parent)?;
+        }
+    }
+
+    let contents = fs::read(source).map_err(|err| RenderError::FileReadError {
+        path: source.to_path_buf(),
+        source: err,
+    })?;
+
+    let is_binary = matches!(
+        content_inspector::inspect(contents.as_slice()),
+        ContentType::BINARY
+    );
+
+    if is_binary {
+        send_write_file(archetect, destination, contents, overwrite_policy)?;
+    } else {
+        let rendered = lua_render_contents(lua, source, ctx_table, filters_table, cache)?;
+        send_write_file(archetect, destination, rendered.into_bytes(), overwrite_policy)?;
+    }
+    Ok(())
+}

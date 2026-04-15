@@ -290,6 +290,49 @@ function directory.render(path, context, opts) end
 ---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
 
 --
+-- file (single-file counterparts to directory.*)
+--
+
+---@class file
+---Single-file helpers. Paths resolve against the archetype root by
+---default; pass `{ scope = "cwd" }` to resolve against the invocation
+---working directory instead. Absolute paths, `..` traversal, and
+---`~` expansion are rejected regardless of scope.
+file = {}
+
+---Check whether a file exists at the given path.
+---@param path string Relative path
+---@param opts? FileScopeOpts
+---@return boolean exists
+function file.exists(path, opts) end
+
+---Read the contents of a file as a string. Errors if the path does
+---not exist or is not a regular file. Combine with `format.from_yaml`
+---/ `from_json` / `from_toml` to deserialize, then `context:merge(...)`
+---to fold into the current context.
+---@param path string Relative path
+---@param opts? FileScopeOpts
+---@return string contents
+function file.read(path, opts) end
+
+---Render a single template file from the archetype root to destination.
+---Source always resolves against the archetype root (no `scope` here —
+---rendering from the caller's cwd would be a footgun). By default the
+---destination mirrors the source-relative path; override via
+---`opts.destination`.
+---@param path string Source path relative to the archetype root
+---@param context Context Template context
+---@param opts? FileRenderOpts
+function file.render(path, context, opts) end
+
+---@class FileScopeOpts
+---@field scope? "archetype"|"cwd" Default: `"archetype"`
+
+---@class FileRenderOpts
+---@field destination? string Destination path (relative to render destination). Defaults to the source path.
+---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
+
+--
 -- format
 --
 

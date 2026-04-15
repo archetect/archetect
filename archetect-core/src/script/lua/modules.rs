@@ -84,7 +84,8 @@ pub fn register_all(
         })
         .with_includes_dirs(includes_dirs);
     let cache = Rc::new(RefCell::new(cache));
-    register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache)?;
+    register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone())?;
+    register_lua_file_module(lua, archetype, archetect, render_context, &filters, cache)?;
     register_lua_template_module(lua, &filters)?;
 
     register_catalog_module(lua, archetype, archetect, render_context)?;
@@ -541,6 +542,193 @@ fn register_lua_directory_module(
 
     lua.globals().set("directory", directory_table)?;
     Ok(())
+}
+
+// ── file module ─────────────────────────────────────────────────────
+//
+// Single-file counterparts to `directory.render`. Exposes:
+//
+//   file.exists(path, opts?)   → boolean
+//   file.read(path, opts?)     → string
+//   file.render(src, ctx, opts?) → ()
+//
+// Path resolution:
+//   - Default scope: archetype source root (consistent with
+//     directory.render, archetype.render).
+//   - opts.scope = "cwd": invocation working directory (for the rare
+//     case where an archetype needs to read from the caller's project).
+//
+// Sandbox (applies to both scopes):
+//   - No absolute paths.
+//   - No `..` segments.
+//   - No `~` home expansion.
+//
+// Rationale for the default: .archetect.yaml in CWD is already
+// auto-detected into configuration, and `-A answers.yaml` handles
+// explicit per-invocation context, so the cwd-scoped read is a rare
+// escape hatch rather than the common case.
+
+fn register_lua_file_module(
+    lua: &Lua,
+    archetype: &Archetype,
+    archetect: &Archetect,
+    render_context: &RenderContext,
+    filters: &Table,
+    cache: Rc<RefCell<TemplateCache>>,
+) -> LuaResult<()> {
+    let file_table = lua.create_table()?;
+
+    let archetype_root = archetype.root().to_owned();
+
+    // file.exists(path, opts?)
+    {
+        let archetype_root = archetype_root.clone();
+        file_table.set(
+            "exists",
+            lua.create_function(move |_, (path, opts): (String, Option<Table>)| -> LuaResult<bool> {
+                let resolved = resolve_file_path(&archetype_root, &path, &opts)?;
+                Ok(resolved.exists())
+            })?,
+        )?;
+    }
+
+    // file.read(path, opts?)
+    {
+        let archetype_root = archetype_root.clone();
+        file_table.set(
+            "read",
+            lua.create_function(move |_, (path, opts): (String, Option<Table>)| -> LuaResult<String> {
+                let resolved = resolve_file_path(&archetype_root, &path, &opts)?;
+                if !resolved.is_file() {
+                    return Err(LuaError::RuntimeError(format!(
+                        "file.read: not a regular file: {}",
+                        path
+                    )));
+                }
+                std::fs::read_to_string(resolved.as_std_path()).map_err(|err| {
+                    LuaError::RuntimeError(format!("file.read: {}: {}", path, err))
+                })
+            })?,
+        )?;
+    }
+
+    // file.render(source, context, opts?)
+    {
+        let archetype_root = archetype_root.clone();
+        let arc = archetect.clone();
+        let ctx_default_dest = render_context.destination().to_owned();
+        let filters = filters.clone();
+        let cache = cache.clone();
+        file_table.set(
+            "render",
+            lua.create_function(
+                move |lua, (source, context_ud, opts): (String, AnyUserData, Option<Table>)| {
+                    // file.render always resolves source against the archetype
+                    // root (there's no `scope` here — rendering from the caller's
+                    // cwd would be a footgun, not a feature).
+                    restrict_path(&source)?;
+                    if std::path::Path::new(&source).is_absolute() {
+                        return Err(LuaError::RuntimeError(format!(
+                            "file.render: absolute paths not allowed: {}",
+                            source
+                        )));
+                    }
+                    let source_path = archetype_root.join(&source);
+                    if !source_path.is_file() {
+                        return Err(LuaError::RuntimeError(format!(
+                            "file.render: source is not a regular file: {}",
+                            source
+                        )));
+                    }
+
+                    let context = context_ud.borrow::<Context>()?;
+                    let ctx_table = context.to_lua_table(lua)?;
+
+                    // Default destination mirrors the source-relative path.
+                    // opts.destination overrides (still relative to the
+                    // render destination, sandbox-checked).
+                    let dest_rel: String = if let Some(ref opts) = opts {
+                        match opts.get::<String>("destination".to_string()) {
+                            Ok(d) => {
+                                restrict_path(&d)?;
+                                if std::path::Path::new(&d).is_absolute() {
+                                    return Err(LuaError::RuntimeError(format!(
+                                        "file.render: destination must be relative: {}",
+                                        d
+                                    )));
+                                }
+                                d
+                            }
+                            Err(_) => source.clone(),
+                        }
+                    } else {
+                        source.clone()
+                    };
+                    let destination = ctx_default_dest.join(&dest_rel);
+
+                    let overwrite_policy = extract_overwrite_policy(&opts);
+                    let mut cache = cache.borrow_mut();
+
+                    crate::script::lua::template_engine::render::lua_render_file(
+                        lua,
+                        &arc,
+                        &ctx_table,
+                        &filters,
+                        &source_path,
+                        &destination,
+                        overwrite_policy,
+                        &mut cache,
+                    )
+                    .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))
+                },
+            )?,
+        )?;
+    }
+
+    lua.globals().set("file", file_table)?;
+    Ok(())
+}
+
+/// Resolve a Lua-supplied relative path against either the archetype
+/// root (default) or the invocation CWD (opts.scope = "cwd"), applying
+/// the sandbox rules from restrict_path plus absolute-path rejection.
+fn resolve_file_path(
+    archetype_root: &camino::Utf8Path,
+    path: &str,
+    opts: &Option<Table>,
+) -> LuaResult<camino::Utf8PathBuf> {
+    restrict_path(path)?;
+    if std::path::Path::new(path).is_absolute() {
+        return Err(LuaError::RuntimeError(format!(
+            "file.*: absolute paths not allowed: {}",
+            path
+        )));
+    }
+
+    let scope = opts
+        .as_ref()
+        .and_then(|o| o.get::<String>("scope".to_string()).ok())
+        .unwrap_or_else(|| "archetype".to_string());
+
+    let root: camino::Utf8PathBuf = match scope.as_str() {
+        "archetype" => archetype_root.to_owned(),
+        "cwd" => {
+            let cwd = std::env::current_dir().map_err(|err| {
+                LuaError::RuntimeError(format!("file.*: could not read cwd: {}", err))
+            })?;
+            camino::Utf8PathBuf::from_path_buf(cwd).map_err(|bad| {
+                LuaError::RuntimeError(format!("file.*: cwd is not valid UTF-8: {:?}", bad))
+            })?
+        }
+        other => {
+            return Err(LuaError::RuntimeError(format!(
+                "file.*: unknown scope '{}', expected 'archetype' or 'cwd'",
+                other
+            )));
+        }
+    };
+
+    Ok(root.join(path))
 }
 
 // ── Lua-native template module ──────────────────────────────────────
