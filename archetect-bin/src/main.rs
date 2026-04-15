@@ -23,6 +23,21 @@ mod configuration;
 mod subcommands;
 pub mod vendor;
 
+/// Resolve the render destination from CLI args. Positional
+/// `destination-pos` (second positional on render / global / top-level
+/// action) wins over the `--destination` / `--dest` flag. Falls back to
+/// `.` when neither is supplied.
+fn resolve_destination(args: &ArgMatches) -> String {
+    if let Some(pos) = args.get_one::<String>("destination-pos") {
+        if !pos.is_empty() {
+            return pos.clone();
+        }
+    }
+    args.get_one::<String>("destination")
+        .cloned()
+        .unwrap_or_else(|| ".".to_string())
+}
+
 fn main() {
     let matches = cli::command()
         .get_matches();
@@ -158,9 +173,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
         Some(("connect", args)) => {
             let render_context = configure_render_context(
                 archetect_core::archetype::render_context::RenderContext::new(
-                    camino::Utf8PathBuf::from(
-                        args.get_one::<String>("destination").expect("Has default"),
-                    ),
+                    camino::Utf8PathBuf::from(resolve_destination(args)),
                     answers,
                 ),
                 &archetect,
@@ -197,12 +210,7 @@ fn execute_global_dispatch(
         )
     })?;
 
-    let destination = shellexpand::full(
-        args.get_one::<String>("destination")
-            .map(String::as_str)
-            .unwrap_or("."),
-    )?
-    .to_string();
+    let destination = shellexpand::full(&resolve_destination(args))?.to_string();
     let destination = Utf8PathBuf::from(destination);
     let render_context = configure_render_context(
         RenderContext::new(destination, answers),
@@ -243,10 +251,7 @@ fn execute_catalog_dispatch(
         )
     })?;
 
-    let destination = shellexpand::full(
-        matches.get_one::<String>("destination").expect("Enforced by Clap"),
-    )?
-    .to_string();
+    let destination = shellexpand::full(&resolve_destination(matches))?.to_string();
     let destination = Utf8PathBuf::from(destination);
     let render_context = configure_render_context(
         RenderContext::new(destination, answers),
@@ -271,7 +276,7 @@ pub fn render(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -
 
     let source = matches.get_one::<String>("source").expect("`source` is a required clap argument");
     let source = archetect.new_source(source)?;
-    let destination = shellexpand::full(matches.get_one::<String>("destination").expect("Enforced by Clap"))?.to_string();
+    let destination = shellexpand::full(&resolve_destination(matches))?.to_string();
     let destination = Utf8PathBuf::from(destination);
     let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
 

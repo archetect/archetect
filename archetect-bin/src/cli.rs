@@ -28,6 +28,12 @@ pub fn command() -> Command {
                         .action(ArgAction::Set)
                         .required(true),
                 )
+                .arg(
+                    Arg::new("destination-pos")
+                        .help("Directory to render into. Overrides --destination when both are supplied.")
+                        .action(ArgAction::Set)
+                        .required(false),
+                )
                 .args(render_args(true)),
         )
         .subcommand(
@@ -43,6 +49,12 @@ pub fn command() -> Command {
                         .help("Catalog path to render (slash-separated). Empty = present the menu.")
                         .action(ArgAction::Set)
                         .default_value("")
+                )
+                .arg(
+                    Arg::new("destination-pos")
+                        .help("Directory to render into. Overrides --destination when both are supplied.")
+                        .action(ArgAction::Set)
+                        .required(false),
                 )
                 .args(render_args(true)),
         )
@@ -63,11 +75,26 @@ pub fn command() -> Command {
         )
         .arg(
             Arg::new("action")
-                .help("Catalog path to browse or render")
-                .long_help("Navigate to a catalog entry by path (e.g. 'services/grpc')")
+                .help("Catalog path to browse or named action to run")
+                .long_help(
+                    "Navigate to a catalog entry by path (e.g. 'services/grpc') or run a named\n\
+                     action defined in global or project-local .archetect.yaml. Defaults to the\n\
+                     configured default action."
+                )
                 .default_value("default")
                 .action(ArgAction::Set)
                 .global(true)
+        )
+        .arg(
+            Arg::new("destination-pos")
+                .help("Directory to render into (optional second positional)")
+                .long_help(
+                    "Target directory for any render the action performs. Mirrors\n\
+                     `archetect render <source> <destination>` shape for the top-level\n\
+                     action form. Overrides --destination when both are supplied."
+                )
+                .action(ArgAction::Set)
+                .required(false),
         )
         .subcommand(
             Command::new("ls")
