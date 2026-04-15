@@ -59,27 +59,34 @@ than per-file, otherwise corrections will leak back in.
 
 - **Claim (docs):** `Existing.Overwrite`, `Existing.Skip`, `Existing.Error`
   with `Overwrite` as default.
-- **Source reality:** `archetect-core/src/script/lua/modules.rs:908-910`
-  registers `Existing.Overwrite`, `Existing.Preserve`, `Existing.Prompt`.
-  Default when `if_exists` is omitted is `Preserve`
-  (`modules.rs:925`).
-- **Action:** Replace `Existing.Skip` → `Existing.Preserve`,
-  `Existing.Error` → `Existing.Prompt` everywhere. Update the default
-  callout. Affected files (confirmed): `docs/scripting/rendering.mdx:42,89-92`,
+- **Source reality (UPDATED):** Source now registers
+  `Existing.Overwrite`, `Existing.Preserve`, `Existing.Prompt`,
+  `Existing.Error`. Default remains `Preserve`. The `Error` variant is
+  new (per source-side #2 below) and hard-fails the render on conflict.
+- **Action:** Replace `Existing.Skip` → `Existing.Preserve` everywhere.
+  `Existing.Error` is now valid — KEEP doc references, but verify they
+  describe the actual semantic (hard-fail, useful for CI / idempotent
+  renders). Update the default callout to `Preserve`. Affected files:
+  `docs/scripting/rendering.mdx:42,89-92`,
   `docs/scripting/index.mdx:54`,
   `docs/reference/lua-api.mdx:21,48,113`.
 
-### 4. `archetect.switches` does not exist
+### 4. `archetect.switches` — REVERSED by source #6
 
 - **Claim (docs):** `archetect.switches:contains(name)`.
-- **Source reality:** The `archetect` global exposes `version`,
-  `version_major`, `version_minor`, `version_patch`, `answers()` only
-  (`modules.rs:187-199`). Switches are on their own top-level global
-  registered by `register_switches_module` as `switches.is_enabled(name)`
-  (`modules.rs:478-480`).
-- **Action:** Global substitution `archetect.switches:contains(X)` →
-  `switches.is_enabled(X)`. Affected: `docs/scripting/composition.mdx:111-113`,
-  `docs/reference/lua-api.mdx:129`. Re-audit any sidebar summaries.
+- **Source reality (UPDATED):** `archetect.switches` now exists. Per
+  source-side #6, both `switches` and `env` were consolidated under the
+  `archetect` namespace (top-level globals removed entirely — no
+  aliases). API is `archetect.switches.is_enabled(name)` (dot, not
+  colon — it's a function on a sub-table, not a method).
+- **Action:** Replace `archetect.switches:contains(X)` →
+  `archetect.switches.is_enabled(X)` (note dot vs colon). Replace any
+  bare `switches.is_enabled(X)` references with `archetect.switches.is_enabled(X)`.
+  Same for any `env.os` / `env.arch` etc. → `archetect.env.os`. The
+  flat-global forms are GONE — they no longer work. Affected:
+  `docs/scripting/composition.mdx:111-113`,
+  `docs/reference/lua-api.mdx:129`, plus a sweep for any plain `switches.`
+  or `env.` calls in narrative pages.
 
 ### 5. Filesystem paths are XDG, not `~/.archetect/`
 
@@ -98,24 +105,29 @@ than per-file, otherwise corrections will leak back in.
   page (may use `docs/reference/filesystem-layout.mdx` — already present;
   audit it against `archetect-core/src/system.rs`).
 
-### 6. Method name: `prompt_multi_select` (underscore)
+### 6. Method name: `prompt_multiselect` — REVERSED by source #3
 
 - **Claim (docs):** `context:prompt_multiselect(...)`.
-- **Source reality:** Registered as `prompt_multi_select`
-  (`archetect-core/src/script/lua/context.rs:608`). The no-underscore spelling
-  errors at runtime.
-- **Action:** Replace `prompt_multiselect` → `prompt_multi_select` wherever
-  it appears. Affected: `docs/scripting/prompting.mdx:59`,
-  `docs/reference/lua-api.mdx:36`.
+- **Source reality (UPDATED):** Per source-side #3, the method is now
+  registered as `prompt_multiselect` (canonical). The old underscored
+  name `prompt_multi_select` is kept as a deprecated alias that emits
+  a LogWarn at runtime.
+- **Action:** Docs were already correct on this one. NO replacement
+  needed. Optionally add a one-liner note in `docs/scripting/prompting.mdx`
+  or the lua-api reference saying `prompt_multi_select` is the
+  deprecated form (will be removed in a future release).
 
-### 7. Prompt methods return nothing
+### 7. Prompt methods return nothing — REVERSED by source #1
 
 - **Claim (docs):** "The result is also returned, so you can use it inline."
-- **Source reality:** All `prompt_*` methods return `Ok(())`. The value is
-  stored into context under the key; callers must use `ctx:get(key)` to read
-  it back.
-- **Action:** Remove all inline-return examples; rewrite to use
-  `ctx:prompt_text(...); local v = ctx:get("key")`.
+- **Source reality (UPDATED):** Per source-side #1, all `prompt_*`
+  methods now return the user-supplied value (string / integer / boolean
+  / string[] depending on prompt type). `nil` is returned when an
+  optional prompt is skipped. The context side-effect is unchanged.
+- **Action:** Docs were already correct on this one. NO removal needed.
+  Add a callout that the **return value is the user's raw input**, not
+  case-expanded — case variants (set via `opts.cases`) are stored as
+  context-side-effect keys; use `ctx:get("project-name")` to read them.
 
 ---
 
@@ -302,152 +314,215 @@ Items are tagged **[adopt docs-side design]** (change source to match the
 intuitive doc), **[keep source, fix docs]** (source is correct, docs should
 be rewritten), or **[needs decision]**.
 
+**Status as of 2026-04-15** — most decisions are now made and shipped on
+the `main-v3` branch (commits omsmp → uzolp). Each item below is annotated
+with **[✅ shipped]**, **[⏭️ skipped]**, or **[⏳ doc-only]**. The doc
+rewrite should reflect the *post-change* surface; do not document the
+pre-change behavior described in some items.
+
 ### Lua API ergonomics
 
-1. **Prompt methods should return the prompted value.** **[adopt docs-side design]**
-   - Current: `ctx:prompt_text(msg, key)` returns `()`; caller must
-     `ctx:get(key)` after.
-   - Proposed: return the value *and* store it in context. Source change in
-     `archetect-core/src/script/lua/context.rs` on every `prompt_*` method:
-     return the typed value via `mlua` instead of `Ok(())`.
-   - Rationale: every example in foundational-scratch and every doc example
-     reads naturally as `local name = ctx:prompt_text(...)`. Forcing a
-     second lookup is noise.
-   - Migration risk: none — adding a return value is additive.
+1. **Prompt methods should return the prompted value.** **[✅ shipped — commit ntqnk]**
+   - All seven `prompt_*` methods now return the user-supplied value
+     (`string?`, `integer?`, `boolean?`, `string?`, `string[]?`,
+     `string[]?`, `string?` for text/int/confirm/select/multiselect/
+     list/editor). `nil` is returned when an optional prompt is skipped.
+   - Context side-effect unchanged: value is still stored under the key,
+     and cases (when supplied) still expand into sibling keys. Use
+     `ctx:get(key)` to read case-expanded variants — return value is
+     always the user's raw input.
+   - **Doc impact:** show inline-return examples freely. Add a callout
+     about the return-value-is-raw semantic so authors understand
+     `local n = ctx:prompt_text(...)` gives the typed value, not the
+     pretty-cased one.
 
-2. **`Existing` enum: add `Skip` alias for `Preserve`, and add a real `Error` variant.** **[needs decision]**
-   - Current: `Existing.Overwrite | Preserve | Prompt` (`modules.rs:908-910`).
-   - Problem A (`Skip`): `Preserve` reads as "keep the old file" which is
-     fine, but `Skip` is more intuitive for the "don't write" semantic.
-     Cheapest fix: register `Existing.Skip` as an alias alongside `Preserve`.
-   - Problem B (`Error`): docs assumed a variant that fails the render when
-     a file exists — this is a legitimate semantic (safest for idempotent
-     CI renders) and is NOT equivalent to `Prompt`. Add a real
-     `OverwritePolicy::Error` variant that returns a render error on
-     conflict.
-   - Rationale: CI use cases want hard-fail-on-conflict; currently the
-     closest option is `Prompt`, which hangs in a headless run.
+2. **`Existing.Error` variant added (no `Skip` alias).** **[✅ shipped — commit lqzru]**
+   - Source now registers `Existing.Overwrite | Preserve | Prompt | Error`.
+     Default still `Preserve`. `Error` hard-fails the render on conflict
+     (returns a render error rather than overwriting / preserving /
+     prompting).
+   - `Skip` alias intentionally NOT added — one name per semantic.
+     Use `Preserve`.
+   - Wire format: `EXISTING_FILE_POLICY_ERROR = 4` in the proto enum.
+   - **Doc impact:** four variants now valid. Show `Error` as the right
+     choice for CI / idempotent renders ("every render should be a fresh
+     destination; collisions mean the invocation was misconfigured").
 
-3. **`prompt_multi_select` → `prompt_multiselect` (drop the underscore).** **[adopt docs-side design]**
-   - Current: `context.rs:608` registers `prompt_multi_select`.
-   - Proposed: register both names, then deprecate the underscored form.
-   - Rationale: "multiselect" is the commonly used single word in prompt
-     libraries (inquire, prompts, etc.); the inner underscore reads oddly
-     next to `prompt_text`, `prompt_int`, etc.
+3. **`prompt_multi_select` → `prompt_multiselect` (drop the underscore).** **[✅ shipped — commit ntqnk]**
+   - Canonical: `prompt_multiselect`. Old name kept as a deprecated
+     alias that emits a LogWarn at runtime.
+   - **Doc impact:** use `prompt_multiselect` everywhere. Optionally
+     mention the deprecated alias for migration purposes.
 
-4. **Add `repo:status()` and accept a list/table in `repo:add(...)`.** **[adopt docs-side design]**
-   - Current: `repo:add` takes one string; no `status` method
-     (`require_modules.rs:358-387`).
-   - Proposed: accept `String | Vec<String>` in `add` (iterate if table);
-     add `status()` returning `StatusOutput` as a string or a structured
-     table with `{ staged, unstaged, untracked }`.
-   - Rationale: both are obvious ergonomics wins and were already documented.
+4. **`repo:add(list)` accepted; `repo:status()` skipped.** **[✅ shipped (partial) — commit uzolp]**
+   - `repo:add` now accepts `string | string[]`. Both
+     `repo:add('src/main.rs')` and
+     `repo:add({ 'Cargo.toml', 'src/', '.github/workflows/' })` work.
+     Empty tables and unknown types error out with a clear message.
+   - `repo:status()` was DROPPED from scope — no clear use case in
+     archetype-generation flows ("after initial commit, what's left is
+     usually nothing by design"). If a need arises later, revisit.
+   - **Doc impact:** document `repo:add(string | string[])`. Do NOT
+     document `repo:status()` — it does not exist.
 
-5. **Add `__tostring` metamethod on `Context`.** **[adopt docs-side design]**
-   - Current: `tostring(ctx)` returns `"userdata: 0x…"`.
-   - Proposed: implement `__tostring` to produce a compact
-     `key=value,key=value` dump (or full YAML-like).
-   - Rationale: debugging a scripted archetype is painful without this;
-     `log.debug(tostring(ctx))` is the natural move.
+5. **`__tostring` on Context emits valid answer-file YAML.** **[✅ shipped — commit ysopq]**
+   - `tostring(ctx)` now returns the context's data as YAML (single
+     source of truth with `format.to_yaml(ctx)`). The output round-trips
+     as an archetect answer file — `log.debug(tostring(ctx))` doubles as
+     "what answers would reproduce this state".
+   - **Doc impact:** show `tostring(ctx)`, `format.to_yaml(ctx)`,
+     `format.to_json(ctx)` as three equivalent flavors. Mention the
+     answer-file round-trip as a useful debugging trick.
 
-6. **Consolidate `switches` / `env` under `archetect`.** **[needs decision]**
-   - Current: top-level `switches` global (`is_enabled(name)`) and separate
-     `env` global.
-   - Proposed: expose them as `archetect.switches` and `archetect.env`
-     while keeping the top-level globals as aliases for back-compat.
-   - Rationale: docs-writer intuition clustered runtime info under
-     `archetect.*`. That grouping is more discoverable; the flat top-levels
-     are fine but not obvious.
+6. **Consolidate `switches` / `env` under `archetect` — aliases REMOVED.** **[✅ shipped — commit zsxsn]**
+   - `archetect.switches.is_enabled(name)` and `archetect.env.{os,arch,
+     family,is_unix,is_windows,is_macos}` are the canonical surface.
+   - Top-level `switches` and `env` globals were REMOVED entirely
+     (we're in the v3 refinement phase; one name per thing).
+   - **Doc impact:** any reference to bare `switches.is_enabled(...)` or
+     `env.os` is now wrong — they error at runtime. Always use the
+     `archetect.*` form. Sweep narrative pages for both.
 
-7. **Add a `read_file(path)` helper resolved against the archetype root.** **[adopt docs-side design]**
-   - Current: no such helper; users drop to `io.open` which resolves against
-     process cwd, not the archetype source root.
-   - Proposed: register `read_file(relative_path)` that resolves against
-     the active archetype's source dir and returns the file contents (or
-     errors).
-   - Rationale: the rendering doc's example assumed this exists, and it's
-     genuinely useful for partials-style workflows.
+7. **`file.exists` / `file.read` / `file.render` shipped.** **[✅ shipped — commit rqrtq]**
+   - New top-level `file` module, single-file counterpart to
+     `directory.*`. Functions:
+     - `file.exists(path, opts?)` → boolean
+     - `file.read(path, opts?)` → string
+     - `file.render(source, ctx, opts?)` → ()
+   - Default scope = archetype source root. Pass `{ scope = "cwd" }` on
+     `exists` / `read` to resolve against the invocation working dir
+     (rare — `.archetect.yaml` auto-detection and `-A` answer files
+     already cover most per-invocation context). `file.render` has NO
+     scope param — source always resolves against the archetype root.
+   - Sandbox (always on, both scopes): no absolute paths, no `..`
+     escapes, no `~` expansion.
+   - Pairs with `format.from_yaml` / `from_json` / `from_toml` and
+     `context:merge(table)` for the "if a defaults file exists, load it
+     into context" pattern.
+   - **Doc impact:** new `docs/scripting/files.mdx` (or merge into
+     rendering.mdx). Document the three functions, both scopes, the
+     sandbox, and the canonical "load defaults" pattern.
 
-8. **`prompt_list` should be documented; consider alias `prompt_strings`.** **[keep source, fix docs]**
-   - Current: method exists at `context.rs:668` but is undocumented.
-   - Proposed: no source change; just document it.
+8. **`prompt_list` documentation.** **[⏳ doc-only — annotation already present]**
+   - Method exists and is annotated in
+     `archetect-core/lua/annotations/archetect.lua`. No source change.
+   - **Doc impact:** narrative mention in `docs/scripting/prompting.mdx`.
 
 ### CLI ergonomics
 
-9. **Accept destination as an optional second positional on `render` / top-level action / `global` / `connect`.** **[adopt docs-side design]**
-   - Current: `--destination`/`--dest` only; a bare second word is rejected
-     by clap.
-   - Proposed: add a positional `[destination]` that falls back to
-     `--destination`, defaulting to `.`.
-   - Rationale: every doc example assumed this shape, matching v2 ergonomics
-     and matching common tooling (`git clone <url> <dir>`,
-     `cargo new <name>`, etc.). The friction of typing `--destination` for
-     every run is real.
+9. **Destination as optional second positional.** **[✅ shipped — commit osvnn]**
+    - Added `[destination]` as an optional positional on `render`,
+      `global`, and the top-level action form. Resolution order:
+      positional → `--destination`/`--dest` flag → `.`.
+    - `archetect render <source> <dest>` now works (matches `git clone`,
+      `cargo new`, v2 ergonomics).
+    - Top-level form also takes `<dest>`:
+      `archetect new-entity ./src/domain` for project-local actions
+      (per the user note: an action can be a render, a catalog browse,
+      or anything custom — the dest is for the render case).
+    - **Doc impact:** examples can finally use the natural shape. Show
+      both `archetect render <src> <dest>` and `archetect <action> <dest>`.
 
-10. **Add `--offline` / `-o` to `ls`.** **[adopt docs-side design]**
-    - Current: `ls` has no flags (`cli.rs:72-76`).
-    - Proposed: at minimum support `--offline` so `ls` can enumerate the
-      local cache without network.
-    - Rationale: docs assumed this; the feature is useful and cheap.
+10. **`ls` is already offline-only.** **[✅ doc-only update — commit uzolp]**
+    - Source already walks only in-memory catalog config (never fetches);
+      the docs' claim about `--offline` was confused. Sharpened the
+      `ls` long_about to make the offline-only behavior explicit. NO
+      flag added — there's nothing to opt into.
+    - **Doc impact:** drop the `--offline` reference. State that `ls`
+      lists the in-memory catalog tree from `.archetect.yaml` (project
+      or global), shallow — leaf entries pointing at remote catalogs
+      are listed but not recursed into.
 
-11. **`archetect catalog` as an explicit subcommand.** **[needs decision]**
-    - Current: there is no `catalog` subcommand; the root `action` positional
-      handles catalog browsing.
-    - Proposed: either leave as-is and fix the doc, OR add a `catalog` subcommand
-      as an explicit alias (e.g. `archetect catalog <path>` equivalent to
-      `archetect <path>`) for discoverability in `--help` output.
-    - Rationale: catalog browsing is currently hidden from `--help`; new users
-      never discover it.
+11. **`catalog` subcommand — SKIPPED.** **[⏭️ skipped]**
+    - No clear use case beyond "force the manifest catalog to render
+      skipping the .lua script". Speculative; revisit if a real need
+      surfaces.
+    - **Doc impact:** remove any reference to `archetect catalog` as
+      a subcommand. The first positional (action) handles catalog
+      navigation: `archetect <path>` (no `catalog` keyword needed).
 
-12. **`git.init` default branch should default to `"main"` explicitly.** **[adopt docs-side design]**
-    - Current: source omits `-b` and defers to git's `init.defaultBranch`
-      config — which is frequently unset or still `master`.
-    - Proposed: pass `-b main` by default; allow override via the `branch`
-      option.
-    - Rationale: deterministic behavior across developer machines. Docs
-      already assumed this.
+12. **`git.init` defaults to `-b main`.** **[✅ shipped — commit uzolp]**
+    - `git.init` now passes `-b main` by default. Override via
+      `{ branch = "..." }`. Deterministic across machines regardless
+      of `init.defaultBranch` config.
+    - **Doc impact:** state the default explicitly. Show
+      `git.init(nil, { branch = "develop" })` as the override pattern.
 
-13. **`cache clear`: behavior doesn't match the "equivalent to rm -rf" framing.** **[keep source, fix docs]**
-    - The source's per-entry removal with confirmation is safer than a
-      blanket `rm -rf`. Docs should be corrected, not source.
+13. **`cache clear`: per-entry removal with confirmation.** **[⏳ doc-only]**
+    - Source unchanged. Per-entry removal is safer than the docs' claimed
+      `rm -rf`-equivalent.
+    - **Doc impact:** correct the description in
+      `docs/cli/cache.mdx:44`.
 
-14. **`config edit`: document that the file is only written on editor save.** **[keep source, fix docs]**
-    - Source's behavior is correct; the doc is wrong.
+14. **`config edit`: file written only on editor save.** **[⏳ doc-only]**
+    - Source unchanged. The "creates the file if it doesn't exist"
+      claim is misleading — the file appears when the editor saves it,
+      not before.
+    - **Doc impact:** correct in `docs/cli/config.mdx:35`.
 
-15. **`ide` subcommand: add `--force` to overwrite an existing `.luarc.json`.** **[adopt docs-side design]**
-    - Current: silently skips.
-    - Proposed: add `--force` flag; default behavior stays non-destructive
-      and now prints a clearer "skipping, use --force to overwrite" message.
+15. **`ide` setup .luarc.json is hash-idempotent.** **[✅ shipped — commit uzolp]**
+    - No `--force` flag. Instead, the setup compares on-disk content
+      hash with what we'd write. Identical → silent no-op. Differs (or
+      missing) → overwrite + log "Created" or "Updated".
+    - Avoids staleness when the annotations dir moves (e.g., XDG path
+      change) without requiring user intervention.
+    - **Doc impact:** describe the idempotent behavior. Authors can
+      re-run `archetect ide setup` after every binary upgrade safely.
 
-16. **`connect` and `server`: remove all doc references to source positionals.** **[keep source, fix docs]**
-    - These subcommands are correct as-is; the docs were invented.
+16. **`connect` / `server` doc fixes.** **[⏳ doc-only]**
+    - Subcommands are correct as-is; the docs invented positional args.
+    - **Doc impact:** remove fictional source/path positionals from
+      `docs/cli/connect.mdx`, `docs/cli/server.mdx`.
 
 ### Globals / registrations hygiene
 
-17. **Registered-but-undocumented globals and modules need IDE annotations too.**
-    `output`, `runtime`, `env`, `switches`, `format`, `exit`, `archetype`,
-    `Case`, plus require modules `archetect.shell`, `archetect.archive`,
-    `archetect.model`, `archetect.model.interactive`. Confirm every one has
-    corresponding entries in the LuaLS annotations shipped by
-    `archetect ide`. If any are missing, update the annotation emitter in
-    `archetect-bin/src/subcommands/ide_subcommand.rs` (or wherever the
-    annotation source strings live) alongside the doc rewrite.
+17. **Annotation hygiene sweep.** **[✅ shipped — commit rquyk]**
+    - LuaLS annotations updated to reflect the actual registered
+      surface plus everything new from this run. Done in
+      `archetect-core/lua/annotations/archetect.lua` and
+      `archetect-core/lua/annotations/archetect_modules.lua`.
+    - Specific changes:
+      - DROPPED stale top-level `env` and `switches` classes (now under
+        `archetect.*`).
+      - ADDED `Existing.Error` to the `Existing` class.
+      - REVISED `format` to list `to_json` / `to_yaml` / `to_toml` as
+        canonical, added `from_json` / `from_yaml` / `from_toml`, kept
+        `json` / `yaml` / `toml` as `@deprecated` aliases.
+      - ADDED top-level `catalog` global with `catalog.render` and
+        `CatalogRenderOpts` (was registered but unannotated).
+      - ADDED `archetect.model` and `archetect.model.interactive`
+        require-module classes with their function surfaces.
+      - UPDATED `GitRepo:add` to typed `patterns: string|string[]`.
+      - The earlier sessions in this run (prompt return types,
+        `Switches`/`Env`, `file` module, `FileScopeOpts`,
+        `FileRenderOpts`) had already been added inline.
+    - **Doc impact:** the `lua-api.mdx` reference page should mirror
+      the annotation files. Use them as ground truth — they're now
+      complete and will stay in sync with future source changes
+      (since they're shipped via `archetect ide setup`).
 
-### Sequencing with the doc rewrite
+### Sequencing note for the doc rewrite
 
-Source-side changes should land in this order relative to docs work:
+All source-side decisions are now resolved and shipped (or
+intentionally deferred). The doc rewrite phases (1–6 above) can now
+proceed without waiting on source-side work. **Lua API reference
+should be regenerated from the annotation files**, which are now
+authoritative — they were swept in commit rquyk and will be the
+source of truth for the LuaLS-aware narrative pages.
 
-- **Before Phase 2 (reference regeneration):** items #1 (prompt return
-  values), #3 (multiselect alias), #4 (git repo:add/status), #5
-  (Context __tostring), #12 (git.init default branch). These change the
-  surface the reference documents.
-- **Before Phase 4 (CLI pages):** items #9 (destination positional),
-  #10 (`ls --offline`), #15 (`ide --force`). These change the CLI surface
-  the CLI pages document.
-- **Deferred / still discussing:** items #2 (Existing variants), #6
-  (archetect.switches grouping), #7 (read_file helper), #11 (catalog
-  subcommand). Docs may need to stay aligned with current behavior until
-  these are resolved.
+### Sequencing with the doc rewrite — RESOLVED
+
+All source-side items are now shipped or intentionally deferred:
+
+- **Shipped:** #1, #2, #3, #4 (partial — `add` only), #5, #6, #7, #9,
+  #10, #12, #15, #17.
+- **Doc-only fixes:** #8 (`prompt_list` docs), #13 (`cache clear`
+  description), #14 (`config edit` description), #16 (`connect`/
+  `server` positional cleanup).
+- **Skipped:** #11 (catalog subcommand — no clear use case yet).
+
+The doc rewrite phases 1–6 can proceed against the current `main-v3`
+tip (commits omsmp → uzolp) without further source-side blockers.
 
 ---
 
