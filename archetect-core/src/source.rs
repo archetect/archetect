@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::fs;
-use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -322,7 +321,10 @@ fn cache_git_repo(
             if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
                 info!("Cloning {}", url);
                 debug!("Cloning to {}", cache_destination.as_str());
-                handle_git(Command::new("git").args(["clone", url, cache_destination.as_str(), "-q"]))?;
+                // Bucket A: try git2 first, fall back to `git` CLI on any
+                // error (auth, transport, TLS). Lets archetect work without
+                // the `git` binary for the common public-clone case.
+                crate::git_io::clone(url, cache_destination)?;
                 let repo = git2::Repository::open(cache_destination.join(".git"))?;
                 write_timestamp(&repo)?;
             }
@@ -336,13 +338,7 @@ fn cache_git_repo(
         // If the cache was cloned from an empty repo (no remote branches),
         // force a re-fetch — the repo likely has content now.
         if !should_fetch && !archetect.is_offline() {
-            let has_remote_refs = handle_git(
-                Command::new("git")
-                    .current_dir(cache_destination)
-                    .args(["show-ref", "--heads", "-q"]),
-            )
-            .is_ok();
-            if !has_remote_refs {
+            if !repo_has_any_branch(&repo) {
                 debug!("Cached repo has no branches — re-fetching (was likely cloned empty)");
                 should_fetch = true;
             }
@@ -350,8 +346,8 @@ fn cache_git_repo(
 
         // Check if the requested gitref exists, and if not, force a fetch unless offline
         if let Some(gitref_str) = gitref.as_ref().filter(|_| !should_fetch) {
-            let gitref_exists = is_branch(cache_destination.as_str(), gitref_str) ||
-                               is_tag_or_commit(cache_destination.as_str(), gitref_str);
+            let gitref_exists =
+                is_branch(&repo, gitref_str) || is_tag_or_commit(&repo, gitref_str);
 
             if !gitref_exists && !archetect.is_offline() {
                 debug!("Requested gitref '{}' not found in cache, fetching latest", gitref_str);
@@ -366,11 +362,8 @@ fn cache_git_repo(
         if should_fetch {
             if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
                 info!("Fetching {}", url);
-                handle_git(
-                    Command::new("git")
-                        .current_dir(cache_destination)
-                        .args(["fetch", "-q", "--force", "--tags"]),
-                )?;
+                // Bucket A: same fallback strategy for fetch.
+                crate::git_io::fetch(cache_destination)?;
                 write_timestamp(&repo)?;
             }
         } else {
@@ -378,91 +371,70 @@ fn cache_git_repo(
         }
     }
 
+    // Bucket B: local-only operations use git2 directly.
+    let repo = Repository::open(cache_destination.join(".git"))?;
+
     let gitref = if let Some(gitref) = gitref {
         gitref.to_owned()
     } else {
-        find_default_branch(cache_destination.as_str())?
+        find_default_branch(&repo)?
     };
 
-    let gitref_spec = if is_branch(cache_destination.as_str(), &gitref) {
+    let gitref_spec = if is_branch(&repo, &gitref) {
         format!("origin/{}", &gitref)
     } else {
         gitref
     };
 
     debug!("Checking out {}", gitref_spec);
-    handle_git(
-        Command::new("git")
-            .current_dir(cache_destination)
-            .args(["checkout", &gitref_spec]),
-    )?;
+    checkout(&repo, &gitref_spec)?;
 
     Ok(())
 }
 
-fn is_branch(path: &str, gitref: &str) -> bool {
-    handle_git(
-        Command::new("git")
-            .current_dir(path)
-            .arg("show-ref")
-            .arg("-q")
-            .arg("--verify")
-            .arg(format!("refs/remotes/origin/{}", gitref)),
-    )
-    .is_ok()
+/// Bucket B: check whether a ref exists under `refs/remotes/origin/*`.
+fn is_branch(repo: &Repository, gitref: &str) -> bool {
+    repo.find_reference(&format!("refs/remotes/origin/{}", gitref))
+        .is_ok()
 }
 
-fn is_tag_or_commit(path: &str, gitref: &str) -> bool {
-    // Check if it's a tag
-    if handle_git(
-        Command::new("git")
-            .current_dir(path)
-            .arg("show-ref")
-            .arg("-q")
-            .arg("--verify")
-            .arg(format!("refs/tags/{}", gitref)),
-    )
-    .is_ok()
-    {
+/// Bucket B: check whether a ref is a tag or a direct commit hash.
+fn is_tag_or_commit(repo: &Repository, gitref: &str) -> bool {
+    if repo.find_reference(&format!("refs/tags/{}", gitref)).is_ok() {
         return true;
     }
-
-    // Check if it's a valid commit hash
-    handle_git(
-        Command::new("git")
-            .current_dir(path)
-            .arg("rev-parse")
-            .arg("-q")
-            .arg("--verify")
-            .arg(format!("{}^{{commit}}", gitref)),
-    )
-    .is_ok()
+    // `revparse_single` handles both full and abbreviated commit hashes
+    // as well as any other rev spec git understands.
+    repo.revparse_single(&format!("{}^{{commit}}", gitref)).is_ok()
 }
 
-fn find_default_branch(path: &str) -> Result<String, SourceError> {
+fn find_default_branch(repo: &Repository) -> Result<String, SourceError> {
     for candidate in &["main", "master"] {
-        if is_branch(path, candidate) {
+        if is_branch(repo, candidate) {
             return Ok((*candidate).to_owned());
         }
     }
     Err(SourceError::NoDefaultBranch)
 }
 
-fn handle_git(command: &mut Command) -> Result<(), SourceError> {
-    match command.output() {
-        Ok(output) => match output.status.code() {
-            Some(0) => Ok(()),
-            Some(error_code) => Err(SourceError::RemoteSourceError(format!(
-                "Error Code: {}\n{}",
-                error_code,
-                String::from_utf8(output.stderr)
-                    .unwrap_or("Error reading error code from failed git command".to_owned())
-            ))),
-            None => Err(SourceError::RemoteSourceError("Git interrupted by signal".to_owned())),
-        },
-        Err(err) => Err(SourceError::IoError(err)),
+/// Bucket B: detached-HEAD checkout of `gitref_spec` (may be a branch
+/// name, a tag, or a commit). Mirrors `git checkout <spec>` for a
+/// bare/read-only workflow — archetect never intends to commit back.
+fn checkout(repo: &Repository, gitref_spec: &str) -> Result<(), SourceError> {
+    let object = repo.revparse_single(gitref_spec)?;
+    repo.checkout_tree(&object, Some(git2::build::CheckoutBuilder::new().force()))?;
+    repo.set_head_detached(object.id())?;
+    Ok(())
+}
+
+/// Bucket B: does this repo have any branches (local or remote)?
+fn repo_has_any_branch(repo: &Repository) -> bool {
+    match repo.branches(None) {
+        Ok(mut iter) => iter.next().is_some(),
+        Err(_) => false,
     }
 }
+
 
 #[cfg(test)]
 mod tests {

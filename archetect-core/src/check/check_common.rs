@@ -19,7 +19,7 @@ pub fn perform_checks(archetect: &Archetect) -> Result<(), ArchetectError> {
 }
 
 pub fn check_git_installed() -> Result<(), ArchetectError> {
-    header("Git installation");
+    header("Git installation (optional)");
 
     match Command::new("git").arg("--version").output() {
         Ok(output) => {
@@ -28,13 +28,19 @@ pub fn check_git_installed() -> Result<(), ArchetectError> {
                 pass(&version);
             } else {
                 let code = output.status.code().unwrap_or(-1);
-                error(format!("Git found but returned status {}", code));
-                hint("Ensure git is installed correctly.");
+                warn(format!("Git found but returned status {}", code));
+                hint("Ensure git is installed correctly if you plan to clone private repos or publish projects.");
             }
         }
         Err(_) => {
-            error("Git is required, but was not found on PATH");
-            hint("Install git from https://git-scm.com/downloads");
+            // Archetect can clone public repos via libgit2 and open cached
+            // repos directly. The `git` CLI is only needed for auth
+            // (private repos, SSH) and for commit hooks / signing on the
+            // rendered project's initial commit.
+            warn("Git was not found on PATH");
+            hint("Archetect works without `git` for public archetypes.");
+            hint("Install git (https://git-scm.com/downloads) to clone private repos,");
+            hint("run pre-commit hooks, or sign commits on rendered projects.");
         }
     }
     Ok(())
