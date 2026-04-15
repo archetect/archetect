@@ -28,6 +28,9 @@ pub struct ArchetectMcpServer {
     archetect: Archetect,
     catalog_index: CatalogIndex,
     session: Arc<Mutex<SessionState>>,
+    // Read through the `#[tool_handler]` macro on the ServerHandler
+    // impl — dead-code analysis can't see past the macro expansion.
+    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 

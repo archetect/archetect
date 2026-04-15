@@ -29,7 +29,7 @@ camino = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 config = { workspace = true }
-inquire = { version = "0.7", features = ["editor"] }
+inquire = { version = "0.9", features = ["editor"] }
 linked-hash-map = { workspace = true }
 log= { workspace = true }
 serde= { workspace = true }

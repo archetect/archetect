@@ -15,5 +15,5 @@ archetect-validations = { workspace = true }
 
 camino = { workspace = true }
 dyn-clone = { workspace = true }
-inquire = { version = "0.7", features = ["editor"] }
+inquire = { version = "0.9", features = ["editor"] }
 log = { workspace = true }

@@ -26,12 +26,12 @@ either = { workspace = true }
 farmhash = { workspace = true }
 git2 = { workspace = true }
 indoc = { workspace = true }
-inquire = "0.7"
+inquire = "0.9"
 linked-hash-map = { workspace = true }
 log = { workspace = true }
-mlua = { version = "0.10", features = ["lua54", "vendored", "serialize"] }
+mlua = { version = "0.11", features = ["lua54", "vendored", "serialize"] }
 memchr = { workspace = true }
-octocrab = "0.44"
+octocrab = "0.49"
 regex = { workspace = true }
 semver = { workspace = true }
 serde = { workspace = true }
@@ -40,29 +40,30 @@ serde_yaml= { workspace = true }
 shellexpand  = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-toml = "0.8"
+toml = "1"
 futures = "0.3"
-prost = "0.13"
+prost = "0.14"
+tonic-prost = "0.14"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1"
-tonic = "0.12"
-tonic-health = "0.12"
-tonic-reflection = "0.12"
+tonic = "0.14"
+tonic-health = "0.14"
+tonic-reflection = "0.14"
 tracing = "0.1"
 unicode-segmentation = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
-rand = "0.9.0-beta.0"
-zip = "2.1"
+zip = "8"
 tar = "0.4"
 flate2 = "1.0"
 http-body-util = "0.1"
 [target.'cfg(windows)'.dependencies]
-winreg = "0.52.0"
+winreg = "0.56"
 
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = "0.14"
+tonic-prost-build = "0.14"
 
 [dev-dependencies]
 anyhow = { workspace = true }

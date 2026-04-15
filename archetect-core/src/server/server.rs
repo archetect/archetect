@@ -77,7 +77,7 @@ impl ArchetectServer {
             .take()
             .ok_or_else(|| ArchetectError::ServerError("Server listener already consumed".to_string()))?;
 
-        let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+        let (health_reporter, health_service) = tonic_health::server::health_reporter();
         health_reporter
             .set_serving::<ArchetectServiceGrpcServer<ArchetectServiceCore>>()
             .await;

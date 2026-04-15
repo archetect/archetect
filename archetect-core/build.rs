@@ -9,7 +9,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-changed={}", SELF_PROTO);
 
-    tonic_build::configure()
+    // tonic 0.14 split prost-based codegen into `tonic-prost-build`.
+    // `configure()` lives there now; tonic-build itself is the
+    // transport-agnostic codegen primitive.
+    tonic_prost_build::configure()
         .file_descriptor_set_path(out_dir.join("archetect.bin"))
         .build_server(true)
         .build_client(true)
