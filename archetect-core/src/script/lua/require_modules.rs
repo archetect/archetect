@@ -444,6 +444,43 @@ fn create_git_module(lua: &Lua, archetect: &Archetect, render_context: &RenderCo
 
 // --- github module ---
 
+/// Resolve a GitHub token the same way an interactive user would:
+///
+/// 1. If `GITHUB_TOKEN` is set in the environment, use it verbatim.
+///    This preserves existing behavior for CI and scripted invocations.
+/// 2. Otherwise, shell out to `gh auth token` (the GitHub CLI) and use
+///    whatever it returns. This makes `archetect` work transparently
+///    for anyone already set up with `gh auth login`.
+///
+/// Returns a descriptive error if neither path yields a token, so the
+/// user knows both options rather than just the legacy one.
+fn resolve_github_token() -> LuaResult<String> {
+    if let Ok(tok) = env::var("GITHUB_TOKEN") {
+        let tok = tok.trim().to_string();
+        if !tok.is_empty() {
+            return Ok(tok);
+        }
+    }
+
+    // Fall back to `gh auth token`. Any failure here — gh not installed,
+    // not logged in, non-zero exit — we surface as the same guidance
+    // error so the user learns both remediation paths at once.
+    match Command::new("gh").args(["auth", "token"]).output() {
+        Ok(out) if out.status.success() => {
+            let tok = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !tok.is_empty() {
+                return Ok(tok);
+            }
+        }
+        _ => {}
+    }
+
+    Err(LuaError::RuntimeError(
+        "No GitHub credentials available. Set GITHUB_TOKEN or run `gh auth login`.".to_string(),
+    ))
+}
+
+
 fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
     let module = lua.create_table()?;
 
@@ -456,11 +493,7 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                 .map_err(|e| LuaError::RuntimeError(format!("Runtime error: {}", e)))?;
 
             runtime.block_on(async {
-                let token = env::var("GITHUB_TOKEN").map_err(|_| {
-                    LuaError::RuntimeError(
-                        "GITHUB_TOKEN environment variable not set".to_string(),
-                    )
-                })?;
+                let token = resolve_github_token()?;
 
                 let octocrab = octocrab::Octocrab::builder()
                     .personal_token(token)
@@ -501,11 +534,7 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                 .map_err(|e| LuaError::RuntimeError(format!("Runtime error: {}", e)))?;
 
             runtime.block_on(async {
-                let token = env::var("GITHUB_TOKEN").map_err(|_| {
-                    LuaError::RuntimeError(
-                        "GITHUB_TOKEN environment variable not set".to_string(),
-                    )
-                })?;
+                let token = resolve_github_token()?;
 
                 let octocrab = octocrab::Octocrab::builder()
                     .personal_token(token)
