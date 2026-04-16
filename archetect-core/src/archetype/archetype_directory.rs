@@ -35,24 +35,18 @@ impl ArchetypeDirectory {
 
     /// Returns the script path if a script file exists, or `None` if this is a
     /// script-less archetype (e.g. a pure catalog).
+    ///
+    /// The entry-point filename is fixed — `archetype.lua` at the archetype
+    /// root. (Legacy `archetype.rhai` is still detected so v2 archetypes
+    /// produce the targeted error from the Lua runtime, which is clearer
+    /// than "no script found".)
     pub fn script(&self) -> Option<Utf8PathBuf> {
-        let main = self.manifest().scripting().main();
-        let script_path = self.root.join(&main);
-
-        if script_path.is_file() {
-            return Some(script_path);
-        }
-
-        // Auto-detect: if main wasn't explicitly set, try common filenames
-        if self.manifest().scripting().main.is_none() {
-            for fallback in &["archetype.rhai", "archetype.lua"] {
-                let fallback_path = self.root.join(fallback);
-                if fallback_path.is_file() {
-                    return Some(fallback_path);
-                }
+        for name in &["archetype.lua", "archetype.rhai"] {
+            let path = self.root.join(name);
+            if path.is_file() {
+                return Some(path);
             }
         }
-
         None
     }
 

@@ -3,13 +3,11 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 
 pub use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
-use crate::archetype::archetype_manifest::scripting::ScriptingConfig;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
 use crate::manifest::{CatalogEntry, Manifest};
 
 pub mod requirements;
-pub mod scripting;
 pub mod templating;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -24,8 +22,6 @@ pub struct ArchetypeManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<Vec<String>>,
     requires: RuntimeRequirements,
-    #[serde(default = "ScriptingConfig::default")]
-    scripting: ScriptingConfig,
     #[serde(default = "TemplatingConfig::default")]
     templating: TemplatingConfig,
     /// Catalog entries (populated from unified Manifest).
@@ -109,10 +105,6 @@ impl ArchetypeManifest {
         &self.requires
     }
 
-    pub fn scripting(&self) -> &ScriptingConfig {
-        &self.scripting
-    }
-
     pub fn templating(&self) -> &TemplatingConfig {
         &self.templating
     }
@@ -140,7 +132,6 @@ impl From<Manifest> for ArchetypeManifest {
             frameworks: if m.frameworks.is_empty() { None } else { Some(m.frameworks) },
             tags: if m.tags.is_empty() { None } else { Some(m.tags) },
             requires: m.requires,
-            scripting: m.scripting,
             templating: m.templating,
             catalog: m.catalog,
         }

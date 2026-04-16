@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use archetect_api::ContextMap;
 
 use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
-use crate::archetype::archetype_manifest::scripting::ScriptingConfig;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
 
@@ -52,8 +51,6 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<LinkedHashMap<String, CatalogEntry>>,
     // ── Archetype ──
-    #[serde(default)]
-    pub scripting: ScriptingConfig,
     #[serde(default)]
     pub templating: TemplatingConfig,
 }
