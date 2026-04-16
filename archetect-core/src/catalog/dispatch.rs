@@ -22,12 +22,15 @@ use archetect_api::ContextValue;
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
 use crate::errors::ArchetectError;
-use crate::manifest::CatalogEntry;
+use crate::manifest::{CatalogEntry, Manifest};
 
 /// Resolve a slash-separated path to an entry within a catalog.
 ///
-/// Returns `None` if any segment cannot be resolved or if the path is empty.
-/// Empty segments (from `//` or trailing `/`) are skipped.
+/// Inline-only version: walks the in-memory `catalog:` tree. Does NOT
+/// follow remote `source:` URLs into sub-catalogs. Retained for callers
+/// that specifically want in-memory lookup (e.g., tests). Most dispatch
+/// callers want [`walk_path`] below, which resolves sources as it
+/// descends.
 pub fn resolve_path<'a>(
     catalog: &'a LinkedHashMap<String, CatalogEntry>,
     path: &str,
@@ -49,6 +52,86 @@ pub fn resolve_path<'a>(
     None
 }
 
+/// The kind of thing a path resolves to.
+///
+/// A single segment can point at any of these depending on whether
+/// the entry has an inline catalog, a remote source, or both.
+pub enum PathTarget {
+    /// Present these entries as a menu.
+    Group(LinkedHashMap<String, CatalogEntry>),
+    /// Render this leaf (has a source that points at an archetype).
+    Leaf(CatalogEntry),
+}
+
+/// Walk a slash-separated path, resolving remote `source:` URLs into
+/// sub-catalogs as needed. Returns `Some(PathTarget)` describing the
+/// final destination, or `None` if any segment cannot be resolved.
+///
+/// Source resolution goes through the standard `Archetect::new_source`
+/// (cache / fetch / local override). A segment's source is only resolved
+/// when necessary to walk INTO it — a terminal segment whose entry is a
+/// plain leaf stays a leaf.
+pub fn walk_path(
+    archetect: &Archetect,
+    catalog: &LinkedHashMap<String, CatalogEntry>,
+    path: &str,
+) -> Option<PathTarget> {
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    if segments.is_empty() {
+        return None;
+    }
+
+    // Walk by owning each level. At each step, `current` is the catalog
+    // map we're looking up the next segment in. When the next entry has
+    // no inline catalog but DOES have a source, try to load that source's
+    // manifest to get its catalog.
+    let mut current: LinkedHashMap<String, CatalogEntry> = catalog.clone();
+    for (i, segment) in segments.iter().enumerate() {
+        let entry = current.get(*segment)?.clone();
+        let is_last = i == segments.len() - 1;
+
+        if is_last {
+            // Terminal segment: prefer inline catalog, then try source.
+            if let Some(nested) = entry.catalog.clone() {
+                return Some(PathTarget::Group(nested));
+            }
+            if let Some(resolved_catalog) = try_resolve_source_as_catalog(archetect, &entry) {
+                return Some(PathTarget::Group(resolved_catalog));
+            }
+            return Some(PathTarget::Leaf(entry));
+        }
+
+        // Non-terminal: need to descend. Prefer inline, fall back to
+        // remote source.
+        if let Some(nested) = entry.catalog {
+            current = nested;
+            continue;
+        }
+        if let Some(resolved_catalog) = try_resolve_source_as_catalog(archetect, &entry) {
+            current = resolved_catalog;
+            continue;
+        }
+        // Can't descend further.
+        return None;
+    }
+
+    None
+}
+
+/// If an entry has a `source:` URL that resolves to a manifest with a
+/// `catalog:` field, return that catalog. Used by `walk_path` to follow
+/// remote sub-catalogs as it descends.
+fn try_resolve_source_as_catalog(
+    archetect: &Archetect,
+    entry: &CatalogEntry,
+) -> Option<LinkedHashMap<String, CatalogEntry>> {
+    let source = entry.source.as_ref()?;
+    let resolved = archetect.new_source(source).ok()?;
+    let path = resolved.path().ok()?;
+    let manifest = Manifest::load(path).ok()?;
+    manifest.catalog
+}
+
 /// Top-level dispatch for a catalog given an optional path.
 ///
 /// - `path == None` → present the catalog as a menu
@@ -68,7 +151,7 @@ pub fn dispatch(
     match path {
         None | Some("") => present_entries(archetect, catalog, &render_context),
         Some(p) => {
-            let entry = resolve_path(catalog, p).ok_or_else(|| {
+            let target = walk_path(archetect, catalog, p).ok_or_else(|| {
                 ArchetectError::GeneralError(format!(
                     "Catalog path '{}' not found. Available top-level entries: {:?}",
                     p,
@@ -76,16 +159,9 @@ pub fn dispatch(
                 ))
             })?;
 
-            if entry.is_group() {
-                let nested = entry.catalog.as_ref().ok_or_else(|| {
-                    ArchetectError::GeneralError(format!(
-                        "Catalog entry '{}' is marked as a group but has no children",
-                        p
-                    ))
-                })?;
-                present_entries(archetect, nested, &render_context)
-            } else {
-                render_leaf(archetect, entry, p, render_context)
+            match target {
+                PathTarget::Group(nested) => present_entries(archetect, &nested, &render_context),
+                PathTarget::Leaf(entry) => render_leaf(archetect, &entry, p, render_context),
             }
         }
     }

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use archetect_api::ContextMap;
 
+use crate::archetype::archetype_manifest::interface::ArchetypeInterface;
 use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
@@ -25,6 +26,13 @@ pub const MANIFEST_FILE_NAMES: &[&str] = &[
     "archetect.yaml",
     "archetect.yml",
 ];
+
+/// Interface file name candidates in priority order.
+///
+/// When present alongside the manifest, the interface file is loaded and
+/// merged into `Manifest.interface`. If the manifest already contains an
+/// inline `interface:` section, the file takes precedence.
+pub const INTERFACE_FILE_NAMES: &[&str] = &["interface.yaml", "interface.yml"];
 
 /// Unified manifest for both archetypes and catalogs.
 ///
@@ -53,6 +61,9 @@ pub struct Manifest {
     // ── Archetype ──
     #[serde(default)]
     pub templating: TemplatingConfig,
+    /// Declarative input contract for external tooling (web portals, MCP, docs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interface: Option<ArchetypeInterface>,
 }
 
 /// A recursive catalog entry. Either a leaf (has `source`) or a group (has `catalog`).
@@ -160,8 +171,28 @@ impl Manifest {
         }
 
         let config = fs::read_to_string(&path)?;
-        serde_yaml::from_str::<Manifest>(&config)
-            .map_err(|source| ArchetypeError::ArchetypeManifestSyntaxError { path, source })
+        let mut manifest = serde_yaml::from_str::<Manifest>(&config)
+            .map_err(|source| ArchetypeError::ArchetypeManifestSyntaxError { path: path.clone(), source })?;
+
+        // Look for a sibling interface file. File takes precedence over
+        // an inline `interface:` section in the manifest.
+        if let Some(dir) = path.parent() {
+            for candidate in INTERFACE_FILE_NAMES {
+                let iface_path = dir.join(candidate);
+                if iface_path.exists() {
+                    let iface_yaml = fs::read_to_string(&iface_path)?;
+                    let iface = serde_yaml::from_str::<ArchetypeInterface>(&iface_yaml)
+                        .map_err(|source| ArchetypeError::ArchetypeManifestSyntaxError {
+                            path: iface_path,
+                            source,
+                        })?;
+                    manifest.interface = Some(iface);
+                    break;
+                }
+            }
+        }
+
+        Ok(manifest)
     }
 
     /// True if this manifest has catalog entries.
@@ -175,6 +206,11 @@ impl Manifest {
     /// Get the catalog entries, if any.
     pub fn catalog_entries(&self) -> Option<&LinkedHashMap<String, CatalogEntry>> {
         self.catalog.as_ref()
+    }
+
+    /// Returns the declared interface contract, if any.
+    pub fn interface(&self) -> Option<&ArchetypeInterface> {
+        self.interface.as_ref()
     }
 
     /// Get metadata for indexing/search.
