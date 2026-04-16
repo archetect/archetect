@@ -1,45 +1,68 @@
 use clap::ArgMatches;
 
 use archetect_core::Archetect;
-use archetect_core::manifest::CatalogEntry;
-use linked_hash_map::LinkedHashMap;
+use archetect_core::catalog::catalog_index::{IndexEntry, IndexEntryKind};
+use archetect_core::catalog::catalog_indexer::CatalogIndexer;
 
-/// Print the resolved catalog tree (project's catalog if a `.archetect.yaml` is
-/// present in CWD, otherwise the global catalog).
+/// Print the resolved catalog tree. Recursively resolves remote
+/// sub-catalogs from the cache (or fetches if not offline), so the
+/// output matches what the user sees when browsing interactively.
 ///
-/// Output:
-///   📦 services/grpc — gRPC Service
-///   📦 services/rest — REST Service
-///   📦 libraries — Shared Libraries
-pub fn handle_commands_subcommand(_args: &ArgMatches, archetect: &Archetect) {
-    match archetect.configuration().catalog() {
-        Some(catalog) if !catalog.is_empty() => {
-            print_entries(catalog, "");
-        }
+/// An optional path argument drills into a subtree:
+///   archetect ls              → full tree
+///   archetect ls rust         → entries under "rust"
+///   archetect ls rust/cli     → entries under "rust/cli"
+pub fn handle_commands_subcommand(args: &ArgMatches, archetect: &Archetect) {
+    let catalog = match archetect.configuration().catalog() {
+        Some(c) if !c.is_empty() => c,
         _ => {
             println!("(no catalog entries available)");
+            return;
+        }
+    };
+
+    let index = CatalogIndexer::new(archetect.clone()).build_index(catalog);
+
+    let path = args
+        .get_one::<String>("ls-path")
+        .map(String::as_str)
+        .unwrap_or("");
+
+    match index.browse(path) {
+        Some(entries) if !entries.is_empty() => {
+            print_entries(entries, 0);
+        }
+        Some(_) => {
+            if path.is_empty() {
+                println!("(no catalog entries available)");
+            } else {
+                println!("(no entries under '{}')", path);
+            }
+        }
+        None => {
+            println!("(path '{}' not found in catalog)", path);
         }
     }
 }
 
-fn print_entries(entries: &LinkedHashMap<String, CatalogEntry>, prefix: &str) {
-    for (name, entry) in entries {
-        let path = if prefix.is_empty() {
-            name.clone()
+fn print_entries(entries: &[IndexEntry], depth: usize) {
+    let indent = "  ".repeat(depth);
+    for entry in entries {
+        if !entry.children.is_empty() || entry.kind == IndexEntryKind::Group {
+            let icon = "📂";
+            if entry.description != entry.name {
+                println!("{}  {} {} — {}", indent, icon, entry.name, entry.description);
+            } else {
+                println!("{}  {} {}", indent, icon, entry.name);
+            }
+            print_entries(&entry.children, depth + 1);
         } else {
-            format!("{}/{}", prefix, name)
-        };
-
-        let icon = if entry.is_group() { "📂" } else { "📦" };
-        let label = entry.display_description(name);
-        if label != *name {
-            println!("  {} {} — {}", icon, path, label);
-        } else {
-            println!("  {} {}", icon, path);
-        }
-
-        if let Some(ref nested) = entry.catalog {
-            print_entries(nested, &path);
+            let icon = "📦";
+            if entry.description != entry.name {
+                println!("{}  {} {} — {}", indent, icon, entry.name, entry.description);
+            } else {
+                println!("{}  {} {}", indent, icon, entry.name);
+            }
         }
     }
 }

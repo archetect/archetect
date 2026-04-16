@@ -101,10 +101,22 @@ pub fn command() -> Command {
                 .visible_alias("list")
                 .about("List the resolved catalog tree (project's if present, otherwise global)")
                 .long_about(
-                    "Walks the catalog declared in your .archetect.yaml (project) or global\n\
-                     config and prints the entries. Always offline — does not fetch remote\n\
-                     sources. Leaf entries that point at remote catalogs are listed but\n\
-                     not recursed into."
+                    "Recursively resolves and prints the catalog tree. Remote sub-catalogs\n\
+                     are expanded from cache (or fetched if not cached yet and not in offline\n\
+                     mode). Pass a path to drill into a subtree.\n\
+                     \n\
+                     Examples:\n\
+                     \n\
+                     archetect ls              # full tree\n\
+                     archetect ls rust         # entries under 'rust'\n\
+                     archetect ls rust/cli     # entries under 'rust/cli'"
+                )
+                .arg(
+                    clap::Arg::new("ls-path")
+                        .help("Catalog path to drill into (optional)")
+                        .action(clap::ArgAction::Set)
+                        .required(false)
+                        .default_value("")
                 )
         )
         .arg(
