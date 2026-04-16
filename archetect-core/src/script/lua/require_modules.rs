@@ -678,9 +678,29 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                     )));
                     Ok(true)
                 } else {
-                    Err(LuaError::RuntimeError(
-                        "Failed to create repository: unexpected response".to_string(),
-                    ))
+                    // GitHub signalled failure — surface its own message
+                    // (and any validation errors) rather than "unexpected
+                    // response". Typical shape: {"message":"...","errors":[...]}.
+                    let gh_msg = repo_data
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown error");
+                    let details = repo_data.get("errors").and_then(|errs| errs.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|e| e.get("message").and_then(|m| m.as_str()))
+                                .collect::<Vec<_>>()
+                                .join("; ")
+                        })
+                        .filter(|s| !s.is_empty());
+                    let full = match details {
+                        Some(d) => format!("{}: {} ({})", gh_msg, d, endpoint),
+                        None => format!("{} ({})", gh_msg, endpoint),
+                    };
+                    Err(LuaError::RuntimeError(format!(
+                        "Failed to create repository '{}/{}': {}",
+                        owner, repo_name, full
+                    )))
                 }
             })
         })?,

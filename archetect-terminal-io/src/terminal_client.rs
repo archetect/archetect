@@ -67,7 +67,11 @@ where
                 return false;
             }
             ScriptMessage::CompleteError(msg) => {
-                error!("Archetype completed with error: {}", msg);
+                // CompleteError is a session-termination signal. The
+                // actionable error was already surfaced via LogError at
+                // the call site — logging it again here just duplicates
+                // it for the user.
+                debug!("Archetype completed with error: {}", msg);
                 return false;
             }
         }

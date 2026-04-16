@@ -76,7 +76,11 @@ impl ScriptIoHandle for TerminalScriptIoHandle {
                 debug!("Archetype completed successfully");
             }
             ScriptMessage::CompleteError(message) => {
-                error!("Archetype completed with error: {}", message);
+                // CompleteError is a session-termination signal. The
+                // actionable error was already surfaced via LogError at
+                // the call site — logging it again here just duplicates
+                // it for the user.
+                debug!("Archetype completed with error: {}", message);
             }
         }
         Ok(())
