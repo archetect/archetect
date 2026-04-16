@@ -226,30 +226,20 @@ function Cases.fixed(key, style) end
 --
 
 ---@class archetect
----Runtime context of the currently-rendering archetype: version info,
----supplied answers, switches, and platform env. For rendering a
----*different* archetype (composition), use `archetype.render(...)`.
+---The archetect *binary / process / platform* — info that is identical
+---across consecutive invocations. Per-invocation state (switches,
+---answers) lives on the `archetype` global instead.
+---
+---Available in both scripts and templates.
 ---@field version string Full version string (e.g., "3.0.0")
 ---@field version_major integer Major version number
 ---@field version_minor integer Minor version number
 ---@field version_patch integer Patch version number
----@field switches Switches Switches supplied to the current invocation
+---@field is_offline boolean True when archetect was launched in offline mode
+---@field is_headless boolean True when archetect was launched in headless mode (no interactive prompts)
+---@field locals_enabled boolean True when local checkouts are configured
 ---@field env Env Platform info (os / arch / family / is_* booleans)
 archetect = {}
-
----Get the raw answers table from CLI/YAML/parent archetype.
----Returns a fresh table each call. Use for advanced patterns where
----you need to inspect answers independently of the Context.
----@return table answers Key-value pairs
-function archetect.answers() end
-
----@class Switches
-local Switches = {}
-
----Check whether a named switch was supplied to the current invocation.
----@param name string Switch name
----@return boolean enabled
-function Switches.is_enabled(name) end
 
 ---@class Env
 ---@field os string Target OS (e.g., "linux", "macos", "windows")
@@ -261,15 +251,35 @@ function Switches.is_enabled(name) end
 Env = {}
 
 --
--- archetype (current archetype introspection)
+-- archetype (currently-rendering archetype)
 --
 
 ---@class archetype
----Information about the currently executing archetype.
+---The currently-rendering archetype: manifest metadata + the parameters
+---that were supplied for THIS render. Anything that would change between
+---two consecutive invocations belongs here.
+---
+---Available in both scripts and templates.
 ---@field description string Archetype description from manifest
 ---@field directory string Root directory path of the archetype
 ---@field authors string[] Author list from manifest
+---@field switches Switches Switches supplied to this invocation
 archetype = {}
+
+---Get the raw answers table from CLI / YAML / parent archetype for
+---this invocation. Returns a fresh table each call. Use for advanced
+---patterns where you need to inspect answers independently of the
+---Context.
+---@return table answers Key-value pairs
+function archetype.answers() end
+
+---@class Switches
+local Switches = {}
+
+---Check whether a named switch was supplied to the current invocation.
+---@param name string Switch name
+---@return boolean enabled
+function Switches.is_enabled(name) end
 
 --
 -- component (child archetype rendering)
@@ -443,16 +453,9 @@ function format.yaml(value) end
 ---@return string
 function format.toml(value) end
 
---
--- runtime
---
-
----@class runtime
----Runtime state of the archetect process.
----@field is_offline boolean Whether archetect is running in offline mode
----@field is_headless boolean Whether archetect is running in headless mode (no interactive prompts)
----@field locals_enabled boolean Whether local directory overrides are enabled
-runtime = {}
+-- (the old `runtime` global is gone — `is_offline`, `is_headless`, and
+-- `locals_enabled` are now fields on `archetect`. One namespace per
+-- concept.)
 
 --
 -- exit
@@ -463,7 +466,7 @@ runtime = {}
 ---when further processing is not needed.
 function exit() end
 
--- (env and switches now hang off `archetect.env` / `archetect.switches`;
+-- (env and switches now hang off `archetect.env` / `archetype.switches`;
 -- top-level globals were removed during the v3 refinement phase. See
 -- the `archetect`, `Switches`, and `Env` classes above.)
 

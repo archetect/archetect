@@ -111,6 +111,18 @@ impl Compiler {
         lua.push_str("        rawset = rawset,\n");
         lua.push_str("        setmetatable = setmetatable,\n");
         lua.push_str("        getmetatable = getmetatable,\n");
+        // Read-only deterministic data exposed to templates so authors can
+        // branch on switches / platform / process flags directly inside
+        // `{% if %}` blocks without having to mirror values into the
+        // context first. Effectful operations (directory.render, git.init,
+        // etc.) are deliberately NOT exposed — templates should be pure.
+        //
+        //   archetect — binary / process / platform info
+        //   archetype — currently-rendering archetype's manifest + invocation
+        //   format    — pure (de)serialization helpers (to_yaml, from_json, ...)
+        lua.push_str("        archetect = archetect,\n");
+        lua.push_str("        archetype = archetype,\n");
+        lua.push_str("        format = format,\n");
         // Built-in template escape constants for emitting literal template
         // delimiters. Authors use these in meta-archetypes (starters, generators)
         // or any template that needs to emit raw `{{`, `}}`, `{%`, `%}` sequences

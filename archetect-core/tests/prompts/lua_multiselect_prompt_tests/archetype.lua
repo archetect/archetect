@@ -1,6 +1,6 @@
 local ctx = Context.new()
 
-if archetect.switches.is_enabled("test_lua_multiselect_prompt") then
+if archetype.switches.is_enabled("test_lua_multiselect_prompt") then
     ctx:prompt_multiselect("Languages:", "languages", {"Rust", "Java", "Go"})
     local langs = ctx:get("languages")
     if langs then
@@ -10,7 +10,7 @@ if archetect.switches.is_enabled("test_lua_multiselect_prompt") then
     end
 end
 
-if archetect.switches.is_enabled("test_lua_multiselect_prompt_with_options") then
+if archetype.switches.is_enabled("test_lua_multiselect_prompt_with_options") then
     ctx:prompt_multiselect("Languages:", "languages", {"Rust", "Java", "Go"}, {
         help = "Select your languages",
         min = 1,
@@ -24,7 +24,7 @@ if archetect.switches.is_enabled("test_lua_multiselect_prompt_with_options") the
     end
 end
 
-if archetect.switches.is_enabled("test_lua_multiselect_prompt_non_optional") then
+if archetype.switches.is_enabled("test_lua_multiselect_prompt_non_optional") then
     ctx:prompt_multiselect("Languages:", "languages", {"Rust", "Java", "Go"})
     local langs = ctx:get("languages")
     if langs then
@@ -34,7 +34,7 @@ if archetect.switches.is_enabled("test_lua_multiselect_prompt_non_optional") the
     end
 end
 
-if archetect.switches.is_enabled("test_lua_multiselect_prompt_with_default") then
+if archetype.switches.is_enabled("test_lua_multiselect_prompt_with_default") then
     ctx:prompt_multiselect("Languages:", "languages", {"Rust", "Java", "Go"}, {
         default = {"Rust", "Go"},
     })

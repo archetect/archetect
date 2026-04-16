@@ -20,8 +20,8 @@ pub fn register_all(
     super::cases::register_cases(lua)?;
     register_existing_constants(lua)?;
     register_location_constants(lua)?;
-    register_archetect_module(lua, archetect, render_context)?;
-    register_archetype_module(lua, archetype)?;
+    register_archetect_module(lua, archetect)?;
+    register_archetype_module(lua, archetype, render_context)?;
 
     // Phase 1, commit 4: stage any catalog entries marked `library: true`
     // before wiring Lua paths. The stager resolves the source via the
@@ -90,7 +90,6 @@ pub fn register_all(
     register_lua_template_module(lua, archetect, render_context, &filters)?;
 
     register_catalog_module(lua, archetype, archetect, render_context)?;
-    register_runtime_module(lua, archetect)?;
     register_format_module(lua)?;
     register_exit(lua)?;
     register_log(lua, archetect)?;
@@ -179,14 +178,12 @@ fn register_context_constructor(
 fn register_archetect_module(
     lua: &Lua,
     archetect: &Archetect,
-    render_context: &RenderContext,
 ) -> LuaResult<()> {
     let archetect_table = lua.create_table()?;
 
-    // `archetect` represents the runtime context of the currently-rendering
-    // archetype. Version info, pre-supplied answers, switches, and platform
-    // env all hang off here. (`archetype.render(...)` is separate — that's
-    // for rendering a different archetype, i.e. composition.)
+    // `archetect` is the *binary / process / platform* — info that is
+    // identical across consecutive invocations. Per-invocation state
+    // (switches, answers) lives on the `archetype` global instead.
 
     let version = archetect.version().clone();
     archetect_table.set("version", version.to_string())?;
@@ -194,16 +191,13 @@ fn register_archetect_module(
     archetect_table.set("version_minor", version.minor as i64)?;
     archetect_table.set("version_patch", version.patch as i64)?;
 
-    let answers = render_context.answers().clone();
+    // Process-mode flags (folded in from the old top-level `runtime` global).
+    archetect_table.set("is_offline", archetect.is_offline())?;
+    archetect_table.set("is_headless", archetect.is_headless())?;
     archetect_table.set(
-        "answers",
-        lua.create_function(move |lua, ()| {
-            context_map_to_lua_table(lua, &answers)
-        })?,
+        "locals_enabled",
+        archetect.configuration().locals().enabled(),
     )?;
-
-    // archetect.switches — switches supplied to the current invocation.
-    archetect_table.set("switches", build_switches_table(lua, render_context)?)?;
 
     // archetect.env — platform info (os, arch, family, is_* booleans).
     archetect_table.set("env", build_env_table(lua)?)?;
@@ -217,17 +211,21 @@ fn register_archetect_module(
 fn register_archetype_module(
     lua: &Lua,
     archetype: &Archetype,
+    render_context: &RenderContext,
 ) -> LuaResult<()> {
     let archetype_table = lua.create_table()?;
+
+    // `archetype` is the *currently-rendering archetype*: manifest
+    // metadata + the parameters that were supplied for THIS render.
+    // Anything that would change between two consecutive invocations
+    // belongs here. (Binary version / platform / process flags live
+    // on the `archetect` global.)
 
     archetype_table.set(
         "description",
         archetype.directory().manifest().description().to_string(),
     )?;
-    archetype_table.set(
-        "directory",
-        archetype.directory().root().to_string(),
-    )?;
+    archetype_table.set("directory", archetype.directory().root().to_string())?;
 
     let authors: Vec<String> = archetype
         .directory()
@@ -237,6 +235,16 @@ fn register_archetype_module(
         .map(|a| a.to_owned())
         .collect();
     archetype_table.set("authors", authors)?;
+
+    // archetype.switches — switches supplied to this invocation.
+    archetype_table.set("switches", build_switches_table(lua, render_context)?)?;
+
+    // archetype.answers() — fresh table of the pre-supplied answers.
+    let answers = render_context.answers().clone();
+    archetype_table.set(
+        "answers",
+        lua.create_function(move |lua, ()| context_map_to_lua_table(lua, &answers))?,
+    )?;
 
     lua.globals().set("archetype", archetype_table)?;
     Ok(())
@@ -449,16 +457,9 @@ fn extract_table(args: &mlua::MultiValue, idx: usize, context: &str) -> LuaResul
 
 // ── runtime module ──────────────────────────────────────────────────
 
-fn register_runtime_module(lua: &Lua, archetect: &Archetect) -> LuaResult<()> {
-    let runtime_table = lua.create_table()?;
-
-    runtime_table.set("is_offline", archetect.is_offline())?;
-    runtime_table.set("is_headless", archetect.is_headless())?;
-    runtime_table.set("locals_enabled", archetect.configuration().locals().enabled())?;
-
-    lua.globals().set("runtime", runtime_table)?;
-    Ok(())
-}
+// register_runtime_module removed — `is_offline`, `is_headless`, and
+// `locals_enabled` are now fields on `archetect.*`. Keep one namespace
+// per concept (binary state).
 
 // ── env module ──────────────────────────────────────────────────────
 

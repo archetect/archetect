@@ -1,6 +1,6 @@
 local ctx = Context.new()
 
-if archetect.switches.is_enabled("test_headless_with_defaults") then
+if archetype.switches.is_enabled("test_headless_with_defaults") then
     ctx:prompt_text("Name:", "name", { default = "DefaultName" })
     ctx:prompt_int("Port:", "port", { default = 8080 })
     ctx:prompt_confirm("Enabled:", "enabled", { default = true })
@@ -9,6 +9,6 @@ if archetect.switches.is_enabled("test_headless_with_defaults") then
     log.info(tostring(ctx:get("enabled")))
 end
 
-if archetect.switches.is_enabled("test_headless_without_defaults") then
+if archetype.switches.is_enabled("test_headless_without_defaults") then
     ctx:prompt_text("Name:", "name")
 end
