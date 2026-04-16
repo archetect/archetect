@@ -60,32 +60,33 @@ struct DisplayOpts {
     show_all: bool,
 }
 
-/// Whether an entry should be rendered at all given the current opts
-/// and its ancestry. An entry is hidden when:
-///   - `show: false` in the yaml (opt-out), or
-///   - it lives under an archetype ancestor (it's a component there)
-/// — unless `-a` was passed.
-fn should_display(entry: &IndexEntry, under_archetype: bool, opts: &DisplayOpts) -> bool {
-    if opts.show_all {
-        return true;
-    }
-    if !entry.show {
-        return false;
-    }
-    if under_archetype {
-        return false;
-    }
-    true
+/// An entry is classified as a **component** — and thus hidden in the
+/// default view and rendered with the 🧩 icon — when ANY of:
+///   - It has `show: false` in the yaml.
+///   - Any ancestor has `show: false`.
+///   - Any ancestor is a renderable archetype (the entry is a component
+///     contributing to that archetype's composition, not a navigable
+///     sibling).
+/// These conditions propagate down the tree: `inside_component_scope`
+/// stays true for all descendants once it flips.
+fn is_component(entry: &IndexEntry, inside_component_scope: bool) -> bool {
+    inside_component_scope || !entry.show
 }
 
-fn print_entries(entries: &[IndexEntry], depth: usize, under_archetype: bool, opts: &DisplayOpts) {
+fn should_display(entry: &IndexEntry, inside_component_scope: bool, opts: &DisplayOpts) -> bool {
+    opts.show_all || !is_component(entry, inside_component_scope)
+}
+
+fn print_entries(entries: &[IndexEntry], depth: usize, inside_component_scope: bool, opts: &DisplayOpts) {
     for entry in entries {
-        if !should_display(entry, under_archetype, opts) {
+        let component = is_component(entry, inside_component_scope);
+        if !opts.show_all && component {
             continue;
         }
-        print_one(entry, depth);
-        let next_under = under_archetype || entry.is_archetype;
-        print_entries(&entry.children, depth + 1, next_under, opts);
+        print_one(entry, depth, component);
+        // Once we've entered component scope, we stay there.
+        let next_scope = inside_component_scope || !entry.show || entry.is_archetype;
+        print_entries(&entry.children, depth + 1, next_scope, opts);
     }
 }
 
@@ -97,7 +98,7 @@ fn print_filtered(
     entries: &[IndexEntry],
     filter: &str,
     depth: usize,
-    under_archetype: bool,
+    inside_component_scope: bool,
     opts: &DisplayOpts,
     any: &mut bool,
 ) {
@@ -106,29 +107,30 @@ fn print_filtered(
         let is_target = entry.path == filter;
         let is_descendant = entry.path.starts_with(&target_prefix);
         let is_ancestor = filter.starts_with(&format!("{}/", entry.path));
+        let component = is_component(entry, inside_component_scope);
 
         if is_target || is_descendant {
-            // When the user explicitly drills into a path, respect their
-            // intent: `-a` still controls components / hidden entries,
-            // but the target itself is always shown.
-            if is_target || should_display(entry, under_archetype, opts) {
+            // User explicitly drilled into a path: the target is always
+            // shown. `-a` still controls descendants' component filter.
+            let allow = is_target || should_display(entry, inside_component_scope, opts);
+            if allow {
                 *any = true;
-                print_one(entry, depth);
-                let next_under = under_archetype || entry.is_archetype;
-                print_entries(&entry.children, depth + 1, next_under, opts);
+                print_one(entry, depth, component);
+                let next_scope = inside_component_scope || !entry.show || entry.is_archetype;
+                print_entries(&entry.children, depth + 1, next_scope, opts);
             }
         } else if is_ancestor {
             *any = true;
-            print_one(entry, depth);
-            let next_under = under_archetype || entry.is_archetype;
-            print_filtered(&entry.children, filter, depth + 1, next_under, opts, any);
+            print_one(entry, depth, component);
+            let next_scope = inside_component_scope || !entry.show || entry.is_archetype;
+            print_filtered(&entry.children, filter, depth + 1, next_scope, opts, any);
         }
     }
 }
 
-fn print_one(entry: &IndexEntry, depth: usize) {
+fn print_one(entry: &IndexEntry, depth: usize, is_component: bool) {
     let indent = "  ".repeat(depth);
-    let icon = icon_for(entry);
+    let icon = icon_for(entry, is_component);
     if entry.description != entry.name {
         println!("{}  {} {} — {}", indent, icon, entry.name, entry.description);
     } else {
@@ -136,10 +138,11 @@ fn print_one(entry: &IndexEntry, depth: usize) {
     }
 }
 
-fn icon_for(entry: &IndexEntry) -> &'static str {
-    if !entry.show {
-        // Hidden entry (shown only with -a). Mark as component-ish
-        // regardless of whether it's an archetype source or a group.
+fn icon_for(entry: &IndexEntry, is_component: bool) -> &'static str {
+    if is_component {
+        // Component (hidden-by-default) — shown only with -a. Flag it
+        // regardless of whether the entry itself is an archetype
+        // source or a group of other components.
         return "🧩";
     }
     if entry.is_archetype {
