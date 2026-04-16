@@ -344,10 +344,15 @@ fn is_lua_identifier(s: &str) -> bool {
 /// | Sugar                              | Lua                                  |
 /// |------------------------------------|--------------------------------------|
 /// | `for x in items`                   | `for _, x in ipairs(items) do`       |
+/// | `for i, x in enumerate(items)`     | `for i, x in ipairs(items) do`       |
 /// | `for k, v in items`                | `for k, v in pairs(items) do`        |
 /// | `for i in range(N)`                | `for i = 0, (N) - 1 do`              |
 /// | `for i in range(A, B)`             | `for i = A, (B) - 1 do`              |
 /// | `for i in range(A, B, S)`          | `for i = A, (B) - 1, S do`           |
+///
+/// `enumerate(items)` is 1-indexed (matches Lua's `ipairs`, not Python's
+/// 0-indexed `enumerate`). Name chosen for muscle-memory match with
+/// Python/Rust; semantics follow the host language.
 ///
 /// `range()` mirrors Python/Rust semantics — the upper bound is **exclusive**
 /// — so `range(10)` iterates 0..=9 and `range(1, 5)` iterates 1..=4.
@@ -392,14 +397,20 @@ fn rewrite_sugar(body: &str) -> Option<String> {
                     }
 
                     // Single variable: assume sequence iteration → ipairs.
-                    // Two variables: assume key/value iteration → pairs.
+                    // Two variables: check for enumerate(X) first — that
+                    // means "index + value on an array", rewrite to ipairs.
+                    // Otherwise assume key/value iteration → pairs.
                     // The author always has the explicit form available
                     // if they want different semantics.
                     let comma_count = vars.matches(',').count();
                     return Some(if comma_count == 0 {
                         format!("for _, {} in ipairs({}) do", vars, iterable)
                     } else if comma_count == 1 {
-                        format!("for {} in pairs({}) do", vars, iterable)
+                        if let Some(enum_target) = try_enumerate_sugar(iterable) {
+                            format!("for {} in ipairs({}) do", vars, enum_target)
+                        } else {
+                            format!("for {} in pairs({}) do", vars, iterable)
+                        }
                     } else {
                         // More than 2 variables — Lua's generic for can
                         // handle this but we don't try to sugar it.
@@ -415,6 +426,22 @@ fn rewrite_sugar(body: &str) -> Option<String> {
 
 /// Try to rewrite `for IDENT in range(...)` into a numeric Lua for loop.
 /// Returns `None` if `iterable` is not a `range(...)` call.
+/// Try to recognize `enumerate(X)` in an iterable position. Returns the
+/// inner expression `X` if matched, so the caller can emit
+/// `for i, x in ipairs(X) do`. Compile-time-only — `enumerate` never
+/// exists as a runtime Lua function.
+fn try_enumerate_sugar(iterable: &str) -> Option<String> {
+    let inner = iterable.strip_prefix("enumerate")?;
+    let inner = inner.trim_start();
+    let inner = inner.strip_prefix('(')?;
+    let inner = inner.strip_suffix(')')?;
+    let trimmed = inner.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
 fn try_range_sugar(var: &str, iterable: &str) -> Option<String> {
     let inner = iterable.strip_prefix("range")?;
     let inner = inner.trim_start();
@@ -836,6 +863,32 @@ message {{ entity.name.pascal }} {
         assert_eq!(
             rewrite_sugar("for k, v in items").unwrap(),
             "for k, v in pairs(items) do"
+        );
+    }
+
+    #[test]
+    fn test_sugar_for_enumerate_to_ipairs() {
+        assert_eq!(
+            rewrite_sugar("for i, x in enumerate(items)").unwrap(),
+            "for i, x in ipairs(items) do"
+        );
+    }
+
+    #[test]
+    fn test_sugar_for_enumerate_with_complex_expression() {
+        // enumerate() unwraps any expression, not just identifiers.
+        assert_eq!(
+            rewrite_sugar("for idx, entry in enumerate(components.xtask.dev_commands)").unwrap(),
+            "for idx, entry in ipairs(components.xtask.dev_commands) do"
+        );
+    }
+
+    #[test]
+    fn test_sugar_for_map_key_value_still_pairs() {
+        // A plain two-var for over a non-enumerate iterable stays pairs.
+        assert_eq!(
+            rewrite_sugar("for name, settings in config").unwrap(),
+            "for name, settings in pairs(config) do"
         );
     }
 
