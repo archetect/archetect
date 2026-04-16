@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 
 use linked_hash_map::LinkedHashMap;
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 use crate::Archetect;
 use crate::catalog::catalog_index::{CatalogIndex, IndexEntry, IndexEntryKind};
@@ -147,7 +147,7 @@ impl CatalogIndexer {
             return None;
         }
 
-        info!("Indexing '{}' from {}", name, source);
+        debug!("Indexing '{}' from {}", name, source);
 
         let resolved = match self.archetect.new_source(source) {
             Ok(s) => s,

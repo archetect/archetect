@@ -13,7 +13,25 @@ use archetect_api::ScriptMessage;
 /// inherit stdin/stdout/stderr would pollute the JSON-RPC protocol stream and
 /// crash the transport. Capturing also gives the `log` module a chance to
 /// surface output coherently regardless of driver.
-fn run_logged(archetect: &Archetect, cmd: &mut Command, label: &str) -> LuaResult<std::process::ExitStatus> {
+/// Controls how captured subprocess output is surfaced.
+#[derive(Copy, Clone)]
+enum OutputVerbosity {
+    /// Stream every line of stdout + stderr as LogInfo. For commands the
+    /// user *intentionally* invoked (shell.run) — they want to see results.
+    Info,
+    /// stdout → LogDebug (hidden at default log level), stderr → LogWarn.
+    /// For internal plumbing (git init / add / commit / push from the
+    /// archetect.git module) where per-line spam ("create mode 100644 …")
+    /// is noise to everyone but the author debugging their archetype.
+    Quiet,
+}
+
+fn run_captured(
+    archetect: &Archetect,
+    cmd: &mut Command,
+    label: &str,
+    verbosity: OutputVerbosity,
+) -> LuaResult<std::process::ExitStatus> {
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -22,17 +40,33 @@ fn run_logged(archetect: &Archetect, cmd: &mut Command, label: &str) -> LuaResul
         .output()
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", label, e)))?;
 
+    let (stdout_msg, stderr_msg): (fn(String) -> ScriptMessage, fn(String) -> ScriptMessage) = match verbosity {
+        OutputVerbosity::Info => (ScriptMessage::LogInfo, ScriptMessage::LogInfo),
+        OutputVerbosity::Quiet => (ScriptMessage::LogDebug, ScriptMessage::LogWarn),
+    };
+
     if !output.stdout.is_empty() {
         for line in String::from_utf8_lossy(&output.stdout).lines() {
-            let _ = archetect.request(ScriptMessage::LogInfo(line.to_string()));
+            let _ = archetect.request(stdout_msg(line.to_string()));
         }
     }
     if !output.stderr.is_empty() {
         for line in String::from_utf8_lossy(&output.stderr).lines() {
-            let _ = archetect.request(ScriptMessage::LogInfo(line.to_string()));
+            let _ = archetect.request(stderr_msg(line.to_string()));
         }
     }
     Ok(output.status)
+}
+
+/// Back-compat alias: shell.run-style "show me everything" behavior.
+fn run_logged(archetect: &Archetect, cmd: &mut Command, label: &str) -> LuaResult<std::process::ExitStatus> {
+    run_captured(archetect, cmd, label, OutputVerbosity::Info)
+}
+
+/// Quiet form for the git module: stdout hidden by default (it's
+/// per-file chatter), stderr surfaces only if something goes wrong.
+fn run_git(archetect: &Archetect, cmd: &mut Command, label: &str) -> LuaResult<std::process::ExitStatus> {
+    run_captured(archetect, cmd, label, OutputVerbosity::Quiet)
 }
 
 use crate::archetype::render_context::RenderContext;
@@ -415,7 +449,7 @@ impl UserData for GitRepo {
 fn git_cmd(archetect: &Archetect, path: &str, args: &[&str]) -> LuaResult<()> {
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(path);
-    let status = run_logged(archetect, &mut cmd, "git error")?;
+    let status = run_git(archetect, &mut cmd, "git error")?;
 
     if !status.success() {
         return Err(LuaError::RuntimeError(format!(
@@ -454,7 +488,7 @@ fn create_git_module(lua: &Lua, archetect: &Archetect, render_context: &RenderCo
 
             let mut cmd = Command::new("git");
             cmd.args(&args);
-            let status = run_logged(&arc, &mut cmd, "git init error")?;
+            let status = run_git(&arc, &mut cmd, "git init error")?;
 
             if !status.success() {
                 return Err(LuaError::RuntimeError("git init failed".to_string()));
