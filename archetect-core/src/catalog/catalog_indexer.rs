@@ -71,6 +71,8 @@ impl CatalogIndexer {
         };
 
         // If the entry already has inline catalog children, build them directly.
+        // Inline-declared groups never resolve a source, so they can't be
+        // archetypes — just navigation nodes.
         if entry.is_group() {
             let children = match entry.catalog.as_ref() {
                 Some(nested) => self.build_entries(nested, &path),
@@ -84,35 +86,37 @@ impl CatalogIndexer {
                 metadata: None,
                 children,
                 source: entry.source.clone(),
+                is_archetype: false,
+                show: entry.show,
             };
         }
 
-        // Leaf entry — try to resolve its source and expand if it's a sub-catalog.
+        // Leaf entry — try to resolve its source and classify by what's
+        // actually in the resolved tree.
         if let Some(ref source) = entry.source {
-            if let Some((metadata, children)) = self.try_expand_source(name, source, &path) {
-                if !children.is_empty() {
-                    // Source resolved to a sub-catalog — promote leaf to group.
-                    return IndexEntry {
-                        path,
-                        name: name.to_owned(),
-                        description: entry.display_description(name),
-                        kind: IndexEntryKind::Group,
-                        metadata: Some(metadata),
-                        children,
-                        source: Some(source.clone()),
-                    };
+            if let Some(expanded) = self.try_expand_source(name, source, &path) {
+                // An entry is an archetype iff the resolved source has
+                // an archetype.lua file — regardless of whether the
+                // manifest also declares catalog entries (those are
+                // components intended for composition, not navigation).
+                let kind = if expanded.has_script {
+                    IndexEntryKind::Leaf
+                } else if !expanded.children.is_empty() {
+                    IndexEntryKind::Group
                 } else {
-                    // Source resolved but no sub-catalog — keep as leaf with metadata.
-                    return IndexEntry {
-                        path,
-                        name: name.to_owned(),
-                        description: entry.display_description(name),
-                        kind: IndexEntryKind::Leaf,
-                        metadata: Some(metadata),
-                        children: Vec::new(),
-                        source: Some(source.clone()),
-                    };
-                }
+                    IndexEntryKind::Leaf
+                };
+                return IndexEntry {
+                    path,
+                    name: name.to_owned(),
+                    description: entry.display_description(name),
+                    kind,
+                    metadata: Some(expanded.metadata),
+                    children: expanded.children,
+                    source: Some(source.clone()),
+                    is_archetype: expanded.has_script,
+                    show: entry.show,
+                };
             }
         }
 
@@ -125,6 +129,8 @@ impl CatalogIndexer {
             metadata: None,
             children: Vec::new(),
             source: entry.source.clone(),
+            is_archetype: false,
+            show: entry.show,
         }
     }
 
@@ -135,7 +141,7 @@ impl CatalogIndexer {
         name: &str,
         source: &str,
         path_prefix: &str,
-    ) -> Option<(crate::manifest::Metadata, Vec<IndexEntry>)> {
+    ) -> Option<ExpandedSource> {
         if !self.visited.insert(source.to_owned()) {
             debug!("Already visited '{}' ({}), skipping expansion", name, source);
             return None;
@@ -159,7 +165,7 @@ impl CatalogIndexer {
             }
         };
 
-        let child_manifest = match Manifest::load(resolved_path) {
+        let child_manifest = match Manifest::load(resolved_path.clone()) {
             Ok(m) => m,
             Err(err) => {
                 debug!("No manifest at '{}' (or unreadable): {}", name, err);
@@ -176,8 +182,25 @@ impl CatalogIndexer {
             None => Vec::new(),
         };
 
-        Some((metadata, children))
+        // Detect archetype.lua at the resolved source root. If present,
+        // this entry is an archetype, not a catalog — even if its
+        // manifest also declares catalog entries for composition.
+        let has_script = resolved_path.join("archetype.lua").is_file();
+
+        Some(ExpandedSource {
+            metadata,
+            children,
+            has_script,
+        })
     }
+}
+
+/// Result of resolving a leaf entry's source and inspecting the
+/// resulting tree.
+struct ExpandedSource {
+    metadata: crate::manifest::Metadata,
+    children: Vec<IndexEntry>,
+    has_script: bool,
 }
 
 #[cfg(test)]

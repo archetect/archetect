@@ -101,15 +101,21 @@ pub fn command() -> Command {
                 .visible_alias("list")
                 .about("List the resolved catalog tree (project's if present, otherwise global)")
                 .long_about(
-                    "Recursively resolves and prints the catalog tree. Remote sub-catalogs\n\
-                     are expanded from cache (or fetched if not cached yet and not in offline\n\
-                     mode). Pass a path to drill into a subtree.\n\
+                    "Recursively resolves and prints the catalog tree. Three entry kinds:\n\
+                     \n\
+                     \x20\x20📦 Archetype — renderable (resolved source has archetype.lua).\n\
+                     \x20\x20📂 Catalog   — navigation node.\n\
+                     \x20\x20🧩 Component — declared inside an archetype, or yaml show: false.\n\
+                     \n\
+                     Components are hidden by default; pass -a / --all to include them.\n\
+                     An optional path filters the tree, preserving ancestor context so\n\
+                     every visible indent is a path you can dispatch.\n\
                      \n\
                      Examples:\n\
                      \n\
-                     archetect ls              # full tree\n\
-                     archetect ls rust         # entries under 'rust'\n\
-                     archetect ls rust/cli     # entries under 'rust/cli'"
+                     archetect ls                         # archetypes + catalogs only\n\
+                     archetect ls -a                      # include components / hidden\n\
+                     archetect ls archetect/rust/cli      # filtered to a subtree"
                 )
                 .arg(
                     clap::Arg::new("ls-path")
@@ -117,6 +123,13 @@ pub fn command() -> Command {
                         .action(clap::ArgAction::Set)
                         .required(false)
                         .default_value("")
+                )
+                .arg(
+                    clap::Arg::new("all")
+                        .help("Include components, libraries, and entries with show: false")
+                        .short('a')
+                        .long("all")
+                        .action(clap::ArgAction::SetTrue)
                 )
         )
         .arg(

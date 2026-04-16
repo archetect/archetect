@@ -21,15 +21,33 @@ pub struct IndexEntry {
     pub kind: IndexEntryKind,
     /// Metadata extracted from the entry (if available).
     pub metadata: Option<Metadata>,
-    /// Children (for groups).
+    /// Children (for groups — or for archetypes whose manifest also
+    /// declares catalog entries for composition. Whether those children
+    /// are shown in menus depends on `is_archetype` and `show`).
     pub children: Vec<IndexEntry>,
     /// Source reference (for leaves).
     pub source: Option<String>,
+    /// True when the resolved source contains an `archetype.lua` —
+    /// the entry is a renderable archetype, distinct from a navigation
+    /// catalog. An archetype may have catalog entries of its own
+    /// (components it composes in), but those are not intended to be
+    /// listed as independent choices.
+    pub is_archetype: bool,
+    /// Honors the `show` field of the source CatalogEntry (default
+    /// true). `show: false` marks an entry as internal/utility — it
+    /// stays resolvable by name from scripts but is hidden from menus
+    /// and `ls` by default.
+    pub show: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexEntryKind {
+    /// A navigation group. Either declared inline with a `catalog:`
+    /// field, or resolved from a source whose manifest has a `catalog:`
+    /// but no `archetype.lua`.
     Group,
+    /// A terminal entry. Either a renderable archetype (has
+    /// `archetype.lua`) or a leaf whose source could not be resolved.
     Leaf,
 }
 
@@ -146,6 +164,11 @@ fn build_entries(entries: &LinkedHashMap<String, CatalogEntry>, prefix: &str) ->
                 metadata: None,
                 children,
                 source: entry.source.clone(),
+                // Inline-only build doesn't resolve sources, so we can't
+                // tell here whether a leaf is a renderable archetype.
+                // The CatalogIndexer sets this correctly when it expands.
+                is_archetype: false,
+                show: entry.show,
             }
         })
         .collect()
