@@ -477,8 +477,8 @@ fn build_env_table(lua: &Lua) -> LuaResult<Table> {
     Ok(env_table)
 }
 
-/// Build the `archetect.switches` sub-table with a single `is_enabled(name)`
-/// method. Reached as `archetect.switches.is_enabled(...)` from Lua — there
+/// Build the `archetype.switches` sub-table with a single `is_enabled(name)`
+/// method. Reached as `archetype.switches.is_enabled(...)` from Lua — there
 /// is no top-level `switches` global.
 fn build_switches_table(lua: &Lua, render_context: &RenderContext) -> LuaResult<Table> {
     let switches_table = lua.create_table()?;
