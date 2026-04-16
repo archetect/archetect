@@ -361,21 +361,23 @@ function file.exists(path, opts) end
 ---@return string contents
 function file.read(path, opts) end
 
----Render a single template file from the archetype root to destination.
----Source always resolves against the archetype root (no `within` here —
----rendering from the caller's cwd would be a footgun). By default the
----destination mirrors the source-relative path; override via
----`opts.destination`.
+---Render a single template file from the archetype root.
+---By default, returns the rendered string. Pass `opts.destination`
+---to write to a file instead (returns nil in that case). Symmetric
+---with `template.render`. Source always resolves against the archetype
+---root (no `within` here — rendering from the caller's cwd would be
+---a footgun).
 ---@param path string Source path relative to the archetype root
 ---@param context Context Template context
 ---@param opts? FileRenderOpts
+---@return string? result Rendered string when no destination; nil when written to disk
 function file.render(path, context, opts) end
 
 ---@class FileOpts
 ---@field within? LocationPolicy Where to resolve the path. Default: `Location.Archetype`.
 
 ---@class FileRenderOpts
----@field destination? string Destination path (relative to render destination). Defaults to the source path.
+---@field destination? string Destination path (relative to render destination). When present, write instead of returning.
 ---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
 
 ---@class LocationPolicy
@@ -488,11 +490,19 @@ Existing = {}
 ---Inline Jinja2 template rendering.
 template = {}
 
----Render an inline Jinja2 template string using the context's variables.
+---Render an inline ATL template string using the context's variables.
+---By default, returns the rendered string. Pass `opts.destination` to
+---write to a file instead (returns nil in that case). Symmetric with
+---`file.render`.
 ---@param tmpl string Template string (e.g., "{{ project_name | title_case }}")
 ---@param context Context Template context
----@return string result The rendered string
-function template.render(tmpl, context) end
+---@param opts? TemplateRenderOpts
+---@return string? result Rendered string when no destination; nil when written to disk
+function template.render(tmpl, context, opts) end
+
+---@class TemplateRenderOpts
+---@field destination? string Destination path (relative to render destination). When present, write instead of returning.
+---@field if_exists? ExistingPolicy How to handle existing files (e.g., `Existing.Overwrite`)
 
 --
 -- log

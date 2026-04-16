@@ -87,7 +87,7 @@ pub fn register_all(
     let cache = Rc::new(RefCell::new(cache));
     register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone())?;
     register_lua_file_module(lua, archetype, archetect, render_context, &filters, cache)?;
-    register_lua_template_module(lua, &filters)?;
+    register_lua_template_module(lua, archetect, render_context, &filters)?;
 
     register_catalog_module(lua, archetype, archetect, render_context)?;
     register_runtime_module(lua, archetect)?;
@@ -618,6 +618,15 @@ fn register_lua_file_module(
     }
 
     // file.render(source, context, opts?)
+    //
+    // Symmetric with template.render: returns the rendered string by
+    // default; writes to disk when opts.destination is supplied.
+    //
+    //   local s = file.render("snippet.atl", ctx)
+    //   file.render("README.md", ctx, { destination = "README.md" })
+    //
+    // Source always resolves against the archetype root — no `within`
+    // here (rendering from the caller's cwd would be a footgun).
     {
         let archetype_root = archetype_root.clone();
         let arc = archetect.clone();
@@ -627,10 +636,7 @@ fn register_lua_file_module(
         file_table.set(
             "render",
             lua.create_function(
-                move |lua, (source, context_ud, opts): (String, AnyUserData, Option<Table>)| {
-                    // file.render always resolves source against the archetype
-                    // root (there's no `scope` here — rendering from the caller's
-                    // cwd would be a footgun, not a feature).
+                move |lua, (source, context_ud, opts): (String, AnyUserData, Option<Table>)| -> LuaResult<Option<String>> {
                     restrict_path(&source)?;
                     if std::path::Path::new(&source).is_absolute() {
                         return Err(LuaError::RuntimeError(format!(
@@ -649,11 +655,11 @@ fn register_lua_file_module(
                     let context = context_ud.borrow::<Context>()?;
                     let ctx_table = context.to_lua_table(lua)?;
 
-                    // Default destination mirrors the source-relative path.
-                    // opts.destination overrides (still relative to the
-                    // render destination, sandbox-checked).
-                    let dest_rel: String = if let Some(ref opts) = opts {
-                        match opts.get::<String>("destination".to_string()) {
+                    // Extract optional destination. If absent → return the
+                    // rendered string. If present → write to that path
+                    // (sandbox-checked) and return nil.
+                    let dest_opt: Option<String> = match opts.as_ref() {
+                        Some(o) => match o.get::<String>("destination".to_string()) {
                             Ok(d) => {
                                 restrict_path(&d)?;
                                 if std::path::Path::new(&d).is_absolute() {
@@ -662,29 +668,42 @@ fn register_lua_file_module(
                                         d
                                     )));
                                 }
-                                d
+                                Some(d)
                             }
-                            Err(_) => source.clone(),
-                        }
-                    } else {
-                        source.clone()
+                            Err(_) => None,
+                        },
+                        None => None,
                     };
-                    let destination = ctx_default_dest.join(&dest_rel);
 
-                    let overwrite_policy = extract_overwrite_policy(&opts);
                     let mut cache = cache.borrow_mut();
 
-                    crate::script::lua::template_engine::render::lua_render_file(
-                        lua,
-                        &arc,
-                        &ctx_table,
-                        &filters,
-                        &source_path,
-                        &destination,
-                        overwrite_policy,
-                        &mut cache,
-                    )
-                    .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))
+                    if let Some(dest_rel) = dest_opt {
+                        let destination = ctx_default_dest.join(&dest_rel);
+                        let overwrite_policy = extract_overwrite_policy(&opts);
+                        crate::script::lua::template_engine::render::lua_render_file(
+                            lua,
+                            &arc,
+                            &ctx_table,
+                            &filters,
+                            &source_path,
+                            &destination,
+                            overwrite_policy,
+                            &mut cache,
+                        )
+                        .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))?;
+                        Ok(None)
+                    } else {
+                        // No destination → render and return the string.
+                        let rendered = crate::script::lua::template_engine::render::lua_render_contents(
+                            lua,
+                            &source_path,
+                            &ctx_table,
+                            &filters,
+                            &mut cache,
+                        )
+                        .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))?;
+                        Ok(Some(rendered))
+                    }
                 },
             )?,
         )?;
@@ -767,6 +786,8 @@ fn resolve_file_path(
 
 fn register_lua_template_module(
     lua: &Lua,
+    archetect: &Archetect,
+    render_context: &RenderContext,
     filters: &Table,
 ) -> LuaResult<()> {
     let template_table = lua.create_table()?;
@@ -776,10 +797,20 @@ fn register_lua_template_module(
     // and `register_filters` close over independent clones of the same
     // underlying Lua table — Lua tables are reference types, so writes
     // through one clone are visible through the other.
+    //
+    // template.render(tmpl, ctx, opts?)
+    //
+    // Symmetric with file.render: returns the rendered string by
+    // default; writes to disk when opts.destination is supplied.
+    //
+    //   local s = template.render("hello {{ name }}", ctx)
+    //   template.render("hello {{ name }}", ctx, { destination = "out.txt" })
     let filters_for_render = filters.clone();
+    let arc = archetect.clone();
+    let ctx_default_dest = render_context.destination().to_owned();
     template_table.set(
         "render",
-        lua.create_function(move |lua, (tmpl, context_ud): (String, AnyUserData)| {
+        lua.create_function(move |lua, (tmpl, context_ud, opts): (String, AnyUserData, Option<Table>)| -> LuaResult<Option<String>> {
             let context = context_ud.borrow::<Context>()?;
             let ctx_table = context.to_lua_table(lua)?;
 
@@ -789,10 +820,70 @@ fn register_lua_template_module(
             let func: mlua::Function = lua.load(&compiled.source).eval()
                 .map_err(|e| LuaError::RuntimeError(format!("Template load error: {}", e)))?;
 
-            let result: String = func.call::<String>((ctx_table, filters_for_render.clone()))
+            let rendered: String = func.call::<String>((ctx_table, filters_for_render.clone()))
                 .map_err(|e| LuaError::RuntimeError(format!("Template error: {}", e)))?;
 
-            Ok(result)
+            // No opts.destination → return the rendered string.
+            // opts.destination present → write to disk and return nil.
+            let dest_opt: Option<String> = match opts.as_ref() {
+                Some(o) => match o.get::<String>("destination".to_string()) {
+                    Ok(d) => {
+                        restrict_path(&d)?;
+                        if std::path::Path::new(&d).is_absolute() {
+                            return Err(LuaError::RuntimeError(format!(
+                                "template.render: destination must be relative: {}",
+                                d
+                            )));
+                        }
+                        Some(d)
+                    }
+                    Err(_) => None,
+                },
+                None => None,
+            };
+
+            if let Some(dest_rel) = dest_opt {
+                let destination = ctx_default_dest.join(&dest_rel);
+                let overwrite_policy = extract_overwrite_policy(&opts);
+                // Send the same WriteDirectory + WriteFile pair file.render
+                // uses, going through the IO channel so all the existing
+                // policy / hook handling applies.
+                if let Some(parent) = destination.parent() {
+                    if !parent.as_str().is_empty() {
+                        arc.request(archetect_api::ScriptMessage::WriteDirectory(
+                            archetect_api::WriteDirectoryInfo {
+                                path: parent.to_string(),
+                            },
+                        )).map_err(|e| LuaError::RuntimeError(format!("Write error: {}", e)))?;
+                        match arc.response().map_err(|e| LuaError::RuntimeError(format!("{}", e)))? {
+                            archetect_api::ClientMessage::Ack => {}
+                            archetect_api::ClientMessage::Error(msg) => {
+                                return Err(LuaError::RuntimeError(format!(
+                                    "template.render: failed to create destination dir {}: {}",
+                                    parent, msg
+                                )));
+                            }
+                            other => return Err(LuaError::RuntimeError(format!("Unexpected response: {:?}", other))),
+                        }
+                    }
+                }
+                arc.request(archetect_api::ScriptMessage::WriteFile(
+                    archetect_api::WriteFileInfo {
+                        destination: destination.to_string(),
+                        contents: rendered.into_bytes(),
+                        existing_file_policy: overwrite_policy.into(),
+                    },
+                )).map_err(|e| LuaError::RuntimeError(format!("Write error: {}", e)))?;
+                match arc.response().map_err(|e| LuaError::RuntimeError(format!("{}", e)))? {
+                    archetect_api::ClientMessage::Ack => Ok(None),
+                    archetect_api::ClientMessage::Error(msg) => Err(LuaError::RuntimeError(format!(
+                        "template.render: write failed for {}: {}", destination, msg
+                    ))),
+                    other => Err(LuaError::RuntimeError(format!("Unexpected response: {:?}", other))),
+                }
+            } else {
+                Ok(Some(rendered))
+            }
         })?,
     )?;
 
