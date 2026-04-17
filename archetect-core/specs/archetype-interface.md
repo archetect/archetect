@@ -316,7 +316,11 @@ as both `value` and `label`.
 
 Switches are boolean flags passed externally (CLI `--switch`, catalog entry
 `switches:`, or API). They are **not prompted for** — they control hidden
-behaviour branches in the Lua script.
+behaviour branches in the Lua script. **Switches must be decided before
+execution begins**, regardless of interaction mode. This is why the
+interface declares them separately from prompts: clients need to present
+switch toggles up front, before starting an interactive session or
+submitting a batch.
 
 | Field    | Type   | Required | Default | Notes |
 |----------|--------|----------|---------|-------|

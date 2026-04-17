@@ -42,6 +42,13 @@ function Context:contains(key, value) end
 ---@param opts? {cases?: CaseSpec|CaseSpec[]} Optional case expansion
 function Context:set(key, value, opts) end
 
+---Deep-merge another context or table into this one.
+---Nested tables are merged recursively; scalar values are overwritten.
+---Typically used to absorb a child archetype's contributions:
+---`context:merge(catalog.render("child", context))`
+---@param other Context|table The context or table to merge in
+function Context:merge(other) end
+
 ---Prompt for text input, store in context, and return the value.
 ---Returns the user's raw input; use `ctx:get(key)` to read case-expanded
 ---variants produced by `opts.cases`. Returns `nil` when an optional
@@ -282,28 +289,7 @@ local Switches = {}
 function Switches.is_enabled(name) end
 
 --
--- component (child archetype rendering)
---
-
----@class component
----Render child archetype components declared in `archetype.yaml`.
-component = {}
-
----Render a named child archetype component.
----The component must be declared in the `components` section of `archetype.yaml`.
----@param name string Component name from archetype.yaml
----@param context Context Template context
----@param opts? ComponentRenderOpts
-function component.render(name, context, opts) end
-
----@class ComponentRenderOpts
----@field destination? string Subdirectory to render into (relative to current destination)
----@field switches? string[] Switches to pass to child archetype
----@field use_defaults? string[] Keys to use defaults for in child archetype
----@field use_defaults_all? boolean Use defaults for all prompts in child archetype
-
---
--- catalog (sibling-archetype dispatch)
+-- catalog (archetype composition)
 --
 
 ---@class catalog
@@ -541,3 +527,14 @@ function output.print(message) end
 ---Display a prominent banner message (stderr).
 ---@param message string
 function output.banner(message) end
+
+--
+-- require (archetect module loader)
+--
+
+---Load an archetect module. Archetect provides a custom `require` that
+---resolves `"archetect.*"` paths to built-in modules (git, github, shell,
+---archive, model, etc.). See `archetect_modules.lua` for full type info.
+---@param modname string Module name (e.g., `"archetect.git"`, `"archetect.github"`)
+---@return any module The loaded module table
+function require(modname) end

@@ -215,12 +215,15 @@ fn compile_body(
                 lua.push_str(")\n");
             }
             Token::Logic { code, .. } => {
+                // Pre-pass: expand `?.` optional chains in the code before
+                // sugar rewrites, so `{% if a?.b?.c %}` works.
+                let code = expand_optional_chains_in_code(code);
                 // Phase 7 sugar: try to rewrite the body into more
                 // ergonomic Lua. If no sugar pattern matches, the body
                 // passes through verbatim as raw Lua.
-                let rewritten = rewrite_sugar(code);
+                let rewritten = rewrite_sugar(&code);
                 lua.push_str("    ");
-                lua.push_str(rewritten.as_deref().unwrap_or(code));
+                lua.push_str(rewritten.as_deref().unwrap_or(&code));
                 lua.push('\n');
             }
             Token::Include { path, line, .. } => {
@@ -272,13 +275,27 @@ fn compile_body(
 /// use bracket notation. This is critical because archetect context keys frequently
 /// use kebab-case (e.g., `project-name`), which Lua parses as subtraction.
 ///
+/// Also handles optional chaining (`?.`) — `a?.b?.c` compiles to
+/// `(a and a.b and a.b.c)` so nil intermediaries short-circuit to nil
+/// instead of erroring.
+///
 /// Examples:
 ///   `project-name`           → `__ctx["project-name"]`
 ///   `entity.name.pascal`     → `entity.name.pascal`  (all segments are valid Lua)
 ///   `entity.field-name`      → `entity["field-name"]`
 ///   `#entity.local_fields`   → `#entity.local_fields` (Lua length operator)
+///   `components?.license?.spdx` → `(components and components.license and components.license.spdx)`
 fn make_lua_safe(expr: &str) -> String {
     let expr = expr.trim();
+
+    // ── Optional chaining (`?.`) ────────────────────────────────
+    // `a?.b?.c` → `(a and a.b and a.b.c)`
+    // Handles any mix of `?.` and `.` segments. Only the `?.`
+    // boundaries introduce nil-guards; plain `.` segments are
+    // normal Lua member access.
+    if expr.contains("?.") {
+        return expand_optional_chain(expr);
+    }
 
     // If the expression contains operators, function calls, or brackets, leave it as-is.
     // These are already Lua code that should not be transformed.
@@ -336,6 +353,161 @@ fn make_lua_safe(expr: &str) -> String {
     result
 }
 
+/// Scan arbitrary Lua code for optional-chain expressions (`a?.b?.c`)
+/// and expand each one in-place. Non-chain text passes through unchanged.
+///
+/// A chain is a contiguous sequence of identifier chars, `.`, and `?.`
+/// that contains at least one `?.`. We find these by scanning for `?.`
+/// and then expanding outward to capture the full dotted path.
+fn expand_optional_chains_in_code(code: &str) -> String {
+    if !code.contains("?.") {
+        return code.to_string();
+    }
+
+    // Regex-free approach: scan for `?.` occurrences, then find the
+    // boundaries of the containing dotted identifier chain.
+    let bytes = code.as_bytes();
+    let mut result = String::with_capacity(code.len() + 32);
+    let mut i = 0;
+
+    while i < bytes.len() {
+        // Look for `?.` at position i
+        if i + 1 < bytes.len() && bytes[i] == b'?' && bytes[i + 1] == b'.' {
+            // Walk backwards to find the start of the chain
+            let chain_start = {
+                let mut s = i;
+                while s > 0 {
+                    let prev = bytes[s - 1];
+                    if prev == b'.' || prev == b'?' || is_ident_byte(prev) {
+                        s -= 1;
+                    } else {
+                        break;
+                    }
+                }
+                s
+            };
+            // Walk forwards from the `?.` to find the end of the chain
+            let chain_end = {
+                let mut e = i + 2; // skip past `?.`
+                while e < bytes.len() {
+                    let c = bytes[e];
+                    if c == b'?' && e + 1 < bytes.len() && bytes[e + 1] == b'.' {
+                        e += 2; // skip `?.`
+                    } else if c == b'.' || is_ident_byte(c) {
+                        e += 1;
+                    } else {
+                        break;
+                    }
+                }
+                // Trim trailing dots (e.g., if the chain ends with `.`)
+                while e > i + 2 && bytes[e - 1] == b'.' {
+                    e -= 1;
+                }
+                e
+            };
+
+            // Replace any already-emitted portion of the chain that we
+            // walked back over.
+            let already_emitted = &code[chain_start..i];
+            // Remove the portion we walked back over from result
+            let drain_len = already_emitted.len();
+            result.truncate(result.len() - drain_len);
+
+            let chain = &code[chain_start..chain_end];
+            result.push_str(&expand_optional_chain(chain));
+            i = chain_end;
+        } else {
+            result.push(code[i..].chars().next().unwrap());
+            i += code[i..].chars().next().unwrap().len_utf8();
+        }
+    }
+
+    result
+}
+
+/// Expand optional chaining (`?.`) into Lua `and`-guarded access.
+///
+/// Splits on `?.` first to find the "guarded" boundaries, then each
+/// segment between `?.` boundaries may itself contain plain `.` access.
+/// For each `?.` boundary we emit an `and` guard; plain `.` access
+/// within a segment is just normal Lua.
+///
+/// Examples:
+///   `a?.b`         → `(a and a.b)`
+///   `a?.b?.c`      → `(a and a.b and a.b.c)`
+///   `a.b?.c.d`     → `(a.b and a.b.c.d)`
+///   `a?.b.c?.d`    → `(a and a.b.c and a.b.c.d)`
+fn expand_optional_chain(expr: &str) -> String {
+    // Split on `?.` — each piece is a segment of one or more dotted idents.
+    let pieces: Vec<&str> = expr.split("?.").collect();
+    if pieces.len() < 2 {
+        // No `?.` found — shouldn't happen (caller checks), but be safe.
+        return expr.to_string();
+    }
+
+    // Build the path incrementally. Each piece may itself have dots
+    // (e.g. `a.b` in `a.b?.c`), which are plain Lua member access.
+    let mut guards: Vec<String> = Vec::new();
+    let mut path = String::new();
+
+    for (i, piece) in pieces.iter().enumerate() {
+        let safe_piece = make_dotted_safe(piece);
+        if i == 0 {
+            path.push_str(&safe_piece);
+        } else {
+            // Emit a guard for the path built so far, then extend.
+            guards.push(path.clone());
+            if safe_piece.starts_with('[') {
+                path.push_str(&safe_piece);
+            } else {
+                path.push('.');
+                path.push_str(&safe_piece);
+            }
+        }
+    }
+
+    // The full path is the final value.
+    if guards.is_empty() {
+        return path;
+    }
+
+    let mut result = String::from("(");
+    for guard in &guards {
+        result.push_str(guard);
+        result.push_str(" and ");
+    }
+    result.push_str(&path);
+    result.push(')');
+    result
+}
+
+/// Transform a dotted path segment (no `?.` present) into Lua-safe form.
+/// Handles kebab-case segments with bracket notation, same as `make_lua_safe`
+/// but only for the dotted path part (no prefix operators, no `?.`).
+fn make_dotted_safe(segment: &str) -> String {
+    let parts: Vec<&str> = segment.split('.').collect();
+    let mut result = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i == 0 {
+            if is_lua_identifier(part) {
+                result.push_str(part);
+            } else {
+                result.push_str("[\"");
+                result.push_str(part);
+                result.push_str("\"]");
+            }
+        } else if is_lua_identifier(part) {
+            result.push('.');
+            result.push_str(part);
+        } else {
+            result.push_str("[\"");
+            result.push_str(part);
+            result.push_str("\"]");
+        }
+    }
+    result
+}
+
 /// Check if a string is a valid Lua identifier (letters, digits, underscores; doesn't start with digit).
 fn is_lua_identifier(s: &str) -> bool {
     if s.is_empty() {
@@ -390,7 +562,30 @@ fn is_lua_identifier(s: &str) -> bool {
 fn rewrite_sugar(body: &str) -> Option<String> {
     let trimmed = body.trim();
 
-    // `for ...` sugar — only apply if no explicit `do` keyword is present.
+    // ── `endif` / `endfor` aliases ────────────────────────────────
+    // Every other template language uses these. Accept them as sugar
+    // for Lua's bare `end`.
+    if trimmed == "endif" || trimmed == "endfor" {
+        return Some("end".to_string());
+    }
+
+    // ── `if ...` sugar — auto-append `then` ─────────────────────
+    // `{% if x %}` becomes `if x then`. Only applies when the body
+    // does NOT already contain `then` (so `{% if x then %}` still
+    // works and passes through untouched).
+    if let Some(rest) = trimmed.strip_prefix("if ") {
+        if !contains_keyword(rest, "then") {
+            return Some(format!("if {} then", rest.trim_end()));
+        }
+    }
+    // Same for `elseif ... then`.
+    if let Some(rest) = trimmed.strip_prefix("elseif ") {
+        if !contains_keyword(rest, "then") {
+            return Some(format!("elseif {} then", rest.trim_end()));
+        }
+    }
+
+    // ── `for ...` sugar — auto-append `do` ──────────────────────
     if let Some(rest) = trimmed.strip_prefix("for ") {
         if !contains_keyword(rest, "do") {
             // Find the ` in ` separator. The variable list is on the left,
@@ -949,16 +1144,119 @@ message {{ entity.name.pascal }} {
     }
 
     #[test]
-    fn test_sugar_unrecognized_passes_through() {
-        // ATL deliberately does not sugar Lua's control-flow vocabulary —
-        // `if x then`, `end`, `else`, `local x = 1` are all written in
-        // their Lua-native form. Verify those pass through untouched.
+    fn test_sugar_control_flow_with_explicit_then_passes_through() {
+        // When `then` is already present, no rewrite needed.
         assert_eq!(rewrite_sugar("if x then"), None);
         assert_eq!(rewrite_sugar("if x > 0 then"), None);
         assert_eq!(rewrite_sugar("elseif x then"), None);
+        // `else`, `end`, and locals always pass through.
         assert_eq!(rewrite_sugar("else"), None);
         assert_eq!(rewrite_sugar("end"), None);
         assert_eq!(rewrite_sugar("local name = 1"), None);
+    }
+
+    #[test]
+    fn test_sugar_if_auto_appends_then() {
+        assert_eq!(
+            rewrite_sugar("if x").unwrap(),
+            "if x then"
+        );
+        assert_eq!(
+            rewrite_sugar("if x > 0").unwrap(),
+            "if x > 0 then"
+        );
+        assert_eq!(
+            rewrite_sugar("if components and components.license").unwrap(),
+            "if components and components.license then"
+        );
+    }
+
+    #[test]
+    fn test_sugar_elseif_auto_appends_then() {
+        assert_eq!(
+            rewrite_sugar("elseif y").unwrap(),
+            "elseif y then"
+        );
+        assert_eq!(
+            rewrite_sugar("elseif x ~= nil").unwrap(),
+            "elseif x ~= nil then"
+        );
+    }
+
+    #[test]
+    fn test_sugar_endif_endfor_aliases() {
+        assert_eq!(rewrite_sugar("endif").unwrap(), "end");
+        assert_eq!(rewrite_sugar("endfor").unwrap(), "end");
+    }
+
+    // ---------- Optional chaining (`?.`) ----------
+
+    #[test]
+    fn test_optional_chain_simple() {
+        assert_eq!(
+            expand_optional_chain("a?.b"),
+            "(a and a.b)"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_three_segments() {
+        assert_eq!(
+            expand_optional_chain("a?.b?.c"),
+            "(a and a.b and a.b.c)"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_mixed_dot_and_optional() {
+        // Plain `.` between `?.` boundaries is normal Lua access.
+        assert_eq!(
+            expand_optional_chain("a.b?.c.d"),
+            "(a.b and a.b.c.d)"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_deep() {
+        assert_eq!(
+            expand_optional_chain("a?.b.c?.d"),
+            "(a and a.b.c and a.b.c.d)"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_in_make_lua_safe() {
+        assert_eq!(
+            make_lua_safe("components?.license?.spdx"),
+            "(components and components.license and components.license.spdx)"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_in_logic_code() {
+        // Simulates `{% if components?.license?.spdx %}`
+        let code = "if components?.license?.spdx then";
+        let expanded = expand_optional_chains_in_code(code);
+        assert_eq!(
+            expanded,
+            "if (components and components.license and components.license.spdx) then"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_with_comparison() {
+        let code = "if components?.license?.spdx ~= nil then";
+        let expanded = expand_optional_chains_in_code(code);
+        assert_eq!(
+            expanded,
+            "if (components and components.license and components.license.spdx) ~= nil then"
+        );
+    }
+
+    #[test]
+    fn test_optional_chain_no_chain_passes_through() {
+        let code = "if x > 0 then";
+        assert_eq!(expand_optional_chains_in_code(code), code);
     }
 
     #[test]

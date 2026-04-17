@@ -906,6 +906,75 @@ service {{ entity.name.pascal }}Service {
         assert_eq!(result, "0;2;4;6;8;");
     }
 
+    // ---------- Optional chaining (`?.`) ----------
+
+    #[test]
+    fn test_optional_chain_expression_renders_value() {
+        // `{{ a?.b?.c }}` renders the value when the chain is present.
+        let result = render_simple(
+            r#"{{ components?.license?.spdx }}"#,
+            |lua, ctx| {
+                let license = lua.create_table().unwrap();
+                license.set("spdx", "MIT").unwrap();
+                let components = lua.create_table().unwrap();
+                components.set("license", license).unwrap();
+                ctx.set("components", components).unwrap();
+            },
+        );
+        assert_eq!(result, "MIT");
+    }
+
+    #[test]
+    fn test_optional_chain_expression_renders_empty_when_nil() {
+        // `{{ a?.b?.c }}` renders empty when an intermediate is nil.
+        let result = render_simple(
+            r#"{{ components?.license?.spdx }}"#,
+            |_, _| {
+                // components is not set at all
+            },
+        );
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_optional_chain_in_if_block() {
+        // `{% if a?.b %}...{% endif %}` enters block when present.
+        let result = render_simple(
+            r#"{% if components?.license?.spdx %}YES{% endif %}"#,
+            |lua, ctx| {
+                let license = lua.create_table().unwrap();
+                license.set("spdx", "MIT").unwrap();
+                let components = lua.create_table().unwrap();
+                components.set("license", license).unwrap();
+                ctx.set("components", components).unwrap();
+            },
+        );
+        assert_eq!(result, "YES");
+    }
+
+    #[test]
+    fn test_optional_chain_in_if_block_skips_when_nil() {
+        // Chain short-circuits to nil → falsy → block skipped.
+        let result = render_simple(
+            r#"{% if components?.license?.spdx %}YES{% else %}NO{% endif %}"#,
+            |_, _| {},
+        );
+        assert_eq!(result, "NO");
+    }
+
+    #[test]
+    fn test_optional_chain_partial_nil() {
+        // `components` exists but `license` does not — chain short-circuits.
+        let result = render_simple(
+            r#"{% if components?.license?.spdx %}YES{% else %}NO{% endif %}"#,
+            |lua, ctx| {
+                let components = lua.create_table().unwrap();
+                ctx.set("components", components).unwrap();
+            },
+        );
+        assert_eq!(result, "NO");
+    }
+
     #[test]
     fn test_explicit_lua_for_still_works() {
         // Author falls back to raw Lua — no rewrite, runs as-is.

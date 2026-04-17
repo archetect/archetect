@@ -64,7 +64,10 @@ pub struct RenderRequest {
     pub destination: String,
     /// Pre-supplied answers as a JSON object (key-value pairs) to skip prompts
     pub answers: Option<serde_json::Value>,
-    /// Switches to enable (list of switch names)
+    /// Switches to enable (list of switch names). Switches are boolean flags
+    /// that control hidden archetype behaviour — they are NOT prompted for
+    /// during execution and must be set here, before the session starts.
+    /// Check the archetype's interface.yaml for available switches.
     pub switches: Option<Vec<String>>,
     /// Use default values for all prompts that have defaults
     pub use_defaults_all: Option<bool>,
@@ -92,7 +95,10 @@ pub struct CatalogRenderRequest {
     pub destination: String,
     /// Pre-supplied answers as a JSON object (key-value pairs) to skip prompts
     pub answers: Option<serde_json::Value>,
-    /// Switches to enable (list of switch names)
+    /// Switches to enable (list of switch names). Switches are boolean flags
+    /// that control hidden archetype behaviour — they are NOT prompted for
+    /// during execution and must be set here, before the session starts.
+    /// Check the archetype's interface.yaml for available switches.
     pub switches: Option<Vec<String>>,
     /// Use default values for all prompts that have defaults
     pub use_defaults_all: Option<bool>,
@@ -110,7 +116,7 @@ pub struct RespondRequest {
 impl ArchetectMcpServer {
     #[tool(
         name = "render",
-        description = "Render a project from an archetype template. Starts a stateful render session. Returns the first prompt (if any) or completion status. Use the 'respond' tool to answer prompts."
+        description = "Render a project from an archetype template. Starts a stateful render session. Returns the first prompt (if any) or completion status. Use the 'respond' tool to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Check the archetype's interface.yaml for available switches and prompts."
     )]
     async fn render(
         &self,
@@ -429,7 +435,7 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_render",
-        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts."
+        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts. Switches must be set up front in this call — they are not prompted for during the session."
     )]
     async fn catalog_render(
         &self,
