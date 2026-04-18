@@ -27,33 +27,13 @@ impl Source {
     }
 
     pub fn path(&self) -> Result<Utf8PathBuf, SourceError> {
-        if self.archetect.configuration().locals().enabled() {
-            match &self.source_type {
-                SourceType::RemoteGit {
-                    url: _,
-                    cache_path: _,
-                    directory_name,
-                    gitref: _,
-                } => {
-                    if let Some(directory_name) = directory_name {
-                        for local_root in self.archetect.configuration().locals().paths() {
-                            match shellexpand::full(local_root.as_str()) {
-                                Ok(expanded_root) => {
-                                    let local_directory = Utf8PathBuf::from(expanded_root.as_ref());
-                                    let local_directory = local_directory.join(directory_name);
-                                    if local_directory.is_dir() {
-                                        warn!("Using local: {}", local_directory);
-                                        return Ok(local_directory);
-                                    }
-                                }
-                                Err(err) => {
-                                    warn!("Locals Path in archetect.yaml is invalid: {}", err);
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {}
+        // Primary locals resolution happens in SourceType::create. This block
+        // is a safety net for SourceTypes created before locals was enabled
+        // (or for cached RemoteGit entries that later got a local checkout).
+        if let SourceType::RemoteGit { directory_name: Some(name), .. } = &self.source_type {
+            if let Some(dir) = try_resolve_local(&self.archetect, name) {
+                warn!("Using local: {}", dir);
+                return Ok(dir);
             }
         }
 
@@ -151,6 +131,31 @@ fn cached_paths() -> &'static Mutex<HashSet<String>> {
     CACHED_PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+// If locals is enabled and `directory_name` matches a directory under one of
+// the configured `locals.paths`, return that local path. Used by both
+// SourceType::create (short-circuit remote cloning when a local exists) and
+// Source::path (fall back to local for sources that were cached previously
+// but now have a local checkout).
+fn try_resolve_local(archetect: &Archetect, directory_name: &str) -> Option<Utf8PathBuf> {
+    if !archetect.configuration().locals().enabled() {
+        return None;
+    }
+    for local_root in archetect.configuration().locals().paths() {
+        let expanded_root = match shellexpand::full(local_root.as_str()) {
+            Ok(p) => p,
+            Err(err) => {
+                warn!("Locals Path in archetect.yaml is invalid: {}", err);
+                continue;
+            }
+        };
+        let local_directory = Utf8PathBuf::from(expanded_root.as_ref()).join(directory_name);
+        if local_directory.is_dir() {
+            return Some(local_directory);
+        }
+    }
+    None
+}
+
 impl SourceType {
     pub fn create(archetect: &Archetect, path: &str) -> Result<SourceType, SourceError> {
         let cache_dir = archetect.layout().cache_dir();
@@ -163,6 +168,15 @@ impl SourceType {
 
             let repo_path = Utf8PathBuf::from(&captures[2]);
             let directory_name = repo_path.file_stem().map(|stem| stem.to_string());
+
+            // Short-circuit the remote clone if the user has a local checkout
+            // of this repo under one of the configured `locals.paths`. Keeps
+            // authoring loops working for archetypes whose remote URL doesn't
+            // exist yet (e.g., a rename in progress).
+            if let Some(dir) = directory_name.as_deref().and_then(|n| try_resolve_local(archetect, n)) {
+                warn!("Using local: {}", dir);
+                return Ok(SourceType::LocalDirectory { path: dir });
+            }
 
             let gitref = if url_parts.len() > 1 {
                 Some(url_parts[1].to_owned())
@@ -185,6 +199,13 @@ impl SourceType {
                         .clone()
                         .join(get_cache_key(format!("{}/{}", host, url.path())));
                 let directory_name = Utf8PathBuf::from(url.path()).file_stem().map(|stem| stem.to_string());
+
+                // Short-circuit the remote clone if the user has a local
+                // checkout — see the SSH branch above for the same pattern.
+                if let Some(dir) = directory_name.as_deref().and_then(|n| try_resolve_local(archetect, n)) {
+                    warn!("Using local: {}", dir);
+                    return Ok(SourceType::LocalDirectory { path: dir });
+                }
 
                 let gitref = url.fragment().map(|r| r.to_owned());
                 cache_git_repo(archetect, url_parts[0], &gitref, &cache_path, false)?;
