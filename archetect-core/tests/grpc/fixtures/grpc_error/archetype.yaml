@@ -1,0 +1,5 @@
+---
+description: "gRPC integration test — forced error"
+
+requires:
+  archetect: "3.0.0"

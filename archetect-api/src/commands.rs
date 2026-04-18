@@ -84,5 +84,10 @@ pub enum ClientMessage {
         use_defaults: Vec<String>,
         use_defaults_all: bool,
         destination: String,
+        /// Slash-separated catalog path the server should resolve
+        /// (e.g. "services/grpc"). Empty string = server picks a default
+        /// entry (legacy behavior). Added for federated catalog — see
+        /// `docs/plans/federated-catalog.md`.
+        catalog_path: String,
     },
 }

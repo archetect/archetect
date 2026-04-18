@@ -31,10 +31,15 @@ impl TemplateCompiler {
     /// [`IncludeResolver`] or custom [`CompileOptions`] — uses a disabled
     /// resolver and default options, so any `{% include %}` directive will
     /// fail with `IncludeNotFound` and strict mode is off.
-    /// The `_name` parameter is reserved for future error-reporting use.
-    pub fn compile(template: &str, _name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
+    ///
+    /// `name` is the human-readable identifier of the template (file path
+    /// or `<inline>`). It is embedded in `InvalidLuaSyntax` errors and any
+    /// other top-level compile errors via the `InTemplate` wrapper, so
+    /// the engine is self-describing without callers having to add their
+    /// own context.
+    pub fn compile(template: &str, name: &str) -> Result<CompiledTemplate, TemplateCompileError> {
         let mut resolver = IncludeResolver::disabled();
-        Self::compile_with(template, _name, &mut resolver, CompileOptions::default())
+        Self::compile_with(template, name, &mut resolver, CompileOptions::default())
     }
 
     /// Compile a template string with a configured [`IncludeResolver`] and
@@ -42,6 +47,22 @@ impl TemplateCompiler {
     /// against the resolver's includes directory and inlined at compile
     /// time. Options control strict-mode resolution and whitespace controls.
     pub fn compile_with(
+        template: &str,
+        name: &str,
+        resolver: &mut IncludeResolver,
+        opts: CompileOptions,
+    ) -> Result<CompiledTemplate, TemplateCompileError> {
+        Self::compile_inner(template, name, resolver, opts).map_err(|err| match err {
+            // Already wrapped — leave as-is.
+            TemplateCompileError::InTemplate { .. } => err,
+            other => TemplateCompileError::InTemplate {
+                template_name: name.to_string(),
+                source: Box::new(other),
+            },
+        })
+    }
+
+    fn compile_inner(
         template: &str,
         name: &str,
         resolver: &mut IncludeResolver,
@@ -93,6 +114,30 @@ mod tests {
     fn test_compile_error_unterminated() {
         let result = TemplateCompiler::compile("Hello {{ name", "test");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compile_error_wraps_with_template_name() {
+        // Phase 8.4: top-level compile errors are wrapped with the
+        // template name so the engine is self-describing without callers
+        // having to add their own context.
+        let err = TemplateCompiler::compile("Hello {{ name", "greetings.atl").unwrap_err();
+        match &err {
+            TemplateCompileError::InTemplate { template_name, source } => {
+                assert_eq!(template_name, "greetings.atl");
+                assert!(matches!(**source, TemplateCompileError::UnterminatedExpression { .. }));
+            }
+            other => panic!("expected InTemplate wrapper, got {:?}", other),
+        }
+        // root_cause walks past the wrapper.
+        assert!(matches!(
+            err.root_cause(),
+            TemplateCompileError::UnterminatedExpression { .. }
+        ));
+        // Display includes the template name.
+        let msg = err.to_string();
+        assert!(msg.contains("greetings.atl"), "got: {}", msg);
+        assert!(msg.contains("Unterminated"), "got: {}", msg);
     }
 
     #[test]
@@ -620,27 +665,21 @@ service {{ entity.name.pascal }}Service {
     fn test_invalid_lua_in_logic_block_caught_at_compile() {
         // A `{% ... %}` block containing malformed Lua should now be caught
         // by the compile-time syntax validator, not deferred to render time.
-        let result = TemplateCompiler::compile("{% if then %}oops{% end %}", "test");
-        match result {
-            Err(TemplateCompileError::InvalidLuaSyntax { .. }) => {}
-            other => panic!(
-                "expected InvalidLuaSyntax compile error, got {:?}",
-                other
-            ),
+        let err = TemplateCompiler::compile("{% if then %}oops{% end %}", "test").unwrap_err();
+        match err.root_cause() {
+            TemplateCompileError::InvalidLuaSyntax { .. } => {}
+            other => panic!("expected InvalidLuaSyntax root cause, got {:?}", other),
         }
     }
 
     #[test]
     fn test_invalid_lua_unclosed_block_caught_at_compile() {
         // Missing `end` should also be a compile-time failure.
-        let result = TemplateCompiler::compile(
-            "{% for i = 1, 3 do %}{{ i }}",
-            "test",
-        );
+        let err = TemplateCompiler::compile("{% for i = 1, 3 do %}{{ i }}", "test").unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::InvalidLuaSyntax { .. })),
-            "expected InvalidLuaSyntax, got {:?}",
-            result
+            matches!(err.root_cause(), TemplateCompileError::InvalidLuaSyntax { .. }),
+            "expected InvalidLuaSyntax root cause, got {:?}",
+            err
         );
     }
 
@@ -756,16 +795,17 @@ service {{ entity.name.pascal }}Service {
     fn test_include_not_found() {
         let (_tmp, dir) = temp_includes_dir();
         let mut resolver = IncludeResolver::single(dir);
-        let result = TemplateCompiler::compile_with(
+        let err = TemplateCompiler::compile_with(
             r#"{% include "missing.atl" %}"#,
             "outer",
             &mut resolver,
             CompileOptions::default(),
-        );
+        )
+        .unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            matches!(err.root_cause(), TemplateCompileError::IncludeNotFound { .. }),
             "got {:?}",
-            result
+            err
         );
     }
 
@@ -807,16 +847,17 @@ service {{ entity.name.pascal }}Service {
         // sandbox.
         let (_tmp, dir) = temp_includes_dir();
         let mut resolver = IncludeResolver::single(dir);
-        let result = TemplateCompiler::compile_with(
+        let err = TemplateCompiler::compile_with(
             r#"{% include "../escape.atl" %}"#,
             "outer",
             &mut resolver,
             CompileOptions::default(),
-        );
+        )
+        .unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            matches!(err.root_cause(), TemplateCompileError::IncludeNotFound { .. }),
             "got {:?}",
-            result
+            err
         );
     }
 
@@ -1219,11 +1260,11 @@ service {{ entity.name.pascal }}Service {
         // `{% include %}` directive in a template compiled this way is an
         // error. This protects callers like `lua_render_path` (filename
         // templating) from accidentally enabling includes.
-        let result = TemplateCompiler::compile(r#"{% include "header.atl" %}"#, "test");
+        let err = TemplateCompiler::compile(r#"{% include "header.atl" %}"#, "test").unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::IncludeNotFound { .. })),
+            matches!(err.root_cause(), TemplateCompileError::IncludeNotFound { .. }),
             "got {:?}",
-            result
+            err
         );
     }
 
@@ -1232,16 +1273,17 @@ service {{ entity.name.pascal }}Service {
         // `{% include header.atl %}` (no quotes) is malformed.
         let (_tmp, dir) = temp_includes_dir();
         let mut resolver = IncludeResolver::single(dir);
-        let result = TemplateCompiler::compile_with(
+        let err = TemplateCompiler::compile_with(
             r#"{% include header.atl %}"#,
             "outer",
             &mut resolver,
             CompileOptions::default(),
-        );
+        )
+        .unwrap_err();
         assert!(
-            matches!(result, Err(TemplateCompileError::InvalidInclude { .. })),
+            matches!(err.root_cause(), TemplateCompileError::InvalidInclude { .. }),
             "got {:?}",
-            result
+            err
         );
     }
 

@@ -462,6 +462,7 @@ mod tests {
             description: None,
             source: Some(source.to_string()),
             catalog: None,
+            server: None,
             answers: None,
             switches: None,
             use_defaults: None,

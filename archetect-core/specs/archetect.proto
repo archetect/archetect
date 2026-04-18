@@ -6,6 +6,46 @@ import "google/protobuf/empty.proto";
 
 service ArchetectService {
     rpc StreamingApi (stream ClientMessage) returns (stream ScriptMessage);
+    // Phase 1 of federated-catalog. List catalog entries at a path
+    // (empty path = root). Eagerly returns the full subtree so a
+    // single RPC covers common browse workflows.
+    rpc BrowseCatalog (BrowseCatalogRequest) returns (BrowseCatalogResponse);
+    // AND-semantics full-text search across the server's catalog.
+    rpc SearchCatalog (SearchCatalogRequest) returns (SearchCatalogResponse);
+}
+
+message BrowseCatalogRequest {
+    string path = 1;
+}
+
+message BrowseCatalogResponse {
+    repeated CatalogIndexEntry entries = 1;
+}
+
+message SearchCatalogRequest {
+    string query = 1;
+    bool include_hidden = 2;
+}
+
+message SearchCatalogResponse {
+    repeated CatalogIndexEntry results = 1;
+}
+
+enum CatalogEntryKind {
+    CATALOG_ENTRY_KIND_UNSPECIFIED = 0;
+    CATALOG_ENTRY_KIND_GROUP = 1;
+    CATALOG_ENTRY_KIND_LEAF = 2;
+}
+
+message CatalogIndexEntry {
+    string path = 1;
+    string name = 2;
+    string description = 3;
+    CatalogEntryKind kind = 4;
+    bool is_archetype = 5;
+    bool has_source = 6;
+    bool show = 7;
+    repeated CatalogIndexEntry children = 8;
 }
 
 message PromptForText {
@@ -93,6 +133,10 @@ message Initialize {
     repeated string use_defaults = 3;
     bool use_defaults_all = 4;
     string destination = 5;
+    // Slash-separated catalog path to render (e.g. "services/grpc").
+    // Empty = use the server's default catalog entry. Added for the
+    // federated catalog design — see docs/plans/federated-catalog.md.
+    string catalog_path = 6;
 }
 
 message Array {

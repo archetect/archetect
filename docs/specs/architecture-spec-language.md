@@ -1,5 +1,20 @@
 # Archetect Modeling Language (AML)
 
+## Status snapshot (2026-04-17)
+
+| Component | Status |
+|---|---|
+| AML model (YAML schema — entities, boundaries, interfaces, flows, types) | in-progress (parser + types shipped in `archetect-aml/`; validation and DAG resolution pending) |
+| `archetect.model` Lua query API (entities, relations, interfaces, dependencies) | in-progress |
+| Orchestrator engine (dispatch, phases) | planned — no code yet |
+| Archetype capabilities registry (`capabilities:` manifest block) | in-progress (schema drafted; convention-based resolution not yet wired) |
+| Profiles (archetype selection for boundary properties) | planned |
+| Model Slice Contract (per-boundary context preparation) | in-progress |
+| Progressive adoption — Level 0 (direct render) | shipped |
+| Progressive adoption — Level 1 (model-aware archetypes) | in-progress |
+| Progressive adoption — Level 2 (orchestrated) | planned |
+| AML as standalone artifact (UI, agents, other tools) | planned |
+
 ## Overview
 
 A canonical modeling language for describing software architectures — entities, relationships, service boundaries, communication patterns, and data flows. The language is technology-agnostic: it describes **what** the system is, not **how** it's implemented.

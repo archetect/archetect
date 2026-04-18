@@ -13,7 +13,6 @@ pub(crate) mod cases;
 mod context;
 mod modules;
 mod require_modules;
-pub(crate) mod template_engine;
 
 pub(crate) fn execute(
     archetype: &Archetype,

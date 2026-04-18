@@ -1,0 +1,5 @@
+---
+description: "gRPC integration test — basic"
+
+requires:
+  archetect: "3.0.0"

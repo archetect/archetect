@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use archetect_api::{ContextMap, ContextValue};
 
+use crate::configuration::configuration_client_section::ConfigurationClientSection;
 use crate::configuration::configuration_local_section::ConfigurationLocalsSection;
 use crate::configuration::configuration_security_sections::{
     ConfigurationSecuritySection, ShellExecPolicy,
 };
+use crate::configuration::configuration_server_section::ConfigurationServerSection;
 use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
 use crate::manifest::CatalogEntry;
 
@@ -21,10 +23,16 @@ pub struct Configuration {
     offline: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     headless: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dry_run: Option<bool>,
     answers: ContextMap,
     updates: ConfigurationUpdateSection,
     locals: ConfigurationLocalsSection,
     security: ConfigurationSecuritySection,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    server: Option<ConfigurationServerSection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client: Option<ConfigurationClientSection>,
     #[serde(skip_serializing_if = "Option::is_none")]
     switches: Option<Vec<String>>,
 }
@@ -45,6 +53,15 @@ impl Configuration {
 
     pub fn with_offline(mut self, value: bool) -> Self {
         self.offline = Some(value);
+        self
+    }
+
+    pub fn dry_run(&self) -> bool {
+        self.dry_run.unwrap_or_default()
+    }
+
+    pub fn with_dry_run(mut self, value: bool) -> Self {
+        self.dry_run = Some(value);
         self
     }
     pub fn updates(&self) -> &ConfigurationUpdateSection {
@@ -111,6 +128,14 @@ impl Configuration {
         self
     }
 
+    pub fn server(&self) -> Option<&ConfigurationServerSection> {
+        self.server.as_ref()
+    }
+
+    pub fn client(&self) -> Option<&ConfigurationClientSection> {
+        self.client.as_ref()
+    }
+
     pub fn to_yaml(&self) -> String {
         serde_yaml::to_string(&self).expect("Unexpected error converting Configuration to yaml")
     }
@@ -122,10 +147,13 @@ impl Default for Configuration {
             catalog: Some(default_catalog()),
             headless: Default::default(),
             offline: Default::default(),
+            dry_run: Default::default(),
             updates: Default::default(),
             security: Default::default(),
             answers: default_answers(),
             locals: Default::default(),
+            server: Default::default(),
+            client: Default::default(),
             switches: Default::default(),
         }
     }
@@ -148,6 +176,7 @@ fn default_catalog() -> LinkedHashMap<String, CatalogEntry> {
             switches: None,
             use_defaults: None,
             use_defaults_all: None,
+            server: None,
             library: false,
             show: true,
         },
@@ -186,11 +215,93 @@ impl Configuration {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::configuration::ConfigurationClientTlsSection;
+    use indoc::indoc;
 
     #[test]
     fn test_defaults() -> anyhow::Result<()> {
         let configuration = Configuration::default();
         println!("{}", serde_yaml::to_string(&configuration)?);
         Ok(())
+    }
+
+    #[test]
+    fn test_server_section_parses() {
+        // Exercise the section type directly — the full `Configuration`
+        // struct has several non-optional sibling fields (answers, locals,
+        // updates, security) that come from figment layering in the real
+        // loader, and we don't need them to validate the new schema.
+        let yaml = indoc! {r#"
+            host: 127.0.0.1
+            port: 9000
+            tls:
+              cert: /etc/archetect/server.crt
+              key: /etc/archetect/server.key
+              client_ca: /etc/archetect/clients-ca.crt
+        "#};
+        let section: ConfigurationServerSection = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(section.host(), Some("127.0.0.1"));
+        assert_eq!(section.port(), Some(9000));
+        let tls = section.tls().expect("tls subsection");
+        assert_eq!(tls.cert().to_str(), Some("/etc/archetect/server.crt"));
+        assert_eq!(tls.key().to_str(), Some("/etc/archetect/server.key"));
+        assert_eq!(
+            tls.client_ca().and_then(|p| p.to_str()),
+            Some("/etc/archetect/clients-ca.crt")
+        );
+    }
+
+    #[test]
+    fn test_client_section_parses() {
+        let yaml = indoc! {r#"
+            endpoint: https://archetect.example.com:8443
+            connect:
+              timeout_secs: 10
+              retries: 3
+              backoff_base_ms: 500
+              max_backoff_secs: 30
+            keepalive:
+              interval_secs: 60
+              timeout_secs: 15
+            tls:
+              ca: /etc/archetect/ca.crt
+              client_cert: /etc/archetect/me.crt
+              client_key: /etc/archetect/me.key
+              domain: archetect.example.com
+        "#};
+        let section: ConfigurationClientSection = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            section.endpoint(),
+            Some("https://archetect.example.com:8443")
+        );
+        let connect = section.connect().expect("connect subsection");
+        assert_eq!(connect.timeout_secs(), Some(10));
+        assert_eq!(connect.retries(), Some(3));
+        assert_eq!(connect.backoff_base_ms(), Some(500));
+        assert_eq!(connect.max_backoff_secs(), Some(30));
+        let ka = section.keepalive().expect("keepalive subsection");
+        assert_eq!(ka.interval_secs(), Some(60));
+        assert_eq!(ka.timeout_secs(), Some(15));
+        let tls = section.tls().expect("tls subsection");
+        assert_eq!(tls.ca().and_then(|p| p.to_str()), Some("/etc/archetect/ca.crt"));
+        assert_eq!(
+            tls.client_cert().and_then(|p| p.to_str()),
+            Some("/etc/archetect/me.crt")
+        );
+        assert_eq!(
+            tls.client_key().and_then(|p| p.to_str()),
+            Some("/etc/archetect/me.key")
+        );
+        assert_eq!(tls.domain(), Some("archetect.example.com"));
+    }
+
+    #[test]
+    fn test_empty_sections_parse() {
+        // A `tls:` key with no fields under it still gives us a section —
+        // this is what "enable TLS with defaults" looks like.
+        let section: ConfigurationClientTlsSection =
+            serde_yaml::from_str("{}").expect("empty map parses");
+        assert!(section.ca().is_none());
+        assert!(section.client_cert().is_none());
     }
 }

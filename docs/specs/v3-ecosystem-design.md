@@ -7,6 +7,20 @@ planning, revised the same day after the catalog-as-universal-dependency
 collapse. Captures naming, the single-archetype model, and the
 foundational set of repos to build before v3 ships.
 
+## Status snapshot (2026-04-17)
+
+| Area | Status |
+|---|---|
+| Naming convention (hyphen-suffix: `-archetype`, `-library`, `-catalog`) | shipped (convention codified; `-component` retired in favor of `-library` under the capability model) |
+| Single-archetype model (no `type:` field; `library: true` toggles lib/includes staging) | shipped |
+| `catalog.render` as universal dispatch | shipped |
+| Default render flow (script → catalog → friendly message) | shipped |
+| Capability model (prompts / content / context-return / lib exports / include exports) | shipped |
+| Foundational libraries (org-prompts, project-prompts, author-prompts, github-prompts, editor-config, license) | shipped locally; GitHub repos pending rename/push |
+| Org structure (v3 naming rollout across archetect orgs) | in-progress |
+| Phased build-out — Phase 1 (v3 features) | shipped |
+| Phased build-out — Phases 2–9 (language catalogs, exemplars, end-to-end) | in-progress / planned |
+
 ## Why this document exists
 
 Archetect 3 is more than a refactor of an existing tool. It is a
@@ -335,10 +349,10 @@ populated context. They have no content directory (or a minimal one).
 
 | Repo | Purpose |
 |------|---------|
-| `org-prompts-component` | Collects org-name, solution-name, generates `org-solution-name` and case variants |
-| `project-prompts-component` | Collects project prefix/suffix, generates `project-name` and case variants |
-| `author-prompts-component` | Collects author name, email, optional license choice |
-| `github-prompts-component` | Collects repo visibility, default branch, owner |
+| `org-prompts-library` | Collects org-name, solution-name, generates `org-solution-name` and case variants |
+| `project-prompts-library` | Collects project prefix/suffix, generates `project-name` and case variants |
+| `author-prompts-library` | Collects author name, email, optional license choice |
+| `github-prompts-library` | Collects repo visibility, default branch, owner |
 
 ### Libraries (in `archetect-common/`)
 
@@ -350,7 +364,7 @@ script.
 |------|---------|
 | `git-helpers-library` | `git init`, `git add`, `git commit`, branch helpers |
 | `github-helpers-library` | `gh repo create`, push helpers, visibility |
-| `license-headers-library` | Apache 2.0, MIT, GPL boilerplate as templates |
+| `license-library` | Apache 2.0, MIT, GPL boilerplate as templates |
 | `gitignore-fragments-library` | Language-specific .gitignore fragments |
 | `editor-config-library` | `.editorconfig`, `.gitattributes` standard contents |
 | `github-actions-library` | Common GitHub Actions workflow patterns |
@@ -371,7 +385,7 @@ built incrementally. Pattern (using Rust as the example):
 
 ```
 archetect-rust/
-  rust-prompts-component                      (component)
+  rust-prompts-library                      (component)
   rust-toolchain-library                      (library: rust-toolchain.toml, rustfmt, clippy)
   rust-cli-archetype                          (project: simple Clap CLI)
   rust-axum-service-archetype                 (project: HTTP service)
@@ -387,22 +401,22 @@ it depends on as catalog entries:
 ```yaml
 catalog:
   org-prompts:
-    source: git@github.com:archetect-common/org-prompts-component.git
+    source: git@github.com:archetect-common/org-prompts-library.git
     show: false
   project-prompts:
-    source: git@github.com:archetect-common/project-prompts-component.git
+    source: git@github.com:archetect-common/project-prompts-library.git
     show: false
   author-prompts:
-    source: git@github.com:archetect-common/author-prompts-component.git
+    source: git@github.com:archetect-common/author-prompts-library.git
     show: false
   rust-prompts:
-    source: git@github.com:archetect-rust/rust-prompts-component.git
+    source: git@github.com:archetect-rust/rust-prompts-library.git
     show: false
   git-helpers:
     source: git@github.com:archetect-common/git-helpers-library.git
     library: true
-  license-headers:
-    source: git@github.com:archetect-common/license-headers-library.git
+  license:
+    source: git@github.com:archetect-common/license-library.git
     library: true
   rust-toolchain:
     source: git@github.com:archetect-rust/rust-toolchain-library.git
@@ -420,7 +434,7 @@ context = catalog.render("author-prompts", context)
 context = catalog.render("rust-prompts", context)
 
 local git = require("git-helpers")
-local license = require("license-headers")
+local license = require("license")
 context:set("license-text", license.apache_2(context:get("author_full")))
 
 directory.render("contents", context)

@@ -146,6 +146,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
     match matches.subcommand() {
         Some(("completions", args)) => cli::completions(args)?,
         Some(("ls", args)) => handle_commands_subcommand(args, &archetect),
+        Some(("search", args)) => subcommands::handle_search_subcommand(args, &archetect),
         Some(("render", args)) => render(args, archetect, answers)?,
         Some(("global", args)) => execute_global_dispatch(args, archetect, answers)?,
         Some(("config", args)) => subcommands::handle_config_subcommand(args, &archetect)?,
@@ -179,11 +180,10 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 &archetect,
                 args,
             );
-            let endpoint = args
-                .get_one::<String>("endpoint")
-                .expect("Required by Clap")
-                .to_string();
-            archetect_core::client::start(render_context, endpoint)?;
+            let client_cfg = archetect.configuration().client().cloned();
+            let endpoint = subcommands::resolve_endpoint(args, client_cfg.as_ref())?;
+            let options = subcommands::resolve_client_options(args, client_cfg.as_ref());
+            archetect_core::client::start_with_options(render_context, endpoint, options)?;
         }
         Some((_, _args)) => {
             execute_catalog_dispatch(&matches, archetect, answers)?;

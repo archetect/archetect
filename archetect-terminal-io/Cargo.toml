@@ -14,6 +14,8 @@ archetect-api = { workspace = true }
 archetect-validations = { workspace = true }
 
 camino = { workspace = true }
+content_inspector = "0.2"
 dyn-clone = { workspace = true }
 inquire = { version = "0.9", features = ["editor"] }
 log = { workspace = true }
+similar = "2"

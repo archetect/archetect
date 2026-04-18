@@ -33,6 +33,18 @@ pub enum TemplateCompileError {
         include_path: String,
         source: Box<TemplateCompileError>,
     },
+    /// Wraps a top-level compile error with the name of the template
+    /// being compiled. Added by `TemplateCompiler::compile_with` so any
+    /// caller of the engine — not just the render layer — sees which
+    /// template a tokenize/compile error came from. Phase 8.4.
+    ///
+    /// Render-layer wrappers (`RenderError::LuaTemplateCompileError`)
+    /// strip this variant before stringifying to avoid duplicating the
+    /// template path that they already report.
+    InTemplate {
+        template_name: String,
+        source: Box<TemplateCompileError>,
+    },
     /// `{% raw %}` was opened but no matching `{% endraw %}` was found.
     UnterminatedRaw { line: usize },
 }
@@ -94,6 +106,9 @@ impl fmt::Display for TemplateCompileError {
             Self::IncludeChain { include_path, source } => {
                 write!(f, "while compiling include `{}`: {}", include_path, source)
             }
+            Self::InTemplate { template_name, source } => {
+                write!(f, "in template `{}`: {}", template_name, source)
+            }
             Self::UnterminatedRaw { line } => {
                 write!(f, "Unterminated '{{% raw %}}' block at line {}", line)
             }
@@ -104,15 +119,18 @@ impl fmt::Display for TemplateCompileError {
 impl std::error::Error for TemplateCompileError {}
 
 impl TemplateCompileError {
-    /// Walk past any `IncludeChain` wrappers to the underlying error.
-    /// Useful for callers (and tests) that want to inspect the leaf
-    /// variant without caring about the include trace.
+    /// Walk past any `IncludeChain` or `InTemplate` wrappers to the
+    /// underlying error. Useful for callers (and tests) that want to
+    /// inspect the leaf variant without caring about the wrapping chain.
     #[allow(dead_code)] // exposed for test introspection and future API consumers
     pub fn root_cause(&self) -> &TemplateCompileError {
         let mut cur = self;
-        while let TemplateCompileError::IncludeChain { source, .. } = cur {
-            cur = source;
+        loop {
+            match cur {
+                TemplateCompileError::IncludeChain { source, .. }
+                | TemplateCompileError::InTemplate { source, .. } => cur = source,
+                _ => return cur,
+            }
         }
-        cur
     }
 }

@@ -13,6 +13,7 @@
 //! at this layer.
 
 use std::fmt::{Display, Formatter};
+use std::path::PathBuf;
 
 use inquire::{InquireError, Select};
 use linked_hash_map::LinkedHashMap;
@@ -21,8 +22,9 @@ use archetect_api::ContextValue;
 
 use crate::Archetect;
 use crate::archetype::render_context::RenderContext;
+use crate::client::{ClientOptions, ClientTlsOptions};
 use crate::errors::ArchetectError;
-use crate::manifest::{CatalogEntry, Manifest};
+use crate::manifest::{CatalogEntry, CatalogEntryServer, Manifest};
 
 /// Resolve a slash-separated path to an entry within a catalog.
 ///
@@ -61,6 +63,13 @@ pub enum PathTarget {
     Group(LinkedHashMap<String, CatalogEntry>),
     /// Render this leaf (has a source that points at an archetype).
     Leaf(CatalogEntry),
+    /// Dispatch this render over gRPC to a remote archetect server.
+    /// `remote_path` is what the remote server should render (slash-separated,
+    /// possibly empty for the server's default entry).
+    Remote {
+        server: Box<CatalogEntryServer>,
+        remote_path: String,
+    },
 }
 
 /// Walk a slash-separated path, resolving remote `source:` URLs into
@@ -88,6 +97,20 @@ pub fn walk_path(
     let mut current: LinkedHashMap<String, CatalogEntry> = catalog.clone();
     for (i, segment) in segments.iter().enumerate() {
         let entry = current.get(*segment)?.clone();
+
+        // Federation boundary: as soon as we hit a `server:` entry,
+        // everything after it is the remote server's concern. Bundle
+        // the remaining segments as the remote catalog_path and hand
+        // off to the client. The server entry itself matches with an
+        // empty remote_path = the server's default render.
+        if let Some(server) = entry.server.as_ref() {
+            let remote_path = segments[i + 1..].join("/");
+            return Some(PathTarget::Remote {
+                server: Box::new(server.clone()),
+                remote_path,
+            });
+        }
+
         let is_last = i == segments.len() - 1;
 
         if is_last {
@@ -162,9 +185,110 @@ pub fn dispatch(
             match target {
                 PathTarget::Group(nested) => present_entries(archetect, &nested, &render_context),
                 PathTarget::Leaf(entry) => render_leaf(archetect, &entry, p, render_context),
+                PathTarget::Remote { server, remote_path } => {
+                    render_remote(archetect, &server, &remote_path, render_context)
+                }
             }
         }
     }
+}
+
+/// Dispatch a render to a remote archetect server via gRPC.
+///
+/// Translates the local `CatalogEntryServer` settings into a `ClientOptions`
+/// (TLS if configured here or at the top level of the configuration file,
+/// connect tunables inherited from `client:` section), opens a streaming
+/// session, and sends Initialize with the remote-side `catalog_path`.
+pub fn render_remote(
+    archetect: &Archetect,
+    server: &CatalogEntryServer,
+    remote_path: &str,
+    render_context: RenderContext,
+) -> Result<ContextValue, ArchetectError> {
+    let options = build_client_options_for_entry(archetect, server);
+    crate::client::start_remote(
+        render_context,
+        server.endpoint.clone(),
+        remote_path.to_string(),
+        options,
+    )?;
+    // Remote renders don't surface a context map back today — the client
+    // streams ScriptMessages and completes. Local scripts that want the
+    // child's context would need a future return-channel on the protocol.
+    Ok(ContextValue::Nil)
+}
+
+/// Layer per-entry TLS settings (if any) over the top-level `client.tls`
+/// section (if any). Entry-level fields win per field; absent fields fall
+/// back to the top-level config or to library defaults.
+fn build_client_options_for_entry(
+    archetect: &Archetect,
+    server: &CatalogEntryServer,
+) -> ClientOptions {
+    let mut options = ClientOptions::default();
+
+    // Start with any top-level client config (timeouts, keepalive, default TLS).
+    if let Some(client) = archetect.configuration().client() {
+        if let Some(c) = client.connect() {
+            if let Some(secs) = c.timeout_secs() {
+                options.connect_timeout = std::time::Duration::from_secs(secs);
+            }
+            if let Some(retries) = c.retries() {
+                options.max_connect_retries = retries;
+            }
+            if let Some(ms) = c.backoff_base_ms() {
+                options.connect_backoff_base = std::time::Duration::from_millis(ms);
+            }
+            if let Some(secs) = c.max_backoff_secs() {
+                options.max_backoff = std::time::Duration::from_secs(secs);
+            }
+        }
+        if let Some(ka) = client.keepalive() {
+            if let Some(secs) = ka.interval_secs() {
+                options.http2_keepalive_interval = if secs == 0 {
+                    None
+                } else {
+                    Some(std::time::Duration::from_secs(secs))
+                };
+            }
+            if let Some(secs) = ka.timeout_secs() {
+                options.http2_keepalive_timeout = Some(std::time::Duration::from_secs(secs));
+            }
+        }
+        if let Some(tls) = client.tls() {
+            options.tls = Some(ClientTlsOptions {
+                ca_cert_path: tls.ca().cloned().map(PathBuf::from),
+                client_cert_path: tls.client_cert().cloned().map(PathBuf::from),
+                client_key_path: tls.client_key().cloned().map(PathBuf::from),
+                domain_name: tls.domain().map(String::from),
+            });
+        }
+    }
+
+    // Per-entry TLS overrides. A `server.tls` subsection enables TLS for
+    // this endpoint regardless of whether top-level TLS is set.
+    if let Some(entry_tls) = &server.tls {
+        let mut current = options.tls.unwrap_or_default();
+        if let Some(ca) = entry_tls.ca.as_ref() {
+            current.ca_cert_path = Some(ca.clone());
+        }
+        if let Some(cert) = entry_tls.client_cert.as_ref() {
+            current.client_cert_path = Some(cert.clone());
+        }
+        if let Some(key) = entry_tls.client_key.as_ref() {
+            current.client_key_path = Some(key.clone());
+        }
+        if let Some(domain) = entry_tls.domain.as_ref() {
+            current.domain_name = Some(domain.clone());
+        }
+        options.tls = Some(current);
+    } else if server.endpoint.starts_with("https://") && options.tls.is_none() {
+        // https:// endpoint with no explicit TLS config → enable TLS with
+        // rustls defaults (system/webpki trust store).
+        options.tls = Some(ClientTlsOptions::default());
+    }
+
+    options
 }
 
 /// Render a leaf catalog entry — i.e., resolve its source and render the archetype.
@@ -360,5 +484,86 @@ mod tests {
         let catalog = test_catalog();
         let entry = resolve_path(&catalog, "/services/grpc").unwrap();
         assert_eq!(entry.source.as_deref(), Some("git@github.com:org/grpc.git"));
+    }
+
+    // ---------- Phase 4: remote dispatch target ----------
+
+    fn federated_catalog() -> LinkedHashMap<String, CatalogEntry> {
+        let yaml = indoc! {r#"
+            description: "Test"
+            requires:
+              archetect: "3.0.0"
+            catalog:
+              acme:
+                description: "Acme internal"
+                server:
+                  endpoint: "http://archetect.acme.corp:8080"
+              local:
+                source: "git@github.com:org/thing.git"
+        "#};
+        let manifest: Manifest = serde_yaml::from_str(yaml).unwrap();
+        manifest.catalog.unwrap()
+    }
+
+    fn dummy_archetect() -> Archetect {
+        use crate::configuration::Configuration;
+        use crate::system::RootedSystemLayout;
+        let layout = RootedSystemLayout::temp().unwrap();
+        Archetect::builder()
+            .with_configuration(Configuration::default())
+            .with_layout(layout)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn walk_path_returns_remote_target_for_server_entry() {
+        let catalog = federated_catalog();
+        let archetect = dummy_archetect();
+
+        let target = walk_path(&archetect, &catalog, "acme/services/grpc")
+            .expect("remote target should resolve");
+        match target {
+            PathTarget::Remote {
+                server,
+                remote_path,
+            } => {
+                assert_eq!(server.endpoint, "http://archetect.acme.corp:8080");
+                assert_eq!(remote_path, "services/grpc");
+            }
+            other => panic!("expected Remote, got {:?}", other_discriminant(&other)),
+        }
+    }
+
+    #[test]
+    fn walk_path_remote_target_for_bare_server_entry() {
+        let catalog = federated_catalog();
+        let archetect = dummy_archetect();
+
+        let target = walk_path(&archetect, &catalog, "acme").expect("target");
+        match target {
+            PathTarget::Remote { remote_path, .. } => {
+                assert_eq!(remote_path, "", "bare server entry has empty remote_path");
+            }
+            other => panic!("expected Remote, got {:?}", other_discriminant(&other)),
+        }
+    }
+
+    #[test]
+    fn walk_path_ignores_server_on_non_matching_branch() {
+        // Paths that don't go through the server entry resolve normally.
+        let catalog = federated_catalog();
+        let archetect = dummy_archetect();
+
+        let target = walk_path(&archetect, &catalog, "local").expect("target");
+        assert!(matches!(target, PathTarget::Leaf(_)));
+    }
+
+    fn other_discriminant(target: &PathTarget) -> &'static str {
+        match target {
+            PathTarget::Group(_) => "Group",
+            PathTarget::Leaf(_) => "Leaf",
+            PathTarget::Remote { .. } => "Remote",
+        }
     }
 }

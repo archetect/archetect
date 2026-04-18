@@ -139,6 +139,17 @@ fn print_one(entry: &IndexEntry, depth: usize, is_component: bool) {
 }
 
 fn icon_for(entry: &IndexEntry, is_component: bool) -> &'static str {
+    // Federation root: the entry itself carries a `server:` (its local
+    // path equals its own remote-info prefix with an empty remote_path).
+    // Flag it with a satellite so users can tell local trees from
+    // remote-served ones at a glance. Descendants of remote entries
+    // keep their normal archetype/group icons — they're "under" the
+    // satellite's domain visually from the indent alone.
+    if let Some(remote) = &entry.remote {
+        if remote.local_prefix == entry.path {
+            return "🛰️ ";
+        }
+    }
     if is_component {
         // Component (hidden-by-default) — shown only with -a. Flag it
         // regardless of whether the entry itself is an archetype

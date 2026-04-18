@@ -1,5 +1,27 @@
 # Archetect 3: Warts and Improvements
 
+## Status snapshot (2026-04-17)
+
+This is a diagnostic audit, not a phase plan. High-level state of the
+major wart categories:
+
+| Category | Status |
+|---|---|
+| Crash-prone error handling (`.unwrap()` panics) | in-progress (structured errors in place; some `.unwrap()` sites remain in less-critical paths) |
+| Rhai engine error/context loss | shipped (Rhai removed entirely; Lua replaces it) |
+| Missing manifest validation | shipped |
+| Dry-run / preview mode | shipped (`--dry-run` / `-n` flag; intercepts file writes, git, shell, github.create_repo) |
+| Archetype testing framework | planned |
+| REPL / debugger | planned |
+| Partial-render recovery / atomicity | planned |
+| Component version pinning (git refs) | shipped for explicit refs; semver ranges remain planned |
+| Conflict diff view on overwrite | shipped (terminal IO driver — unified diff before Prompt confirm and on Overwrite; binary files reported as size delta) |
+| Archetype listing / search | shipped (`archetect ls` browses tree, `archetect search` does AND-keyword search; both share the MCP catalog index backend) |
+| Documentation audit & rewrite | in-progress (see `documentation-audit-and-rewrite.md`) |
+
+Items below are organized by severity. When acting on any of them, cross-
+reference the table above before assuming they're still open.
+
 ## Context
 
 A thorough audit of the Archetect v2 codebase, ~80 production archetypes (p6m-archetypes), and the documentation site revealed systemic issues across error handling, authoring experience, and missing features. This document catalogs them and prioritizes fixes for v3.

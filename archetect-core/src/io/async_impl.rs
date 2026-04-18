@@ -32,10 +32,14 @@ impl ScriptIoHandle for AsyncScriptIoHandle {
     }
 
     fn receive(&self) -> Result<ClientMessage, IoError> {
-        self.client_rx
+        // A poisoned mutex here means a previous holder panicked mid-receive —
+        // connection state is corrupted. Surface as ClientDisconnected rather
+        // than cascading the panic.
+        let mut rx = self
+            .client_rx
             .lock()
-            .expect("Lock Error")
-            .blocking_recv()
+            .map_err(|_| IoError::ClientDisconnected)?;
+        rx.blocking_recv()
             .map(|message| message.into())
             .ok_or(IoError::ClientDisconnected)
     }
@@ -67,10 +71,13 @@ impl archetect_api::ClientIoHandle for AsyncClientIoHandle {
     }
 
     fn receive(&self) -> Result<ScriptMessage, IoError> {
-        self.script_rx
+        // Mirrors the poison handling in AsyncScriptIoHandle::receive:
+        // a poisoned mutex means the stream is effectively gone.
+        let mut rx = self
+            .script_rx
             .lock()
-            .expect("Lock Error")
-            .blocking_recv()
+            .map_err(|_| IoError::ScriptChannelClosed)?;
+        rx.blocking_recv()
             .map(|message| message.into())
             .ok_or(IoError::ScriptChannelClosed)
     }

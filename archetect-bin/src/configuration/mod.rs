@@ -253,6 +253,12 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
         },
     );
     mappings.insert(
+        "dry-run".into(),
+        ArgExtractor::Flag {
+            path: "dry_run".into(),
+        },
+    );
+    mappings.insert(
         "local".into(),
         ArgExtractor::Flag {
             path: "locals.enabled".into(),

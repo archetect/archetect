@@ -12,7 +12,18 @@ use crate::errors::RenderError;
 use crate::Archetect;
 
 pub use super::include_resolver::IncludeTrust;
+use super::error::TemplateCompileError;
 use super::{CompileOptions, IncludeResolver, TemplateCompiler};
+
+/// Unwrap an `InTemplate` wrapper if present. Used at the render layer
+/// where the template path is already reported separately, so the wrapper
+/// would just duplicate it. `IncludeChain` wrappers are preserved.
+fn strip_in_template(err: TemplateCompileError) -> TemplateCompileError {
+    match err {
+        TemplateCompileError::InTemplate { source, .. } => *source,
+        other => other,
+    }
+}
 
 /// Cache for compiled Lua template functions, keyed by file path.
 ///
@@ -92,7 +103,10 @@ impl TemplateCache {
             )
             .map_err(|err| RenderError::LuaTemplateCompileError {
                 path: path.to_owned(),
-                message: err.to_string(),
+                // Strip the InTemplate wrapper since `path` already
+                // identifies the template at this layer; including the
+                // template name in `message` would duplicate it.
+                message: strip_in_template(err).to_string(),
             })?;
             self.cache.insert(key.clone(), compiled.source);
         }
@@ -142,7 +156,7 @@ pub fn lua_render_path(
     let compiled = TemplateCompiler::compile(filename, "<path>")
         .map_err(|err| RenderError::LuaTemplateCompileError {
             path: Utf8PathBuf::from(filename),
-            message: err.to_string(),
+            message: strip_in_template(err).to_string(),
         })?;
 
     let func: Function = lua.load(&compiled.source).eval().map_err(|err| {
@@ -239,6 +253,15 @@ fn lua_render_destination(
 }
 
 fn send_write_directory(archetect: &Archetect, path: &Utf8Path) -> Result<(), RenderError> {
+    if archetect.is_dry_run() {
+        // Display goes to stderr via the IO driver — visible alongside other
+        // diagnostic output regardless of how stdout is being consumed.
+        let _ = archetect.request(ScriptMessage::Display(format!(
+            "[dry-run] mkdir   {}",
+            path
+        )));
+        return Ok(());
+    }
     archetect.request(ScriptMessage::WriteDirectory(WriteDirectoryInfo {
         path: path.to_string(),
     }))?;
@@ -258,6 +281,25 @@ fn send_write_file(
     contents: Vec<u8>,
     overwrite_policy: OverwritePolicy,
 ) -> Result<(), RenderError> {
+    if archetect.is_dry_run() {
+        let exists_marker = if destination.exists() {
+            match overwrite_policy {
+                OverwritePolicy::Overwrite => " (overwrite)",
+                OverwritePolicy::Preserve => " (skip — already exists)",
+                OverwritePolicy::Prompt => " (would prompt — exists)",
+                OverwritePolicy::Error => " (would error — exists)",
+            }
+        } else {
+            ""
+        };
+        let _ = archetect.request(ScriptMessage::Display(format!(
+            "[dry-run] write   {} ({} bytes){}",
+            destination,
+            contents.len(),
+            exists_marker
+        )));
+        return Ok(());
+    }
     archetect.request(ScriptMessage::WriteFile(WriteFileInfo {
         destination: destination.to_string(),
         contents,

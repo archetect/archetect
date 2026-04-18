@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use mlua::{Error as LuaError, Lua, Result as LuaResult, Table, UserData, UserDataMethods, Value};
@@ -11,17 +12,90 @@ use crate::archetype::render_context::RenderContext;
 use crate::script::lua::cases::{CaseSpec, CaseSpecEntry, CaseSpecList};
 use crate::Archetect;
 
-#[derive(Clone, Debug)]
+/// Wrapper around the context's `BTreeMap` that bumps a version counter on
+/// every mutation. Read access is via `Deref<Target = BTreeMap>`. Phase 8.1:
+/// the version drives the `Context::lua_table_cache` invalidation.
+#[derive(Clone, Debug, Default)]
+struct ContextData {
+    map: BTreeMap<String, ContextValue>,
+    version: u64,
+}
+
+impl ContextData {
+    fn insert(&mut self, key: String, value: ContextValue) -> Option<ContextValue> {
+        self.version = self.version.wrapping_add(1);
+        self.map.insert(key, value)
+    }
+
+    /// Mark the data as mutated without inserting. Use when an external helper
+    /// is given `&mut BTreeMap` access via `map_mut` — call this before/after
+    /// the mutation to invalidate downstream caches.
+    fn bump_version(&mut self) {
+        self.version = self.version.wrapping_add(1);
+    }
+
+    fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Mutable map access. The version is bumped preemptively because the
+    /// caller is expected to mutate. Used by `merge_into`-style helpers.
+    fn map_mut(&mut self) -> &mut BTreeMap<String, ContextValue> {
+        self.bump_version();
+        &mut self.map
+    }
+
+    fn as_map(&self) -> &BTreeMap<String, ContextValue> {
+        &self.map
+    }
+}
+
+impl std::ops::Deref for ContextData {
+    type Target = BTreeMap<String, ContextValue>;
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
 pub struct Context {
-    data: BTreeMap<String, ContextValue>,
+    data: ContextData,
     archetect: Archetect,
     render_context: RenderContext,
+    /// Cached Lua table built from `data`, keyed by the data's version. A
+    /// fresh build happens on the first `to_lua_table` call after any
+    /// mutation that bumps the version. Reads within an unchanged Context
+    /// reuse the same table — large archetypes that render many files see
+    /// the per-render build cost paid once.
+    lua_table_cache: RefCell<Option<(u64, Table)>>,
+}
+
+impl Clone for Context {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            archetect: self.archetect.clone(),
+            render_context: self.render_context.clone(),
+            // Drop the cache on clone. Cheap to rebuild, and avoids any
+            // ambiguity about which Lua state the cached table belongs to.
+            lua_table_cache: RefCell::new(None),
+        }
+    }
+}
+
+impl std::fmt::Debug for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Context")
+            .field("data", &self.data)
+            .field("archetect", &self.archetect)
+            .field("render_context", &self.render_context)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Context {
     pub fn new(archetect: Archetect, render_context: RenderContext) -> Self {
         // Pre-load answers from render context (now ContextMap)
-        let mut data = BTreeMap::new();
+        let mut data = ContextData::default();
         for (key, value) in render_context.answers() {
             data.insert(key.clone(), value.clone());
         }
@@ -30,12 +104,13 @@ impl Context {
             data,
             archetect,
             render_context,
+            lua_table_cache: RefCell::new(None),
         }
     }
 
     /// Convert context data to a ContextMap.
     pub fn to_context_map(&self) -> ContextMap {
-        self.data.clone()
+        self.data.as_map().clone()
     }
 
     fn use_default(&self, key: &str) -> bool {
@@ -89,12 +164,26 @@ impl Context {
     /// key into snake_case and kebab_case variants, which made templates appear
     /// to "just work" against keys that were never actually declared — a footgun
     /// that masked author errors.
+    ///
+    /// Phase 8.1: the result is cached and reused across calls until the next
+    /// mutation. Templates rendered from a stable Context (the common case
+    /// inside `directory.render`) see the per-render build cost paid once.
     pub fn to_lua_table(&self, lua: &Lua) -> LuaResult<Table> {
+        let current_version = self.data.version();
+        {
+            let cache = self.lua_table_cache.borrow();
+            if let Some((cached_version, table)) = cache.as_ref() {
+                if *cached_version == current_version {
+                    return Ok(table.clone());
+                }
+            }
+        }
         let table = lua.create_table()?;
-        for (key, value) in &self.data {
+        for (key, value) in self.data.iter() {
             let lua_value = context_value_to_lua(lua, value)?;
             table.set(key.as_str(), lua_value)?;
         }
+        *self.lua_table_cache.borrow_mut() = Some((current_version, table.clone()));
         Ok(table)
     }
 
@@ -469,7 +558,7 @@ impl UserData for Context {
             let incoming: ContextMap = match value {
                 Value::UserData(ud) => {
                     if let Ok(other) = ud.borrow::<Context>() {
-                        other.data.clone()
+                        other.data.as_map().clone()
                     } else {
                         return Err(LuaError::RuntimeError(
                             "context:merge() expected a Context or table".to_string(),
@@ -492,7 +581,7 @@ impl UserData for Context {
                 }
             };
             for (k, v) in incoming {
-                merge_into(&mut this.data, k, v);
+                merge_into(this.data.map_mut(), k, v);
             }
             Ok(())
         });
@@ -894,6 +983,60 @@ mod tests {
             matches!(kebab_alias, Value::Nil),
             "implicit kebab-case alias should NOT be present, got {:?}",
             kebab_alias
+        );
+    }
+
+    #[test]
+    fn test_context_lua_table_cache_hit_returns_same_handle() {
+        // Phase 8.1: two consecutive to_lua_table calls without intervening
+        // mutations should return the same underlying Lua table handle.
+        let lua = Lua::new();
+        let mut context = make_context();
+        context
+            .data
+            .insert("name".to_string(), ContextValue::String("foo".to_string()));
+
+        let t1 = context.to_lua_table(&lua).unwrap();
+        let t2 = context.to_lua_table(&lua).unwrap();
+
+        // mlua tables are reference-counted handles. Two references to the
+        // same Lua table compare equal via raw equality on the underlying
+        // value. We assert by mutating one and observing the change in the
+        // other — proof they reference the same table.
+        t1.set("probe", "x").unwrap();
+        let probe: String = t2.get("probe").unwrap();
+        assert_eq!(probe, "x");
+    }
+
+    #[test]
+    fn test_context_lua_table_cache_invalidates_on_set() {
+        // Phase 8.1: a mutation between to_lua_table calls invalidates the
+        // cache, so the second call observes the new key.
+        let lua = Lua::new();
+        let mut context = make_context();
+        context
+            .data
+            .insert("a".to_string(), ContextValue::String("1".to_string()));
+
+        let t1 = context.to_lua_table(&lua).unwrap();
+        // Mutate via the wrapper's insert (bumps version).
+        context
+            .data
+            .insert("b".to_string(), ContextValue::String("2".to_string()));
+        let t2 = context.to_lua_table(&lua).unwrap();
+
+        // The new table sees both keys.
+        let a: String = t2.get("a").unwrap();
+        let b: String = t2.get("b").unwrap();
+        assert_eq!(a, "1");
+        assert_eq!(b, "2");
+
+        // The first table predates the mutation, so it does NOT see "b".
+        let b_before: Value = t1.get("b").unwrap();
+        assert!(
+            matches!(b_before, Value::Nil),
+            "expected nil for `b` in pre-mutation table, got {:?}",
+            b_before
         );
     }
 

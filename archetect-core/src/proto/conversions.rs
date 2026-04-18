@@ -129,7 +129,18 @@ impl From<ApiScriptMessage> for grpc::script_message::Message {
 impl From<grpc::ScriptMessage> for ApiScriptMessage {
     fn from(value: grpc::ScriptMessage) -> Self {
         use grpc::script_message::Message;
-        match value.message.expect("Valid ScriptMessage required") {
+        let message = match value.message {
+            Some(m) => m,
+            // A proto ScriptMessage with the oneof unset is a spec violation
+            // (malformed/truncated payload). Surface it as a LogError so the
+            // stream stays alive and the operator gets context.
+            None => {
+                return ApiScriptMessage::LogError(
+                    "received malformed gRPC ScriptMessage (missing oneof)".to_string(),
+                );
+            }
+        };
+        match message {
             Message::LogTrace(msg) => ApiScriptMessage::LogTrace(msg),
             Message::LogDebug(msg) => ApiScriptMessage::LogDebug(msg),
             Message::LogInfo(msg) => ApiScriptMessage::LogInfo(msg),
@@ -245,12 +256,14 @@ impl From<ApiClientMessage> for grpc::ClientMessage {
                 use_defaults,
                 use_defaults_all,
                 destination,
+                catalog_path,
             } => Message::Initialize(grpc::Initialize {
                 answers_yaml,
                 switches,
                 use_defaults,
                 use_defaults_all,
                 destination,
+                catalog_path,
             }),
         };
         grpc::ClientMessage {
@@ -264,13 +277,25 @@ impl From<ApiClientMessage> for grpc::ClientMessage {
 impl From<grpc::ClientMessage> for ApiClientMessage {
     fn from(value: grpc::ClientMessage) -> Self {
         use grpc::client_message::Message;
-        match value.message.expect("Valid ClientMessage required") {
+        let message = match value.message {
+            Some(m) => m,
+            // A proto ClientMessage with the oneof unset is a spec violation.
+            // Surface as an Error response so the script side gets a clean
+            // failure instead of a panic.
+            None => {
+                return ApiClientMessage::Error(
+                    "received malformed gRPC ClientMessage (missing oneof)".to_string(),
+                );
+            }
+        };
+        match message {
             Message::Initialize(init) => ApiClientMessage::Initialize {
                 answers_yaml: init.answers_yaml,
                 switches: init.switches,
                 use_defaults: init.use_defaults,
                 use_defaults_all: init.use_defaults_all,
                 destination: init.destination,
+                catalog_path: init.catalog_path,
             },
             Message::String(v) => ApiClientMessage::String(v),
             Message::Integer(v) => ApiClientMessage::Integer(v),

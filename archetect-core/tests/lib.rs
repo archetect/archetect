@@ -4,6 +4,7 @@ mod context;
 mod errors;
 mod git;
 mod github;
+mod grpc;
 mod headless;
 mod prompts;
 mod rendering;

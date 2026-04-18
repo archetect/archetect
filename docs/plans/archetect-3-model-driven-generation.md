@@ -1,5 +1,17 @@
 # Archetect 3: Model-Driven Architecture Generation
 
+## Status snapshot (2026-04-17)
+
+| Phase | Status |
+|---|---|
+| Phase 1 — Model schema + Lua library | in-progress (parser, types, builder in `archetect-aml/`; `archetect.model` Lua module registered; DAG resolution/expansion pending) |
+| Phase 2 — Model-aware service archetypes | planned |
+| Phase 3 — Cross-service wiring (client stubs, gateway, orchestrator) | planned |
+| Phase 4 — Builder integration (full-system generation) | planned |
+| Phase 5 — Multi-language type mappings | planned |
+
+See also `docs/specs/architecture-spec-language.md` for the canonical AML spec.
+
 ## Vision
 
 Generate entire architectures — services, gateways, orchestrators, adapters, persistence, client wiring, proto definitions — from a declarative domain model. A single YAML file describes the entities, their relationships, service boundaries, and the service dependency DAG. Archetect turns it into a complete, buildable system.

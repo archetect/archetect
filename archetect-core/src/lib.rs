@@ -11,6 +11,7 @@ pub mod system;
 mod utils;
 pub mod archive;
 pub mod manifest;
+pub mod templating;
 pub mod caching;
 pub(crate) mod check;
 pub mod client;

@@ -1,5 +1,14 @@
 # Spec: Version-Aware Source Resolution
 
+## Status snapshot (2026-04-17)
+
+**Planned — not yet implemented.** When a Git source has no explicit ref
+today, `cache_git_repo` in `archetect-core/src/source.rs` falls back to
+`find_default_branch` (tries `main`, then `master`). There is no tag
+listing, no `vM.*` matching, no major-version-aware resolution.
+
+To implement, see "Implementation notes" at the bottom of this spec.
+
 ## Problem
 
 Archetect v2 and v3 coexist during the transition period. Archetypes and catalogs

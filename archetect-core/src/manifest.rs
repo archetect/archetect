@@ -91,6 +91,12 @@ pub struct CatalogEntry {
     /// Nested catalog entries — makes this a group (submenu).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<LinkedHashMap<String, CatalogEntry>>,
+    /// Remote archetect-server pointer — makes this a federation root.
+    /// The entry behaves as a group whose children are fetched on demand
+    /// via `BrowseCatalog`, and renders are dispatched over gRPC.
+    /// See `docs/plans/federated-catalog.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<CatalogEntryServer>,
     /// Pre-configured answers passed to the archetype.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answers: Option<ContextMap>,
@@ -114,6 +120,28 @@ pub struct CatalogEntry {
     pub show: bool,
 }
 
+/// Pointer to a remote archetect server. Only the endpoint is required;
+/// TLS settings fall back to the top-level `client.tls` section in
+/// `archetect.yaml` when omitted here.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CatalogEntryServer {
+    pub endpoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls: Option<CatalogEntryServerTls>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct CatalogEntryServerTls {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_cert: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_key: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
+}
+
 fn default_show() -> bool {
     true
 }
@@ -134,11 +162,39 @@ impl CatalogEntry {
         self.catalog.is_some()
     }
 
+    /// True if this entry points at a remote archetect server. Remote
+    /// entries act as groups whose children materialize lazily via
+    /// `BrowseCatalog`, and whose renders dispatch over gRPC.
+    pub fn is_remote(&self) -> bool {
+        self.server.is_some()
+    }
+
     /// Get the display description, falling back to the entry name.
     pub fn display_description(&self, name: &str) -> String {
         self.description
             .clone()
             .unwrap_or_else(|| name.to_string())
+    }
+
+    /// Validate that the three "kind" fields (source, catalog, server) are
+    /// mutually exclusive. Returns the list of field names supplied when
+    /// more than one is present. Empty vec means valid.
+    pub fn validate_kind_exclusivity(&self) -> Vec<&'static str> {
+        let mut present = Vec::new();
+        if self.source.is_some() {
+            present.push("source");
+        }
+        if self.catalog.is_some() {
+            present.push("catalog");
+        }
+        if self.server.is_some() {
+            present.push("server");
+        }
+        if present.len() > 1 {
+            present
+        } else {
+            Vec::new()
+        }
     }
 }
 
@@ -455,6 +511,7 @@ mod tests {
             switches: None,
             use_defaults: None,
             use_defaults_all: None,
+            server: None,
             library: false,
             show: true,
         };
@@ -527,5 +584,77 @@ mod tests {
         let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
         assert!(entry.library);
         assert!(entry.show);
+    }
+
+    // ---------- federated catalog (server: field) ----------
+
+    #[test]
+    fn test_catalog_entry_server_parses() {
+        let yaml = indoc! {r#"
+            description: "Acme internal"
+            server:
+              endpoint: "https://archetect.acme.corp:8443"
+              tls:
+                ca: "/etc/archetect/acme-ca.crt"
+                domain: archetect.acme.corp
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.is_remote(), "entry should be flagged as remote");
+        let server = entry.server.as_ref().unwrap();
+        assert_eq!(server.endpoint, "https://archetect.acme.corp:8443");
+        let tls = server.tls.as_ref().unwrap();
+        assert_eq!(
+            tls.ca.as_ref().and_then(|p| p.to_str()),
+            Some("/etc/archetect/acme-ca.crt")
+        );
+        assert_eq!(tls.domain.as_deref(), Some("archetect.acme.corp"));
+    }
+
+    #[test]
+    fn test_catalog_entry_server_without_tls_parses() {
+        let yaml = indoc! {r#"
+            server:
+              endpoint: "http://localhost:8080"
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.is_remote());
+        assert!(entry.server.as_ref().unwrap().tls.is_none());
+    }
+
+    #[test]
+    fn test_validate_kind_exclusivity_source_plus_server() {
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            server:
+              endpoint: "https://archetect.acme.corp:8443"
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        let violations = entry.validate_kind_exclusivity();
+        assert_eq!(violations, vec!["source", "server"]);
+    }
+
+    #[test]
+    fn test_validate_kind_exclusivity_all_three() {
+        let yaml = indoc! {r#"
+            source: "git@github.com:org/thing.git"
+            catalog:
+              child:
+                source: "git@github.com:org/child.git"
+            server:
+              endpoint: "https://archetect.acme.corp:8443"
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        let violations = entry.validate_kind_exclusivity();
+        assert_eq!(violations, vec!["source", "catalog", "server"]);
+    }
+
+    #[test]
+    fn test_validate_kind_exclusivity_single_is_valid() {
+        let yaml = indoc! {r#"
+            server:
+              endpoint: "http://localhost:8080"
+        "#};
+        let entry: CatalogEntry = serde_yaml::from_str(yaml).unwrap();
+        assert!(entry.validate_kind_exclusivity().is_empty());
     }
 }

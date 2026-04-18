@@ -101,6 +101,10 @@ impl Archetect {
         self.inner.configuration.headless()
     }
 
+    pub fn is_dry_run(&self) -> bool {
+        self.inner.configuration.dry_run()
+    }
+
     pub fn version(&self) -> &Version {
         &self.inner.version
     }

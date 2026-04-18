@@ -97,6 +97,39 @@ pub fn command() -> Command {
                 .required(false),
         )
         .subcommand(
+            Command::new("search")
+                .visible_alias("find")
+                .about("Search the resolved catalog by keyword (matches name, description, path, tags)")
+                .long_about(
+                    "Full-text search across the resolved catalog tree. All terms must\n\
+                     match (AND semantics). Searches entry names, descriptions, paths,\n\
+                     and metadata fields like languages, frameworks, and tags.\n\
+                     \n\
+                     Hidden entries (show: false) are excluded by default; pass -a / --all\n\
+                     to include them.\n\
+                     \n\
+                     Examples:\n\
+                     \n\
+                     archetect search rust              # all rust-related entries\n\
+                     archetect search rust cli          # entries matching both terms\n\
+                     archetect search starter -a        # include hidden/component entries"
+                )
+                .arg(
+                    clap::Arg::new("terms")
+                        .help("One or more search terms (matched as AND)")
+                        .action(clap::ArgAction::Append)
+                        .num_args(1..)
+                        .trailing_var_arg(true)
+                )
+                .arg(
+                    clap::Arg::new("all")
+                        .help("Include components, libraries, and entries with show: false")
+                        .short('a')
+                        .long("all")
+                        .action(clap::ArgAction::SetTrue)
+                )
+        )
+        .subcommand(
             Command::new("ls")
                 .visible_alias("list")
                 .about("List the resolved catalog tree (project's if present, otherwise global)")
@@ -248,6 +281,27 @@ pub fn command() -> Command {
                         .action(ArgAction::Set)
                         .value_parser(value_parser!(u16))
                         .env("ARCHETECT_SERVER_PORT"),
+                )
+                .arg(
+                    Arg::new("tls-cert")
+                        .help("Path to a PEM-encoded TLS server certificate. Enables TLS when supplied with --tls-key.")
+                        .long("tls-cert")
+                        .env("ARCHETECT_SERVER_TLS_CERT")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("tls-key")
+                        .help("Path to a PEM-encoded TLS server private key. Required with --tls-cert.")
+                        .long("tls-key")
+                        .env("ARCHETECT_SERVER_TLS_KEY")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("tls-client-ca")
+                        .help("Path to a PEM-encoded CA cert for verifying client certificates (enables mutual TLS).")
+                        .long("tls-client-ca")
+                        .env("ARCHETECT_SERVER_TLS_CLIENT_CA")
+                        .action(ArgAction::Set),
                 ),
         )
         .subcommand(
@@ -255,9 +309,62 @@ pub fn command() -> Command {
                 .about("Connect to an Archetect Server")
                 .arg(
                     Arg::new("endpoint")
-                        .help("The Archetect Server endpoint (e.g. http://localhost:8080)")
+                        .help("The Archetect Server endpoint (e.g. http://localhost:8080). Falls back to client.endpoint in archetect.yaml if omitted.")
                         .action(ArgAction::Set)
-                        .required(true),
+                        .required(false),
+                )
+                .arg(
+                    Arg::new("connect-timeout")
+                        .help("TCP connect timeout in seconds (applied per attempt)")
+                        .long("connect-timeout")
+                        .env("ARCHETECT_CONNECT_TIMEOUT")
+                        .action(ArgAction::Set)
+                        .value_parser(value_parser!(u64))
+                        .default_value("5"),
+                )
+                .arg(
+                    Arg::new("connect-retries")
+                        .help("Maximum number of connect retry attempts before giving up")
+                        .long("connect-retries")
+                        .env("ARCHETECT_CONNECT_RETRIES")
+                        .action(ArgAction::Set)
+                        .value_parser(value_parser!(u32))
+                        .default_value("5"),
+                )
+                .arg(
+                    Arg::new("tls")
+                        .help("Enable TLS for the client connection. Implied when any other --tls-* flag is supplied.")
+                        .long("tls")
+                        .env("ARCHETECT_CLIENT_TLS")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("tls-ca")
+                        .help("Path to a PEM-encoded CA cert to trust (in addition to the system trust store).")
+                        .long("tls-ca")
+                        .env("ARCHETECT_CLIENT_TLS_CA")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("tls-client-cert")
+                        .help("Path to a PEM-encoded client certificate for mutual TLS.")
+                        .long("tls-client-cert")
+                        .env("ARCHETECT_CLIENT_TLS_CERT")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("tls-client-key")
+                        .help("Path to a PEM-encoded client private key for mutual TLS. Required with --tls-client-cert.")
+                        .long("tls-client-key")
+                        .env("ARCHETECT_CLIENT_TLS_KEY")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("tls-domain")
+                        .help("Override the domain name used for TLS SNI and cert verification.")
+                        .long("tls-domain")
+                        .env("ARCHETECT_CLIENT_TLS_DOMAIN")
+                        .action(ArgAction::Set),
                 )
                 .args(render_args(true)),
         )
@@ -378,6 +485,15 @@ fn render_args(global: bool) -> Vec<Arg> {
             .long("force-update")
             .short('U')
             .env("ARCHETECT_FORCE_UPDATE")
+            .action(ArgAction::SetTrue)
+            .global(global),
+    );
+    args.push(
+        Arg::new("dry-run")
+            .help("Show what would be rendered without writing files to disk")
+            .long("dry-run")
+            .short('n')
+            .env("ARCHETECT_DRY_RUN")
             .action(ArgAction::SetTrue)
             .global(global),
     );

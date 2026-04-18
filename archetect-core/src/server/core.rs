@@ -2,12 +2,18 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use archetect_api::ContextMap;
+use linked_hash_map::LinkedHashMap;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_stream::{Stream, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, Instrument};
+use uuid::Uuid;
+
+use crate::catalog::catalog_index::{IndexEntry, IndexEntryKind};
+use crate::catalog::catalog_indexer::CatalogIndexer;
+use crate::manifest::CatalogEntry;
 
 use archetect_api::ScriptMessage;
 
@@ -60,6 +66,19 @@ impl ArchetectService for ArchetectServiceCore {
         &self,
         request: Request<Streaming<grpc::ClientMessage>>,
     ) -> Result<Response<Self::StreamingApiStream>, Status> {
+        // Request-scoped ID so every log line this stream emits can be
+        // correlated end-to-end (connect → render → complete/error).
+        let request_id = Uuid::new_v4();
+        let peer = request
+            .remote_addr()
+            .map(|a| a.to_string())
+            .unwrap_or_else(|| "<unknown>".to_string());
+        let stream_span = tracing::info_span!(
+            "grpc_stream",
+            request_id = %request_id,
+            peer = %peer,
+        );
+        let _enter = stream_span.clone().entered();
         info!("Archetect Bidirectional Streaming API Initiating");
 
         let mut in_stream = request.into_inner();
@@ -78,6 +97,7 @@ impl ArchetectService for ArchetectServiceCore {
         let mut archetect_handle = None;
         let mut initialized = false;
 
+        let task_span = stream_span.clone();
         tokio::spawn(async move {
             while let Some(message) = in_stream.next().await {
                 match message {
@@ -99,23 +119,29 @@ impl ArchetectService for ArchetectServiceCore {
                                     });
 
                                     let destination = initialize.destination;
-                                    // Find a source from the configured catalog: prefer
-                                    // an entry named "default" if present, otherwise the
-                                    // first leaf entry. This is a server-side bootstrap;
-                                    // proper path-based selection should come from the
-                                    // gRPC protocol in a future revision.
+                                    // Resolve the source. Priority order:
+                                    //   1. Initialize.catalog_path — follow the slash-
+                                    //      separated path into the server's catalog
+                                    //      tree (federation case).
+                                    //   2. Catalog entry named "default".
+                                    //   3. First entry in the catalog with a source
+                                    //      (legacy fallback).
                                     let source = archetect
                                         .configuration()
                                         .catalog()
                                         .and_then(|catalog| {
-                                            catalog
-                                                .get("default")
-                                                .and_then(|e| e.source.clone())
-                                                .or_else(|| {
-                                                    catalog
-                                                        .values()
-                                                        .find_map(|e| e.source.clone())
-                                                })
+                                            if !initialize.catalog_path.is_empty() {
+                                                resolve_source_by_path(catalog, &initialize.catalog_path)
+                                            } else {
+                                                catalog
+                                                    .get("default")
+                                                    .and_then(|e| e.source.clone())
+                                                    .or_else(|| {
+                                                        catalog
+                                                            .values()
+                                                            .find_map(|e| e.source.clone())
+                                                    })
+                                            }
                                         });
 
                                     if let Some(source) = source {
@@ -195,12 +221,195 @@ impl ArchetectService for ArchetectServiceCore {
                 };
             }
             info!("Client disconnected");
-        });
+        }.instrument(task_span));
 
         let out_stream = ReceiverStream::new(script_rx).map(Ok);
 
         Ok(Response::new(
             Box::pin(out_stream) as Self::StreamingApiStream
         ))
+    }
+
+    async fn browse_catalog(
+        &self,
+        request: Request<grpc::BrowseCatalogRequest>,
+    ) -> Result<Response<grpc::BrowseCatalogResponse>, Status> {
+        let req = request.into_inner();
+        let path = req.path;
+        let archetect = self.prototype.clone();
+
+        // Building the catalog index resolves nested sources, which can be
+        // I/O bound (git pulls, filesystem walks). Do it on a blocking pool
+        // so we don't stall the tokio reactor.
+        let entries = tokio::task::spawn_blocking(move || {
+            let Some(catalog) = archetect.configuration().catalog().cloned() else {
+                return Vec::new();
+            };
+            let index = CatalogIndexer::new(archetect).build_index(&catalog);
+            match index.browse(&path) {
+                Some(slice) => slice.iter().map(index_entry_to_proto).collect(),
+                None => Vec::new(),
+            }
+        })
+        .await
+        .map_err(|err| Status::internal(format!("browse_catalog task failed: {}", err)))?;
+
+        Ok(Response::new(grpc::BrowseCatalogResponse { entries }))
+    }
+
+    async fn search_catalog(
+        &self,
+        request: Request<grpc::SearchCatalogRequest>,
+    ) -> Result<Response<grpc::SearchCatalogResponse>, Status> {
+        let req = request.into_inner();
+        let query = req.query;
+        let include_hidden = req.include_hidden;
+        let archetect = self.prototype.clone();
+
+        let results = tokio::task::spawn_blocking(move || {
+            let Some(catalog) = archetect.configuration().catalog().cloned() else {
+                return Vec::new();
+            };
+            let index = CatalogIndexer::new(archetect).build_index(&catalog);
+            index
+                .search(&query)
+                .into_iter()
+                .filter(|e| include_hidden || e.show)
+                .map(index_entry_to_proto)
+                .collect()
+        })
+        .await
+        .map_err(|err| Status::internal(format!("search_catalog task failed: {}", err)))?;
+
+        Ok(Response::new(grpc::SearchCatalogResponse { results }))
+    }
+}
+
+/// Convert an `IndexEntry` (with its full subtree) into the proto wire
+/// format. Children are included verbatim so clients get a browsable tree
+/// from one RPC.
+fn index_entry_to_proto(entry: &IndexEntry) -> grpc::CatalogIndexEntry {
+    let kind = match entry.kind {
+        IndexEntryKind::Group => grpc::CatalogEntryKind::Group,
+        IndexEntryKind::Leaf => grpc::CatalogEntryKind::Leaf,
+    };
+    grpc::CatalogIndexEntry {
+        path: entry.path.clone(),
+        name: entry.name.clone(),
+        description: entry.description.clone(),
+        kind: kind as i32,
+        is_archetype: entry.is_archetype,
+        has_source: entry.source.is_some(),
+        show: entry.show,
+        children: entry.children.iter().map(index_entry_to_proto).collect(),
+    }
+}
+
+/// Walk a slash-separated catalog path to its leaf entry and return that
+/// entry's source. Nested sub-catalogs are traversed via `CatalogEntry::catalog`.
+/// Returns None if any segment is missing or if the leaf has no source.
+fn resolve_source_by_path(
+    catalog: &LinkedHashMap<String, CatalogEntry>,
+    path: &str,
+) -> Option<String> {
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    if segments.is_empty() {
+        return None;
+    }
+    let mut current: &LinkedHashMap<String, CatalogEntry> = catalog;
+    let mut entry: Option<&CatalogEntry> = None;
+    for (i, segment) in segments.iter().enumerate() {
+        let found = current.get(*segment)?;
+        if i == segments.len() - 1 {
+            entry = Some(found);
+        } else {
+            current = found.catalog.as_ref()?;
+        }
+    }
+    entry.and_then(|e| e.source.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::CatalogEntry;
+
+    fn leaf(name: &str, source: &str) -> (String, CatalogEntry) {
+        (
+            name.to_string(),
+            CatalogEntry {
+                description: Some(name.to_string()),
+                source: Some(source.to_string()),
+                catalog: None,
+                answers: None,
+                switches: None,
+                use_defaults: None,
+                use_defaults_all: None,
+                server: None,
+                library: false,
+                show: true,
+            },
+        )
+    }
+
+    fn group(name: &str, children: LinkedHashMap<String, CatalogEntry>) -> (String, CatalogEntry) {
+        (
+            name.to_string(),
+            CatalogEntry {
+                description: Some(name.to_string()),
+                source: None,
+                catalog: Some(children),
+                answers: None,
+                switches: None,
+                use_defaults: None,
+                use_defaults_all: None,
+                server: None,
+                library: false,
+                show: true,
+            },
+        )
+    }
+
+    #[test]
+    fn resolves_nested_path() {
+        let mut services = LinkedHashMap::new();
+        let (n, e) = leaf("grpc", "git://example.com/grpc.git");
+        services.insert(n, e);
+        let mut root = LinkedHashMap::new();
+        let (n, e) = group("services", services);
+        root.insert(n, e);
+
+        assert_eq!(
+            resolve_source_by_path(&root, "services/grpc"),
+            Some("git://example.com/grpc.git".to_string())
+        );
+    }
+
+    #[test]
+    fn resolves_top_level_path() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("default", "git://example.com/default.git");
+        root.insert(n, e);
+        assert_eq!(
+            resolve_source_by_path(&root, "default"),
+            Some("git://example.com/default.git".to_string())
+        );
+    }
+
+    #[test]
+    fn returns_none_for_missing_segment() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("default", "git://example.com/default.git");
+        root.insert(n, e);
+        assert!(resolve_source_by_path(&root, "missing").is_none());
+        assert!(resolve_source_by_path(&root, "default/extra").is_none());
+    }
+
+    #[test]
+    fn returns_none_for_empty_path() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("default", "git://example.com/default.git");
+        root.insert(n, e);
+        assert!(resolve_source_by_path(&root, "").is_none());
     }
 }

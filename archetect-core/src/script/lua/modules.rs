@@ -8,7 +8,7 @@ use crate::archetype::render_context::RenderContext;
 use crate::Archetect;
 
 use super::context::Context;
-use super::template_engine::render::{self as lua_render, TemplateCache};
+use crate::templating::atl::render::{self as lua_render, TemplateCache};
 
 pub fn register_all(
     lua: &Lua,
@@ -46,10 +46,10 @@ pub fn register_all(
     //   - includes search list: consumer's own <root>/includes first, then
     //     each staged library's includes/ namespace dir
     use crate::archetype::archetype_manifest::templating::UndefinedMode;
-    use crate::script::lua::template_engine::CompileOptions;
+    use crate::templating::atl::CompileOptions;
     let templating = archetype.manifest().templating();
 
-    use crate::script::lua::template_engine::include_resolver::IncludeTrust;
+    use crate::templating::atl::include_resolver::IncludeTrust;
     let mut includes_dirs: Vec<(camino::Utf8PathBuf, IncludeTrust)> = Vec::new();
     // Consumer's own includes/ wins over library includes (more specific).
     // User trust: this is content the archetype author put in their own
@@ -226,6 +226,14 @@ fn register_archetype_module(
         archetype.directory().manifest().description().to_string(),
     )?;
     archetype_table.set("directory", archetype.directory().root().to_string())?;
+    // archetype.destination — absolute path where files are being rendered.
+    // Tracks the `-d` flag. Pair with `Location.Destination` when using
+    // `file.*` operations; use the string directly when passing to shell
+    // helpers or constructing paths by hand.
+    archetype_table.set(
+        "destination",
+        render_context.destination().to_string(),
+    )?;
 
     let authors: Vec<String> = archetype
         .directory()
@@ -585,14 +593,16 @@ fn register_lua_file_module(
     let file_table = lua.create_table()?;
 
     let archetype_root = archetype.root().to_owned();
+    let destination = render_context.destination().to_owned();
 
     // file.exists(path, opts?)
     {
         let archetype_root = archetype_root.clone();
+        let destination = destination.clone();
         file_table.set(
             "exists",
             lua.create_function(move |_, (path, opts): (String, Option<Table>)| -> LuaResult<bool> {
-                let resolved = resolve_file_path(&archetype_root, &path, &opts)?;
+                let resolved = resolve_file_path(&archetype_root, &destination, &path, &opts)?;
                 Ok(resolved.exists())
             })?,
         )?;
@@ -601,10 +611,11 @@ fn register_lua_file_module(
     // file.read(path, opts?)
     {
         let archetype_root = archetype_root.clone();
+        let destination = destination.clone();
         file_table.set(
             "read",
             lua.create_function(move |_, (path, opts): (String, Option<Table>)| -> LuaResult<String> {
-                let resolved = resolve_file_path(&archetype_root, &path, &opts)?;
+                let resolved = resolve_file_path(&archetype_root, &destination, &path, &opts)?;
                 if !resolved.is_file() {
                     return Err(LuaError::RuntimeError(format!(
                         "file.read: not a regular file: {}",
@@ -681,7 +692,7 @@ fn register_lua_file_module(
                     if let Some(dest_rel) = dest_opt {
                         let destination = ctx_default_dest.join(&dest_rel);
                         let overwrite_policy = extract_overwrite_policy(&opts);
-                        crate::script::lua::template_engine::render::lua_render_file(
+                        crate::templating::atl::render::lua_render_file(
                             lua,
                             &arc,
                             &ctx_table,
@@ -695,7 +706,7 @@ fn register_lua_file_module(
                         Ok(None)
                     } else {
                         // No destination → render and return the string.
-                        let rendered = crate::script::lua::template_engine::render::lua_render_contents(
+                        let rendered = crate::templating::atl::render::lua_render_contents(
                             lua,
                             &source_path,
                             &ctx_table,
@@ -717,14 +728,23 @@ fn register_lua_file_module(
 // ── Location enum ──────────────────────────────────────────────────
 //
 // Typed enum for file-resolution scope. Exposed in Lua as:
-//   Location.Archetype   (default — archetype source root)
-//   Location.Cwd         (invocation working directory)
+//   Location.Archetype     (default — archetype source root)
+//   Location.Destination   (where files are being rendered — tracks `-d`)
+//   Location.Cwd           (actual process working directory)
 //
-// Used via:  file.read("foo.yaml", { within = Location.Cwd })
+// Used via:  file.read("foo.yaml", { within = Location.Destination })
+//
+// Note on `Cwd` vs `Destination`: these coincide when the user invokes
+// `archetect render` without `-d`, but diverge when `-d /some/other/path`
+// is supplied. Scripts that want "the root of what we're rendering"
+// should use `Location.Destination` — `Location.Cwd` is reserved for
+// the rare case where an archetype genuinely needs to touch the caller's
+// shell cwd regardless of where the render is going.
 
 #[derive(Copy, Clone, Debug)]
 enum FileLocation {
     Archetype,
+    Destination,
     Cwd,
 }
 
@@ -733,17 +753,27 @@ impl mlua::UserData for FileLocation {}
 fn register_location_constants(lua: &Lua) -> LuaResult<()> {
     let table = lua.create_table()?;
     table.set("Archetype", FileLocation::Archetype)?;
+    table.set("Destination", FileLocation::Destination)?;
     table.set("Cwd", FileLocation::Cwd)?;
     lua.globals().set("Location", table)?;
     Ok(())
 }
 
-/// Resolve a Lua-supplied relative path against either the archetype
-/// root (default) or the invocation CWD (`within = Location.Cwd`),
-/// applying the sandbox rules from restrict_path plus absolute-path
-/// rejection.
+/// Resolve a Lua-supplied relative path against one of the configured
+/// `FileLocation` roots, applying `restrict_path` sandboxing plus
+/// absolute-path rejection.
+///
+/// - `Location.Archetype` (default): path is relative to the archetype
+///   source root. This is the same anchor `directory.render` uses.
+/// - `Location.Destination`: path is relative to where files are being
+///   rendered to (tracks the `-d` flag). The correct choice for scripts
+///   that inspect the output tree — e.g. "does `<repo_name>/.git` exist?"
+/// - `Location.Cwd`: path is relative to the actual process cwd,
+///   regardless of `-d`. Escape hatch for rare cases where the script
+///   genuinely needs the caller's shell position.
 fn resolve_file_path(
     archetype_root: &camino::Utf8Path,
+    destination: &camino::Utf8Path,
     path: &str,
     opts: &Option<Table>,
 ) -> LuaResult<camino::Utf8PathBuf> {
@@ -770,6 +800,7 @@ fn resolve_file_path(
 
     let root: camino::Utf8PathBuf = match location {
         FileLocation::Archetype => archetype_root.to_owned(),
+        FileLocation::Destination => destination.to_owned(),
         FileLocation::Cwd => {
             let cwd = std::env::current_dir().map_err(|err| {
                 LuaError::RuntimeError(format!("file.*: could not read cwd: {}", err))
@@ -815,7 +846,7 @@ fn register_lua_template_module(
             let context = context_ud.borrow::<Context>()?;
             let ctx_table = context.to_lua_table(lua)?;
 
-            let compiled = super::template_engine::TemplateCompiler::compile(&tmpl, "<inline>")
+            let compiled = crate::templating::atl::TemplateCompiler::compile(&tmpl, "<inline>")
                 .map_err(|e| LuaError::RuntimeError(format!("Template compile error: {}", e)))?;
 
             let func: mlua::Function = lua.load(&compiled.source).eval()
@@ -969,7 +1000,7 @@ fn create_builtin_filters(lua: &Lua) -> LuaResult<Table> {
     // datetime, uuids, paths). Each entry registered here is reachable
     // both as `{{ x | foo }}` and `{{ foo(x) }}` per the filter/function
     // symmetry implemented in the template engine compiler.
-    super::template_engine::builtins::register_all(lua, &filters)?;
+    crate::templating::atl::builtins::register_all(lua, &filters)?;
 
     Ok(filters)
 }
@@ -1280,7 +1311,7 @@ fn context_value_to_lua(lua: &Lua, value: &archetect_api::ContextValue) -> LuaRe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::script::lua::template_engine::TemplateCompiler;
+    use crate::templating::atl::TemplateCompiler;
 
     #[test]
     fn test_coerce_scalar_for_filter_string() {
@@ -1311,6 +1342,43 @@ mod tests {
     fn test_coerce_scalar_for_filter_nil() {
         let value = Value::Nil;
         assert_eq!(coerce_scalar_for_filter(&value, "upper_case").unwrap(), "");
+    }
+
+    #[test]
+    fn resolve_file_path_archetype_root() {
+        let archetype = camino::Utf8PathBuf::from("/a/arc");
+        let destination = camino::Utf8PathBuf::from("/a/dest");
+        let got = resolve_file_path(&archetype, &destination, "foo/bar.txt", &None).unwrap();
+        assert_eq!(got, camino::Utf8PathBuf::from("/a/arc/foo/bar.txt"));
+    }
+
+    #[test]
+    fn resolve_file_path_destination() {
+        // Location.Destination should resolve against the render destination,
+        // diverging from cwd when `-d` points elsewhere. This is the core
+        // fix — scripts that inspect the output tree need this anchor.
+        let archetype = camino::Utf8PathBuf::from("/a/arc");
+        let destination = camino::Utf8PathBuf::from("/a/dest");
+        let lua = Lua::new();
+        register_location_constants(&lua).unwrap();
+        let location: mlua::Value = lua
+            .load(r#"return Location.Destination"#)
+            .eval()
+            .unwrap();
+        let opts = lua.create_table().unwrap();
+        opts.set("within", location).unwrap();
+        let got =
+            resolve_file_path(&archetype, &destination, ".git", &Some(opts)).unwrap();
+        assert_eq!(got, camino::Utf8PathBuf::from("/a/dest/.git"));
+    }
+
+    #[test]
+    fn resolve_file_path_rejects_absolute() {
+        let archetype = camino::Utf8PathBuf::from("/a/arc");
+        let destination = camino::Utf8PathBuf::from("/a/dest");
+        let err = resolve_file_path(&archetype, &destination, "/etc/passwd", &None)
+            .unwrap_err();
+        assert!(err.to_string().contains("absolute paths not allowed"));
     }
 
     #[test]

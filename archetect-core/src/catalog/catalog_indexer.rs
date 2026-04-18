@@ -14,14 +14,19 @@ use linked_hash_map::LinkedHashMap;
 use log::{debug, warn};
 
 use crate::Archetect;
-use crate::catalog::catalog_index::{CatalogIndex, IndexEntry, IndexEntryKind};
-use crate::manifest::{CatalogEntry, Manifest};
+use crate::catalog::catalog_index::{CatalogIndex, IndexEntry, IndexEntryKind, RemoteEntryInfo};
+use crate::manifest::{CatalogEntry, CatalogEntryServer, Manifest};
 
 /// Recursively builds a `CatalogIndex` by resolving catalog entry sources
 /// and expanding sub-catalogs into the tree.
 pub struct CatalogIndexer {
     archetect: Archetect,
     visited: HashSet<String>,
+    /// Lazy tokio runtime for async gRPC browse calls against remote
+    /// (`server:`) catalog entries. The synchronous CatalogIndexer spins
+    /// this up on first use rather than requiring callers to hand in a
+    /// runtime or make the whole indexer async.
+    remote_runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl CatalogIndexer {
@@ -29,7 +34,24 @@ impl CatalogIndexer {
         CatalogIndexer {
             archetect,
             visited: HashSet::new(),
+            remote_runtime: None,
         }
+    }
+
+    fn remote_runtime(&mut self) -> Option<&tokio::runtime::Runtime> {
+        if self.remote_runtime.is_none() {
+            match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => self.remote_runtime = Some(rt),
+                Err(err) => {
+                    warn!("failed to create tokio runtime for remote catalog fetch: {}", err);
+                    return None;
+                }
+            }
+        }
+        self.remote_runtime.as_ref()
     }
 
     /// Build a deep `CatalogIndex` from a config catalog.
@@ -70,6 +92,46 @@ impl CatalogIndexer {
             format!("{}/{}", prefix, name)
         };
 
+        // Remote (server:) entry — federation root. Fetch the remote
+        // catalog tree via gRPC and splice it in, rewriting paths to be
+        // relative to `path` and tagging every descendant with its
+        // `RemoteEntryInfo` for later render dispatch.
+        if let Some(server) = entry.server.as_ref() {
+            // Offline mode: skip the network call. The entry still shows
+            // up as a federation root so users can see its presence, but
+            // its children stay empty.
+            let children = if self.archetect.is_offline() {
+                debug!(
+                    "offline mode — skipping remote catalog fetch from {}",
+                    server.endpoint
+                );
+                Vec::new()
+            } else {
+                self.fetch_remote_children(server, &path).unwrap_or_else(|err| {
+                    warn!(
+                        "failed to fetch remote catalog from {}: {}; surfacing as empty group",
+                        server.endpoint, err
+                    );
+                    Vec::new()
+                })
+            };
+            return IndexEntry {
+                path: path.clone(),
+                name: name.to_owned(),
+                description: entry.display_description(name),
+                kind: IndexEntryKind::Group,
+                metadata: None,
+                children,
+                source: None,
+                is_archetype: false,
+                show: entry.show,
+                remote: Some(RemoteEntryInfo {
+                    endpoint: server.endpoint.clone(),
+                    local_prefix: path,
+                }),
+            };
+        }
+
         // If the entry already has inline catalog children, build them directly.
         // Inline-declared groups never resolve a source, so they can't be
         // archetypes — just navigation nodes.
@@ -88,6 +150,7 @@ impl CatalogIndexer {
                 source: entry.source.clone(),
                 is_archetype: false,
                 show: entry.show,
+                remote: None,
             };
         }
 
@@ -116,6 +179,7 @@ impl CatalogIndexer {
                     source: Some(source.clone()),
                     is_archetype: expanded.has_script,
                     show: entry.show,
+                    remote: None,
                 };
             }
         }
@@ -131,6 +195,7 @@ impl CatalogIndexer {
             source: entry.source.clone(),
             is_archetype: false,
             show: entry.show,
+            remote: None,
         }
     }
 
@@ -193,6 +258,93 @@ impl CatalogIndexer {
             has_script,
         })
     }
+
+    /// Call `BrowseCatalog` on the remote server and convert the returned
+    /// subtree into local `IndexEntry`s. Paths and children are rewritten
+    /// so everything sits under the `local_prefix`, and every descendant
+    /// carries a `RemoteEntryInfo` pointing back at this endpoint.
+    fn fetch_remote_children(
+        &mut self,
+        server: &CatalogEntryServer,
+        local_prefix: &str,
+    ) -> anyhow::Result<Vec<IndexEntry>> {
+        use crate::proto::grpc::archetect_service_client::ArchetectServiceClient;
+        use crate::proto::grpc::BrowseCatalogRequest;
+
+        let endpoint = server.endpoint.clone();
+        let rt = self
+            .remote_runtime()
+            .ok_or_else(|| anyhow::anyhow!("no tokio runtime"))?;
+        let response = rt.block_on(async {
+            // TLS wiring is deferred to a follow-up slice — `server.tls`
+            // is ignored for now, and plaintext endpoints work. TLS
+            // endpoints will need the same `ClientTlsOptions` assembly
+            // as `client/client.rs`.
+            let mut client = ArchetectServiceClient::connect(endpoint.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("connect {}: {}", endpoint, e))?;
+            client
+                .browse_catalog(BrowseCatalogRequest {
+                    path: String::new(),
+                })
+                .await
+                .map_err(|e| anyhow::anyhow!("browse_catalog: {}", e))
+        })?;
+
+        let remote_info = RemoteEntryInfo {
+            endpoint: server.endpoint.clone(),
+            local_prefix: local_prefix.to_string(),
+        };
+        let entries = response
+            .into_inner()
+            .entries
+            .into_iter()
+            .map(|e| proto_to_index_entry(e, local_prefix, &remote_info))
+            .collect();
+        Ok(entries)
+    }
+}
+
+/// Convert a proto `CatalogIndexEntry` from a remote server into an
+/// `IndexEntry`. Rewrites `path` to be relative to `local_prefix` and
+/// stamps `remote` on every descendant.
+fn proto_to_index_entry(
+    entry: crate::proto::grpc::CatalogIndexEntry,
+    local_prefix: &str,
+    remote_info: &RemoteEntryInfo,
+) -> IndexEntry {
+    use crate::proto::grpc::CatalogEntryKind as ProtoKind;
+
+    let kind = match ProtoKind::try_from(entry.kind) {
+        Ok(ProtoKind::Group) => IndexEntryKind::Group,
+        Ok(ProtoKind::Leaf) => IndexEntryKind::Leaf,
+        _ => IndexEntryKind::Leaf,
+    };
+
+    let local_path = if entry.path.is_empty() {
+        local_prefix.to_string()
+    } else {
+        format!("{}/{}", local_prefix, entry.path)
+    };
+
+    let children = entry
+        .children
+        .into_iter()
+        .map(|c| proto_to_index_entry(c, local_prefix, remote_info))
+        .collect();
+
+    IndexEntry {
+        path: local_path,
+        name: entry.name,
+        description: entry.description,
+        kind,
+        metadata: None,
+        children,
+        source: None,
+        is_archetype: entry.is_archetype,
+        show: entry.show,
+        remote: Some(remote_info.clone()),
+    }
 }
 
 /// Result of resolving a leaf entry's source and inspecting the
@@ -244,6 +396,7 @@ mod tests {
                     switches: None,
                     use_defaults: None,
                     use_defaults_all: None,
+                    server: None,
                     library: false,
                     show: true,
                 },
@@ -435,6 +588,7 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                server: None,
                 library: false,
                 show: true,
             },
@@ -449,6 +603,7 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                server: None,
                 library: false,
                 show: true,
             },
@@ -513,6 +668,7 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                server: None,
                 library: false,
                 show: true,
             },
@@ -529,6 +685,7 @@ mod tests {
                 switches: None,
                 use_defaults: None,
                 use_defaults_all: None,
+                server: None,
                 library: false,
                 show: true,
             },

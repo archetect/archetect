@@ -6,6 +6,18 @@ use mlua::{Error as LuaError, Lua, Result as LuaResult, Table, UserData, UserDat
 
 use archetect_api::ScriptMessage;
 
+/// In dry-run mode, send a `[dry-run] <action>` Display message and return
+/// `true`. Callers short-circuit when `true` is returned so no actual side
+/// effect (subprocess, network call, file mutation) occurs.
+fn dry_run_skip(archetect: &crate::Archetect, action: &str) -> bool {
+    if archetect.is_dry_run() {
+        let _ = archetect.request(ScriptMessage::Display(format!("[dry-run] {}", action)));
+        true
+    } else {
+        false
+    }
+}
+
 /// Run a shell command, capturing stdout/stderr and forwarding them as log
 /// messages through the Archetect IO channel.
 ///
@@ -256,6 +268,10 @@ fn create_shell_module(lua: &Lua, archetect: &Archetect, render_context: &Render
             let working_dir = cwd_override.unwrap_or_else(|| cwd.clone());
             let args = args.unwrap_or_default();
 
+            if dry_run_skip(&arc, &format!("shell {} {} (in {})", program, args.join(" "), working_dir)) {
+                return Ok(());
+            }
+
             authorize_shell_exec(&arc, &program, &args, &working_dir)?;
 
             let mut cmd = Command::new(&program);
@@ -283,6 +299,12 @@ fn create_shell_module(lua: &Lua, archetect: &Archetect, render_context: &Render
             let cwd_override = opts.as_ref().and_then(|o| o.get::<String>("cwd".to_string()).ok());
             let working_dir = cwd_override.unwrap_or_else(|| cwd.clone());
             let args = args.unwrap_or_default();
+
+            if dry_run_skip(&arc, &format!("shell capture {} {} (in {})", program, args.join(" "), working_dir)) {
+                // Capture-style callers expect a string back. Return empty
+                // so downstream code doesn't crash on nil.
+                return Ok(String::new());
+            }
 
             authorize_shell_exec(&arc, &program, &args, &working_dir)?;
 
@@ -447,6 +469,9 @@ impl UserData for GitRepo {
 }
 
 fn git_cmd(archetect: &Archetect, path: &str, args: &[&str]) -> LuaResult<()> {
+    if dry_run_skip(archetect, &format!("git {} (in {})", args.join(" "), path)) {
+        return Ok(());
+    }
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(path);
     let status = run_git(archetect, &mut cmd, "git error")?;
@@ -483,6 +508,12 @@ fn create_git_module(lua: &Lua, archetect: &Archetect, render_context: &RenderCo
                 .as_ref()
                 .and_then(|o| o.get::<String>("branch".to_string()).ok())
                 .unwrap_or_else(|| "main".to_string());
+
+            if dry_run_skip(&arc, &format!("git init -b {} {}", branch, repo_path)) {
+                // Hand back a stub GitRepo so subsequent repo:* calls
+                // short-circuit through git_cmd's own dry-run check.
+                return Ok(GitRepo { path: repo_path, archetect: arc.clone() });
+            }
 
             let args: Vec<&str> = vec!["init", "-b", branch.as_str(), &repo_path];
 
@@ -587,6 +618,21 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
         "create_repo",
         lua.create_function(move |_, (repo, opts): (String, Option<Table>)| {
             let arc = arc.clone();
+            if dry_run_skip(
+                &arc,
+                &format!(
+                    "github.create_repo {} (visibility: {})",
+                    repo,
+                    opts.as_ref()
+                        .and_then(|o| o.get::<String>("visibility".to_string()).ok())
+                        .unwrap_or_else(|| "private".to_string())
+                ),
+            ) {
+                // Synthesize "created" so the calling script's branching
+                // (e.g., the publish-then-push pattern in starter
+                // archetypes) takes the success path.
+                return Ok(true);
+            }
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()

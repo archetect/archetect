@@ -269,6 +269,7 @@ Env = {}
 ---Available in both scripts and templates.
 ---@field description string Archetype description from manifest
 ---@field directory string Root directory path of the archetype
+---@field destination string Absolute path where files are being rendered (tracks `-d`)
 ---@field authors string[] Author list from manifest
 ---@field switches Switches Switches supplied to this invocation
 archetype = {}
@@ -337,9 +338,10 @@ function directory.render(path, context, opts) end
 
 ---@class file
 ---Single-file helpers. Paths resolve against the archetype root by
----default; pass `{ within = Location.Cwd }` to resolve against the
----invocation working directory instead. Absolute paths, `..` traversal,
----and `~` expansion are rejected regardless of location.
+---default; pass `{ within = Location.Destination }` to resolve against
+---the render destination (honors `-d`), or `Location.Cwd` for the
+---actual process cwd. Absolute paths, `..` traversal, and `~` expansion
+---are rejected regardless of location.
 file = {}
 
 ---Check whether a file exists at the given path.
@@ -382,7 +384,8 @@ function file.render(path, context, opts) end
 ---@class Location
 ---Where to resolve file paths.
 ---@field Archetype LocationPolicy Archetype source root (default)
----@field Cwd LocationPolicy Invocation working directory
+---@field Destination LocationPolicy Render destination — honors `-d`. Use this to inspect the output tree.
+---@field Cwd LocationPolicy Actual process working directory. Diverges from Destination when `-d` is set.
 Location = {}
 
 --

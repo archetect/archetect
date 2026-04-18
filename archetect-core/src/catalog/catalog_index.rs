@@ -38,6 +38,39 @@ pub struct IndexEntry {
     /// stays resolvable by name from scripts but is hidden from menus
     /// and `ls` by default.
     pub show: bool,
+    /// Federation metadata when this entry lives under a `server:`
+    /// ancestor. Propagated down so render dispatch knows which gRPC
+    /// endpoint to target and how to translate the local path back
+    /// into the server's own path. See `docs/plans/federated-catalog.md`.
+    pub remote: Option<RemoteEntryInfo>,
+}
+
+/// Shared state carried by every descendant of a `server:` catalog entry.
+/// `endpoint` is the gRPC endpoint of the remote archetect server;
+/// `local_prefix` is the slash-separated local path of the server entry
+/// itself (e.g. "acme-internal"). The path the server sees for a
+/// descendant is `entry.path` with `local_prefix` + "/" stripped.
+#[derive(Clone, Debug)]
+pub struct RemoteEntryInfo {
+    pub endpoint: String,
+    pub local_prefix: String,
+}
+
+impl IndexEntry {
+    /// The path to use when dispatching a render against the remote
+    /// server this entry belongs to. Returns None for purely local
+    /// entries, or for the server-entry itself (which has no remote
+    /// sub-path — that's the server's root).
+    pub fn remote_path(&self) -> Option<String> {
+        let remote = self.remote.as_ref()?;
+        if self.path == remote.local_prefix {
+            return Some(String::new());
+        }
+        let stripped = self
+            .path
+            .strip_prefix(&format!("{}/", remote.local_prefix))?;
+        Some(stripped.to_string())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,6 +202,7 @@ fn build_entries(entries: &LinkedHashMap<String, CatalogEntry>, prefix: &str) ->
                 // The CatalogIndexer sets this correctly when it expands.
                 is_archetype: false,
                 show: entry.show,
+                remote: None,
             }
         })
         .collect()
