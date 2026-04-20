@@ -99,6 +99,23 @@ pub fn register_all(
 
 /// Wire `package.path` so the script can `require()` Lua modules from:
 ///
+/// 0. The archetype root itself — enables `require("lib")` to resolve to
+///    `<root>/lib/init.lua` for libraries that follow the
+///    `lib/init.lua` main-module convention. Also makes any top-level
+///    directory with an `init.lua` requirable by its directory name.
+///    In practice only `lib/` ships with an `init.lua`, so the only
+///    observable effect is the self-require convenience.
+///
+///    **Self-only scope:** this entry applies to the currently-rendering
+///    archetype's own script execution. It does NOT extend to consumers
+///    that mount this archetype with `library: true` — staging only
+///    symlinks `lib/` under the map-key, so sibling top-level directories
+///    in a library (`prompts/`, `providers/`, etc.) stay unreachable
+///    from the consumer side. Library authors should keep internal
+///    modules under `lib/` and cross-reference them via
+///    `require("lib.<submodule>")` or the `local mod_name = ...`
+///    varargs trick so the prefix adapts to whatever name the caller
+///    used. See `docs/plans/self-requirable-lib.md`.
 /// 1. The consumer's own `<root>/lib/` directory — implicit, no declaration
 ///    needed. Authors of project archetypes drop helpers into `lib/` and
 ///    `require("helpers")` from their main script.
@@ -109,15 +126,21 @@ pub fn register_all(
 ///
 /// All entries are prepended to `package.path` in order, so they take
 /// precedence over Lua's default search paths.
-///
-/// Phase 1, commit 4: extends commit 3's local-lib behavior with the
-/// staged-library wiring.
 fn register_lua_libraries(
     lua: &Lua,
     archetype: &Archetype,
     staged_libraries: &[crate::library::StagedLibrary],
 ) -> LuaResult<()> {
     let mut prepend_segments: Vec<String> = Vec::new();
+
+    // 0. Archetype root — lets a library's own shim reach its main
+    //    module at `lib/init.lua` via `require("lib")`. The `?.lua`
+    //    entry here is redundant with (1) for the lib/ subdirectory
+    //    but harmless; `?/init.lua` is the one that does the real
+    //    work for self-require.
+    let root = archetype.root();
+    prepend_segments.push(format!("{}/?.lua", root));
+    prepend_segments.push(format!("{}/?/init.lua", root));
 
     // 1. Consumer's own lib/ — implicit local helpers.
     let local_lib = archetype.root().join("lib");

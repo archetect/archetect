@@ -1,0 +1,5 @@
+---
+description: "Self-require lib test — require(\"lib\") resolves to lib/init.lua"
+
+requires:
+  archetect: "3.0.0"
