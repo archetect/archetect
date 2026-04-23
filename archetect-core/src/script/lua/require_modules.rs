@@ -616,8 +616,14 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
     let arc = archetect.clone();
     module.set(
         "create_repo",
-        lua.create_function(move |_, (repo, opts): (String, Option<Table>)| {
+        lua.create_function(move |lua_ctx, (repo, opts): (String, Option<Table>)| {
             let arc = arc.clone();
+            let make_result = |lua: &Lua, created: bool, empty: bool| -> LuaResult<Table> {
+                let t = lua.create_table()?;
+                t.set("created", created)?;
+                t.set("empty", empty)?;
+                Ok(t)
+            };
             if dry_run_skip(
                 &arc,
                 &format!(
@@ -628,17 +634,16 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                         .unwrap_or_else(|| "private".to_string())
                 ),
             ) {
-                // Synthesize "created" so the calling script's branching
-                // (e.g., the publish-then-push pattern in starter
-                // archetypes) takes the success path.
-                return Ok(true);
+                // Synthesize success so calling scripts take the happy path.
+                return make_result(lua_ctx, true, true);
             }
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .map_err(|e| LuaError::RuntimeError(format!("Runtime error: {}", e)))?;
 
-            runtime.block_on(async {
+            // Returns (created, empty). Errors still raise.
+            let outcome: LuaResult<(bool, bool)> = runtime.block_on(async {
                 let token = resolve_github_token()?;
 
                 let octocrab = octocrab::Octocrab::builder()
@@ -665,12 +670,15 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
 
                 // Check if already exists
                 match octocrab.repos(owner, repo_name).get().await {
-                    Ok(_) => {
+                    Ok(existing) => {
+                        let is_empty = existing.size.unwrap_or(0) == 0;
                         let _ = arc.request(ScriptMessage::LogWarn(format!(
-                            "Repository '{}/{}' already exists",
-                            owner, repo_name
+                            "Repository '{}/{}' already exists ({})",
+                            owner,
+                            repo_name,
+                            if is_empty { "empty" } else { "has content" }
                         )));
-                        return Ok(false);
+                        return Ok((false, is_empty));
                     }
                     Err(octocrab::Error::GitHub { source, .. })
                         if source.message == "Not Found" => {}
@@ -722,7 +730,7 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                         "Created {} repository '{}/{}'",
                         visibility, owner, repo_name
                     )));
-                    Ok(true)
+                    Ok((true, true))
                 } else {
                     // GitHub signalled failure — surface its own message
                     // (and any validation errors) rather than "unexpected
@@ -748,7 +756,10 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
                         owner, repo_name, full
                     )))
                 }
-            })
+            });
+
+            let (created, empty) = outcome?;
+            make_result(lua_ctx, created, empty)
         })?,
     )?;
 

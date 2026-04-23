@@ -83,12 +83,15 @@ local github = {}
 ---@return boolean exists
 function github.repo_exists(repo) end
 
----Create a new GitHub repository.
+---Create a new GitHub repository, or report on an existing one.
 ---Requires `GITHUB_TOKEN` environment variable.
----Returns `false` if the repository already exists.
+---Returns a table describing the outcome. `created` is true iff this call
+---newly created the repo. `empty` is true iff the repo has no commits —
+---which callers use to decide whether it is safe to push without clobbering.
+---Raises on auth/network failure, malformed slug, or GitHub-side rejection.
 ---@param repo string Repository in "owner/repo" format
 ---@param opts? {visibility?: "public"|"private"|"internal"} Options (default: "private")
----@return boolean created Whether the repository was created
+---@return {created: boolean, empty: boolean}
 function github.create_repo(repo, opts) end
 
 --
