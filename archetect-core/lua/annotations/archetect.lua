@@ -281,6 +281,39 @@ archetype = {}
 ---@return table answers Key-value pairs
 function archetype.answers() end
 
+---Returns the catalog map-key under which this library was mounted by
+---the parent archetype. Only meaningful when the archetype is running
+---as a staged library (`library: true` in the parent's catalog).
+---Returns `nil` from the parent's own script and from a library running
+---standalone (e.g. via a direct `archetect render` invocation).
+---@return string? key The catalog map-key, or nil when not a staged library
+function archetype.mount_key() end
+
+---Returns `true` when this script is executing inside a staged library
+---(`library: true` in the parent's catalog). Use to gate behaviour that
+---only makes sense in library mode, such as publishing structured
+---component data into the parent's context.
+---@return boolean
+function archetype.is_library() end
+
+---Returns `true` when this script is not mounted as a staged library —
+---i.e. it is invoked directly or via a plain `catalog.render` without
+---`library: true`. Complement of `archetype.is_library()`.
+---@return boolean
+function archetype.is_standalone() end
+
+---Returns an include path for use in ATL `{% include %}` directives,
+---automatically prefixed with the catalog mount key when running as a
+---staged library so consumers can reference partials without knowing
+---the mount name.
+---
+---Library mode: returns `"<mount_key>/<rel>"`.
+---Standalone mode: returns `rel` unchanged (the library's `includes/`
+---is already on the search path without a prefix in standalone runs).
+---@param rel string Relative path to the include file (e.g. `"editorconfig-rust.atl"`)
+---@return string path
+function archetype.include_path(rel) end
+
 ---@class Switches
 local Switches = {}
 

@@ -21,7 +21,6 @@ pub fn register_all(
     register_existing_constants(lua)?;
     register_location_constants(lua)?;
     register_archetect_module(lua, archetect)?;
-    register_archetype_module(lua, archetype, render_context)?;
 
     // Phase 1, commit 4: stage any catalog entries marked `library: true`
     // before wiring Lua paths. The stager resolves the source via the
@@ -36,6 +35,11 @@ pub fn register_all(
     } else {
         Vec::new()
     };
+
+    // archetype.* needs the staging registry to back mount_key() / is_library() /
+    // is_standalone(), which match the calling chunk's source path against
+    // staged library dirs. Registered after staging so the registry is final.
+    register_archetype_module(lua, archetype, render_context, &staged_libraries)?;
 
     register_lua_libraries(lua, archetype, &staged_libraries)?;
 
@@ -235,6 +239,7 @@ fn register_archetype_module(
     lua: &Lua,
     archetype: &Archetype,
     render_context: &RenderContext,
+    staged_libraries: &[crate::library::StagedLibrary],
 ) -> LuaResult<()> {
     let archetype_table = lua.create_table()?;
 
@@ -277,8 +282,123 @@ fn register_archetype_module(
         lua.create_function(move |lua, ()| context_map_to_lua_table(lua, &answers))?,
     )?;
 
+    // archetype.mount_key() — when called from inside a staged library
+    // (one mounted by the parent's catalog with `library: true`), returns
+    // the catalog map-key under which it was mounted. Used by libraries
+    // that publish include paths or other strings that depend on the
+    // parent-chosen namespace. Returns nil from the parent's main script
+    // and from a library running via its own standalone shim.
+    //
+    // Detection works by matching the calling chunk's source path
+    // (debug.getinfo) against the staged library directories captured
+    // at registration time.
+    //
+    // archetype.is_library() / archetype.is_standalone() are convenience
+    // booleans over the same logic.
+    let registry: Vec<(String, String)> = staged_libraries
+        .iter()
+        .filter_map(|lib| {
+            lib.lib_dir
+                .as_ref()
+                .map(|d| (d.to_string(), lib.name.clone()))
+        })
+        .collect();
+
+    let registry_for_mount = registry.clone();
+    archetype_table.set(
+        "mount_key",
+        lua.create_function(move |lua, ()| -> LuaResult<Value> {
+            match caller_mount_key(lua, &registry_for_mount)? {
+                Some(name) => Ok(Value::String(lua.create_string(&name)?)),
+                None => Ok(Value::Nil),
+            }
+        })?,
+    )?;
+
+    let registry_for_lib = registry.clone();
+    archetype_table.set(
+        "is_library",
+        lua.create_function(move |lua, ()| -> LuaResult<bool> {
+            Ok(caller_mount_key(lua, &registry_for_lib)?.is_some())
+        })?,
+    )?;
+
+    let registry_for_standalone = registry.clone();
+    archetype_table.set(
+        "is_standalone",
+        lua.create_function(move |lua, ()| -> LuaResult<bool> {
+            Ok(caller_mount_key(lua, &registry_for_standalone)?.is_none())
+        })?,
+    )?;
+
+    // archetype.include_path(rel) — sugar over mount_key() for libraries
+    // publishing include paths into the parent's template world.
+    //
+    // Library mode: returns "<MOUNT_KEY>/<rel>" so the parent can use the
+    // value directly in `{% include %}`.
+    // Standalone: returns rel unchanged. The library's own includes/ is
+    // already on the include search path under no prefix in standalone
+    // runs, so an unprefixed path resolves correctly there too.
+    //
+    // Saves library authors from doing the `mount_key() or "<conventional>"`
+    // dance for the common case.
+    let registry_for_path = registry;
+    archetype_table.set(
+        "include_path",
+        lua.create_function(move |lua, rel: String| -> LuaResult<Value> {
+            let resolved = match caller_mount_key(lua, &registry_for_path)? {
+                Some(name) => format!("{}/{}", name, rel),
+                None => rel,
+            };
+            Ok(Value::String(lua.create_string(&resolved)?))
+        })?,
+    )?;
+
     lua.globals().set("archetype", archetype_table)?;
     Ok(())
+}
+
+/// Look up the mount key for whichever staged library the calling Lua
+/// chunk lives in, by matching the Lua call stack frame above this Rust
+/// callback against the staged-library lib directories.
+///
+/// Stack level 1 is the Lua function that invoked
+/// archetype.mount_key/is_library/is_standalone — i.e. the call site we
+/// want to identify. Lua reports file-loaded chunk sources as
+/// `@<absolute-path>`; we strip the `@` and prefix-match against each
+/// staged library's lib_dir. A match requires the next character to be a
+/// path separator (or end of string) so e.g. `/staging/lib/foo-bar/x.lua`
+/// doesn't match a staged `foo` dir.
+///
+/// We use mlua's `Lua::inspect_stack` (Rust-side wrapper over
+/// `lua_getstack` + `lua_getinfo`) rather than reaching for the `debug`
+/// library at the Lua level — mlua's safe `Lua::new()` ships without
+/// `debug` loaded as a security default, but the C-level introspection
+/// is always available.
+fn caller_mount_key(lua: &Lua, registry: &[(String, String)]) -> LuaResult<Option<String>> {
+    if registry.is_empty() {
+        return Ok(None);
+    }
+    let source: Option<String> = lua.inspect_stack(1, |dbg| {
+        dbg.source()
+            .source
+            .as_ref()
+            .map(|s| s.as_ref().to_string())
+    }).flatten();
+    let Some(source) = source else {
+        return Ok(None);
+    };
+    let path = source.strip_prefix('@').unwrap_or(&source);
+
+    for (lib_dir, name) in registry {
+        if path.starts_with(lib_dir.as_str()) {
+            let after = &path[lib_dir.len()..];
+            if after.is_empty() || after.starts_with('/') || after.starts_with('\\') {
+                return Ok(Some(name.clone()));
+            }
+        }
+    }
+    Ok(None)
 }
 
 // ── catalog module (render catalog entries by path) ─────────────────
