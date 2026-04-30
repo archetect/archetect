@@ -800,17 +800,22 @@ fn register_lua_file_module(
                         )));
                     }
                     let primary = archetype_root.join(&source);
-                    let source_path = if primary.is_file() {
-                        primary
+                    let (source_path, extra_include_dir) = if primary.is_file() {
+                        (primary, None)
                     } else {
                         // Fall back to the include search path so library
                         // modules can call file.render(archetype.include_path("foo.atl"), ctx)
                         // and reach their own staged includes.
-                        cache.borrow().find_include(&source)
+                        let resolved = cache.borrow().find_include(&source)
                             .ok_or_else(|| LuaError::RuntimeError(format!(
                                 "file.render: source is not a regular file: {}",
                                 source
-                            )))?
+                            )))?;
+                        // Add the resolved file's parent dir so sibling
+                        // fragments are reachable as {% include "sibling.atl" %}
+                        // without a namespace prefix.
+                        let extra = resolved.parent().map(|p| p.to_owned());
+                        (resolved, extra)
                     };
 
                     let context = context_ud.borrow::<Context>()?;
@@ -850,6 +855,7 @@ fn register_lua_file_module(
                             &destination,
                             overwrite_policy,
                             &mut cache,
+                            extra_include_dir.as_deref(),
                         )
                         .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))?;
                         Ok(None)
@@ -861,6 +867,7 @@ fn register_lua_file_module(
                             &ctx_table,
                             &filters,
                             &mut cache,
+                            extra_include_dir.as_deref(),
                         )
                         .map_err(|e| LuaError::RuntimeError(format!("Render error: {}", e)))?;
                         Ok(Some(rendered))

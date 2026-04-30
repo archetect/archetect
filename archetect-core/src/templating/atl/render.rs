@@ -94,7 +94,26 @@ impl TemplateCache {
 
     /// Get or compile a template, returning the Lua source code.
     pub fn get_or_compile(&mut self, path: &Utf8Path) -> Result<&str, RenderError> {
-        let key = path.to_string();
+        self.get_or_compile_with_extra_dir(path, None)
+    }
+
+    /// Like `get_or_compile`, but prepends `extra_dir` to the include
+    /// search path for this template's compilation only. Used by
+    /// `file.render` when the source was resolved via `find_include`:
+    /// the resolved file's parent directory is added so sibling fragments
+    /// can be `{% include "sibling.atl" %}` without a namespace prefix.
+    ///
+    /// The cache key incorporates `extra_dir` so templates compiled with
+    /// different search contexts are stored separately.
+    pub fn get_or_compile_with_extra_dir(
+        &mut self,
+        path: &Utf8Path,
+        extra_dir: Option<&Utf8Path>,
+    ) -> Result<&str, RenderError> {
+        let key = match extra_dir {
+            Some(dir) => format!("{}|extra:{}", path, dir),
+            None => path.to_string(),
+        };
         if !self.cache.contains_key(&key) {
             let template_text = fs::read_to_string(path).map_err(|err| {
                 RenderError::FileRenderIOError {
@@ -102,7 +121,13 @@ impl TemplateCache {
                     source: err,
                 }
             })?;
-            let mut resolver = self.make_resolver();
+            let mut resolver = if let Some(dir) = extra_dir {
+                let mut dirs = vec![(dir.to_owned(), IncludeTrust::System)];
+                dirs.extend_from_slice(&self.includes_dirs);
+                IncludeResolver::new(dirs)
+            } else {
+                self.make_resolver()
+            };
             let compiled = TemplateCompiler::compile_with(
                 &template_text,
                 path.as_str(),
@@ -123,14 +148,19 @@ impl TemplateCache {
 }
 
 /// Render a template file using the Lua template engine.
+///
+/// `extra_include_dir` — when the template was resolved via `find_include`
+/// (i.e. from a staged library), pass the resolved file's parent directory
+/// here so sibling fragments are reachable as plain `{% include "sibling.atl" %}`.
 pub fn lua_render_contents(
     lua: &Lua,
     path: &Utf8Path,
     ctx_table: &Table,
     filters_table: &Table,
     cache: &mut TemplateCache,
+    extra_include_dir: Option<&Utf8Path>,
 ) -> Result<String, RenderError> {
-    let lua_source = cache.get_or_compile(path)?;
+    let lua_source = cache.get_or_compile_with_extra_dir(path, extra_include_dir)?;
 
     let func: Function = lua.load(lua_source).eval().map_err(|err| {
         RenderError::LuaTemplateRuntimeError {
@@ -237,7 +267,7 @@ pub fn lua_render_directory(
             if is_binary {
                 send_write_file(archetect, &dest, contents, overwrite_policy)?;
             } else {
-                let rendered = lua_render_contents(lua, &path, ctx_table, filters_table, cache)?;
+                let rendered = lua_render_contents(lua, &path, ctx_table, filters_table, cache, None)?;
                 send_write_file(archetect, &dest, rendered.into_bytes(), overwrite_policy)?;
             }
         }
@@ -329,6 +359,8 @@ fn send_write_file(
 /// the Lua template engine with `ctx_table` + `filters_table` in scope.
 /// Used by `file.render(...)` in Lua — the single-file analogue of
 /// `directory.render(...)`.
+///
+/// `extra_include_dir` — see `lua_render_contents`.
 pub fn lua_render_file(
     lua: &Lua,
     archetect: &Archetect,
@@ -338,6 +370,7 @@ pub fn lua_render_file(
     destination: &Utf8Path,
     overwrite_policy: OverwritePolicy,
     cache: &mut TemplateCache,
+    extra_include_dir: Option<&Utf8Path>,
 ) -> Result<(), RenderError> {
     // Ensure the destination's parent directory exists. directory.render
     // recurses through subdirs; file.render may land in any subpath and
@@ -361,7 +394,7 @@ pub fn lua_render_file(
     if is_binary {
         send_write_file(archetect, destination, contents, overwrite_policy)?;
     } else {
-        let rendered = lua_render_contents(lua, source, ctx_table, filters_table, cache)?;
+        let rendered = lua_render_contents(lua, source, ctx_table, filters_table, cache, extra_include_dir)?;
         send_write_file(archetect, destination, rendered.into_bytes(), overwrite_policy)?;
     }
     Ok(())
