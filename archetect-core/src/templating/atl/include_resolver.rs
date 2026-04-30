@@ -98,6 +98,13 @@ impl IncludeResolver {
         }
     }
 
+    /// Locate `relative` in the configured include directories and return its
+    /// absolute path, or `None` if not found. Same sandbox rules as `resolve`.
+    /// Does not push onto the cycle-detection stack — this is a pure lookup.
+    pub fn find(&self, relative: &str) -> Option<Utf8PathBuf> {
+        self.resolve(relative, 0).ok()
+    }
+
     /// Read the included file at `relative` (as written in the template),
     /// pushing it onto the active compile stack.
     ///

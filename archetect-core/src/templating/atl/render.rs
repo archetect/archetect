@@ -84,6 +84,14 @@ impl TemplateCache {
         IncludeResolver::new(self.includes_dirs.clone())
     }
 
+    /// Locate `relative` in the configured include search directories and
+    /// return its absolute path, or `None` if not found. Useful for callers
+    /// (e.g. `file.render`) that need a real path before they can open a file
+    /// but want the same search semantics as `{% include %}`.
+    pub fn find_include(&self, relative: &str) -> Option<Utf8PathBuf> {
+        self.make_resolver().find(relative)
+    }
+
     /// Get or compile a template, returning the Lua source code.
     pub fn get_or_compile(&mut self, path: &Utf8Path) -> Result<&str, RenderError> {
         let key = path.to_string();

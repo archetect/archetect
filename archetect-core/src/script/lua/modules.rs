@@ -799,13 +799,19 @@ fn register_lua_file_module(
                             source
                         )));
                     }
-                    let source_path = archetype_root.join(&source);
-                    if !source_path.is_file() {
-                        return Err(LuaError::RuntimeError(format!(
-                            "file.render: source is not a regular file: {}",
-                            source
-                        )));
-                    }
+                    let primary = archetype_root.join(&source);
+                    let source_path = if primary.is_file() {
+                        primary
+                    } else {
+                        // Fall back to the include search path so library
+                        // modules can call file.render(archetype.include_path("foo.atl"), ctx)
+                        // and reach their own staged includes.
+                        cache.borrow().find_include(&source)
+                            .ok_or_else(|| LuaError::RuntimeError(format!(
+                                "file.render: source is not a regular file: {}",
+                                source
+                            )))?
+                    };
 
                     let context = context_ud.borrow::<Context>()?;
                     let ctx_table = context.to_lua_table(lua)?;
