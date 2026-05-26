@@ -48,6 +48,7 @@
 //! is one-time disk-space duplication per render. Acceptable.
 
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::fs;
 use std::hash::{Hash, Hasher};
 
@@ -55,7 +56,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use linked_hash_map::LinkedHashMap;
 use log::{debug, warn};
 
-use crate::manifest::CatalogEntry;
+use crate::manifest::{CatalogEntry, Manifest};
 use crate::Archetect;
 
 /// Errors that can occur while staging libraries from catalog entries.
@@ -112,6 +113,13 @@ pub struct StagedLibrary {
     /// mirrors the library's own `includes/` so
     /// `{% include "<name>/template" %}` resolves correctly.
     pub includes_dir: Option<Utf8PathBuf>,
+
+    /// The resolved on-disk root of the library archetype (the directory
+    /// that contains `lib/`, `includes/`, `contents/`, etc.). Used by the
+    /// Lua `directory.render` implementation to resolve template paths
+    /// against the currently-executing archetype's own root rather than
+    /// the consumer's root.
+    pub source_root: Utf8PathBuf,
 }
 
 /// Stages library catalog entries for a single consumer archetype.
@@ -155,9 +163,13 @@ impl LibraryStager {
         }
     }
 
-    /// Resolve and stage every catalog entry where `library == true`.
-    /// Entries with `library == false` are skipped — they remain lazy and
-    /// only get fetched if the script invokes `catalog.render(name)`.
+    /// Resolve and stage every catalog entry where `library == true`,
+    /// including transitive library dependencies declared by staged libraries.
+    ///
+    /// Transitive deps are staged so that a library can `require()` its own
+    /// sub-libraries without the consumer needing to declare them. Each
+    /// library is fully encapsulated — the consumer only sees what it
+    /// declares; libraries see their own declared dependencies.
     ///
     /// The staging dir for this consumer is **cleared and recreated** on
     /// every call. Existing staged entries from a previous render are
@@ -179,6 +191,12 @@ impl LibraryStager {
         }
 
         let mut staged = Vec::new();
+        // Track (name, normalized-source) pairs to prevent duplicate staging
+        // of the same library under the same name. Using both components
+        // allows diamond dependencies with different declared names to each
+        // get their own staging entry while still avoiding true duplicates.
+        let mut visited: HashSet<String> = HashSet::new();
+
         for (name, entry) in catalog {
             if !entry.library {
                 continue;
@@ -190,21 +208,70 @@ impl LibraryStager {
                 );
                 continue;
             };
-
-            match self.stage_one(name, source, &staging_root) {
-                Ok(library) => staged.push(library),
-                Err(err) => {
-                    // A failed library is a hard error — the consumer
-                    // declared `library: true` and expects it to be
-                    // available. Bubble the error up so the script
-                    // doesn't try to require() something that's missing.
-                    warn!("library staging failed for `{}`: {}", name, err);
-                    return Err(err);
-                }
+            let source_abs = self.normalize_source(source);
+            if let Err(err) = self.stage_transitive(name, &source_abs, &staging_root, &mut staged, &mut visited) {
+                // A failed library is a hard error — the consumer
+                // declared `library: true` and expects it to be
+                // available. Bubble the error up so the script
+                // doesn't try to require() something that's missing.
+                warn!("library staging failed for `{}`: {}", name, err);
+                return Err(err);
             }
         }
 
         Ok(staged)
+    }
+
+    /// Stage one library and recursively stage all of its own library
+    /// dependencies before pushing itself onto `staged`. This ensures that
+    /// when a library's init.lua is loaded, its sub-libraries are already on
+    /// `package.path` and `require()` calls within the library succeed.
+    ///
+    /// `source` must already be normalized to an absolute path or git URL
+    /// (relative-path normalization must happen at the call site, relative to
+    /// the appropriate base — the consumer's root for top-level entries, the
+    /// owning library's root for transitive deps).
+    fn stage_transitive(
+        &mut self,
+        name: &str,
+        source: &str,
+        staging_root: &Utf8Path,
+        staged: &mut Vec<StagedLibrary>,
+        visited: &mut HashSet<String>,
+    ) -> Result<(), LibraryStagingError> {
+        // Dedup by (name, source) — prevents re-staging the exact same
+        // entry and breaks circular dependency cycles.
+        let key = format!("{}:{}", name, source);
+        if !visited.insert(key) {
+            return Ok(());
+        }
+
+        let library = self.stage_one(name, source, staging_root)?;
+
+        // Recursively stage this library's own library dependencies.
+        // Silently skip if the manifest can't be read — a library with no
+        // readable manifest simply has no transitive deps.
+        if let Ok(manifest) = Manifest::load(&library.source_root) {
+            if let Some(dep_catalog) = manifest.catalog {
+                for (dep_name, dep_entry) in &dep_catalog {
+                    if !dep_entry.library {
+                        continue;
+                    }
+                    let Some(dep_source) = dep_entry.source.as_deref() else {
+                        continue;
+                    };
+                    // Normalize relative to the LIBRARY's source root, not
+                    // the consumer's root. This is what makes encapsulation
+                    // work: a library can declare deps with relative paths
+                    // and they resolve relative to the library itself.
+                    let dep_source_abs = normalize_source(&library.source_root, dep_source);
+                    self.stage_transitive(dep_name, &dep_source_abs, staging_root, staged, visited)?;
+                }
+            }
+        }
+
+        staged.push(library);
+        Ok(())
     }
 
     /// The synthetic staging root for this consumer. Lives under the
@@ -227,22 +294,19 @@ impl LibraryStager {
         normalize_source(&self.consumer_root, source)
     }
 
+    /// Resolve and mount a single library. `source` must already be
+    /// normalized (absolute path or git URL) — relative-path normalization
+    /// is the caller's responsibility so that each library's deps resolve
+    /// relative to the appropriate base.
     fn stage_one(
         &mut self,
         name: &str,
-        source: &str,
+        source: &str,  // already normalized — no CWD-relative paths
         staging_root: &Utf8Path,
     ) -> Result<StagedLibrary, LibraryStagingError> {
-        // 0. If `source` is a relative local path (no git scheme, not
-        //    absolute), interpret it as relative to the consumer's
-        //    archetype root rather than the process CWD. Catalog authors
-        //    expect their source declarations to be portable across the
-        //    different directories archetect might be invoked from.
-        let source_arg = self.normalize_source(source);
-
-        // 1. Resolve the source via archetect's existing source layer
-        //    (handles git URLs, local paths, caching, etc.).
-        let resolved = self.archetect.new_source(&source_arg).map_err(|err| {
+        // Resolve the source via archetect's existing source layer
+        // (handles git URLs, local paths, caching, etc.).
+        let resolved = self.archetect.new_source(source).map_err(|err| {
             LibraryStagingError::SourceResolution {
                 entry: name.to_string(),
                 detail: err.to_string(),
@@ -297,6 +361,7 @@ impl LibraryStager {
             source: source.to_string(),
             lib_dir,
             includes_dir,
+            source_root: resolved_path,
         })
     }
 }
@@ -605,5 +670,225 @@ mod tests {
         let id_a = hash_consumer_id(Utf8Path::new("/consumer/a"));
         let id_b = hash_consumer_id(Utf8Path::new("/consumer/b"));
         assert_ne!(id_a, id_b);
+    }
+
+    // ── source_root and transitive staging ──────────────────────────────
+
+    /// Create a library with a `lib/` dir and an optional set of catalog deps.
+    /// `deps` is `(local_name, source_path)` — written verbatim into the catalog,
+    /// so callers can pass absolute or relative paths as needed.
+    fn write_library_with_catalog(root: &Utf8Path, name: &str, deps: &[(&str, &str)]) -> Utf8PathBuf {
+        let dir = root.join(name);
+        let lib = dir.join("lib");
+        fs::create_dir_all(&lib).unwrap();
+        fs::write(
+            lib.join(format!("{}.lua", name.replace('-', "_"))),
+            format!("return {{ name = '{}' }}", name),
+        )
+        .unwrap();
+
+        let catalog_section = if deps.is_empty() {
+            String::new()
+        } else {
+            let entries: String = deps
+                .iter()
+                .map(|(dep_name, dep_source)| {
+                    format!(
+                        "  {}:\n    source: \"{}\"\n    library: true\n",
+                        dep_name, dep_source
+                    )
+                })
+                .collect();
+            format!("catalog:\n{}", entries)
+        };
+
+        fs::write(
+            dir.join("archetype.yaml"),
+            format!(
+                "description: \"test library {}\"\nrequires:\n  archetect: \"3.0.0\"\n{}",
+                name, catalog_section
+            ),
+        )
+        .unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_source_root_is_set_to_library_on_disk_path() {
+        let (_temp, archetect) = build_archetect_and_layout();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from_path_buf(workspace.path().to_path_buf()).unwrap();
+        let lib_source = write_library_at(&workspace_path, "mylib");
+
+        let consumer_root = workspace_path.join("consumer");
+        fs::create_dir_all(&consumer_root).unwrap();
+
+        let mut catalog = LinkedHashMap::new();
+        catalog.insert("mylib".to_string(), make_catalog_entry(lib_source.as_str(), true));
+
+        let mut stager = LibraryStager::new(archetect, &consumer_root);
+        let staged = stager.stage(&catalog).unwrap();
+
+        assert_eq!(staged.len(), 1);
+        assert_eq!(staged[0].source_root, lib_source,
+            "source_root should point to the library's actual on-disk root");
+    }
+
+    #[test]
+    fn test_transitive_library_deps_are_staged() {
+        let (_temp, archetect) = build_archetect_and_layout();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from_path_buf(workspace.path().to_path_buf()).unwrap();
+
+        // lib-c has no deps; lib-b declares lib-c as a library dep
+        let lib_c = write_library_with_catalog(&workspace_path, "lib-c", &[]);
+        let lib_b = write_library_with_catalog(&workspace_path, "lib-b", &[("lib-c", lib_c.as_str())]);
+
+        let consumer_root = workspace_path.join("consumer");
+        fs::create_dir_all(&consumer_root).unwrap();
+
+        // Consumer only knows about lib-b
+        let mut catalog = LinkedHashMap::new();
+        catalog.insert("lib-b".to_string(), make_catalog_entry(lib_b.as_str(), true));
+
+        let mut stager = LibraryStager::new(archetect, &consumer_root);
+        let staged = stager.stage(&catalog).unwrap();
+
+        // Both lib-b AND its transitive dep lib-c must be staged
+        assert_eq!(staged.len(), 2,
+            "transitive dep lib-c should be staged alongside lib-b; got {:?}",
+            staged.iter().map(|l| &l.name).collect::<Vec<_>>());
+
+        let names: Vec<&str> = staged.iter().map(|l| l.name.as_str()).collect();
+        assert!(names.contains(&"lib-b"), "lib-b should be staged");
+        assert!(names.contains(&"lib-c"), "lib-c (lib-b's dep) should be staged");
+
+        // Both lib dirs must be accessible on disk
+        let b_lib = staged.iter().find(|l| l.name == "lib-b").unwrap()
+            .lib_dir.as_ref().expect("lib-b should have lib_dir");
+        assert!(b_lib.exists(), "lib-b staging dir should exist on disk");
+
+        let c_lib = staged.iter().find(|l| l.name == "lib-c").unwrap()
+            .lib_dir.as_ref().expect("lib-c should have lib_dir");
+        assert!(c_lib.exists(), "lib-c staging dir should exist on disk");
+    }
+
+    #[test]
+    fn test_diamond_dep_staged_once_under_same_name() {
+        let (_temp, archetect) = build_archetect_and_layout();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from_path_buf(workspace.path().to_path_buf()).unwrap();
+
+        // lib-c is a shared dep used by both lib-b and lib-d
+        let lib_c = write_library_with_catalog(&workspace_path, "lib-c", &[]);
+        let lib_b = write_library_with_catalog(&workspace_path, "lib-b", &[("lib-c", lib_c.as_str())]);
+        let lib_d = write_library_with_catalog(&workspace_path, "lib-d", &[("lib-c", lib_c.as_str())]);
+
+        let consumer_root = workspace_path.join("consumer");
+        fs::create_dir_all(&consumer_root).unwrap();
+
+        let mut catalog = LinkedHashMap::new();
+        catalog.insert("lib-b".to_string(), make_catalog_entry(lib_b.as_str(), true));
+        catalog.insert("lib-d".to_string(), make_catalog_entry(lib_d.as_str(), true));
+
+        let mut stager = LibraryStager::new(archetect, &consumer_root);
+        let staged = stager.stage(&catalog).unwrap();
+
+        // lib-b, lib-d, and lib-c — lib-c should appear exactly once
+        assert_eq!(staged.len(), 3,
+            "lib-c should be staged once despite being a dep of both lib-b and lib-d; got {:?}",
+            staged.iter().map(|l| &l.name).collect::<Vec<_>>());
+
+        let c_count = staged.iter().filter(|l| l.name == "lib-c").count();
+        assert_eq!(c_count, 1, "lib-c should appear exactly once in staged list");
+    }
+
+    #[test]
+    fn test_circular_dependency_does_not_loop() {
+        let (_temp, archetect) = build_archetect_and_layout();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from_path_buf(workspace.path().to_path_buf()).unwrap();
+
+        // lib-a and lib-b form a cycle. We must create the dirs first so the
+        // paths exist before writing the archetype.yaml files that reference them.
+        let lib_a_dir = workspace_path.join("lib-a");
+        let lib_b_dir = workspace_path.join("lib-b");
+        fs::create_dir_all(lib_a_dir.join("lib")).unwrap();
+        fs::create_dir_all(lib_b_dir.join("lib")).unwrap();
+        fs::write(lib_a_dir.join("lib").join("lib_a.lua"), "return {}").unwrap();
+        fs::write(lib_b_dir.join("lib").join("lib_b.lua"), "return {}").unwrap();
+
+        // lib-a → lib-b → lib-a (cycle)
+        fs::write(
+            lib_a_dir.join("archetype.yaml"),
+            format!(
+                "description: \"lib-a\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  lib-b:\n    source: \"{}\"\n    library: true\n",
+                lib_b_dir
+            ),
+        )
+        .unwrap();
+        fs::write(
+            lib_b_dir.join("archetype.yaml"),
+            format!(
+                "description: \"lib-b\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  lib-a:\n    source: \"{}\"\n    library: true\n",
+                lib_a_dir
+            ),
+        )
+        .unwrap();
+
+        let consumer_root = workspace_path.join("consumer");
+        fs::create_dir_all(&consumer_root).unwrap();
+
+        let mut catalog = LinkedHashMap::new();
+        catalog.insert("lib-a".to_string(), make_catalog_entry(lib_a_dir.as_str(), true));
+
+        let mut stager = LibraryStager::new(archetect, &consumer_root);
+        // Must complete without hanging or stack overflowing
+        let result = stager.stage(&catalog);
+        assert!(result.is_ok(), "circular deps should not cause an error or infinite loop");
+
+        // lib-b should have been staged as lib-a's dep, but lib-a's back-edge
+        // to lib-b should be skipped via the visited set
+        let staged = result.unwrap();
+        let names: Vec<&str> = staged.iter().map(|l| l.name.as_str()).collect();
+        assert!(names.contains(&"lib-b"), "lib-b should be staged as lib-a's dep");
+    }
+
+    #[test]
+    fn test_transitive_dep_relative_path_resolves_from_library_root() {
+        let (_temp, archetect) = build_archetect_and_layout();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from_path_buf(workspace.path().to_path_buf()).unwrap();
+
+        // lib-c and lib-b sit at the same level under workspace/
+        // lib-b references lib-c via a relative sibling path "../lib-c"
+        write_library_with_catalog(&workspace_path, "lib-c", &[]);
+        write_library_with_catalog(&workspace_path, "lib-b", &[("lib-c", "../lib-c")]);
+        let lib_b = workspace_path.join("lib-b");
+
+        // Consumer lives in a completely different directory. If relative paths
+        // in lib-b's catalog were resolved against the consumer's root, "../lib-c"
+        // would not find lib-c.
+        let consumer_root = workspace_path.join("nested").join("deeply").join("consumer");
+        fs::create_dir_all(&consumer_root).unwrap();
+        fs::write(
+            consumer_root.join("archetype.yaml"),
+            "description: \"consumer\"\nrequires:\n  archetect: \"3.0.0\"\n",
+        )
+        .unwrap();
+
+        let mut catalog = LinkedHashMap::new();
+        catalog.insert("lib-b".to_string(), make_catalog_entry(lib_b.as_str(), true));
+
+        let mut stager = LibraryStager::new(archetect, &consumer_root);
+        let staged = stager.stage(&catalog).unwrap();
+
+        let names: Vec<&str> = staged.iter().map(|l| l.name.as_str()).collect();
+        assert!(
+            names.contains(&"lib-c"),
+            "lib-c should be staged because lib-b's '../lib-c' resolved correctly \
+             relative to lib-b's source root, not the consumer's root; got: {:?}",
+            names
+        );
     }
 }

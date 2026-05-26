@@ -37,6 +37,11 @@ function Context:has(key) end
 function Context:contains(key, value) end
 
 ---Set a value directly in the context.
+---NOTE: passing `nil` stores a Nil sentinel — it does NOT remove the key.
+---There is no `context:remove()`; avoid setting nil if you need the key absent.
+---NOTE: when `opts.cases` is used the *original key* is also written as a case
+---variant — use the canonical form of the key (e.g. kebab or snake) to avoid
+---a collision between the input key and a derived variant.
 ---@param key string Key to store under
 ---@param value any Value to store
 ---@param opts? {cases?: CaseSpec|CaseSpec[]} Optional case expansion
@@ -118,7 +123,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field max? integer Maximum length
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class IntPromptOpts
 ---@field default? integer Default value
@@ -127,14 +132,14 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum value
 ---@field max? integer Maximum value
 ---@field optional? boolean Whether the prompt can be skipped
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class ConfirmPromptOpts
 ---@field default? boolean Default value
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class SelectPromptOpts
 ---@field default? string Default selection (may be an off-list value when allow_other = true)
@@ -144,7 +149,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field allow_other? boolean Append an "Other..." entry that opens a free-text prompt
 ---@field other_label? string Label for the "other" entry (default: "Other...")
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class MultiSelectPromptOpts
 ---@field default? string[] Default selections
@@ -153,7 +158,7 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum selections
 ---@field max? integer Maximum selections
 ---@field optional? boolean Whether the prompt can be skipped
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class ListPromptOpts
 ---@field help? string Help text
@@ -161,13 +166,13 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum items
 ---@field max? integer Maximum items
 ---@field optional? boolean Whether the prompt can be skipped
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class EditorPromptOpts
 ---@field default? string Default text in editor
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
----@field answer_key? string Alternate key to look up pre-supplied answers
+---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 --
 -- Cases
@@ -227,6 +232,12 @@ function Cases.set(...) end
 ---@param style CaseStyle The case style (e.g., `Case.Title`)
 ---@return CaseSpec
 function Cases.fixed(key, style) end
+
+---Preserve the raw, untransformed input under a fixed key.
+---Useful when you need the original string alongside case-expanded variants.
+---@param key string The exact key name to store the raw value under
+---@return CaseSpec
+function Cases.input(key) end
 
 --
 -- archetect (binary introspection)
@@ -335,10 +346,14 @@ catalog = {}
 ---Dispatch to a named catalog entry: prompts / renders the child archetype
 ---and returns its resulting context. Path may be slash-separated for nested
 ---catalog navigation (`'services/grpc'`).
+---
+---IMPORTANT: the returned context contains only keys the child *wrote* — parent
+---answers that the child merely read are not echoed back. Use `context:merge()`
+---on the return value to absorb child output into the parent context.
 ---@param path string Catalog entry path
 ---@param context Context Parent context (passed through to child)
 ---@param opts? CatalogRenderOpts
----@return Context child_context
+---@return Context child_context Keys written by the child archetype
 function catalog.render(path, context, opts) end
 
 ---@class CatalogRenderOpts

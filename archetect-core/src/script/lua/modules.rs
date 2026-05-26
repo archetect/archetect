@@ -89,7 +89,7 @@ pub fn register_all(
         })
         .with_includes_dirs(includes_dirs);
     let cache = Rc::new(RefCell::new(cache));
-    register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone())?;
+    register_lua_directory_module(lua, archetype, archetect, render_context, &filters, cache.clone(), &staged_libraries)?;
     register_lua_file_module(lua, archetype, archetect, render_context, &filters, cache)?;
     register_lua_template_module(lua, archetect, render_context, &filters)?;
 
@@ -401,6 +401,43 @@ fn caller_mount_key(lua: &Lua, registry: &[(String, String)]) -> LuaResult<Optio
     Ok(None)
 }
 
+/// Look up the source root for whichever staged library the calling Lua
+/// chunk lives in. Same stack-inspection approach as `caller_mount_key`
+/// but returns the library's on-disk source root instead of its name.
+/// Used by `directory.render` to resolve template paths against the
+/// currently-executing archetype's own root rather than the consumer's.
+///
+/// Returns `None` when the caller is not inside any staged library (i.e.
+/// the consumer's own script is running), so the caller can fall back to
+/// the consumer's root for the normal non-library case.
+fn caller_archetype_root(
+    lua: &Lua,
+    registry: &[(String, camino::Utf8PathBuf)],
+) -> LuaResult<Option<camino::Utf8PathBuf>> {
+    if registry.is_empty() {
+        return Ok(None);
+    }
+    let source: Option<String> = lua
+        .inspect_stack(1, |dbg| {
+            dbg.source().source.as_ref().map(|s| s.as_ref().to_string())
+        })
+        .flatten();
+    let Some(source) = source else {
+        return Ok(None);
+    };
+    let path = source.strip_prefix('@').unwrap_or(&source);
+
+    for (lib_dir, source_root) in registry {
+        if path.starts_with(lib_dir.as_str()) {
+            let after = &path[lib_dir.len()..];
+            if after.is_empty() || after.starts_with('/') || after.starts_with('\\') {
+                return Ok(Some(source_root.clone()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 // ── catalog module (render catalog entries by path) ─────────────────
 
 fn register_catalog_module(
@@ -435,7 +472,7 @@ fn register_catalog_module(
                 // archetect might be invoked from. Library staging in
                 // commit 4 already does this; mirror it here so the
                 // dispatch path has the same semantics.
-                let catalog = normalize_catalog_sources(parent.root(), raw_catalog);
+                let catalog = crate::catalog::dispatch::normalize_catalog_sources(parent.root(), raw_catalog);
                 let catalog = &catalog;
 
                 let context_map = {
@@ -495,27 +532,6 @@ fn register_catalog_module(
 
     lua.globals().set("catalog", catalog_table)?;
     Ok(())
-}
-
-/// Walk a catalog and rewrite each entry's `source:` against the consumer
-/// archetype's root, recursing into nested catalog groups. Returns a new
-/// `LinkedHashMap` so the original manifest is unchanged.
-fn normalize_catalog_sources(
-    consumer_root: &camino::Utf8Path,
-    catalog: &linked_hash_map::LinkedHashMap<String, crate::manifest::CatalogEntry>,
-) -> linked_hash_map::LinkedHashMap<String, crate::manifest::CatalogEntry> {
-    let mut out = linked_hash_map::LinkedHashMap::new();
-    for (name, entry) in catalog {
-        let mut cloned = entry.clone();
-        if let Some(ref src) = cloned.source {
-            cloned.source = Some(crate::library::normalize_source(consumer_root, src));
-        }
-        if let Some(ref nested) = cloned.catalog {
-            cloned.catalog = Some(normalize_catalog_sources(consumer_root, nested));
-        }
-        out.insert(name.clone(), cloned);
-    }
-    out
 }
 
 /// Convert a child archetype's returned `ContextValue` into a freshly
@@ -650,6 +666,7 @@ fn register_lua_directory_module(
     render_context: &RenderContext,
     filters: &Table,
     cache: Rc<RefCell<TemplateCache>>,
+    staged_libraries: &[crate::library::StagedLibrary],
 ) -> LuaResult<()> {
     let directory_table = lua.create_table()?;
 
@@ -659,6 +676,19 @@ fn register_lua_directory_module(
     let filters = filters.clone();
     let cache = cache.clone();
 
+    // Registry mapping each staged library's lib_dir path to the library's
+    // actual on-disk source root. Used by directory.render to resolve template
+    // paths against the currently-executing archetype's own root rather than
+    // always using the consumer's root.
+    let dir_source_registry: Vec<(String, camino::Utf8PathBuf)> = staged_libraries
+        .iter()
+        .filter_map(|lib| {
+            lib.lib_dir
+                .as_ref()
+                .map(|d| (d.to_string(), lib.source_root.clone()))
+        })
+        .collect();
+
     directory_table.set(
         "render",
         lua.create_function(
@@ -666,10 +696,15 @@ fn register_lua_directory_module(
                 let context = context_ud.borrow::<Context>()?;
                 let ctx_table = context.to_lua_table(lua)?;
 
-                // Phase 1, commit 6: directory.render(path, ...) is
-                // now resolved directly against the archetype root.
-                // There is no longer a templating.content prefix.
-                let source = arch.root().join(&dir_name);
+                // Resolve the template path against the currently-executing
+                // archetype's root. When called from a staged library module,
+                // this is the library's own source root so that
+                // `directory.render("contents/base", context)` finds the
+                // library's templates. When called from the consumer's main
+                // script, it falls back to the consumer's root as before.
+                let base = caller_archetype_root(lua, &dir_source_registry)?
+                    .unwrap_or_else(|| arch.root().to_owned());
+                let source = base.join(&dir_name);
                 let mut destination = ctx.destination().to_owned();
 
                 if let Some(ref opts) = opts {

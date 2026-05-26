@@ -103,16 +103,22 @@ impl Archetype {
                 // message and exit cleanly so the user understands the
                 // situation isn't an error.
                 if self.manifest().has_catalog() {
-                    let catalog = self.manifest().catalog().ok_or_else(|| {
+                    let raw_catalog = self.manifest().catalog().ok_or_else(|| {
                         ArchetypeError::SourceError(
                             crate::errors::SourceError::SourceNotFound(
                                 "No catalog entries found in manifest".to_string(),
                             ),
                         )
                     })?;
+                    // Normalize relative source paths so they resolve against
+                    // the catalog file's own directory, not the process CWD.
+                    let catalog = crate::catalog::dispatch::normalize_catalog_sources(
+                        self.root(),
+                        raw_catalog,
+                    );
                     crate::catalog::dispatch::dispatch(
                         self.archetect(),
-                        catalog,
+                        &catalog,
                         action,
                         render_context,
                     )

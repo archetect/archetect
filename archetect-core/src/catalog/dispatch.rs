@@ -393,6 +393,32 @@ pub fn present_entries(
     }
 }
 
+/// Normalize all `source:` values in a catalog tree recursively.
+///
+/// Relative local paths are resolved against `catalog_root` so that
+/// catalog entries work regardless of the CWD from which archetect was
+/// invoked. Git URLs and absolute paths pass through unchanged.
+///
+/// Used by `archetype.rs` (script-less catalog dispatch) and the Lua
+/// `catalog.render()` function so both paths have identical semantics.
+pub(crate) fn normalize_catalog_sources(
+    catalog_root: &camino::Utf8Path,
+    catalog: &LinkedHashMap<String, CatalogEntry>,
+) -> LinkedHashMap<String, CatalogEntry> {
+    let mut out = LinkedHashMap::new();
+    for (name, entry) in catalog {
+        let mut cloned = entry.clone();
+        if let Some(ref src) = cloned.source {
+            cloned.source = Some(crate::library::normalize_source(catalog_root, src));
+        }
+        if let Some(ref nested) = cloned.catalog {
+            cloned.catalog = Some(normalize_catalog_sources(catalog_root, nested));
+        }
+        out.insert(name.clone(), cloned);
+    }
+    out
+}
+
 struct EntryItem {
     text: String,
     name: String,
