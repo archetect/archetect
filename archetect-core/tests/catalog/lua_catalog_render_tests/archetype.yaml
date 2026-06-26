@@ -8,9 +8,9 @@ catalog:
     catalog:
       grpc:
         description: "gRPC Service"
-        source: "/Users/jimmie/personal/archetect/archetect-3/archetect-core/tests/catalog/lua_catalog_render_tests/child-archetype"
+        source: "child-archetype"
         answers:
           service_name: "grpc-service"
       rest:
         description: "REST Service"
-        source: "/Users/jimmie/personal/archetect/archetect-3/archetect-core/tests/catalog/lua_catalog_render_tests/child-archetype"
+        source: "child-archetype"

@@ -8,4 +8,4 @@ catalog:
     catalog:
       rest:
         description: "REST Service"
-        source: "/Users/jimmie/personal/archetect/archetect-3/archetect-core/tests/catalog/lua_catalog_render_tests/child-archetype"
+        source: "../lua_catalog_render_tests/child-archetype"
