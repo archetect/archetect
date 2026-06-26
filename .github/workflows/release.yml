@@ -1,17 +1,20 @@
 name: Release
 
+# Tag-driven release. Pushing a `vX.Y.Z` tag (on `main` for the 3.x line, or on
+# `2.x` for the v2 maintenance line) builds, publishes a GitHub release, and
+# updates the Homebrew tap. Version is derived from the tag.
+#
+# To cut a release, either:
+#   - run the "Prepare Release" workflow (bumps Cargo.toml + pushes the tag), or
+#   - bump the workspace version, commit, then `git tag vX.Y.Z && git push --tags`.
+#
+# Pre-release tags (e.g. v3.0.0-rc.1) are published as GitHub pre-releases and
+# never marked --latest nor pushed to the main `archetect` Homebrew formula.
+
 on:
-  workflow_dispatch:
-    inputs:
-      level:
-        description: "Version Bump Level"
-        type: choice
-        required: false
-        default: patch
-        options:
-          - major
-          - minor
-          - patch
+  push:
+    tags:
+      - "v*"
 
 permissions: write-all
 concurrency:
@@ -25,51 +28,100 @@ env:
   DOWNLOAD_PREFIX: "https://github.com/${{ github.repository }}/releases/download"
   DESTINATION_HOMEBREW_TAP: ${{ github.repository_owner }}/homebrew-tap
   REPOSITORY_DISPATCH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
-  COMMIT_USER: github-actions
-  COMMIT_EMAIL: github-actions@users.noreply.github.com
+  # The highest major version currently considered the "latest" line. A tag whose
+  # major is >= this value updates the main `archetect` formula and is marked
+  # --latest; lower majors are treated as maintenance releases. Bump at the next
+  # major (v4) cutover.
+  LATEST_MAJOR: "3"
 
 jobs:
-  pre-release:
-    name: Pre Release
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.capture.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}                 # v3.0.0
+      version: ${{ steps.v.outputs.version }}         # 3.0.0
+      major: ${{ steps.v.outputs.major }}             # 3
+      prerelease: ${{ steps.v.outputs.prerelease }}   # true | false
+      latest: ${{ steps.v.outputs.latest }}           # true | false
+      update_main: ${{ steps.v.outputs.update_main }} # true | false
+      channel: ${{ steps.v.outputs.channel }}         # stable-latest | maintenance
     steps:
-      - name: Install cargo-workspaces
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-workspaces
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Bump Version
-        if: github.ref == 'refs/heads/main'
+      - name: Resolve version & channel
+        id: v
         shell: bash
         run: |
-          git config user.name ${{ env.COMMIT_USER }}
-          git config user.email ${{ env.COMMIT_EMAIL }}
-          cargo workspaces version ${{ inputs.level }} -y --allow-branch main -m "Release %v [skip ci]" --no-individual-tags --force '*'
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          MAJOR="${VERSION%%.*}"
 
-      - name: Capture Version
-        id: capture
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; else PRERELEASE=false; fi
+
+          if [[ "$PRERELEASE" == "false" && "$MAJOR" -ge "${LATEST_MAJOR}" ]]; then
+            LATEST=true
+            UPDATE_MAIN=true
+            CHANNEL=stable-latest
+          else
+            LATEST=false
+            UPDATE_MAIN=false
+            CHANNEL=maintenance
+          fi
+
+          # Sanity gate: the workspace version must match the tag's BASE version
+          # (the part before any -prerelease suffix). A v3.0.0-rc.1 tag validates the
+          # upcoming 3.0.0 whose Cargo.toml already reads 3.0.0; a final v3.0.0 tag
+          # must match exactly. Reads the first top-level `version = "..."` (the
+          # [workspace.package] entry).
+          BASE_VERSION="${VERSION%%-*}"
+          CARGO_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ "$CARGO_VERSION" != "$BASE_VERSION" ]]; then
+            echo "::error::Tag ${TAG} (base version ${BASE_VERSION}) does not match Cargo.toml version ${CARGO_VERSION}"
+            exit 1
+          fi
+
+          echo "Releasing ${TAG} | major=${MAJOR} prerelease=${PRERELEASE} latest=${LATEST} channel=${CHANNEL}"
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "major=${MAJOR}"
+            echo "prerelease=${PRERELEASE}"
+            echo "latest=${LATEST}"
+            echo "update_main=${UPDATE_MAIN}"
+            echo "channel=${CHANNEL}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Release gate: tests must pass before a draft release is created or any
+      # platform build runs. A red test therefore cannot produce a published
+      # release, regardless of branch protection or which commit was tagged.
+      - name: Enable Rust Dependency Caching
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test (release gate)
         shell: bash
-        run: |
-          version=$(cargo workspaces list --json | jq '.[0].version' -r)
-          echo "Release Version: v{$version}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+        run: cargo test
 
-      - name: Create GitHub Release
+      - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: v${{ steps.capture.outputs.version }}
-        run: gh release create ${VERSION} --draft --verify-tag --title ${VERSION}
+          TAG: ${{ steps.v.outputs.tag }}
+          PRERELEASE: ${{ steps.v.outputs.prerelease }}
+        shell: bash
+        run: |
+          PRE_FLAG=""
+          if [[ "$PRERELEASE" == "true" ]]; then PRE_FLAG="--prerelease"; fi
+          gh release create "${TAG}" --draft --verify-tag --title "${TAG}" ${PRE_FLAG}
 
   build:
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
-    needs: [pre-release]
+    needs: [setup]
     strategy:
-      fail-fast: true
+      # Build every platform even if one fails, so a single run surfaces all
+      # platform-specific failures instead of cancelling siblings.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
@@ -81,9 +133,6 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: arm64
-          - os: macos-13
-            platform: macos
-            arch: x86_64
           - os: windows-latest
             platform: windows
             arch: x86_64
@@ -95,11 +144,9 @@ jobs:
       linux-x86_64_sha256: ${{ steps.create-archive.outputs.linux-x86_64_sha256 }}
       macos-arm64_archive: ${{ steps.create-archive.outputs.macos-arm64_archive }}
       macos-arm64_sha256: ${{ steps.create-archive.outputs.macos-arm64_sha256 }}
-      macos-x86_64_archive: ${{ steps.create-archive.outputs.macos-x86_64_archive }}
-      macos-x86_64_sha256: ${{ steps.create-archive.outputs.macos-x86_64_sha256 }}
 
     env:
-      VERSION: v${{ needs.pre-release.outputs.version }}
+      VERSION: ${{ needs.setup.outputs.tag }}
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -115,26 +162,6 @@ jobs:
 
       - name: Enable Rust Dependency Caching
         uses: Swatinem/rust-cache@v2
-
-      # - name: Setup vcpkg cache
-      #   if: matrix.platform == 'windows'
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       C:\vcpkg\installed
-      #       C:\vcpkg\buildtrees
-      #       C:\vcpkg\packages
-      #     key: vcpkg-${{ runner.os }}
-      #     restore-keys: |
-      #       vcpkg-${{ runner.os }}
-
-      # - name: Install Windows Dependencies
-      #   if: matrix.platform == 'windows'
-      #   shell: bash
-      #   run: |
-      #     VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT
-      #     echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
-      #     vcpkg install openssl:x64-windows-static-md
 
       - name: Build Binary
         shell: bash
@@ -156,7 +183,7 @@ jobs:
         shell: bash
         run: |
           archive_prefix="${BINARY_NAME}-${VERSION}-${{matrix.platform}}-${{matrix.arch}}"
-          mkdir -p "${archive_prefix}" >> $GITHUB_ENV
+          mkdir -p "${archive_prefix}"
           cp "$BINARY_PATH" "$archive_prefix"
           if [ "${{ matrix.platform }}" = "windows" ]; then
             archive=${archive_prefix}.zip
@@ -170,7 +197,7 @@ jobs:
             shasum -a 256 "${archive}" > "${archive_sum}"
             echo "${{ matrix.platform }}-${{ matrix.arch}}_archive=${VERSION}/${archive}" >> $GITHUB_OUTPUT
             echo "${{ matrix.platform }}-${{ matrix.arch}}_sha256=$(cat $archive_sum | awk '{print $1}')" >> $GITHUB_OUTPUT
-          fi          
+          fi
           echo "ARCHIVE=${archive}" >> $GITHUB_ENV
           echo "ARCHIVE_PREFIX=${archive_prefix}" >> $GITHUB_ENV
           echo "ARCHIVE_SUM=${archive_sum}" >> $GITHUB_ENV
@@ -201,26 +228,25 @@ jobs:
   post-release:
     name: Post Release
     runs-on: ubuntu-latest
-    needs: [pre-release, build]
+    needs: [setup, build]
     env:
-      VERSION: v${{ needs.pre-release.outputs.version }}
+      VERSION: ${{ needs.setup.outputs.tag }}
     steps:
-      - name: Checkout Tag
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.VERSION }}
       - name: Finalize Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ needs.setup.outputs.latest }}
         shell: bash
-        run: gh release edit "${VERSION}" --draft=false --latest
+        run: |
+          gh release edit "${VERSION}" --draft=false
+          if [[ "$LATEST" == "true" ]]; then
+            gh release edit "${VERSION}" --latest
+          fi
 
   update_homebrew_formula:
-    name: Update Homebrew Forumula
-    needs: [pre-release, build]
+    name: Update Homebrew Formula
+    needs: [setup, build]
     runs-on: ubuntu-latest
-    env:
-      VERSION: v${{ needs.pre-release.outputs.version }}
     steps:
       - name: Dispatch event to ${{ env.DESTINATION_HOMEBREW_TAP }}
         uses: ph-fritsche/action-dispatch@v1
@@ -234,15 +260,17 @@ jobs:
               "binary": "${{ env.BINARY_NAME }}",
               "homepage": "${{ env.BINARY_HOMEPAGE }}",
               "description": "${{ env.BINARY_DESCRIPTION }}",
-              "version": "${{ needs.pre-release.outputs.version }}",
+              "version": "${{ needs.setup.outputs.version }}",
+              "major": "${{ needs.setup.outputs.major }}",
+              "channel": "${{ needs.setup.outputs.channel }}",
+              "update_main": "${{ needs.setup.outputs.update_main }}",
+              "prerelease": "${{ needs.setup.outputs.prerelease }}",
               "builds": {
                 "linux-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-arm64_archive }}",
                 "linux-arm64_sha256": "${{ needs.build.outputs.linux-arm64_sha256 }}",
                 "linux-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-x86_64_archive }}",
                 "linux-x86_64_sha256": "${{ needs.build.outputs.linux-x86_64_sha256 }}",
                 "macos-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-arm64_archive }}",
-                "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}",
-                "macos-x86_64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.macos-x86_64_archive }}",
-                "macos-x86_64_sha256": "${{ needs.build.outputs.macos-x86_64_sha256 }}"
+                "macos-arm64_sha256": "${{ needs.build.outputs.macos-arm64_sha256 }}"
               }
             }
