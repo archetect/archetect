@@ -26,7 +26,8 @@ on:
 
 permissions: write-all
 concurrency:
-  group: release
+  # Scope per branch so preparing a release on main and 2.x can run independently.
+  group: prepare-release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
