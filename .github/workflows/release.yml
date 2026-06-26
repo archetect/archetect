@@ -18,7 +18,9 @@ on:
 
 permissions: write-all
 concurrency:
-  group: release
+  # Scope per tag so 2.x and 3.x releases (and any distinct tags) never block one
+  # another. The Homebrew tap serializes its own updates via its own concurrency.
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
