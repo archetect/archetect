@@ -50,6 +50,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Resolve version & channel
         id: v
         shell: bash
@@ -157,6 +162,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.VERSION }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build ${{ matrix.platform }}-${{ matrix.arch }}
         shell: bash
