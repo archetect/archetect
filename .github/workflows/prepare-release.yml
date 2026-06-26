@@ -1,0 +1,65 @@
+name: Prepare Release
+
+# Convenience "easy button" that bumps the workspace version and pushes a
+# `vX.Y.Z` tag. Pushing that tag triggers release.yml (the actual build/publish).
+#
+# Run this from the branch you want to release:
+#   - `main` for the 3.x line
+#   - `2.x`  for the v2 maintenance line
+#
+# This decouples the version bump from the build: the bump + tag happen here, the
+# tag push is what release.yml listens for. You can also skip this workflow and
+# tag manually.
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: "Version Bump Level"
+        type: choice
+        required: false
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+
+permissions: write-all
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  COMMIT_USER: github-actions
+  COMMIT_EMAIL: github-actions@users.noreply.github.com
+
+jobs:
+  prepare:
+    name: Bump & Tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cargo-workspaces
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-workspaces
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump Version & Push Tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "${COMMIT_USER}"
+          git config user.email "${COMMIT_EMAIL}"
+          # Bump on whatever branch this workflow was dispatched from (main or 2.x).
+          # cargo-workspaces commits "Release vX.Y.Z [skip ci]", creates a single
+          # `vX.Y.Z` tag, and pushes both the commit and the tag. The pushed tag
+          # then triggers release.yml.
+          cargo workspaces version "${{ inputs.level }}" -y \
+            --allow-branch "${GITHUB_REF_NAME}" \
+            -m "Release %v [skip ci]" \
+            --no-individual-tags \
+            --force '*'
