@@ -244,6 +244,10 @@ jobs:
           gh release edit "${VERSION}" --draft=false
           if [[ "$LATEST" == "true" ]]; then
             gh release edit "${VERSION}" --latest
+          else
+            # Explicitly keep maintenance/prerelease tags off "Latest" so they never
+            # demote the current stable (GitHub otherwise auto-marks the newest).
+            gh release edit "${VERSION}" --latest=false
           fi
 
   update_homebrew_formula:
