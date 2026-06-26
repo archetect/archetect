@@ -2,7 +2,7 @@ use std::path::Path;
 use winreg::enums::HKEY_LOCAL_MACHINE;
 use winreg::RegKey;
 use crate::errors::ArchetectError;
-use super::CHECK_SUCCESS;
+use super::CHECK_PASS;
 use super::CHECK_ERROR;
 use super::CHECK_PREFIX;
 
@@ -20,7 +20,7 @@ pub fn check_git_long_path_names() -> Result<(), ArchetectError> {
         match long_paths {
             Ok(enabled) => {
                 if enabled {
-                    println!("\t{CHECK_SUCCESS} Git Long Paths Enabled");
+                    println!("\t{CHECK_PASS} Git Long Paths Enabled");
                 } else {
                     print_git_long_paths_instructions();
                 }
@@ -40,7 +40,7 @@ pub fn check_registry_long_path_names() -> Result<(), ArchetectError> {
     let fs = hklm.open_subkey(fs_path)?;
     let long_paths_enabled: u32 = fs.get_value("LongPathsEnabled")?;
     if long_paths_enabled != 0 {
-        println!("\t{CHECK_SUCCESS} Windows Long Paths Enabled");
+        println!("\t{CHECK_PASS} Windows Long Paths Enabled");
     } else {
         print_registry_long_path_names_instructions()?;
     }
