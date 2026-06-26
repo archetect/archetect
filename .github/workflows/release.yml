@@ -90,6 +90,16 @@ jobs:
             echo "channel=${CHANNEL}"
           } >> "$GITHUB_OUTPUT"
 
+      # Release gate: tests must pass before a draft release is created or any
+      # platform build runs. A red test therefore cannot produce a published
+      # release, regardless of branch protection or which commit was tagged.
+      - name: Enable Rust Dependency Caching
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test (release gate)
+        shell: bash
+        run: cargo test
+
       - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
