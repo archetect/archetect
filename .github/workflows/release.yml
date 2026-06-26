@@ -71,11 +71,15 @@ jobs:
             CHANNEL=maintenance
           fi
 
-          # Sanity gate: the workspace version must match the tag. Reads the first
-          # top-level `version = "..."` (the [workspace.package] entry).
+          # Sanity gate: the workspace version must match the tag's BASE version
+          # (the part before any -prerelease suffix). A v3.0.0-rc.1 tag validates the
+          # upcoming 3.0.0 whose Cargo.toml already reads 3.0.0; a final v3.0.0 tag
+          # must match exactly. Reads the first top-level `version = "..."` (the
+          # [workspace.package] entry).
+          BASE_VERSION="${VERSION%%-*}"
           CARGO_VERSION=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
-          if [[ "$CARGO_VERSION" != "$VERSION" ]]; then
-            echo "::error::Tag ${TAG} (version ${VERSION}) does not match Cargo.toml version ${CARGO_VERSION}"
+          if [[ "$CARGO_VERSION" != "$BASE_VERSION" ]]; then
+            echo "::error::Tag ${TAG} (base version ${BASE_VERSION}) does not match Cargo.toml version ${CARGO_VERSION}"
             exit 1
           fi
 
@@ -263,6 +267,7 @@ jobs:
               "major": "${{ needs.setup.outputs.major }}",
               "channel": "${{ needs.setup.outputs.channel }}",
               "update_main": "${{ needs.setup.outputs.update_main }}",
+              "prerelease": "${{ needs.setup.outputs.prerelease }}",
               "builds": {
                 "linux-arm64_archive": "${{ env.DOWNLOAD_PREFIX }}/${{ needs.build.outputs.linux-arm64_archive }}",
                 "linux-arm64_sha256": "${{ needs.build.outputs.linux-arm64_sha256 }}",
