@@ -9,6 +9,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-changed={}", SELF_PROTO);
 
+    // Make the build self-contained: prost/tonic need a `protoc` binary. Rather
+    // than requiring a system install (CI, contributors, `cargo install`), fall
+    // back to a vendored protoc. An explicit `PROTOC` env var still wins, so
+    // distro packagers can override.
+    if env::var_os("PROTOC").is_none() {
+        env::set_var("PROTOC", protoc_bin_vendored::protoc_bin_path()?);
+    }
+
     // tonic 0.14 split prost-based codegen into `tonic-prost-build`.
     // `configure()` lives there now; tonic-build itself is the
     // transport-agnostic codegen primitive.
