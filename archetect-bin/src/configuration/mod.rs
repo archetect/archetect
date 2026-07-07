@@ -317,8 +317,8 @@ impl Source for ClapSource {
         Box::new((*self).clone())
     }
 
-    fn collect(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let mut results = HashMap::new();
+    fn collect(&self) -> Result<config::Map<String, Value>, ConfigError> {
+        let mut results = config::Map::new();
         for (key, extractor) in &self.mappings {
             if let Some(value) = extractor.extract(key, &self.matches) {
                 results.insert(extractor.path().to_string(), value);
