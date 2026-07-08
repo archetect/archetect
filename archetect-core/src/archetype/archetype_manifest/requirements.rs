@@ -16,21 +16,45 @@ impl RuntimeRequirements {
     }
 
     pub fn check_requirements(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
-        let version = archetect.version();
-
-        // Treat the requirement as a minimum version: the running archetect must be
-        // at least the version the archetype requires. This allows archetect 3.x to
-        // render archetypes that require 2.x, since 3.x is a superset of 2.x.
-        let min_version = extract_minimum_version(&self.archetect_version);
-        if version < &min_version {
-            return Err(RequirementsError::ArchetectVersion(
-                archetect.version().clone(),
-                self.archetect_version.clone(),
-            ));
-        }
-
-        Ok(())
+        check_version(archetect.version(), &self.archetect_version)
     }
+}
+
+/// Enforce the `requires: archetect:` contract.
+///
+/// Major versions are strictly separated: an archetype requiring 2.x renders
+/// only with archetect 2, and one requiring 3.x only with archetect 3 — the
+/// scripting and templating engines are not compatible across majors. Within
+/// the same major, the requirement is a minimum: the running archetect must
+/// be at least the version the archetype requires.
+fn check_version(version: &Version, requirement: &VersionReq) -> Result<(), RequirementsError> {
+    let min_version = extract_minimum_version(requirement);
+
+    if version.major < min_version.major {
+        // The archetype targets a newer major than this binary.
+        return Err(RequirementsError::ArchetectVersion(
+            version.clone(),
+            requirement.clone(),
+        ));
+    }
+
+    if version.major > min_version.major {
+        // The archetype targets an older major — point at the legacy binary.
+        return Err(RequirementsError::ArchetectVersionMajor(
+            version.clone(),
+            requirement.clone(),
+            min_version.major,
+        ));
+    }
+
+    if version < &min_version {
+        return Err(RequirementsError::ArchetectVersion(
+            version.clone(),
+            requirement.clone(),
+        ));
+    }
+
+    Ok(())
 }
 
 impl Default for RuntimeRequirements {
@@ -56,39 +80,51 @@ fn extract_minimum_version(req: &VersionReq) -> Version {
 #[cfg(test)]
 mod tests {
     use semver::{Version, VersionReq};
-    use super::extract_minimum_version;
+    use crate::errors::RequirementsError;
+    use super::check_version;
+
+    fn check(version: &str, requirement: &str) -> Result<(), RequirementsError> {
+        let version = Version::parse(version).unwrap();
+        let requirement = VersionReq::parse(requirement).unwrap();
+        check_version(&version, &requirement)
+    }
 
     #[test]
     fn test_version_equals() {
-        let version = Version::parse("1.0.0").unwrap();
-        let requirement = VersionReq::parse("1.0.0").unwrap();
-        assert!(requirement.matches(&version));
-    }
-
-    #[test]
-    fn test_newer_major_satisfies_older_requirement() {
-        // archetect 3.0.0 should satisfy requires: "2.0.0"
-        let version = Version::parse("3.0.0").unwrap();
-        let req = VersionReq::parse("2.0.0").unwrap();
-        let min = extract_minimum_version(&req);
-        assert!(version >= min);
-    }
-
-    #[test]
-    fn test_older_version_fails_newer_requirement() {
-        // archetect 2.1.0 should NOT satisfy requires: "3.0.0"
-        let version = Version::parse("2.1.0").unwrap();
-        let req = VersionReq::parse("3.0.0").unwrap();
-        let min = extract_minimum_version(&req);
-        assert!(version < min);
+        assert!(check("3.0.0", "3.0.0").is_ok());
     }
 
     #[test]
     fn test_same_major_newer_minor_satisfies() {
-        // archetect 2.1.0 should satisfy requires: "2.0.0"
-        let version = Version::parse("2.1.0").unwrap();
-        let req = VersionReq::parse("2.0.0").unwrap();
-        let min = extract_minimum_version(&req);
-        assert!(version >= min);
+        // archetect 3.1.0 satisfies requires: "3.0.0"
+        assert!(check("3.1.0", "3.0.0").is_ok());
+    }
+
+    #[test]
+    fn test_same_major_older_version_fails() {
+        // archetect 3.0.0 does NOT satisfy requires: "3.1.0"
+        assert!(matches!(
+            check("3.0.0", "3.1.0"),
+            Err(RequirementsError::ArchetectVersion(_, _))
+        ));
+    }
+
+    #[test]
+    fn test_newer_major_rejects_older_requirement() {
+        // Majors are strictly separated: archetect 3.x must NOT render an
+        // archetype that requires 2.x — point the user at archetect2.
+        assert!(matches!(
+            check("3.0.0", "2.0.0"),
+            Err(RequirementsError::ArchetectVersionMajor(_, _, 2))
+        ));
+    }
+
+    #[test]
+    fn test_older_major_rejects_newer_requirement() {
+        // archetect 2.1.0 does NOT satisfy requires: "3.0.0"
+        assert!(matches!(
+            check("2.1.0", "3.0.0"),
+            Err(RequirementsError::ArchetectVersion(_, _))
+        ));
     }
 }
