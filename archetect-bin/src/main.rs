@@ -9,6 +9,7 @@ use archetect_core::archetype::archetype::Archetype;
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::configuration::Configuration;
 use archetect_core::errors::{ArchetectError, ArchetypeError, CatalogError, SourceError};
+use archetect_core::flags::overlay_flag_tokens;
 use archetect_core::source::SourceContents;
 use archetect_core::system::{SystemLayout, XdgSystemLayout};
 use archetect_terminal_io::TerminalScriptIoHandle;
@@ -179,7 +180,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 ),
                 &archetect,
                 args,
-            );
+            )?;
             let client_cfg = archetect.configuration().client().cloned();
             let endpoint = subcommands::resolve_endpoint(args, client_cfg.as_ref())?;
             let options = subcommands::resolve_client_options(args, client_cfg.as_ref());
@@ -216,7 +217,7 @@ fn execute_global_dispatch(
         RenderContext::new(destination, answers),
         &archetect,
         args,
-    );
+    )?;
 
     let path_str = args.get_one::<String>("path").map(String::as_str).unwrap_or("");
     let path = if path_str.is_empty() { None } else { Some(path_str) };
@@ -257,7 +258,7 @@ fn execute_catalog_dispatch(
         RenderContext::new(destination, answers),
         &archetect,
         matches,
-    );
+    )?;
 
     // If the user didn't pass an explicit action and "default" isn't a catalog
     // entry, present the catalog as a menu instead of erroring.
@@ -278,7 +279,7 @@ pub fn render(matches: &ArgMatches, archetect: Archetect, answers: ContextMap) -
     let source = archetect.new_source(source)?;
     let destination = shellexpand::full(&resolve_destination(matches))?.to_string();
     let destination = Utf8PathBuf::from(destination);
-    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches);
+    let render_context = configure_render_context(RenderContext::new(destination, answers), &archetect, matches)?;
 
     // Read the global `action` arg. If the user didn't supply one
     // explicitly, treat it as None (menu / default script path).
@@ -306,32 +307,41 @@ fn configure_render_context(
     render_context: RenderContext,
     archetect: &Archetect,
     matches: &ArgMatches,
-) -> RenderContext {
-    render_context
-        .with_switches(get_switches(matches, archetect.configuration()))
+) -> Result<RenderContext, ArchetectError> {
+    Ok(render_context
+        .with_switches(get_switches(matches, archetect.configuration())?)
         .with_use_defaults_all(matches.get_flag("use-defaults-all"))
-        .with_use_defaults(get_defaults(matches))
+        .with_use_defaults(get_defaults(matches)?))
 }
 
-fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> HashSet<String> {
+fn get_switches(matches: &ArgMatches, configuration: &Configuration) -> Result<HashSet<String>, ArchetectError> {
     let mut switches = HashSet::new();
-    for switch in configuration.switches() {
-        switches.insert(switch.to_string());
-    }
+    overlay_flag_tokens(
+        &mut switches,
+        configuration.switches().iter().map(String::as_str),
+        "switch",
+        "configuration",
+    )?;
     if let Some(cli_switches) = matches.get_many::<String>("switches") {
-        for switch in cli_switches {
-            switches.insert(switch.to_string());
-        }
+        overlay_flag_tokens(
+            &mut switches,
+            cli_switches.map(String::as_str),
+            "switch",
+            "command line",
+        )?;
     }
-    switches
+    Ok(switches)
 }
 
-fn get_defaults(matches: &ArgMatches) -> HashSet<String> {
+fn get_defaults(matches: &ArgMatches) -> Result<HashSet<String>, ArchetectError> {
     let mut defaults = HashSet::new();
     if let Some(cli_defaults) = matches.get_many::<String>("use-defaults") {
-        for default in cli_defaults {
-            defaults.insert(default.to_string());
-        }
+        overlay_flag_tokens(
+            &mut defaults,
+            cli_defaults.map(String::as_str),
+            "use-default",
+            "command line",
+        )?;
     }
-    defaults
+    Ok(defaults)
 }

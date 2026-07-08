@@ -128,6 +128,10 @@ impl Configuration {
         self
     }
 
+    pub fn set_switches(&mut self, switches: Vec<String>) {
+        self.switches = Some(switches);
+    }
+
     pub fn server(&self) -> Option<&ConfigurationServerSection> {
         self.server.as_ref()
     }

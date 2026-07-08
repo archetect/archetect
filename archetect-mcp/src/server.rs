@@ -145,10 +145,21 @@ impl ArchetectMcpServer {
             camino::Utf8PathBuf::from(&req.destination),
             answers,
         );
+        // Base switches come from configuration; request tokens overlay them
+        // per-item (`name` adds, `name=false` removes).
+        let mut switch_set: HashSet<String> =
+            self.archetect.configuration().switches().iter().cloned().collect();
         if let Some(switches) = &req.switches {
-            let switch_set: HashSet<String> = switches.iter().cloned().collect();
-            render_context = render_context.with_switches(switch_set);
+            if let Err(e) = archetect_core::flags::overlay_flag_tokens(
+                &mut switch_set,
+                switches.iter().map(String::as_str),
+                "switch",
+                "render request",
+            ) {
+                return to_json(&ToolResponse::error(e.to_string()));
+            }
         }
+        render_context = render_context.with_switches(switch_set);
         if req.use_defaults_all.unwrap_or(false) {
             render_context = render_context.with_use_defaults_all(true);
         }
@@ -489,14 +500,21 @@ impl ArchetectMcpServer {
             answers,
         );
 
-        // Switches: request-level only for now (see note above).
+        // Base switches come from configuration; request tokens overlay them
+        // per-item (`name` adds, `name=false` removes).
+        let mut switch_set: HashSet<String> =
+            self.archetect.configuration().switches().iter().cloned().collect();
         if let Some(req_switches) = &req.switches {
-            if !req_switches.is_empty() {
-                render_context = render_context.with_switches(
-                    req_switches.iter().cloned().collect(),
-                );
+            if let Err(e) = archetect_core::flags::overlay_flag_tokens(
+                &mut switch_set,
+                req_switches.iter().map(String::as_str),
+                "switch",
+                "render request",
+            ) {
+                return to_json(&ToolResponse::error(e.to_string()));
             }
         }
+        render_context = render_context.with_switches(switch_set);
 
         // Defaults: request-level only for now (see note above).
         if req.use_defaults_all.unwrap_or(false) {

@@ -410,7 +410,7 @@ fn render_args(global: bool) -> Vec<Arg> {
 
     args.push(
         Arg::new("use-defaults")
-            .help("Use the configured default value for a prompt key")
+            .help("Use the configured default value for a prompt key ('<key>' or '<key>=false' to unset an inherited one)")
             .long("use-default")
             .short('d')
             .value_delimiter(',')
@@ -431,7 +431,7 @@ fn render_args(global: bool) -> Vec<Arg> {
 
     args.push(
         Arg::new("switches")
-            .help("Enable switches that may trigger functionality within Archetypes")
+            .help("Enable switches that may trigger functionality within Archetypes ('<name>' enables, '<name>=false' disables an inherited one)")
             .long("switch")
             .short('s')
             .action(ArgAction::Append)

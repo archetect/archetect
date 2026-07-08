@@ -551,4 +551,78 @@ answers:
         let answers = config.answers();
         assert_eq!(answers.get("test_answer").unwrap().to_string(), "test_value");
     }
+
+    // ── Switch flag-bag folding (docs/specs/flag-resolution-semantics.md) ──
+
+    #[test]
+    fn test_switches_fold_across_config_layers() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        ctx.write_system_config(r#"
+switches:
+  - github
+  - docker
+"#);
+        // Project layer overlays per-item instead of replacing the array:
+        // docker is negated, postgres added, github survives untouched.
+        ctx.write_local_config(".archetect.yaml", r#"
+switches:
+  - postgres
+  - docker=false
+"#);
+
+        let config = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap();
+
+        let mut switches: Vec<&str> = config.switches().iter().map(String::as_str).collect();
+        switches.sort();
+        assert_eq!(switches, vec!["github", "postgres"]);
+    }
+
+    #[test]
+    fn test_switches_fold_through_etc_d() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        ctx.write_system_config(r#"
+switches:
+  - github
+"#);
+        let etc_d_dir = ctx.layout.etc_d_dir();
+        fs::create_dir_all(&etc_d_dir).unwrap();
+        fs::write(etc_d_dir.join("10-team.yaml"), r#"
+switches:
+  - kubernetes
+  - github=false
+"#).unwrap();
+
+        let config = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap();
+
+        let mut switches: Vec<&str> = config.switches().iter().map(String::as_str).collect();
+        switches.sort();
+        assert_eq!(switches, vec!["kubernetes"]);
+    }
+
+    #[test]
+    fn test_switches_invalid_token_errors() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        ctx.write_system_config(r#"
+switches:
+  - github=maybe
+"#);
+
+        let err = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap_err();
+        assert!(err.to_string().contains("github=maybe"));
+    }
+
+    #[test]
+    fn test_switches_undeclared_stays_empty() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        let config = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap();
+        assert!(config.switches().is_empty());
+    }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use clap::parser::ValueSource;
@@ -73,6 +73,57 @@ struct ProjectCatalogOnly {
     catalog: Option<LinkedHashMap<String, CatalogEntry>>,
 }
 
+/// Minimal struct used to extract just the `switches` field from a config file.
+/// Switches are a flag bag folded per-item across config layers (the config
+/// crate would otherwise replace the whole array between sources).
+/// See docs/specs/flag-resolution-semantics.md.
+#[derive(Debug, Deserialize)]
+struct SwitchesOnly {
+    #[serde(default)]
+    switches: Option<Vec<String>>,
+}
+
+/// Parse just the `switches` field from a config file. Returns `None` if the
+/// file doesn't declare switches or doesn't exist.
+fn parse_switches_field(path: &Path) -> Result<Option<Vec<String>>, ConfigError> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let contents = std::fs::read_to_string(path)
+        .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
+    let parsed: SwitchesOnly = serde_yaml::from_str(&contents)
+        .map_err(|e| ConfigError::Message(format!(
+            "Failed to parse config {}: {}", path.display(), e
+        )))?;
+    Ok(parsed.switches)
+}
+
+/// Fold `switches` declarations from all config sources, lowest precedence
+/// first, applying per-item overlay semantics (`name` adds, `name=false`
+/// removes). Returns `None` if no source declared switches at all.
+fn resolve_switch_layers(sources: &[PathBuf]) -> Result<Option<Vec<String>>, ConfigError> {
+    let mut resolved: HashSet<String> = HashSet::new();
+    let mut any_declared = false;
+    for path in sources {
+        if let Some(tokens) = parse_switches_field(path)? {
+            any_declared = true;
+            archetect_core::flags::overlay_flag_tokens(
+                &mut resolved,
+                tokens.iter().map(String::as_str),
+                "switch",
+                &path.display().to_string(),
+            )
+            .map_err(|e| ConfigError::Message(e.to_string()))?;
+        }
+    }
+    if !any_declared {
+        return Ok(None);
+    }
+    let mut switches: Vec<String> = resolved.into_iter().collect();
+    switches.sort();
+    Ok(Some(switches))
+}
+
 /// Parse just the `catalog` field from a project config file. Returns `None`
 /// if the file doesn't have a catalog field. Other parse errors are reported.
 pub fn parse_project_catalog(path: &Path) -> Result<Option<LinkedHashMap<String, CatalogEntry>>, ConfigError> {
@@ -91,7 +142,7 @@ pub fn parse_project_catalog(path: &Path) -> Result<Option<LinkedHashMap<String,
 fn load_config_dir_files<L: SystemLayout>(
     mut config: config::ConfigBuilder<config::builder::DefaultState>,
     layout: &L,
-) -> Result<config::ConfigBuilder<config::builder::DefaultState>, ConfigError> {
+) -> Result<(config::ConfigBuilder<config::builder::DefaultState>, Vec<PathBuf>), ConfigError> {
     use std::fs;
 
     let etc_d_dir = layout.etc_d_dir();
@@ -100,7 +151,7 @@ fn load_config_dir_files<L: SystemLayout>(
     // Check if the etc.d directory exists
     if !etc_d_dir.exists() {
         debug!("etc.d directory does not exist");
-        return Ok(config);
+        return Ok((config, Vec::new()));
     }
 
     debug!("etc.d directory exists, scanning for YAML files");
@@ -110,7 +161,7 @@ fn load_config_dir_files<L: SystemLayout>(
         Ok(entries) => entries,
         Err(e) => {
             debug!("Failed to read etc.d directory: {}", e);
-            return Ok(config); // Directory might not be readable, continue gracefully
+            return Ok((config, Vec::new())); // Directory might not be readable, continue gracefully
         }
     };
 
@@ -146,7 +197,8 @@ fn load_config_dir_files<L: SystemLayout>(
     }
 
     debug!("Finished loading {} etc.d files", yaml_files.len());
-    Ok(config)
+    let paths = yaml_files.iter().map(PathBuf::from).collect();
+    Ok((config, paths))
 }
 
 /// Load user configuration using the current working directory for project config detection.
@@ -191,8 +243,14 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
     
     let config = config.add_source(File::with_name(system_config_path.as_str()).required(false));
 
+    // Track every file source in precedence order for flag-bag fields
+    // (switches) that need per-item folding rather than the config
+    // crate's whole-array replacement.
+    let mut switch_sources: Vec<PathBuf> = vec![PathBuf::from(system_config_path.as_str())];
+
     // Load additional config files from ~/.archetect/etc.d/*.yaml in sorted order
-    let config = load_config_dir_files(config, layout)?;
+    let (config, etc_d_paths) = load_config_dir_files(config, layout)?;
+    switch_sources.extend(etc_d_paths);
 
     if let Some(cwd) = current_dir {
         debug!("Current working directory: {}", cwd.display());
@@ -224,12 +282,14 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
                 .format(FileFormat::Yaml)
                 .required(true),
         );
+        switch_sources.push(project_path.clone());
     }
 
     // Merge Config File specified from Command Line
     let config = match args.try_get_one::<String>("config-file") {
         Ok(Some(config_file)) => {
             if let Ok(config_file) = shellexpand::full(config_file) {
+                switch_sources.push(PathBuf::from(config_file.as_ref()));
                 config.add_source(File::with_name(config_file.as_ref()).required(true))
             } else {
                 config
@@ -281,6 +341,14 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
     let mut result: Configuration = config.try_deserialize()?;
     debug!("Final config headless: {}", result.headless());
     debug!("Final config offline: {}", result.offline());
+
+    // Switches are a flag bag: fold declarations per-item across all file
+    // sources (lowest precedence first), honoring `name=false` negation.
+    // This overrides the config crate's whole-array replacement.
+    if let Some(switches) = resolve_switch_layers(&switch_sources)? {
+        debug!("Resolved switches across config layers: {:?}", switches);
+        result.set_switches(switches);
+    }
 
     // Catalog "replace" semantics: if a project config file exists and declares
     // a `catalog`, it fully replaces the global catalog (not field-merged into it).

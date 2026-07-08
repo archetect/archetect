@@ -490,17 +490,36 @@ fn register_catalog_module(
 
                 let mut child_context = RenderContext::new(destination, context_map);
 
-                // Apply opts-level overrides (these override catalog entry defaults
-                // for switches/defaults). The dispatch module applies entry-level
-                // values first, so we apply opts AFTER the dispatch by leveraging
-                // the fact that for opts to take effect on a leaf render we need
-                // to set them on the context BEFORE calling dispatch.
+                // Children inherit the parent's flag bags; opts overlay them
+                // per-item (`name` adds, `name=false` removes). Catalog entry
+                // values are overlaid later, inside dispatch, so the leaf
+                // entry is the most specific layer.
+                // See docs/specs/flag-resolution-semantics.md.
+                child_context.set_switches(ctx.switches().clone());
+                child_context.set_use_defaults(ctx.use_defaults().clone());
+                child_context.set_use_defaults_all(ctx.use_defaults_all());
                 if let Some(ref opts) = opts {
                     if let Ok(switches) = opts.get::<Vec<String>>("switches".to_string()) {
-                        child_context.set_switches(switches.into_iter().collect());
+                        let mut set = child_context.switches().clone();
+                        crate::flags::overlay_flag_tokens(
+                            &mut set,
+                            switches.iter().map(String::as_str),
+                            "switch",
+                            "catalog.render options",
+                        )
+                        .map_err(|e| LuaError::RuntimeError(e.to_string()))?;
+                        child_context.set_switches(set);
                     }
                     if let Ok(defaults) = opts.get::<Vec<String>>("use_defaults".to_string()) {
-                        child_context.set_use_defaults(defaults.into_iter().collect());
+                        let mut set = child_context.use_defaults().clone();
+                        crate::flags::overlay_flag_tokens(
+                            &mut set,
+                            defaults.iter().map(String::as_str),
+                            "use-default",
+                            "catalog.render options",
+                        )
+                        .map_err(|e| LuaError::RuntimeError(e.to_string()))?;
+                        child_context.set_use_defaults(set);
                     }
                     if let Ok(use_defaults_all) = opts.get::<bool>("use_defaults_all".to_string()) {
                         child_context.set_use_defaults_all(use_defaults_all);

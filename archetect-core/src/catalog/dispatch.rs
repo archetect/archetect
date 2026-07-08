@@ -315,20 +315,47 @@ pub fn render_leaf(
             render_context.answers_mut().insert(k.clone(), v.clone());
         }
     }
-    if let Some(ref switches) = entry.switches {
-        render_context.set_switches(switches.clone());
-    }
-    if let Some(ref use_defaults) = entry.use_defaults {
-        render_context.set_use_defaults(use_defaults.clone());
-    }
-    if let Some(true) = entry.use_defaults_all {
-        render_context.set_use_defaults_all(true);
-    }
+    apply_entry_flags(entry, path, &mut render_context)?;
 
     let child = archetect.new_archetype(source)?;
     child.check_requirements()?;
     let result = child.render(render_context)?;
     Ok(result)
+}
+
+/// Apply a catalog entry's pre-configured switches and use-defaults to the
+/// inherited render context. These are flag bags: entry values overlay the
+/// inherited set per-item (`name` adds, `name=false` removes) rather than
+/// replacing it. See docs/specs/flag-resolution-semantics.md.
+fn apply_entry_flags(
+    entry: &CatalogEntry,
+    path: &str,
+    render_context: &mut RenderContext,
+) -> Result<(), ArchetectError> {
+    if let Some(ref switches) = entry.switches {
+        let mut set = render_context.switches().clone();
+        crate::flags::overlay_flag_tokens(
+            &mut set,
+            switches.iter().map(String::as_str),
+            "switch",
+            &format!("catalog entry '{}'", path),
+        )?;
+        render_context.set_switches(set);
+    }
+    if let Some(ref use_defaults) = entry.use_defaults {
+        let mut set = render_context.use_defaults().clone();
+        crate::flags::overlay_flag_tokens(
+            &mut set,
+            use_defaults.iter().map(String::as_str),
+            "use-default",
+            &format!("catalog entry '{}'", path),
+        )?;
+        render_context.set_use_defaults(set);
+    }
+    if let Some(use_defaults_all) = entry.use_defaults_all {
+        render_context.set_use_defaults_all(use_defaults_all);
+    }
+    Ok(())
 }
 
 /// Present catalog entries interactively as a select menu.
@@ -591,5 +618,70 @@ mod tests {
             PathTarget::Leaf(_) => "Leaf",
             PathTarget::Remote { .. } => "Remote",
         }
+    }
+
+    // ── entry flag overlay (docs/specs/flag-resolution-semantics.md) ──
+
+    fn flag_entry(yaml: &str) -> CatalogEntry {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    fn context_with_switches(switches: &[&str]) -> RenderContext {
+        let mut ctx = RenderContext::new(camino::Utf8PathBuf::from("."), Default::default());
+        ctx.set_switches(switches.iter().map(|s| s.to_string()).collect());
+        ctx
+    }
+
+    #[test]
+    fn entry_switches_overlay_inherited_set() {
+        let entry = flag_entry(indoc! {r#"
+            source: "git@github.com:org/x.git"
+            switches: ["postgres", "github=false"]
+        "#});
+        let mut ctx = context_with_switches(&["github", "docker"]);
+
+        apply_entry_flags(&entry, "test/entry", &mut ctx).unwrap();
+
+        let mut switches: Vec<&str> = ctx.switches().iter().map(String::as_str).collect();
+        switches.sort();
+        assert_eq!(switches, vec!["docker", "postgres"]);
+    }
+
+    #[test]
+    fn entry_without_switches_leaves_inherited_untouched() {
+        let entry = flag_entry(indoc! {r#"
+            source: "git@github.com:org/x.git"
+        "#});
+        let mut ctx = context_with_switches(&["github"]);
+
+        apply_entry_flags(&entry, "test/entry", &mut ctx).unwrap();
+
+        assert!(ctx.switches().contains("github"));
+    }
+
+    #[test]
+    fn entry_can_disable_use_defaults_all() {
+        let entry = flag_entry(indoc! {r#"
+            source: "git@github.com:org/x.git"
+            use_defaults_all: false
+        "#});
+        let mut ctx = context_with_switches(&[]);
+        ctx.set_use_defaults_all(true);
+
+        apply_entry_flags(&entry, "test/entry", &mut ctx).unwrap();
+
+        assert!(!ctx.use_defaults_all());
+    }
+
+    #[test]
+    fn entry_invalid_switch_token_errors_with_path() {
+        let entry = flag_entry(indoc! {r#"
+            source: "git@github.com:org/x.git"
+            switches: ["github=maybe"]
+        "#});
+        let mut ctx = context_with_switches(&[]);
+
+        let err = apply_entry_flags(&entry, "test/entry", &mut ctx).unwrap_err();
+        assert!(err.to_string().contains("test/entry"));
     }
 }

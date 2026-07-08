@@ -3,6 +3,7 @@ pub mod catalog;
 pub mod library;
 pub mod configuration;
 pub mod errors;
+pub mod flags;
 mod archetect;
 pub mod script;
 pub mod source;
