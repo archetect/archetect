@@ -15,6 +15,12 @@ on:
   push:
     tags:
       - "v*"
+  # Manual fallback: dispatch this workflow ON A TAG REF
+  # (gh workflow run release.yml --ref vX.Y.Z) when the tag push didn't
+  # trigger it — e.g. tags pushed by another workflow with the default
+  # GITHUB_TOKEN, or a tag whose commit message carries [skip ci].
+  # The version is derived from GITHUB_REF_NAME either way.
+  workflow_dispatch:
 
 permissions: write-all
 concurrency:
