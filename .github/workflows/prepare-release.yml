@@ -48,6 +48,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Push the bump commit + tag with a PAT instead of the default
+          # GITHUB_TOKEN: pushes made with GITHUB_TOKEN never trigger other
+          # workflows (GitHub's recursion guard), so the tag would not start
+          # release.yml.
+          token: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
 
       - name: Bump Version & Push Tag
         shell: bash
@@ -56,11 +61,15 @@ jobs:
           git config user.name "${COMMIT_USER}"
           git config user.email "${COMMIT_EMAIL}"
           # Bump on whatever branch this workflow was dispatched from (main or 2.x).
-          # cargo-workspaces commits "Release vX.Y.Z [skip ci]", creates a single
-          # `vX.Y.Z` tag, and pushes both the commit and the tag. The pushed tag
-          # then triggers release.yml.
+          # cargo-workspaces commits "Release vX.Y.Z", creates a single `vX.Y.Z`
+          # tag, and pushes both the commit and the tag. The pushed tag then
+          # triggers release.yml.
+          #
+          # The commit message must NOT contain [skip ci]: GitHub applies skip
+          # markers in the head commit to every push event that references it —
+          # including the tag push — which silently suppresses release.yml.
           cargo workspaces version "${{ inputs.level }}" -y \
             --allow-branch "${GITHUB_REF_NAME}" \
-            -m "Release %v [skip ci]" \
+            -m "Release %v" \
             --no-individual-tags \
             --force '*'
