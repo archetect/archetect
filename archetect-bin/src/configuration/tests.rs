@@ -246,6 +246,74 @@ catalog:
         assert!(catalog.contains_key("global-entry"));
     }
 
+    /// A system-config catalog must preserve its declared entry order and fully
+    /// replace the built-in default catalog. Regression for the bug where the
+    /// default catalog's `archetect` entry was field-merged into position 0,
+    /// pushing it ahead of the user's declared entries (e.g. declaring
+    /// `p6m, archetect` yielded `archetect, p6m`).
+    #[test]
+    fn test_system_catalog_preserves_declared_order() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        // Declared in a deliberately non-alphabetical order, and the second
+        // entry collides by name with the built-in default catalog entry.
+        ctx.write_system_config(r#"
+catalog:
+  p6m:
+    description: "P6M Catalog"
+    source: "https://example.com/p6m.git"
+  archetect:
+    description: "Archetect Catalog"
+    source: "https://example.com/archetect.git"
+"#);
+
+        let config = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap();
+        let catalog = config.catalog().expect("catalog should be set");
+
+        let order: Vec<&str> = catalog.keys().map(String::as_str).collect();
+        assert_eq!(
+            order,
+            vec!["p6m", "archetect"],
+            "declared catalog order must be preserved; default catalog must not steal position 0"
+        );
+        assert_eq!(catalog.len(), 2, "default catalog must not inject extra entries");
+    }
+
+    /// The highest-precedence file source that declares a catalog wins, and the
+    /// winning catalog's declared order is preserved (etc.d over system config).
+    #[test]
+    fn test_etc_d_catalog_replaces_system_and_preserves_order() {
+        let ctx = TestContext::new();
+        let args = empty_args();
+
+        ctx.write_system_config(r#"
+catalog:
+  system-only:
+    description: "System"
+    source: "https://example.com/system.git"
+"#);
+
+        let etc_d = ctx.layout.etc_d_dir();
+        fs::create_dir_all(&etc_d).unwrap();
+        fs::write(etc_d.join("catalog.yaml"), r#"
+catalog:
+  zebra:
+    description: "Zebra"
+    source: "https://example.com/zebra.git"
+  apple:
+    description: "Apple"
+    source: "https://example.com/apple.git"
+"#).unwrap();
+
+        let config = load_user_config_with_cwd(&ctx.layout, Some(ctx.cwd()), &args).unwrap();
+        let catalog = config.catalog().expect("catalog should be set");
+
+        let order: Vec<&str> = catalog.keys().map(String::as_str).collect();
+        assert_eq!(order, vec!["zebra", "apple"]);
+        assert!(!catalog.contains_key("system-only"), "etc.d catalog should replace system catalog");
+    }
+
     /// In v3, multiple project config variants in the same directory is an error.
     #[test]
     fn test_multiple_project_config_variants_errors() {

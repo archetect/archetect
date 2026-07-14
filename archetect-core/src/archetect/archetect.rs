@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 use semver::Version;
 
@@ -22,6 +23,10 @@ struct Inner {
     io_driver: Box<dyn ScriptIoHandle>,
     layout: Box<dyn SystemLayout>,
     configuration: Configuration,
+    // Sources this instance has already cloned/fetched, so one run pulls each URL at most once.
+    // Per-instance (not process-global): embedders may run many Archetects against different
+    // layouts in one process, and a shared set would make a fresh cache look falsely warm.
+    fetched_sources: Mutex<HashSet<String>>,
 }
 
 pub struct ArchetectBuilder {
@@ -85,12 +90,23 @@ impl Archetect {
                 io_driver: driver.into(),
                 layout: layout.into(),
                 configuration,
+                fetched_sources: Mutex::new(HashSet::new()),
             }),
         }
     }
 
     pub fn builder() -> ArchetectBuilder {
         ArchetectBuilder::default()
+    }
+
+    /// Record that `url` is being cloned/fetched by this instance; returns `true` the first
+    /// time a URL is seen (the caller should perform the git operation), `false` after.
+    pub fn mark_source_fetched(&self, url: &str) -> bool {
+        self.inner
+            .fetched_sources
+            .lock()
+            .expect("fetched_sources mutex poisoned")
+            .insert(url.to_owned())
     }
 
     pub fn is_offline(&self) -> bool {

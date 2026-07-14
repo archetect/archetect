@@ -65,10 +65,10 @@ pub fn detect_project_config(cwd: &Path) -> Result<Option<PathBuf>, ConfigError>
     }
 }
 
-/// Minimal struct used to extract just the `catalog` field from a project config file
+/// Minimal struct used to extract just the `catalog` field from a config file
 /// without going through the full Configuration deserialization pipeline.
 #[derive(Debug, Deserialize)]
-struct ProjectCatalogOnly {
+struct CatalogOnly {
     #[serde(default)]
     catalog: Option<LinkedHashMap<String, CatalogEntry>>,
 }
@@ -124,16 +124,43 @@ fn resolve_switch_layers(sources: &[PathBuf]) -> Result<Option<Vec<String>>, Con
     Ok(Some(switches))
 }
 
-/// Parse just the `catalog` field from a project config file. Returns `None`
-/// if the file doesn't have a catalog field. Other parse errors are reported.
-pub fn parse_project_catalog(path: &Path) -> Result<Option<LinkedHashMap<String, CatalogEntry>>, ConfigError> {
+/// Parse just the `catalog` field from a config file. Returns `None` if the
+/// file doesn't exist or doesn't declare a catalog. Other parse errors are
+/// reported.
+pub fn parse_catalog_field(path: &Path) -> Result<Option<LinkedHashMap<String, CatalogEntry>>, ConfigError> {
+    if !path.is_file() {
+        return Ok(None);
+    }
     let contents = std::fs::read_to_string(path)
         .map_err(|e| ConfigError::Foreign(Box::new(e)))?;
-    let parsed: ProjectCatalogOnly = serde_yaml::from_str(&contents)
+    let parsed: CatalogOnly = serde_yaml::from_str(&contents)
         .map_err(|e| ConfigError::Message(format!(
-            "Failed to parse project config {}: {}", path.display(), e
+            "Failed to parse config {}: {}", path.display(), e
         )))?;
     Ok(parsed.catalog)
+}
+
+/// Resolve the effective catalog across all config file layers using REPLACE
+/// semantics: the highest-precedence source that declares a `catalog` wins
+/// entirely, with its declared entry order preserved verbatim.
+///
+/// Catalogs are deliberately NOT field-merged across layers (unlike most
+/// config sections). Merging would let the built-in default catalog — and any
+/// lower-precedence layer — inject entries into, and steal positions within, a
+/// user's declared catalog, scrambling the author's intended order. Replace
+/// semantics keeps "what you declared is what you get".
+///
+/// `sources` must be ordered lowest-precedence first. Returns `None` if no file
+/// source declares a catalog, in which case the caller keeps the built-in
+/// default catalog.
+fn resolve_catalog_layers(sources: &[PathBuf]) -> Result<Option<LinkedHashMap<String, CatalogEntry>>, ConfigError> {
+    let mut resolved = None;
+    for path in sources {
+        if let Some(catalog) = parse_catalog_field(path)? {
+            resolved = Some(catalog);
+        }
+    }
+    Ok(resolved)
 }
 
 /// Load configuration files from {etc_d_dir}/*.yaml in sorted order
@@ -243,14 +270,15 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
     
     let config = config.add_source(File::with_name(system_config_path.as_str()).required(false));
 
-    // Track every file source in precedence order for flag-bag fields
-    // (switches) that need per-item folding rather than the config
-    // crate's whole-array replacement.
-    let mut switch_sources: Vec<PathBuf> = vec![PathBuf::from(system_config_path.as_str())];
+    // Track every file source in precedence order (lowest first). Used by
+    // fields the config crate can't merge correctly on its own: the `switches`
+    // flag bag (per-item folding) and `catalog` (whole-catalog replace, to
+    // preserve declared entry order).
+    let mut file_sources: Vec<PathBuf> = vec![PathBuf::from(system_config_path.as_str())];
 
     // Load additional config files from ~/.archetect/etc.d/*.yaml in sorted order
     let (config, etc_d_paths) = load_config_dir_files(config, layout)?;
-    switch_sources.extend(etc_d_paths);
+    file_sources.extend(etc_d_paths);
 
     if let Some(cwd) = current_dir {
         debug!("Current working directory: {}", cwd.display());
@@ -282,14 +310,14 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
                 .format(FileFormat::Yaml)
                 .required(true),
         );
-        switch_sources.push(project_path.clone());
+        file_sources.push(project_path.clone());
     }
 
     // Merge Config File specified from Command Line
     let config = match args.try_get_one::<String>("config-file") {
         Ok(Some(config_file)) => {
             if let Ok(config_file) = shellexpand::full(config_file) {
-                switch_sources.push(PathBuf::from(config_file.as_ref()));
+                file_sources.push(PathBuf::from(config_file.as_ref()));
                 config.add_source(File::with_name(config_file.as_ref()).required(true))
             } else {
                 config
@@ -345,21 +373,21 @@ pub fn load_user_config_with_cwd<L: SystemLayout>(
     // Switches are a flag bag: fold declarations per-item across all file
     // sources (lowest precedence first), honoring `name=false` negation.
     // This overrides the config crate's whole-array replacement.
-    if let Some(switches) = resolve_switch_layers(&switch_sources)? {
+    if let Some(switches) = resolve_switch_layers(&file_sources)? {
         debug!("Resolved switches across config layers: {:?}", switches);
         result.set_switches(switches);
     }
 
-    // Catalog "replace" semantics: if a project config file exists and declares
-    // a `catalog`, it fully replaces the global catalog (not field-merged into it).
-    if let Some(ref project_path) = project_config_path {
-        if let Some(project_catalog) = parse_project_catalog(project_path)? {
-            debug!(
-                "Replacing global catalog with project catalog from {}",
-                project_path.display()
-            );
-            result.set_catalog(project_catalog);
-        }
+    // Catalog REPLACE semantics: the highest-precedence config file that
+    // declares a `catalog` fully replaces lower layers (including the built-in
+    // default catalog), rather than field-merging into them. This preserves the
+    // author's declared entry order — a field-merge would let the default
+    // catalog's entries steal positions ahead of the user's own. See
+    // `resolve_catalog_layers`. When no file declares a catalog, the built-in
+    // default (already deserialized into `result`) is left in place.
+    if let Some(catalog) = resolve_catalog_layers(&file_sources)? {
+        debug!("Resolved catalog across config layers ({} entries)", catalog.len());
+        result.set_catalog(catalog);
     }
 
     Ok(result)

@@ -1,6 +1,5 @@
-use std::collections::HashSet;
 use std::fs;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use chrono::TimeZone;
@@ -124,11 +123,6 @@ pub enum SourceType {
 fn ssh_git_pattern() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"\S+@(\S+):(.*)").expect("hardcoded SSH git pattern is valid"))
-}
-
-fn cached_paths() -> &'static Mutex<HashSet<String>> {
-    static CACHED_PATHS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    CACHED_PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
 // If locals is enabled and `directory_name` matches a directory under one of
@@ -339,7 +333,7 @@ fn cache_git_repo(
 ) -> Result<(), SourceError> {
     if !cache_destination.exists() {
         if !archetect.is_offline() {
-            if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
+            if archetect.mark_source_fetched(url) {
                 info!("Cloning {}", url);
                 debug!("Cloning to {}", cache_destination.as_str());
                 // Bucket A: try git2 first, fall back to `git` CLI on any
@@ -381,7 +375,7 @@ fn cache_git_repo(
         }
 
         if should_fetch {
-            if cached_paths().lock().expect("cached_paths mutex poisoned").insert(url.to_owned()) {
+            if archetect.mark_source_fetched(url) {
                 info!("Fetching {}", url);
                 // Bucket A: same fallback strategy for fetch.
                 crate::git_io::fetch(cache_destination)?;
