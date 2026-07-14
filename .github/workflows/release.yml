@@ -35,7 +35,7 @@ env:
   BINARY_DESCRIPTION: "Archetect"
   DOWNLOAD_PREFIX: "https://github.com/${{ github.repository }}/releases/download"
   DESTINATION_HOMEBREW_TAP: ${{ github.repository_owner }}/homebrew-tap
-  REPOSITORY_DISPATCH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
+  ARCHETECT_DISPATCH_TOKEN: ${{ secrets.ARCHETECT_DISPATCH_TOKEN }}
   # The highest major version currently considered the "latest" line. A tag whose
   # major is >= this value updates the main `archetect` formula and is marked
   # --latest; lower majors are treated as maintenance releases. Bump at the next
@@ -264,7 +264,7 @@ jobs:
       - name: Dispatch event to ${{ env.DESTINATION_HOMEBREW_TAP }}
         uses: ph-fritsche/action-dispatch@v1
         with:
-          token: ${{ env.REPOSITORY_DISPATCH_TOKEN }}
+          token: ${{ env.ARCHETECT_DISPATCH_TOKEN }}
           type: repository
           repo: ${{ env.DESTINATION_HOMEBREW_TAP }}
           ident: update-formula

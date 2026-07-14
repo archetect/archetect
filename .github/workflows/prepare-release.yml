@@ -52,7 +52,7 @@ jobs:
           # GITHUB_TOKEN: pushes made with GITHUB_TOKEN never trigger other
           # workflows (GitHub's recursion guard), so the tag would not start
           # release.yml.
-          token: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
+          token: ${{ secrets.ARCHETECT_DISPATCH_TOKEN }}
 
       - name: Bump Version & Push Tag
         shell: bash
