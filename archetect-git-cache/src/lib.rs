@@ -24,7 +24,12 @@
 //! checkout), under `[gitcache "<slug>"]` where `<slug>` is a farmhash of the ref (refs contain `/`
 //! and `.`, which are unsafe in git-config keys). See [`fetch`].
 
+use std::collections::HashMap;
+use std::fs::File;
+use std::sync::{Arc, Mutex, OnceLock};
+
 use camino::{Utf8Path, Utf8PathBuf};
+use fs4::fs_std::FileExt;
 use git2::Repository;
 use log::trace;
 
@@ -95,7 +100,22 @@ pub enum Freshness {
 
 /// Clone-or-open the repo at `cache_path`, apply the two-gate freshness check, fetch if needed,
 /// check out `gitref` (detached HEAD), and record freshness metadata. See the module docs.
+///
+/// The whole clone/fetch/checkout critical section runs under a per-`cache_path` lock (a
+/// cross-process advisory file lock plus an in-process keyed mutex), so two processes — or two
+/// concurrent server requests, each with its own caller state — can't clobber one dir mid-clone or
+/// mid-fetch. (This guards the *writer* side; a reader rendering from a checkout can still race a
+/// concurrent checkout of a different ref into the same multiplexed dir — see docs/plans/git-cache-locking.md.)
 pub fn fetch(
+    url: &str,
+    gitref: Option<&str>,
+    cache_path: &Utf8Path,
+    opts: &FetchOptions,
+) -> Result<FetchOutcome, GitCacheError> {
+    with_cache_lock(cache_path, || fetch_locked(url, gitref, cache_path, opts))
+}
+
+fn fetch_locked(
     url: &str,
     gitref: Option<&str>,
     cache_path: &Utf8Path,
@@ -204,6 +224,10 @@ pub fn fetch(
 /// no metadata write. Callers with a per-run dedup guard use this for the 2nd..Nth reference to a
 /// repo the first [`fetch`] already populated (that fetch pulled every ref via `--tags`).
 pub fn checkout(gitref: Option<&str>, cache_path: &Utf8Path) -> Result<FetchOutcome, GitCacheError> {
+    with_cache_lock(cache_path, || checkout_locked(gitref, cache_path))
+}
+
+fn checkout_locked(gitref: Option<&str>, cache_path: &Utf8Path) -> Result<FetchOutcome, GitCacheError> {
     let repo = Repository::open(cache_path.as_std_path())?;
     if let Some(g) = gitref {
         if !ref_exists_local(&repo, g) {
@@ -393,6 +417,65 @@ fn checkout_resolve(repo: &Repository, gitref: Option<&str>) -> Result<(String, 
     repo.set_head_detached(commit.id())?;
     trace!("checked out {} @ {}", resolved_ref, commit.id());
     Ok((commit.id().to_string(), resolved_ref))
+}
+
+// ── cache locking ───────────────────────────────────────────────────────────────────────────────
+
+/// Run `f` while holding an exclusive lock on `cache_path`, so the clone/fetch/checkout critical
+/// section is serialized both **in-process** (a keyed mutex — many `Archetect` instances or server
+/// requests in one process) and **cross-process** (an advisory `flock` on a sibling `<name>.lock`
+/// file — two separate `prova`/`archetect` processes sharing one cache). Both are needed: `flock` is
+/// process-wide, so it doesn't serialize threads within a process; the mutex does.
+fn with_cache_lock<T>(cache_path: &Utf8Path, f: impl FnOnce() -> Result<T, GitCacheError>) -> Result<T, GitCacheError> {
+    // In-process gate first — cheap, and it means only one thread per process contends for the file
+    // lock at a time.
+    let mutex = keyed_mutex(cache_path);
+    let _in_process = mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    // Cross-process gate: an advisory lock on a sibling file that exists before the cache dir does.
+    let lock_file = acquire_file_lock(cache_path)?;
+    let result = f();
+    // Released on drop too, but be explicit so the unlock isn't reordered after later work.
+    let _ = FileExt::unlock(&lock_file);
+    result
+}
+
+/// The process-global registry of per-`cache_path` mutexes. Two callers naming the same dir get the
+/// same mutex; distinct dirs never contend.
+fn keyed_mutex(cache_path: &Utf8Path) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<Utf8PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
+    let registry = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = registry.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    map.entry(cache_path.to_path_buf())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
+/// Open (creating if needed) the sibling lock file for `cache_path` and take an exclusive advisory
+/// lock. The lock lives at `<parent>/<name>.lock` — a sibling, so it exists *before* the cache dir is
+/// cloned (a lock inside `.git/` couldn't guard the very first clone). Released when the returned
+/// `File` drops.
+fn acquire_file_lock(cache_path: &Utf8Path) -> Result<File, GitCacheError> {
+    // The lock file's directory must exist before we can create it — and it's also where the clone
+    // will land, so creating it here is work the clone would do anyway.
+    if let Some(parent) = cache_path.parent() {
+        std::fs::create_dir_all(parent.as_std_path())?;
+    }
+    let lock_path = lock_file_path(cache_path);
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(lock_path.as_std_path())?;
+    FileExt::lock_exclusive(&file)?;
+    Ok(file)
+}
+
+fn lock_file_path(cache_path: &Utf8Path) -> Utf8PathBuf {
+    let name = cache_path.file_name().unwrap_or("cache");
+    match cache_path.parent() {
+        Some(parent) => parent.join(format!("{name}.lock")),
+        None => Utf8PathBuf::from(format!("{cache_path}.lock")),
+    }
 }
 
 // ── small helpers ───────────────────────────────────────────────────────────────────────────────

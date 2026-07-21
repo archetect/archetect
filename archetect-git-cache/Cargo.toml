@@ -14,6 +14,9 @@ repository.workspace = true
 camino = { workspace = true }
 chrono = { workspace = true }
 farmhash = { workspace = true }
+# Cross-process advisory file locking, so two processes (or two server requests) can't clone/fetch/
+# checkout the same cache dir at once. Paired with an in-process keyed mutex for intra-process safety.
+fs4 = { version = "0.13", features = ["sync"] }
 git2 = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
