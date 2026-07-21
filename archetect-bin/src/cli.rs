@@ -251,9 +251,22 @@ pub fn command() -> Command {
                     Command::new("setup")
                         .about("Set up IDE support for Lua archetypes")
                         .long_about(
-                            "Installs Lua type annotations to ~/.archetect/lua/annotations/ for IDE autocompletion.\n\
-                             If run inside a Lua archetype directory (containing archetype.yaml and archetype.lua),\n\
-                             also creates a .luarc.json pointing to the installed annotations."
+                            "Installs Lua type annotations to ~/.local/share/archetect/lua/annotations/ for IDE\n\
+                             autocompletion. If run inside a Lua archetype directory (containing archetype.yaml and\n\
+                             archetype.lua), also creates or merges a .luarc.json pointing to the installed\n\
+                             annotations. The merge is non-destructive: an entry from another tool (e.g. prova)\n\
+                             is preserved, so `archetect ide setup` and `prova ide setup` can run in either order."
+                        )
+                        .arg(
+                            Arg::new("manage")
+                                .long("manage")
+                                .value_name("auto|always|never")
+                                .value_parser(["auto", "always", "never"])
+                                .default_value("always")
+                                .help(
+                                    "How to manage .luarc.json: 'always' create-or-merge (default), 'auto' create \
+                                     if absent else hint, 'never' install stubs only"
+                                )
                         )
                 )
         )

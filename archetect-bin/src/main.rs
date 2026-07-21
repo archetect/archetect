@@ -155,7 +155,10 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
         Some(("check", args)) => subcommands::handle_check_subcommand(args, &archetect)?,
         Some(("ide", args)) => {
             match args.subcommand() {
-                Some(("setup", _)) => subcommands::handle_ide_subcommand(archetect.layout().as_ref())?,
+                Some(("setup", setup_args)) => {
+                    let manage = subcommands::Manage::parse(setup_args.get_one::<String>("manage").map(String::as_str))?;
+                    subcommands::handle_ide_subcommand(archetect.layout().as_ref(), manage)?
+                }
                 _ => {}
             }
         }
