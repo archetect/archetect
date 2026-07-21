@@ -1,0 +1,22 @@
+[package]
+name = "archetect-git-cache"
+description = "A host-agnostic Git source cache with a two-gate (TTL + remote-hash) freshness check."
+
+version.workspace = true
+authors.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+camino = { workspace = true }
+chrono = { workspace = true }
+farmhash = { workspace = true }
+git2 = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

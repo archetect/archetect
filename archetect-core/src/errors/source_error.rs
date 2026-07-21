@@ -27,3 +27,16 @@ impl From<std::io::Error> for SourceError {
         SourceError::IoError(error)
     }
 }
+
+impl From<archetect_git_cache::GitCacheError> for SourceError {
+    fn from(error: archetect_git_cache::GitCacheError) -> SourceError {
+        use archetect_git_cache::GitCacheError::*;
+        match error {
+            OfflineAndNotCached(url) => SourceError::OfflineAndNotCached(url),
+            RefNotCachedOffline(msg) | Remote(msg) => SourceError::RemoteSourceError(msg),
+            NoDefaultBranch => SourceError::NoDefaultBranch,
+            Git(err) => SourceError::GitError(err),
+            Io(err) => SourceError::IoError(err),
+        }
+    }
+}

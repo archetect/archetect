@@ -14,6 +14,7 @@ repository.workspace = true
 archetect-api = { workspace = true }
 archetect-terminal-io = { workspace = true }
 archetect-aml = { path = "../archetect-aml", version = "3.0.0" }
+archetect-git-cache = { workspace = true }
 archetect-inflections = { workspace = true }
 archetect-validations = { workspace = true }
 

@@ -2,17 +2,13 @@ use std::fs;
 use std::sync::OnceLock;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use chrono::TimeZone;
-use git2::Repository;
-use log::{debug, info, trace, warn};
+use log::{info, trace, warn};
 use regex::Regex;
 use url::Url;
 
 use crate::errors::SourceError;
 use crate::utils::to_utf8_path_buf;
 use crate::Archetect;
-
-const ARCHETECT_PULLED: &str = "archetect.pulled";
 
 pub struct Source {
     archetect: Archetect,
@@ -75,8 +71,7 @@ impl Source {
             }
             SourceCommand::Invalidate => {
                 if let SourceType::RemoteGit { cache_path, .. } = &self.source_type {
-                    let repo = Repository::open(cache_path.join(".git"))?;
-                    invalidate_timestamp(&repo)?;
+                    archetect_git_cache::invalidate_all(cache_path)?;
                 }
             }
             SourceCommand::Delete => {
@@ -286,44 +281,10 @@ fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
     format!("{}", get_cache_hash(input))
 }
 
-fn should_pull(repo: &Repository, archetect: &Archetect) -> Result<bool, SourceError> {
-    if archetect.is_offline() {
-        return Ok(false);
-    }
-    if archetect.configuration().updates().force() {
-        return Ok(true);
-    }
-
-    let config = repo.config()?;
-    if let Ok(timestamp) = config.get_i64(ARCHETECT_PULLED) {
-        match chrono::Utc.timestamp_millis_opt(timestamp).single() {
-            Some(parsed) => {
-                let delta = chrono::Utc::now() - parsed;
-                Ok(delta > archetect.configuration().updates().interval())
-            }
-            // Stored timestamp is out of range or ambiguous — treat the cache
-            // as stale and force a refresh rather than panicking.
-            None => Ok(true),
-        }
-    } else {
-        Ok(true)
-    }
-}
-
-fn write_timestamp(repo: &Repository) -> Result<(), SourceError> {
-    let mut config = repo.config()?;
-    config.set_i64(ARCHETECT_PULLED, chrono::Utc::now().timestamp_millis())?;
-    Ok(())
-}
-
-fn invalidate_timestamp(repo: &Repository) -> Result<(), SourceError> {
-    let mut config = repo.config()?;
-    if let Ok(_value) = config.get_string(ARCHETECT_PULLED) {
-        config.remove(ARCHETECT_PULLED)?;
-    }
-    Ok(())
-}
-
+/// Clone/refresh a git source into `cache_destination` and check out `gitref`, delegating the
+/// two-gate (TTL + remote-hash) freshness logic to the shared `archetect-git-cache` crate. This is a
+/// thin adapter: archetect owns the cache directory scheme (the farmhash key above) and the
+/// per-process fetch dedup; the crate owns clone/fetch/ls-remote/checkout and the freshness gates.
 fn cache_git_repo(
     archetect: &Archetect,
     url: &str,
@@ -331,123 +292,39 @@ fn cache_git_repo(
     cache_destination: &Utf8Path,
     force_pull: bool,
 ) -> Result<(), SourceError> {
-    if !cache_destination.exists() {
-        if !archetect.is_offline() {
-            if archetect.mark_source_fetched(url) {
-                info!("Cloning {}", url);
-                debug!("Cloning to {}", cache_destination.as_str());
-                // Bucket A: try git2 first, fall back to `git` CLI on any
-                // error (auth, transport, TLS). Lets archetect work without
-                // the `git` binary for the common public-clone case.
-                crate::git_io::clone(url, cache_destination)?;
-                let repo = git2::Repository::open(cache_destination.join(".git"))?;
-                write_timestamp(&repo)?;
-            }
-        } else {
-            return Err(SourceError::OfflineAndNotCached(url.to_owned()));
-        }
-    } else {
-        let repo = Repository::open(cache_destination.join(".git"))?;
-        let mut should_fetch = force_pull || should_pull(&repo, archetect)?;
+    use archetect_git_cache::{FetchOptions, Freshness, RefPin};
 
-        // If the cache was cloned from an empty repo (no remote branches),
-        // force a re-fetch — the repo likely has content now.
-        if !should_fetch && !archetect.is_offline() {
-            if !repo_has_any_branch(&repo) {
-                debug!("Cached repo has no branches — re-fetching (was likely cloned empty)");
-                should_fetch = true;
-            }
-        }
-
-        // Check if the requested gitref exists, and if not, force a fetch unless offline
-        if let Some(gitref_str) = gitref.as_ref().filter(|_| !should_fetch) {
-            let gitref_exists =
-                is_branch(&repo, gitref_str) || is_tag_or_commit(&repo, gitref_str);
-
-            if !gitref_exists && !archetect.is_offline() {
-                debug!("Requested gitref '{}' not found in cache, fetching latest", gitref_str);
-                should_fetch = true;
-            } else if !gitref_exists && archetect.is_offline() {
-                return Err(SourceError::RemoteSourceError(format!(
-                    "Branch/tag '{}' not found in cache and running in offline mode", gitref_str
-                )));
-            }
-        }
-
-        if should_fetch {
-            if archetect.mark_source_fetched(url) {
-                info!("Fetching {}", url);
-                // Bucket A: same fallback strategy for fetch.
-                crate::git_io::fetch(cache_destination)?;
-                write_timestamp(&repo)?;
-            }
-        } else {
-            trace!("Using cache for {}", url);
-        }
-    }
-
-    // Bucket B: local-only operations use git2 directly.
-    let repo = Repository::open(cache_destination.join(".git"))?;
-
-    let gitref = if let Some(gitref) = gitref {
-        gitref.to_owned()
-    } else {
-        find_default_branch(&repo)?
+    let interval = archetect
+        .configuration()
+        .updates()
+        .interval()
+        .to_std()
+        .unwrap_or_else(|_| std::time::Duration::from_secs(604800));
+    let opts = FetchOptions {
+        force: force_pull || archetect.configuration().updates().force(),
+        offline: archetect.is_offline(),
+        interval,
+        // archetect parses `url#ref` without knowing whether `ref` is a tag or a branch — let the
+        // crate infer immutability from how the ref resolves locally.
+        pin: RefPin::Infer,
     };
 
-    let gitref_spec = if is_branch(&repo, &gitref) {
-        format!("origin/{}", &gitref)
+    let gitref = gitref.as_deref();
+    // Per-process dedup: the first sighting of a URL does the network-eligible fetch (which pulls
+    // every ref via `--tags`); later sightings in the same run only need a local re-checkout.
+    let outcome = if archetect.mark_source_fetched(url) {
+        archetect_git_cache::fetch(url, gitref, cache_destination, &opts)?
     } else {
-        gitref
+        archetect_git_cache::checkout(gitref, cache_destination)?
     };
 
-    debug!("Checking out {}", gitref_spec);
-    checkout(&repo, &gitref_spec)?;
+    match outcome.freshness {
+        Freshness::Cloned => info!("Cloning {}", url),
+        Freshness::Updated => info!("Updating {}", url),
+        Freshness::UpToDate { .. } => trace!("Using cache for {}", url),
+    }
 
     Ok(())
-}
-
-/// Bucket B: check whether a ref exists under `refs/remotes/origin/*`.
-fn is_branch(repo: &Repository, gitref: &str) -> bool {
-    repo.find_reference(&format!("refs/remotes/origin/{}", gitref))
-        .is_ok()
-}
-
-/// Bucket B: check whether a ref is a tag or a direct commit hash.
-fn is_tag_or_commit(repo: &Repository, gitref: &str) -> bool {
-    if repo.find_reference(&format!("refs/tags/{}", gitref)).is_ok() {
-        return true;
-    }
-    // `revparse_single` handles both full and abbreviated commit hashes
-    // as well as any other rev spec git understands.
-    repo.revparse_single(&format!("{}^{{commit}}", gitref)).is_ok()
-}
-
-fn find_default_branch(repo: &Repository) -> Result<String, SourceError> {
-    for candidate in &["main", "master"] {
-        if is_branch(repo, candidate) {
-            return Ok((*candidate).to_owned());
-        }
-    }
-    Err(SourceError::NoDefaultBranch)
-}
-
-/// Bucket B: detached-HEAD checkout of `gitref_spec` (may be a branch
-/// name, a tag, or a commit). Mirrors `git checkout <spec>` for a
-/// bare/read-only workflow — archetect never intends to commit back.
-fn checkout(repo: &Repository, gitref_spec: &str) -> Result<(), SourceError> {
-    let object = repo.revparse_single(gitref_spec)?;
-    repo.checkout_tree(&object, Some(git2::build::CheckoutBuilder::new().force()))?;
-    repo.set_head_detached(object.id())?;
-    Ok(())
-}
-
-/// Bucket B: does this repo have any branches (local or remote)?
-fn repo_has_any_branch(repo: &Repository) -> bool {
-    match repo.branches(None) {
-        Ok(mut iter) => iter.next().is_some(),
-        Err(_) => false,
-    }
 }
 
 

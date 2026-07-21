@@ -4,6 +4,7 @@ members = [
     "archetect-api",
     "archetect-bin",
     "archetect-core",
+    "archetect-git-cache",
     "archetect-inflections",
     "archetect-terminal-io",
     "archetect-validations",
@@ -24,6 +25,7 @@ repository = "https://github.com/archetect/archetect"
 [workspace.dependencies]
 archetect-api = { path = "archetect-api", version = "3.0.0" }
 archetect-core = { path = "archetect-core", version = "3.0.0" }
+archetect-git-cache = { path = "archetect-git-cache", version = "3.0.0" }
 archetect-inflections = { path = "archetect-inflections", version = "3.0.0" }
 archetect-terminal-io = { path = "archetect-terminal-io", version = "3.0.0" }
 archetect-validations = { path = "archetect-validations", version = "3.0.0" }
