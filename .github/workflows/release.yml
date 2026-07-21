@@ -64,6 +64,16 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+
+          # Fail fast on the wrong ref. Release derives its version from the tag name, so it MUST run
+          # on a `vX.Y.Z` tag — never a branch. A manual dispatch from the UI defaults to `main`,
+          # which would otherwise make MAJOR="main" and blow up cryptically in the arithmetic below
+          # ("main: unbound variable"). Turn that into a clear, actionable error.
+          if [[ "${GITHUB_REF_TYPE}" != "tag" || "$TAG" != v*.*.* ]]; then
+            echo "::error::Release must run on a version tag (vX.Y.Z), not a branch — got ref_type='${GITHUB_REF_TYPE}' ref='${TAG}'. Cut a release with the 'Prepare Release' workflow, or dispatch Release with --ref vX.Y.Z."
+            exit 1
+          fi
+
           VERSION="${TAG#v}"
           MAJOR="${VERSION%%.*}"
 
