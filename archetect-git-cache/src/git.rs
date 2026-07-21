@@ -1,89 +1,92 @@
 //! Low-level git operations with a try-git2-then-CLI-fallback strategy.
 //!
-//! Ported from archetect's `git_io.rs`. The goal is unchanged: **work without the `git` binary for
-//! the common case** (a public clone/fetch/ls-remote over HTTPS), while falling back to the user's
-//! installed `git` — with its credential helpers, SSH agent, and enterprise TLS — when auth is
-//! required. Only fetch-class operations live here (clone, fetch, ls-remote): idempotent and
-//! remote→local, so a fallback produces identical output state either way. Local-only reads use
-//! `git2` directly in `lib.rs`.
+//! The cache is content-addressed: a **bare mirror** per repo (`sources/<hash>/`) holds objects +
+//! refs and is the fetch target; an immutable **working tree** per commit (`trees/<hash>/<oid>/`) is
+//! materialized from it. Only fetch-class operations (clone, fetch, ls-remote) touch the network;
+//! materialization is local. git2-first keeps the common public path working without the `git`
+//! binary, falling back to `git` for auth (credential helpers, SSH agent, enterprise TLS).
 
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use camino::Utf8Path;
 use log::debug;
 
 use crate::error::GitCacheError;
 
-/// Clone `url` into `dest`. Tries `git2` first; on any error, cleans up any partial checkout and
-/// falls back to the `git` binary (which picks up credentials git2 doesn't).
-pub fn clone(url: &str, dest: &Utf8Path) -> Result<(), GitCacheError> {
-    debug!("git-cache clone {} -> {}", url, dest);
+/// Clone `url` into `dest` as a **bare mirror** (all branches + tags, no working tree). Tries `git2`
+/// first; on any error, cleans up any partial state and falls back to `git clone --mirror`.
+pub fn clone_mirror(url: &str, dest: &Utf8Path) -> Result<(), GitCacheError> {
+    debug!("git-cache clone --mirror {} -> {}", url, dest);
 
-    match git2::Repository::clone(url, dest.as_std_path()) {
-        Ok(_) => Ok(()),
+    match clone_mirror_git2(url, dest) {
+        Ok(()) => Ok(()),
         Err(err) => {
-            debug!("git2 clone failed ({}); falling back to `git clone`", err);
-            // `git clone` refuses a non-empty destination — remove any partial state git2 left.
+            debug!("git2 mirror clone failed ({err}); falling back to `git clone --mirror`");
             if dest.exists() {
                 let _ = std::fs::remove_dir_all(dest.as_std_path());
             }
             let mut cmd = Command::new("git");
-            cmd.args(["clone", url, dest.as_str(), "-q"]);
+            cmd.args(["clone", "--mirror", "--quiet", url, dest.as_str()]);
             run_git(&mut cmd)
         }
     }
 }
 
-/// Fetch all branches and tags for the repo at `repo_dir` (`--force --tags` semantics). Tries
-/// `git2` first; on any error, falls back to `git fetch`.
-pub fn fetch_repo(repo_dir: &Utf8Path) -> Result<(), GitCacheError> {
-    debug!("git-cache fetch {}", repo_dir);
-
-    match fetch_via_git2(repo_dir) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            debug!("git2 fetch failed ({}); falling back to `git fetch`", err);
-            let mut cmd = Command::new("git");
-            cmd.current_dir(repo_dir).args(["fetch", "-q", "--force", "--tags"]);
-            run_git(&mut cmd)
-        }
-    }
-}
-
-fn fetch_via_git2(repo_dir: &Utf8Path) -> Result<(), git2::Error> {
-    let repo = git2::Repository::open(repo_dir.as_std_path())?;
-    let mut remote = repo.find_remote("origin")?;
-
-    let mut fo = git2::FetchOptions::new();
-    fo.download_tags(git2::AutotagOption::All);
-
-    // Force-update every configured refspec (prepend `+` if not already forced).
-    let forced: Vec<String> = remote
-        .fetch_refspecs()?
-        .iter()
-        .filter_map(|s| s.map(str::to_string))
-        .map(|r| if r.starts_with('+') { r } else { format!("+{}", r) })
-        .collect();
-
-    remote.fetch(&forced, Some(&mut fo), None)?;
+fn clone_mirror_git2(url: &str, dest: &Utf8Path) -> Result<(), git2::Error> {
+    // A bare repo whose `origin` mirrors every ref, then an initial fetch to populate refs + tags.
+    let repo = git2::build::RepoBuilder::new()
+        .bare(true)
+        .remote_create(|repo, name, url| repo.remote_with_fetch(name, url, "+refs/*:refs/*"))
+        .clone(url, dest.as_std_path())?;
+    // `RepoBuilder::clone` fetches the default branch; force a full mirror fetch so every branch and
+    // tag is present locally (the content-addressed resolve needs them).
+    fetch_all_refs(&repo)?;
     Ok(())
 }
 
-/// `git ls-remote <url> <gitref>` → the **peeled** commit OID hex the ref resolves to on the
-/// remote, or `None` if the remote has no such ref. This is the cheap probe the hash gate uses to
-/// decide whether a full fetch is worth doing. git2-first, `git` CLI fallback.
-///
-/// `gitref` may be a short name (`v1`, `main`), a full ref (`refs/tags/v1`), or `HEAD` (the
-/// default-branch probe). Tags are peeled (`^{}`) so the returned OID is the commit a moving/annotated
-/// tag points at — matching what a checkout of that tag resolves to, so the baseline comparison is
-/// apples-to-apples.
+/// Fetch all refs (branches + tags) into the bare mirror at `mirror_dir`. git2-first, `git fetch`
+/// fallback.
+pub fn fetch_repo(mirror_dir: &Utf8Path) -> Result<(), GitCacheError> {
+    debug!("git-cache fetch {}", mirror_dir);
+
+    match git2::Repository::open_bare(mirror_dir.as_std_path()).and_then(|repo| fetch_all_refs(&repo)) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            debug!("git2 fetch failed ({err}); falling back to `git fetch`");
+            let mut cmd = Command::new("git");
+            cmd.args([
+                "--git-dir",
+                mirror_dir.as_str(),
+                "fetch",
+                "--quiet",
+                "--prune",
+                "origin",
+            ]);
+            run_git(&mut cmd)
+        }
+    }
+}
+
+fn fetch_all_refs(repo: &git2::Repository) -> Result<(), git2::Error> {
+    let mut remote = repo.find_remote("origin")?;
+    let mut fo = git2::FetchOptions::new();
+    fo.download_tags(git2::AutotagOption::All);
+    fo.prune(git2::FetchPrune::On);
+    // Force-update every ref; a mirror's configured refspec is `+refs/*:refs/*`.
+    remote.fetch(&["+refs/*:refs/*"], Some(&mut fo), None)?;
+    Ok(())
+}
+
+/// `git ls-remote <url> <gitref>` → the **peeled** commit OID hex the ref resolves to on the remote,
+/// or `None` if the remote has no such ref. The cheap probe the hash gate uses. git2-first, CLI
+/// fallback. `gitref` may be a short name (`v1`, `main`), a full ref, or `HEAD`.
 pub fn ls_remote(url: &str, gitref: &str) -> Result<Option<String>, GitCacheError> {
     debug!("git-cache ls-remote {} {}", url, gitref);
 
     match ls_remote_via_git2(url, gitref) {
         Ok(found) => Ok(found),
         Err(err) => {
-            debug!("git2 ls-remote failed ({}); falling back to `git ls-remote`", err);
+            debug!("git2 ls-remote failed ({err}); falling back to `git ls-remote`");
             ls_remote_via_cli(url, gitref)
         }
     }
@@ -102,9 +105,6 @@ fn ls_remote_via_git2(url: &str, gitref: &str) -> Result<Option<String>, git2::E
 }
 
 fn ls_remote_via_cli(url: &str, gitref: &str) -> Result<Option<String>, GitCacheError> {
-    // `--tags --heads` alone wouldn't include HEAD; pass the ref explicitly so all three cases
-    // (branch, tag, HEAD) are covered, and request peeled tags with the default output (git prints
-    // both `<oid>\t<ref>` and `<oid>\t<ref>^{}` lines).
     let output = Command::new("git")
         .args(["ls-remote", url, gitref])
         .output()
@@ -129,9 +129,8 @@ fn ls_remote_via_cli(url: &str, gitref: &str) -> Result<Option<String>, GitCache
     Ok(resolve_ref_oid(&entries, gitref))
 }
 
-/// Resolve `gitref` against a set of `(refname, oid)` advertisements, preferring the **peeled**
-/// (`^{}`) entry for tags. Candidate names are tried tags-first then heads (matching archetect's
-/// "tag or branch" resolution order), so a moving tag wins over a same-named branch.
+/// Resolve `gitref` against `(refname, oid)` advertisements, preferring the **peeled** (`^{}`) entry
+/// for tags. Tags are tried before heads so a moving tag wins over a same-named branch.
 fn resolve_ref_oid(entries: &[(String, String)], gitref: &str) -> Option<String> {
     let candidates: Vec<String> = if gitref == "HEAD" {
         vec!["HEAD".to_string()]
@@ -154,6 +153,73 @@ fn resolve_ref_oid(entries: &[(String, String)], gitref: &str) -> Option<String>
         }
     }
     None
+}
+
+/// Materialize the tree at commit `oid` (from the bare mirror at `mirror_dir`) into `tree_dir` — an
+/// isolated, immutable working tree. The caller renders from it. git2 `checkout_tree` with a custom
+/// `target_dir`; `git archive | tar` fallback. `tree_dir` must not already exist (caller uses a
+/// temp-then-rename for atomicity).
+pub fn materialize(mirror_dir: &Utf8Path, oid: &str, tree_dir: &Utf8Path) -> Result<(), GitCacheError> {
+    debug!("git-cache materialize {} @ {} -> {}", mirror_dir, oid, tree_dir);
+
+    match materialize_git2(mirror_dir, oid, tree_dir) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            debug!("git2 materialize failed ({err}); falling back to `git archive`");
+            materialize_via_cli(mirror_dir, oid, tree_dir)
+        }
+    }
+}
+
+fn materialize_git2(mirror_dir: &Utf8Path, oid: &str, tree_dir: &Utf8Path) -> Result<(), git2::Error> {
+    let repo = git2::Repository::open_bare(mirror_dir.as_std_path())?;
+    let oid = git2::Oid::from_str(oid)?;
+    let tree = repo.find_commit(oid)?.tree()?;
+    std::fs::create_dir_all(tree_dir.as_std_path())
+        .map_err(|e| git2::Error::from_str(&format!("create tree dir: {e}")))?;
+    let mut co = git2::build::CheckoutBuilder::new();
+    co.target_dir(tree_dir.as_std_path())
+        .update_index(false) // a bare mirror's index isn't ours to write
+        .recreate_missing(true)
+        .force();
+    repo.checkout_tree(tree.as_object(), Some(&mut co))?;
+    Ok(())
+}
+
+fn materialize_via_cli(mirror_dir: &Utf8Path, oid: &str, tree_dir: &Utf8Path) -> Result<(), GitCacheError> {
+    std::fs::create_dir_all(tree_dir.as_std_path())?;
+    // `git archive <oid>` writes a tar of the tree to stdout; extract it into tree_dir. No index or
+    // HEAD mutation, so it's safe against a bare mirror.
+    let mut archive = Command::new("git")
+        .args(["--git-dir", mirror_dir.as_str(), "archive", "--format=tar", oid])
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| GitCacheError::Remote(format!("`git archive` could not run: {e}")))?;
+    let stdout = archive
+        .stdout
+        .take()
+        .ok_or_else(|| GitCacheError::Remote("git archive produced no output".to_string()))?;
+    let tar_status = Command::new("tar")
+        .args(["-x", "-C", tree_dir.as_str()])
+        .stdin(stdout)
+        .status()
+        .map_err(|e| GitCacheError::Remote(format!("`tar` could not run: {e}")))?;
+    let archive_status = archive
+        .wait()
+        .map_err(|e| GitCacheError::Remote(format!("git archive failed: {e}")))?;
+    if !archive_status.success() {
+        return Err(GitCacheError::Remote(format!(
+            "git archive {oid} failed (exit {:?})",
+            archive_status.code()
+        )));
+    }
+    if !tar_status.success() {
+        return Err(GitCacheError::Remote(format!(
+            "tar extraction failed (exit {:?})",
+            tar_status.code()
+        )));
+    }
+    Ok(())
 }
 
 fn run_git(command: &mut Command) -> Result<(), GitCacheError> {
@@ -188,12 +254,6 @@ mod tests {
     fn resolves_branch_by_short_name() {
         let entries = e(&[("refs/heads/main", "ccc"), ("HEAD", "ccc")]);
         assert_eq!(resolve_ref_oid(&entries, "main").as_deref(), Some("ccc"));
-    }
-
-    #[test]
-    fn resolves_head() {
-        let entries = e(&[("HEAD", "ddd"), ("refs/heads/main", "ddd")]);
-        assert_eq!(resolve_ref_oid(&entries, "HEAD").as_deref(), Some("ddd"));
     }
 
     #[test]

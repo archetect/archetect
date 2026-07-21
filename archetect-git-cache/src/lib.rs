@@ -1,32 +1,31 @@
-//! A host-agnostic Git source cache with a **two-gate freshness check**.
+//! A host-agnostic, **content-addressed** Git source cache built for concurrent, long-lived sessions.
 //!
-//! Both archetect and prova fetch Git repos (archetypes, catalogs, plugins) and cache them locally.
-//! This crate is the one shared implementation of *when* a cached repo is refreshed:
+//! Both archetect and prova fetch Git repos (archetypes, catalogs, plugins) and render/read from
+//! them — sometimes interactively, for as long as a user takes to answer prompts. The unit of
+//! isolation is the resolved **commit**, not the ref (a ref moves; a commit never does):
 //!
-//! 1. **TTL gate** (local, free): within `interval` of the last check, use the cache — zero network.
-//! 2. **Hash gate** (network, cheap): once the TTL expires, `git ls-remote` the ref and compare its
-//!    OID to the one recorded at last fetch.
-//!    - **Match** → nothing changed. Refresh the timestamp, do *not* fetch, and report `UpToDate`
-//!      (the caller stays silent — the cache is already current).
-//!    - **Differ** → full fetch + checkout, record the new OID, report `Updated` (the caller says so).
-//! 3. `force` skips both gates. `offline` never touches the network.
+//! ```text
+//! <cache_root>/
+//!   sources/<repo-hash>/       bare mirror per repo URL — objects + refs, the fetch target.
+//!   trees/<repo-hash>/<oid>/    immutable working tree at ONE commit, materialized from the mirror.
+//!     <oid>.lease              sessions hold a SHARED flock for their lifetime; the reaper needs EXCLUSIVE.
+//!     <oid>.used               last-use stamp (mtime) for retention.
+//! ```
 //!
-//! ## What the crate owns vs. the caller
+//! [`resolve`] does it all under a short per-repo **write lock**: ensure the mirror, run the freshness
+//! gate (TTL + `ls-remote`, silent when unchanged), resolve `ref → oid`, materialize the immutable
+//! tree if absent, and take a shared **lease**. The caller renders from `tree_dir` holding the
+//! returned [`Lease`] — **no lock spans the render**, because the tree can never change under it.
+//! A branch that moves mid-session just resolves to a new oid → a new tree; in-flight sessions keep
+//! theirs. [`prune`] quietly reaps trees unused past a retention window (skipping any still leased).
 //!
-//! The **caller** owns directory layout and user-facing messages; it passes a `cache_path` (the repo
-//! dir where `.git` lives) per call. The **crate** owns that one directory: clone/fetch/ls-remote,
-//! the gates, the metadata, and the checkout. This keeps archetect's one-dir-per-repo `farmhash`
-//! scheme and prova's one-dir-per-`(url,ref)` scheme both expressible without the crate knowing
-//! either — the metadata is keyed per-ref within a dir, so a multiplexed dir (archetect) and a
-//! single-ref dir (prova) are the same code.
-//!
-//! Freshness metadata lives in the cache repo's own `.git/config` (never touched by the detached
-//! checkout), under `[gitcache "<slug>"]` where `<slug>` is a farmhash of the ref (refs contain `/`
-//! and `.`, which are unsafe in git-config keys). See [`fetch`].
+//! Freshness metadata lives in the mirror's git config, keyed per-ref by a farmhash slug (refs
+//! contain `/` and `.`, unsafe in git-config keys).
 
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, SystemTime};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use fs4::fs_std::FileExt;
@@ -37,24 +36,23 @@ mod error;
 mod git;
 
 pub use error::GitCacheError;
-// Low-level fetch-class ops, re-exported so hosts can drop their own copies.
-pub use git::{clone, fetch_repo, ls_remote};
+pub use git::ls_remote;
 
-/// The git-config section that holds per-ref freshness metadata inside a cache repo.
+/// The git-config section holding per-ref freshness metadata inside a mirror.
 const META_SECTION: &str = "gitcache";
 /// Slug input for a source with no explicit ref (the default-branch entry). A NUL byte can't appear
 /// in a real ref, so this never collides with one.
 const DEFAULT_REF_SENTINEL: &str = "\0default";
 
-/// How a [`fetch`] should treat the cache. The caller derives these from its flags/config.
+/// How a [`resolve`] should treat the cache. The caller derives these from its flags/config.
 #[derive(Debug, Clone)]
 pub struct FetchOptions {
-    /// Skip both gates and always fetch (archetect's `-U`, prova's `--update`).
+    /// Skip the freshness gate and always fetch (archetect's `-U`, prova's `--update`).
     pub force: bool,
     /// Never touch the network; error if the requested ref isn't already cached.
     pub offline: bool,
-    /// TTL width for the freshness gate.
-    pub interval: std::time::Duration,
+    /// TTL width for the freshness gate — how often a moving ref re-checks the remote.
+    pub interval: Duration,
     /// Whether the requested ref can move upstream — governs whether the hash gate probes at all.
     pub pin: RefPin,
 }
@@ -72,25 +70,72 @@ pub enum RefPin {
     Infer,
 }
 
-/// The result of a [`fetch`] or [`checkout`].
-#[derive(Debug, Clone)]
-pub struct FetchOutcome {
-    /// The checkout directory (== the `cache_path` passed in). The caller renders/requires from here.
-    pub checkout_dir: Utf8PathBuf,
-    /// What happened, so the caller can message appropriately.
-    pub freshness: Freshness,
-    /// The commit OID (hex) now checked out — also the baseline stored for the next hash gate.
-    pub resolved_oid: String,
+/// A resolved, immutable source tree ready to render/read from. Hold [`lease`](Self::lease) for as
+/// long as you read `tree_dir`; dropping it lets the reaper eventually reclaim the tree.
+#[derive(Debug)]
+pub struct ResolvedSource {
+    /// The immutable working tree at `oid`. Render/require from here — it never changes.
+    pub tree_dir: Utf8PathBuf,
+    /// The commit OID (hex) the source resolved to.
+    pub oid: String,
     /// The concrete ref used (e.g. the resolved default branch when no ref was requested).
     pub resolved_ref: String,
+    /// What happened, so the caller can message appropriately.
+    pub freshness: Freshness,
+    /// A shared lease on the tree — keeps the reaper from reclaiming it mid-read. Drop when done.
+    pub lease: Lease,
 }
 
-/// What a [`fetch`] did — the caller's cue for whether (and what) to print.
+/// A shared lease on a materialized tree. Held for as long as a session reads the tree; released on
+/// drop. It only ever excludes the reaper (the tree is immutable), so holding it for an hour blocks
+/// no other session. Backed by two layers — a shared `flock` (cross-process) and a process-global
+/// refcount (in-process, since `flock` self-conflict across fds is unreliable on some platforms).
+#[derive(Debug)]
+pub struct Lease {
+    _file: File,
+    tree_dir: Utf8PathBuf,
+}
+
+impl Drop for Lease {
+    fn drop(&mut self) {
+        lease_decr(&self.tree_dir);
+        // The shared flock releases when `_file` closes on drop.
+    }
+}
+
+/// Process-global count of live leases per tree dir, so the reaper (same process) sees in-flight
+/// sessions even where `flock` wouldn't self-conflict.
+fn active_leases() -> &'static Mutex<HashMap<Utf8PathBuf, usize>> {
+    static ACTIVE: OnceLock<Mutex<HashMap<Utf8PathBuf, usize>>> = OnceLock::new();
+    ACTIVE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn lease_incr(tree_dir: &Utf8Path) {
+    let mut map = active_leases().lock().unwrap_or_else(|p| p.into_inner());
+    *map.entry(tree_dir.to_path_buf()).or_insert(0) += 1;
+}
+
+fn lease_decr(tree_dir: &Utf8Path) {
+    let mut map = active_leases().lock().unwrap_or_else(|p| p.into_inner());
+    if let Some(count) = map.get_mut(tree_dir) {
+        *count -= 1;
+        if *count == 0 {
+            map.remove(tree_dir);
+        }
+    }
+}
+
+fn lease_active(tree_dir: &Utf8Path) -> bool {
+    let map = active_leases().lock().unwrap_or_else(|p| p.into_inner());
+    map.get(tree_dir).copied().unwrap_or(0) > 0
+}
+
+/// What a [`resolve`] did — the caller's cue for whether (and what) to print.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Freshness {
-    /// The cache was absent; a fresh clone happened.
+    /// The mirror was absent; a fresh clone happened.
     Cloned,
-    /// A fetch happened (hash gate differed, or force/empty-recovery/missing-ref). Announce it.
+    /// A fetch happened (hash gate differed, or force / missing-ref). Announce it.
     Updated,
     /// No fetch — the cache was used as-is. `probed` is true when the hash gate ran a network probe
     /// that matched (TTL had expired but the remote hadn't moved); false when the TTL was still
@@ -98,100 +143,107 @@ pub enum Freshness {
     UpToDate { probed: bool },
 }
 
-/// Clone-or-open the repo at `cache_path`, apply the two-gate freshness check, fetch if needed,
-/// check out `gitref` (detached HEAD), and record freshness metadata. See the module docs.
-///
-/// The whole clone/fetch/checkout critical section runs under a per-`cache_path` lock (a
-/// cross-process advisory file lock plus an in-process keyed mutex), so two processes — or two
-/// concurrent server requests, each with its own caller state — can't clobber one dir mid-clone or
-/// mid-fetch. (This guards the *writer* side; a reader rendering from a checkout can still race a
-/// concurrent checkout of a different ref into the same multiplexed dir — see docs/plans/git-cache-locking.md.)
-pub fn fetch(
-    url: &str,
-    gitref: Option<&str>,
-    cache_path: &Utf8Path,
-    opts: &FetchOptions,
-) -> Result<FetchOutcome, GitCacheError> {
-    with_cache_lock(cache_path, || fetch_locked(url, gitref, cache_path, opts))
+/// What a [`prune`] swept.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PruneStats {
+    /// Trees removed (past retention, not leased).
+    pub removed: usize,
+    /// Trees kept (still within retention).
+    pub kept: usize,
+    /// Trees eligible by age but skipped because a session still holds them.
+    pub in_use: usize,
 }
 
-fn fetch_locked(
+/// Resolve `url`/`gitref` to an immutable tree under `cache_root`: ensure the bare mirror, run the
+/// freshness gate, materialize the commit's tree if absent, and take a session lease. See the module
+/// docs. The write lock is held only for this (short) call, never across the caller's render.
+pub fn resolve(
     url: &str,
     gitref: Option<&str>,
-    cache_path: &Utf8Path,
+    cache_root: &Utf8Path,
     opts: &FetchOptions,
-) -> Result<FetchOutcome, GitCacheError> {
+) -> Result<ResolvedSource, GitCacheError> {
+    let hash = repo_hash(url);
+    let sources_dir = cache_root.join("sources").join(&hash);
+    let trees_root = cache_root.join("trees").join(&hash);
+    with_write_lock(&sources_dir, || {
+        resolve_locked(url, gitref, &sources_dir, &trees_root, opts)
+    })
+}
+
+fn resolve_locked(
+    url: &str,
+    gitref: Option<&str>,
+    sources_dir: &Utf8Path,
+    trees_root: &Utf8Path,
+    opts: &FetchOptions,
+) -> Result<ResolvedSource, GitCacheError> {
     let now = now_ms();
     let slug = slug_for(gitref);
 
-    // ── Gate 0: cache absent ────────────────────────────────────────────────────────────────
-    if !cache_path.exists() {
+    // ── Ensure the mirror + decide freshness ────────────────────────────────────────────────
+    let freshness;
+    let mut did_fetch = false;
+    if !sources_dir.exists() {
         if opts.offline {
             return Err(GitCacheError::OfflineAndNotCached(url.to_string()));
         }
-        git::clone(url, cache_path)?;
-        let repo = Repository::open(cache_path.as_std_path())?;
-        let (oid, resolved_ref) = checkout_resolve(&repo, gitref)?;
-        let mut cfg = meta_config(cache_path)?;
-        write_meta(&mut cfg, &slug, &resolved_ref, &oid, now)?;
-        return Ok(outcome(cache_path, Freshness::Cloned, oid, resolved_ref));
-    }
-
-    let repo = Repository::open(cache_path.as_std_path())?;
-
-    // ── Decide whether to fetch ─────────────────────────────────────────────────────────────
-    let mut probed_match = false;
-    let do_fetch = if opts.force {
-        true
-    } else if opts.offline {
-        false
-    } else if !repo_has_any_branch(&repo) {
-        // Empty-clone recovery: the repo was cloned from an empty remote that likely has content now.
-        true
-    } else if gitref.is_some_and(|g| !ref_exists_local(&repo, g)) {
-        // Requested ref isn't in the cache — must fetch or we can't check it out.
-        true
+        git::clone_mirror(url, sources_dir)?;
+        did_fetch = true;
+        freshness = Freshness::Cloned;
     } else {
-        let cfg = meta_config(cache_path)?;
-        let meta = read_meta(&cfg, &slug);
-        match meta.checked_at_ms {
-            // Never recorded (fresh scheme, or a migrated archetect cache) — fetch once to seed it.
-            None => true,
-            // ── Gate 1: TTL still fresh ── zero network.
-            Some(ts) if now.saturating_sub(ts) <= interval_ms(opts) => false,
-            // TTL expired.
-            Some(_) => {
-                if is_immutable(opts.pin, &repo, gitref) {
-                    // A tag/rev never moves — don't even probe; just reset the TTL and stay silent.
-                    let mut cfg = meta_config(cache_path)?;
-                    refresh_checked_at(&mut cfg, &slug, now)?;
-                    false
-                } else {
-                    // ── Gate 2: hash gate ── the one place we probe the remote.
-                    let probe_ref = gitref.unwrap_or("HEAD");
-                    let remote_oid = git::ls_remote(url, probe_ref)?;
-                    match (remote_oid, meta.oid.as_deref()) {
-                        (Some(remote), Some(stored)) if remote == stored => {
-                            // Nothing changed: refresh the TTL, no fetch, stay silent.
-                            let mut cfg = meta_config(cache_path)?;
-                            refresh_checked_at(&mut cfg, &slug, now)?;
-                            probed_match = true;
-                            false
+        let repo = Repository::open_bare(sources_dir.as_std_path())?;
+        let mut probed_match = false;
+        let do_fetch = if opts.force {
+            true
+        } else if opts.offline {
+            false
+        } else if !repo_has_any_ref(&repo) {
+            true // mirror was cloned empty; the remote likely has content now
+        } else if gitref.is_some_and(|g| !ref_exists_local(&repo, g)) {
+            true // requested ref isn't in the mirror — fetch to obtain it
+        } else {
+            let cfg = meta_config(sources_dir)?;
+            let meta = read_meta(&cfg, &slug);
+            match meta.checked_at_ms {
+                None => true,
+                Some(ts) if now.saturating_sub(ts) <= interval_ms(opts) => false, // TTL fresh: no network
+                Some(_) => {
+                    if is_immutable(opts.pin, &repo, gitref) {
+                        // A tag/rev never moves — don't probe; just reset the TTL and stay silent.
+                        let mut cfg = meta_config(sources_dir)?;
+                        refresh_checked_at(&mut cfg, &slug, now)?;
+                        false
+                    } else {
+                        // Hash gate: the one place we probe the remote.
+                        let remote_oid = git::ls_remote(url, gitref.unwrap_or("HEAD"))?;
+                        match (remote_oid, meta.oid.as_deref()) {
+                            (Some(remote), Some(stored)) if remote == stored => {
+                                let mut cfg = meta_config(sources_dir)?;
+                                refresh_checked_at(&mut cfg, &slug, now)?;
+                                probed_match = true;
+                                false
+                            }
+                            _ => true, // differ / no baseline / dropped ref → fetch
                         }
-                        // Differ, or no stored baseline, or the remote dropped the ref — fetch.
-                        _ => true,
                     }
                 }
             }
-        }
-    };
+        };
 
-    if do_fetch {
-        git::fetch_repo(cache_path)?;
+        if do_fetch {
+            git::fetch_repo(sources_dir)?;
+            did_fetch = true;
+        }
+        freshness = if do_fetch {
+            Freshness::Updated
+        } else {
+            Freshness::UpToDate { probed: probed_match }
+        };
     }
 
-    // ── Checkout (local; re-open so post-fetch refs are visible) ────────────────────────────
-    let repo = Repository::open(cache_path.as_std_path())?;
+    // ── Resolve the target commit from the (possibly freshly fetched) mirror ─────────────────
+    let repo = Repository::open_bare(sources_dir.as_std_path())?;
     if let Some(g) = gitref {
         if !ref_exists_local(&repo, g) {
             return Err(if opts.offline {
@@ -201,95 +253,223 @@ fn fetch_locked(
             });
         }
     }
-    let (oid, resolved_ref) = checkout_resolve(&repo, gitref)?;
+    let (oid, resolved_ref) = resolve_oid(&repo, gitref)?;
 
-    if do_fetch {
-        let mut cfg = meta_config(cache_path)?;
-        write_meta(&mut cfg, &slug, &resolved_ref, &oid, now)?;
-        Ok(outcome(cache_path, Freshness::Updated, oid, resolved_ref))
-    } else {
-        // Heal a cache that has a TTL but no baseline OID yet (migrated, or first cache hit).
-        let mut cfg = meta_config(cache_path)?;
-        ensure_baseline(&mut cfg, &slug, &resolved_ref, &oid)?;
-        Ok(outcome(
-            cache_path,
-            Freshness::UpToDate { probed: probed_match },
-            oid,
-            resolved_ref,
-        ))
-    }
-}
-
-/// Local-only re-checkout of `gitref` from an already-populated `cache_path`. No network, no gates,
-/// no metadata write. Callers with a per-run dedup guard use this for the 2nd..Nth reference to a
-/// repo the first [`fetch`] already populated (that fetch pulled every ref via `--tags`).
-pub fn checkout(gitref: Option<&str>, cache_path: &Utf8Path) -> Result<FetchOutcome, GitCacheError> {
-    with_cache_lock(cache_path, || checkout_locked(gitref, cache_path))
-}
-
-fn checkout_locked(gitref: Option<&str>, cache_path: &Utf8Path) -> Result<FetchOutcome, GitCacheError> {
-    let repo = Repository::open(cache_path.as_std_path())?;
-    if let Some(g) = gitref {
-        if !ref_exists_local(&repo, g) {
-            return Err(GitCacheError::RefNotCachedOffline(g.to_string()));
+    // ── Record freshness metadata ───────────────────────────────────────────────────────────
+    {
+        let mut cfg = meta_config(sources_dir)?;
+        if did_fetch {
+            write_meta(&mut cfg, &slug, &resolved_ref, &oid, now)?;
+        } else {
+            ensure_baseline(&mut cfg, &slug, &resolved_ref, &oid)?;
         }
     }
-    let (oid, resolved_ref) = checkout_resolve(&repo, gitref)?;
-    Ok(outcome(
-        cache_path,
-        Freshness::UpToDate { probed: false },
+
+    // ── Materialize the immutable tree (once) + lease it for the session ─────────────────────
+    let tree_dir = trees_root.join(&oid);
+    if !tree_dir.exists() {
+        materialize_atomic(sources_dir, &oid, trees_root, &tree_dir)?;
+    }
+    touch_used(trees_root, &oid, now)?;
+    let lease = acquire_shared_lease(trees_root, &oid)?;
+
+    trace!("resolved {url} {resolved_ref} @ {oid} -> {tree_dir}");
+    Ok(ResolvedSource {
+        tree_dir,
         oid,
         resolved_ref,
-    ))
+        freshness,
+        lease,
+    })
 }
 
-/// Drop the freshness metadata for one ref so the next [`fetch`] re-probes/re-fetches it.
-/// `gitref = None` targets the default-branch entry.
-pub fn invalidate(cache_path: &Utf8Path, gitref: Option<&str>) -> Result<(), GitCacheError> {
-    let mut cfg = meta_config(cache_path)?;
-    remove_slug(&mut cfg, &slug_for(gitref));
-    Ok(())
+/// Drop the freshness metadata for one ref of `url` so the next [`resolve`] re-probes/re-fetches it.
+/// `gitref = None` targets the default-branch entry. No-op if the mirror doesn't exist.
+pub fn invalidate(cache_root: &Utf8Path, url: &str, gitref: Option<&str>) -> Result<(), GitCacheError> {
+    let sources_dir = cache_root.join("sources").join(repo_hash(url));
+    if !sources_dir.exists() {
+        return Ok(());
+    }
+    with_write_lock(&sources_dir, || {
+        let mut cfg = meta_config(&sources_dir)?;
+        remove_slug(&mut cfg, &slug_for(gitref));
+        Ok(())
+    })
 }
 
-/// Drop *all* freshness metadata in the cache repo (backs `archetect cache invalidate`). Also clears
-/// archetect's legacy `archetect.pulled` key if present, so an old cache converges cleanly.
-pub fn invalidate_all(cache_path: &Utf8Path) -> Result<(), GitCacheError> {
-    let mut cfg = meta_config(cache_path)?;
-    let mut names = Vec::new();
-    {
-        let entries = cfg.entries(Some(&format!("^{META_SECTION}\\.")))?;
-        entries.for_each(|entry| {
-            if let Some(name) = entry.name() {
-                names.push(name.to_string());
-            }
+/// Drop *all* freshness metadata for `url` (backs `cache invalidate`). No-op if the mirror is absent.
+pub fn invalidate_all(cache_root: &Utf8Path, url: &str) -> Result<(), GitCacheError> {
+    let sources_dir = cache_root.join("sources").join(repo_hash(url));
+    if !sources_dir.exists() {
+        return Ok(());
+    }
+    with_write_lock(&sources_dir, || {
+        let mut cfg = meta_config(&sources_dir)?;
+        let mut names = Vec::new();
+        {
+            let entries = cfg.entries(Some(&format!("^{META_SECTION}\\.")))?;
+            entries.for_each(|entry| {
+                if let Some(name) = entry.name() {
+                    names.push(name.to_string());
+                }
+            })?;
+        }
+        for name in names {
+            let _ = cfg.remove(&name);
+        }
+        Ok(())
+    })
+}
+
+/// Quietly reap materialized trees under `cache_root` unused longer than `retention` — but only ones
+/// no session still holds (a non-blocking exclusive `flock` on `<oid>.lease` proves it). Crash-leftover
+/// `.tmp-*` dirs are always removed. Runs per-repo under the write lock so it never races a resolve.
+pub fn prune(cache_root: &Utf8Path, retention: Duration) -> Result<PruneStats, GitCacheError> {
+    let mut stats = PruneStats::default();
+    let trees = cache_root.join("trees");
+    if !trees.exists() {
+        return Ok(stats);
+    }
+    let now = SystemTime::now();
+    for entry in std::fs::read_dir(trees.as_std_path())? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let repo_trees = Utf8PathBuf::from_path_buf(entry.path())
+            .map_err(|p| GitCacheError::Remote(format!("non-UTF-8 cache path: {}", p.display())))?;
+        let hash = repo_trees.file_name().unwrap_or_default().to_string();
+        let sources_dir = cache_root.join("sources").join(&hash);
+        with_write_lock(&sources_dir, || {
+            prune_repo_trees(&repo_trees, retention, now, &mut stats)
         })?;
     }
-    for name in names {
-        let _ = cfg.remove(&name);
+    Ok(stats)
+}
+
+fn prune_repo_trees(
+    repo_trees: &Utf8Path,
+    retention: Duration,
+    now: SystemTime,
+    stats: &mut PruneStats,
+) -> Result<(), GitCacheError> {
+    for entry in std::fs::read_dir(repo_trees.as_std_path())? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let path = repo_trees.join(&name);
+        // Crash-leftover partial materializations — always safe to remove.
+        if name.starts_with(".tmp-") {
+            let _ = std::fs::remove_dir_all(path.as_std_path());
+            continue;
+        }
+        // Only <oid>/ dirs are trees; the sidecar <oid>.lease / <oid>.used files ride with them.
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let oid = name;
+        let used = repo_trees.join(format!("{oid}.used"));
+        let mtime = std::fs::metadata(used.as_std_path())
+            .and_then(|m| m.modified())
+            .or_else(|_| std::fs::metadata(path.as_std_path()).and_then(|m| m.modified()))
+            .unwrap_or(now);
+        if now.duration_since(mtime).unwrap_or_default() <= retention {
+            stats.kept += 1;
+            continue;
+        }
+        // Eligible by age — but only reap if no session holds the lease. Check the in-process
+        // registry first (catches same-process sessions regardless of flock self-conflict quirks),
+        // then the cross-process advisory lock.
+        if lease_active(&path) {
+            stats.in_use += 1;
+            continue;
+        }
+        let lease_path = repo_trees.join(format!("{oid}.lease"));
+        let lease = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(lease_path.as_std_path());
+        match lease {
+            Ok(file) if FileExt::try_lock_exclusive(&file).is_ok() => {
+                let _ = std::fs::remove_dir_all(path.as_std_path());
+                let _ = std::fs::remove_file(used.as_std_path());
+                let _ = FileExt::unlock(&file);
+                drop(file);
+                let _ = std::fs::remove_file(lease_path.as_std_path());
+                stats.removed += 1;
+            }
+            _ => stats.in_use += 1,
+        }
     }
-    let _ = cfg.remove("archetect.pulled");
     Ok(())
 }
 
-// ── metadata (git config in the cache repo) ─────────────────────────────────────────────────────
+// ── materialization ─────────────────────────────────────────────────────────────────────────────
+
+/// Materialize `oid`'s tree into `trees_root/<oid>/` via a temp dir + atomic rename, so a crash never
+/// leaves a half-written dir that looks complete. Called under the write lock, so no concurrent
+/// materialize of the same oid.
+fn materialize_atomic(
+    mirror_dir: &Utf8Path,
+    oid: &str,
+    trees_root: &Utf8Path,
+    tree_dir: &Utf8Path,
+) -> Result<(), GitCacheError> {
+    std::fs::create_dir_all(trees_root.as_std_path())?;
+    let tmp = trees_root.join(format!(".tmp-{oid}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(tmp.as_std_path());
+    git::materialize(mirror_dir, oid, &tmp)?;
+    match std::fs::rename(tmp.as_std_path(), tree_dir.as_std_path()) {
+        Ok(()) => Ok(()),
+        Err(_) if tree_dir.exists() => {
+            let _ = std::fs::remove_dir_all(tmp.as_std_path());
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+fn touch_used(trees_root: &Utf8Path, oid: &str, now_ms: i64) -> Result<(), GitCacheError> {
+    std::fs::create_dir_all(trees_root.as_std_path())?;
+    std::fs::write(trees_root.join(format!("{oid}.used")).as_std_path(), now_ms.to_string())?;
+    Ok(())
+}
+
+fn acquire_shared_lease(trees_root: &Utf8Path, oid: &str) -> Result<Lease, GitCacheError> {
+    let tree_dir = trees_root.join(oid);
+    lease_incr(&tree_dir);
+    let path = trees_root.join(format!("{oid}.lease"));
+    let file = OpenOptions::new().create(true).append(true).open(path.as_std_path())?;
+    if let Err(err) = FileExt::lock_shared(&file) {
+        lease_decr(&tree_dir); // don't leak the refcount if the flock fails
+        return Err(err.into());
+    }
+    Ok(Lease { _file: file, tree_dir })
+}
+
+// ── metadata (git config in the bare mirror) ────────────────────────────────────────────────────
 
 struct Meta {
     oid: Option<String>,
     checked_at_ms: Option<i64>,
 }
 
-/// Open the cache repo's own config file (`<cache_path>/.git/config`) for reading/writing our keys.
-/// Opening the file directly (not `repo.config()`) guarantees writes land in the repo config, not a
-/// global one.
-fn meta_config(cache_path: &Utf8Path) -> Result<git2::Config, GitCacheError> {
-    let path = cache_path.join(".git").join("config");
-    Ok(git2::Config::open(path.as_std_path())?)
+/// Open the mirror's own config (`<mirror>/config`) for reading/writing our keys.
+fn meta_config(mirror_dir: &Utf8Path) -> Result<git2::Config, GitCacheError> {
+    Ok(git2::Config::open(mirror_dir.join("config").as_std_path())?)
 }
 
-/// A farmhash hex slug of the ref — a git-config-safe key (refs contain `/` and `.`, which aren't).
+/// A farmhash hex slug of the ref — a git-config-safe key.
 fn slug_for(gitref: Option<&str>) -> String {
     let key = gitref.unwrap_or(DEFAULT_REF_SENTINEL);
     format!("{:016x}", farmhash::fingerprint64(key.as_bytes()))
+}
+
+/// A farmhash hex key of the repo URL (lightly normalized) — the `sources/`/`trees/` bucket. Both
+/// tools produce the same key for the same URL, so they can share a cache.
+fn repo_hash(url: &str) -> String {
+    let norm = url.trim_end_matches('/');
+    let norm = norm.strip_suffix(".git").unwrap_or(norm);
+    format!("{:016x}", farmhash::fingerprint64(norm.as_bytes()))
 }
 
 fn key(slug: &str, name: &str) -> String {
@@ -299,7 +479,6 @@ fn key(slug: &str, name: &str) -> String {
 fn read_meta(cfg: &git2::Config, slug: &str) -> Meta {
     Meta {
         oid: cfg.get_string(&key(slug, "oid")).ok(),
-        // git lowercases config variable names; read the stored form.
         checked_at_ms: cfg.get_i64(&key(slug, "checkedatms")).ok(),
     }
 }
@@ -322,8 +501,8 @@ fn refresh_checked_at(cfg: &mut git2::Config, slug: &str, now_ms: i64) -> Result
     Ok(())
 }
 
-/// Write an OID baseline (and ref) only if none is recorded yet — heals migrated/first-hit caches
-/// without clobbering a real baseline or advancing the timestamp.
+/// Write an OID baseline only if none is recorded yet — heals a cache that has a timestamp but no
+/// baseline without clobbering a real one or advancing the timestamp.
 fn ensure_baseline(cfg: &mut git2::Config, slug: &str, resolved_ref: &str, oid: &str) -> Result<(), GitCacheError> {
     if cfg.get_string(&key(slug, "oid")).is_err() {
         cfg.set_str(&key(slug, "ref"), resolved_ref)?;
@@ -338,42 +517,43 @@ fn remove_slug(cfg: &mut git2::Config, slug: &str) {
     }
 }
 
-// ── ref resolution & checkout (ported from archetect's source.rs) ───────────────────────────────
+// ── ref resolution (bare-mirror layout: branches at refs/heads, tags at refs/tags) ───────────────
 
-/// Does `refs/remotes/origin/<gitref>` exist? (i.e. is this a fetched branch)
 fn is_branch(repo: &Repository, gitref: &str) -> bool {
-    repo.find_reference(&format!("refs/remotes/origin/{gitref}")).is_ok()
+    repo.find_reference(&format!("refs/heads/{gitref}")).is_ok()
 }
 
-/// Does `refs/tags/<gitref>` exist?
 fn is_tag(repo: &Repository, gitref: &str) -> bool {
     repo.find_reference(&format!("refs/tags/{gitref}")).is_ok()
 }
 
-/// Is `gitref` a tag or a direct commit hash?
-fn is_tag_or_commit(repo: &Repository, gitref: &str) -> bool {
-    is_tag(repo, gitref) || repo.revparse_single(&format!("{gitref}^{{commit}}")).is_ok()
-}
-
-/// Is `gitref` resolvable locally at all (branch, tag, or commit)?
+/// Is `gitref` resolvable in the mirror at all (branch, tag, or commit)?
 fn ref_exists_local(repo: &Repository, gitref: &str) -> bool {
-    is_branch(repo, gitref) || is_tag_or_commit(repo, gitref)
+    repo.revparse_single(gitref).is_ok() || repo.revparse_single(&format!("{gitref}^{{commit}}")).is_ok()
 }
 
-fn find_default_branch(repo: &Repository) -> Result<String, GitCacheError> {
+fn repo_has_any_ref(repo: &Repository) -> bool {
+    match repo.references() {
+        Ok(mut refs) => refs.next().is_some(),
+        Err(_) => false,
+    }
+}
+
+/// The mirror's default branch (its HEAD symref), falling back to main/master.
+fn default_branch(repo: &Repository) -> Result<String, GitCacheError> {
+    if let Ok(head) = repo.head() {
+        if let Some(shorthand) = head.shorthand() {
+            if is_branch(repo, shorthand) {
+                return Ok(shorthand.to_string());
+            }
+        }
+    }
     for candidate in ["main", "master"] {
         if is_branch(repo, candidate) {
             return Ok(candidate.to_string());
         }
     }
     Err(GitCacheError::NoDefaultBranch)
-}
-
-fn repo_has_any_branch(repo: &Repository) -> bool {
-    match repo.branches(None) {
-        Ok(mut iter) => iter.next().is_some(),
-        Err(_) => false,
-    }
 }
 
 /// Under `RefPin::Infer`, decide immutability from local resolution: a tag or a bare commit never
@@ -383,14 +563,13 @@ fn is_immutable(pin: RefPin, repo: &Repository, gitref: Option<&str>) -> bool {
         RefPin::Immutable => true,
         RefPin::Mutable => false,
         RefPin::Infer => match gitref {
-            None => false, // the default branch moves
+            None => false,
             Some(g) => {
                 if is_tag(repo, g) {
                     true
                 } else if is_branch(repo, g) {
                     false
                 } else {
-                    // Not a tag, not a branch: an exact commit hash ⇒ immutable; unknown ⇒ mutable.
                     repo.revparse_single(&format!("{g}^{{commit}}")).is_ok()
                 }
             }
@@ -398,84 +577,64 @@ fn is_immutable(pin: RefPin, repo: &Repository, gitref: Option<&str>) -> bool {
     }
 }
 
-/// Detached-HEAD checkout of `gitref` (or the default branch when `None`). Returns the peeled commit
-/// OID (the stable baseline for the hash gate) and the concrete ref name used.
-fn checkout_resolve(repo: &Repository, gitref: Option<&str>) -> Result<(String, String), GitCacheError> {
+/// Resolve `gitref` (or the default branch when `None`) to its peeled commit OID + the ref name used.
+/// No checkout — content-addressing checks out per-commit into `trees/`.
+fn resolve_oid(repo: &Repository, gitref: Option<&str>) -> Result<(String, String), GitCacheError> {
     let resolved_ref = match gitref {
         Some(g) => g.to_string(),
-        None => find_default_branch(repo)?,
+        None => default_branch(repo)?,
     };
-    // A branch is checked out via its remote-tracking ref; a tag/commit by its own name.
-    let spec = if is_branch(repo, &resolved_ref) {
-        format!("origin/{resolved_ref}")
-    } else {
-        resolved_ref.clone()
-    };
-    let object = repo.revparse_single(&spec)?;
+    let object = repo.revparse_single(&resolved_ref)?;
     let commit = object.peel_to_commit()?;
-    repo.checkout_tree(commit.as_object(), Some(git2::build::CheckoutBuilder::new().force()))?;
-    repo.set_head_detached(commit.id())?;
-    trace!("checked out {} @ {}", resolved_ref, commit.id());
     Ok((commit.id().to_string(), resolved_ref))
 }
 
-// ── cache locking ───────────────────────────────────────────────────────────────────────────────
+// ── write lock (short, per-repo — reused for resolve and prune) ──────────────────────────────────
 
-/// Run `f` while holding an exclusive lock on `cache_path`, so the clone/fetch/checkout critical
-/// section is serialized both **in-process** (a keyed mutex — many `Archetect` instances or server
-/// requests in one process) and **cross-process** (an advisory `flock` on a sibling `<name>.lock`
-/// file — two separate `prova`/`archetect` processes sharing one cache). Both are needed: `flock` is
-/// process-wide, so it doesn't serialize threads within a process; the mutex does.
-fn with_cache_lock<T>(cache_path: &Utf8Path, f: impl FnOnce() -> Result<T, GitCacheError>) -> Result<T, GitCacheError> {
-    // In-process gate first — cheap, and it means only one thread per process contends for the file
-    // lock at a time.
-    let mutex = keyed_mutex(cache_path);
+/// Run `f` holding the exclusive per-repo write lock: an in-process keyed mutex (many `Archetect`
+/// instances / server requests / threads in one process) plus a cross-process advisory `flock` on a
+/// sibling `<name>.lock` (separate OS processes). Both are needed — `flock` is process-wide, so it
+/// doesn't serialize threads within a process; the mutex does. Held only for fetch/resolve/materialize
+/// or a prune sweep, never across a render.
+fn with_write_lock<T>(
+    sources_dir: &Utf8Path,
+    f: impl FnOnce() -> Result<T, GitCacheError>,
+) -> Result<T, GitCacheError> {
+    let mutex = keyed_mutex(sources_dir);
     let _in_process = mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    // Cross-process gate: an advisory lock on a sibling file that exists before the cache dir does.
-    let lock_file = acquire_file_lock(cache_path)?;
+    let lock_file = acquire_exclusive_lock(sources_dir)?;
     let result = f();
-    // Released on drop too, but be explicit so the unlock isn't reordered after later work.
     let _ = FileExt::unlock(&lock_file);
     result
 }
 
-/// The process-global registry of per-`cache_path` mutexes. Two callers naming the same dir get the
-/// same mutex; distinct dirs never contend.
-fn keyed_mutex(cache_path: &Utf8Path) -> Arc<Mutex<()>> {
+fn keyed_mutex(sources_dir: &Utf8Path) -> Arc<Mutex<()>> {
     static LOCKS: OnceLock<Mutex<HashMap<Utf8PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
     let registry = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
     let mut map = registry.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    map.entry(cache_path.to_path_buf())
+    map.entry(sources_dir.to_path_buf())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone()
 }
 
-/// Open (creating if needed) the sibling lock file for `cache_path` and take an exclusive advisory
-/// lock. The lock lives at `<parent>/<name>.lock` — a sibling, so it exists *before* the cache dir is
-/// cloned (a lock inside `.git/` couldn't guard the very first clone). Released when the returned
-/// `File` drops.
-fn acquire_file_lock(cache_path: &Utf8Path) -> Result<File, GitCacheError> {
-    // The lock file's directory must exist before we can create it — and it's also where the clone
-    // will land, so creating it here is work the clone would do anyway.
-    if let Some(parent) = cache_path.parent() {
+/// Open (creating if needed) the sibling `<name>.lock` for `sources_dir` and take an exclusive
+/// advisory lock. The lock is a sibling so it exists before the mirror is cloned.
+fn acquire_exclusive_lock(sources_dir: &Utf8Path) -> Result<File, GitCacheError> {
+    if let Some(parent) = sources_dir.parent() {
         std::fs::create_dir_all(parent.as_std_path())?;
     }
-    let lock_path = lock_file_path(cache_path);
-    let file = std::fs::OpenOptions::new()
+    let name = sources_dir.file_name().unwrap_or("cache");
+    let lock_path = match sources_dir.parent() {
+        Some(parent) => parent.join(format!("{name}.lock")),
+        None => Utf8PathBuf::from(format!("{sources_dir}.lock")),
+    };
+    let file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(lock_path.as_std_path())?;
     FileExt::lock_exclusive(&file)?;
     Ok(file)
-}
-
-fn lock_file_path(cache_path: &Utf8Path) -> Utf8PathBuf {
-    let name = cache_path.file_name().unwrap_or("cache");
-    match cache_path.parent() {
-        Some(parent) => parent.join(format!("{name}.lock")),
-        None => Utf8PathBuf::from(format!("{cache_path}.lock")),
-    }
 }
 
 // ── small helpers ───────────────────────────────────────────────────────────────────────────────
@@ -488,15 +647,6 @@ fn interval_ms(opts: &FetchOptions) -> i64 {
     i64::try_from(opts.interval.as_millis()).unwrap_or(i64::MAX)
 }
 
-fn outcome(cache_path: &Utf8Path, freshness: Freshness, resolved_oid: String, resolved_ref: String) -> FetchOutcome {
-    FetchOutcome {
-        checkout_dir: cache_path.to_path_buf(),
-        freshness,
-        resolved_oid,
-        resolved_ref,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -507,5 +657,12 @@ mod tests {
         assert_ne!(slug_for(Some("main")), slug_for(None));
         assert_eq!(slug_for(Some("v1")).len(), 16);
         assert!(slug_for(Some("v1")).chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn repo_hash_normalizes_git_suffix_and_slash() {
+        assert_eq!(repo_hash("https://x/y"), repo_hash("https://x/y.git"));
+        assert_eq!(repo_hash("https://x/y"), repo_hash("https://x/y/"));
+        assert_ne!(repo_hash("https://x/y"), repo_hash("https://x/z"));
     }
 }

@@ -1,17 +1,11 @@
-//! Proof that concurrent `fetch()` calls against the *same* cache dir don't corrupt it — the write
-//! lock serializes clone/fetch/checkout. The dangerous case is a cold cache: without the lock, N
-//! threads would all take the clone path into one dir at once (and the git2→CLI fallback would
-//! `remove_dir_all` under each other). With the lock, one clones and the rest reuse the result.
-//!
-//! This exercises the in-process keyed mutex (all threads share one process); the sibling file lock
-//! is taken on the same path, so the two layers run together. Cross-process behavior rides on the
-//! same `flock` and isn't unit-tested here (it needs separate OS processes).
+//! Concurrent `resolve` against one cold cache doesn't corrupt it — the write lock serializes
+//! clone/fetch/materialize. Without it, N threads would clone/materialize into the same dirs at once.
 
 use std::path::Path;
 use std::process::Command;
 use std::thread;
 
-use archetect_git_cache::{fetch, FetchOptions, Freshness, RefPin};
+use archetect_git_cache::{resolve, FetchOptions, Freshness, RefPin};
 use camino::Utf8PathBuf;
 
 fn git(args: &[&str], cwd: &Path) {
@@ -38,7 +32,7 @@ fn git_out(args: &[&str], cwd: &Path) -> String {
 }
 
 #[test]
-fn concurrent_fetches_into_one_cold_cache_do_not_corrupt() {
+fn concurrent_resolves_into_one_cold_cache_do_not_corrupt() {
     let root = {
         let mut p = Utf8PathBuf::from_path_buf(std::env::temp_dir()).unwrap();
         p.push(format!("gitcache-concurrency-{}", std::process::id()));
@@ -54,14 +48,13 @@ fn concurrent_fetches_into_one_cold_cache_do_not_corrupt() {
     git(&["commit", "-q", "-m", "one"], remote.as_std_path());
     let head = git_out(&["rev-parse", "HEAD"], remote.as_std_path());
 
-    // The one cache dir every thread races to populate.
-    let cache = root.join("cache");
     let url = remote.to_string();
+    let cache_root = root.clone();
 
     let handles: Vec<_> = (0..8)
         .map(|_| {
             let url = url.clone();
-            let cache = cache.clone();
+            let cache_root = cache_root.clone();
             thread::spawn(move || {
                 let opts = FetchOptions {
                     force: false,
@@ -69,29 +62,23 @@ fn concurrent_fetches_into_one_cold_cache_do_not_corrupt() {
                     interval: std::time::Duration::from_secs(3600),
                     pin: RefPin::Infer,
                 };
-                fetch(&url, None, &cache, &opts)
+                resolve(&url, Some("main"), &cache_root, &opts)
             })
         })
         .collect();
 
     let outcomes: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
-    // Every thread succeeded, and all agree on the checked-out commit — no torn clone/checkout.
     let mut cloned = 0;
     for outcome in &outcomes {
-        let outcome = outcome.as_ref().expect("concurrent fetch must not error");
-        assert_eq!(outcome.resolved_oid, head, "all threads resolve the same commit");
-        if outcome.freshness == Freshness::Cloned {
+        let r = outcome.as_ref().expect("concurrent resolve must not error");
+        assert_eq!(r.oid, head, "all threads resolve the same commit");
+        assert_eq!(std::fs::read_to_string(r.tree_dir.join("file.txt")).unwrap(), "payload");
+        if r.freshness == Freshness::Cloned {
             cloned += 1;
         }
     }
-    // Exactly one thread did the clone; the rest reused the cache (proof they serialized rather than
-    // all cloning into the same dir).
     assert_eq!(cloned, 1, "exactly one clone, the rest cache hits: {outcomes:?}");
-
-    // The working tree is intact and correct.
-    let content = std::fs::read_to_string(cache.join("file.txt")).unwrap();
-    assert_eq!(content, "payload");
 
     std::fs::remove_dir_all(&root).ok();
 }

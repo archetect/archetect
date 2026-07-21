@@ -1,6 +1,6 @@
-use std::fs;
 use std::sync::OnceLock;
 
+use archetect_git_cache::Lease;
 use camino::{Utf8Path, Utf8PathBuf};
 use log::{info, trace, warn};
 use regex::Regex;
@@ -13,12 +13,20 @@ use crate::Archetect;
 pub struct Source {
     archetect: Archetect,
     source_type: SourceType,
+    // Held for the Source's lifetime (== the render session, since `Source` is retained in
+    // `Archetype::Inner`): a shared lease on the immutable tree, so the reaper can't reclaim it while
+    // it's being rendered. `None` for local sources.
+    _lease: Option<Lease>,
 }
 
 impl Source {
     pub fn new(archetect: Archetect, path: &str) -> Result<Self, SourceError> {
-        let source_type = SourceType::create(&archetect, path)?;
-        Ok(Source { archetect, source_type })
+        let (source_type, lease) = SourceType::create(&archetect, path)?;
+        Ok(Source {
+            archetect,
+            source_type,
+            _lease: lease,
+        })
     }
 
     pub fn path(&self) -> Result<Utf8PathBuf, SourceError> {
@@ -57,30 +65,19 @@ impl Source {
     }
 
     pub fn execute(&self, command: SourceCommand) -> Result<(), SourceError> {
-        match command {
-            SourceCommand::Pull => {
-                if let SourceType::RemoteGit {
-                    url,
-                    cache_path,
-                    gitref,
-                    ..
-                } = &self.source_type
-                {
-                    cache_git_repo(&self.archetect, url, gitref, cache_path, true)?;
+        if let SourceType::RemoteGit { url, gitref, .. } = &self.source_type {
+            let cache_root = self.archetect.layout().cache_dir();
+            match command {
+                SourceCommand::Pull => {
+                    // Force a refresh; the returned lease is dropped immediately (pre-caching, not
+                    // rendering — nothing reads the tree here).
+                    let _ = resolve_git_source(&self.archetect, url, gitref.as_deref(), true)?;
                 }
-            }
-            SourceCommand::Invalidate => {
-                if let SourceType::RemoteGit { cache_path, .. } = &self.source_type {
-                    archetect_git_cache::invalidate_all(cache_path)?;
-                }
-            }
-            SourceCommand::Delete => {
-                if let SourceType::RemoteGit { cache_path, .. } = &self.source_type {
-                    fs::remove_dir_all(cache_path)?;
+                SourceCommand::Invalidate | SourceCommand::Delete => {
+                    archetect_git_cache::invalidate_all(&cache_root, url)?;
                 }
             }
         }
-
         Ok(())
     }
 }
@@ -103,7 +100,8 @@ pub enum SourceCommand {
 pub enum SourceType {
     RemoteGit {
         url: String,
-        cache_path: Utf8PathBuf,
+        /// The immutable, content-addressed tree the source resolved to (`trees/<hash>/<oid>/`).
+        tree_dir: Utf8PathBuf,
         directory_name: Option<String>,
         gitref: Option<String>,
     },
@@ -146,70 +144,57 @@ fn try_resolve_local(archetect: &Archetect, directory_name: &str) -> Option<Utf8
 }
 
 impl SourceType {
-    pub fn create(archetect: &Archetect, path: &str) -> Result<SourceType, SourceError> {
-        let cache_dir = archetect.layout().cache_dir();
-
+    /// Parse a source string and resolve it. For a remote git source this resolves through the
+    /// content-addressed cache and returns the session `Lease` (the caller holds it for the render);
+    /// local sources return `None`.
+    pub fn create(archetect: &Archetect, path: &str) -> Result<(SourceType, Option<Lease>), SourceError> {
         let url_parts: Vec<&str> = path.split('#').collect();
         if let Some(captures) = ssh_git_pattern().captures(url_parts[0]) {
-            let cache_path = cache_dir
-                .clone()
-                .join(get_cache_key(format!("{}/{}", &captures[1], &captures[2])));
-
             let repo_path = Utf8PathBuf::from(&captures[2]);
             let directory_name = repo_path.file_stem().map(|stem| stem.to_string());
 
-            // Short-circuit the remote clone if the user has a local checkout
-            // of this repo under one of the configured `locals.paths`. Keeps
-            // authoring loops working for archetypes whose remote URL doesn't
-            // exist yet (e.g., a rename in progress).
+            // Short-circuit the remote clone if the user has a local checkout of this repo under one
+            // of the configured `locals.paths`. Keeps authoring loops working for archetypes whose
+            // remote URL doesn't exist yet (e.g., a rename in progress).
             if let Some(dir) = directory_name.as_deref().and_then(|n| try_resolve_local(archetect, n)) {
                 warn!("Using local: {}", dir);
-                return Ok(SourceType::LocalDirectory { path: dir });
+                return Ok((SourceType::LocalDirectory { path: dir }, None));
             }
 
-            let gitref = if url_parts.len() > 1 {
-                Some(url_parts[1].to_owned())
-            } else {
-                None
-            };
-            cache_git_repo(archetect, url_parts[0], &gitref, &cache_path, false)?;
-            return Ok(SourceType::RemoteGit {
-                url: url_parts[0].to_string(),
-                cache_path,
-                directory_name,
-                gitref,
-            });
+            let gitref = (url_parts.len() > 1).then(|| url_parts[1].to_owned());
+            let url = url_parts[0].to_string();
+            let (tree_dir, lease) = resolve_git_source(archetect, &url, gitref.as_deref(), false)?;
+            return Ok((
+                SourceType::RemoteGit { url, tree_dir, directory_name, gitref },
+                Some(lease),
+            ));
         };
 
         if let Ok(url) = Url::parse(path) {
-            if let Some(host) = url.host_str().filter(|_| path.contains(".git")) {
-                let cache_path =
-                    cache_dir
-                        .clone()
-                        .join(get_cache_key(format!("{}/{}", host, url.path())));
+            if url.host_str().filter(|_| path.contains(".git")).is_some() {
                 let directory_name = Utf8PathBuf::from(url.path()).file_stem().map(|stem| stem.to_string());
 
-                // Short-circuit the remote clone if the user has a local
-                // checkout — see the SSH branch above for the same pattern.
+                // Short-circuit the remote clone if the user has a local checkout — see above.
                 if let Some(dir) = directory_name.as_deref().and_then(|n| try_resolve_local(archetect, n)) {
                     warn!("Using local: {}", dir);
-                    return Ok(SourceType::LocalDirectory { path: dir });
+                    return Ok((SourceType::LocalDirectory { path: dir }, None));
                 }
 
                 let gitref = url.fragment().map(|r| r.to_owned());
-                cache_git_repo(archetect, url_parts[0], &gitref, &cache_path, false)?;
-                return Ok(SourceType::RemoteGit {
-                    url: path.to_owned(),
-                    cache_path,
-                    directory_name,
-                    gitref,
-                });
+                // The fetch URL is the part before the `#fragment`; store that (so `execute`'s
+                // pull/invalidate hash the same URL the cache keyed on).
+                let source_url = url_parts[0].to_string();
+                let (tree_dir, lease) = resolve_git_source(archetect, &source_url, gitref.as_deref(), false)?;
+                return Ok((
+                    SourceType::RemoteGit { url: source_url, tree_dir, directory_name, gitref },
+                    Some(lease),
+                ));
             }
 
             if let Ok(local_path) = url.to_file_path() {
                 let local_path = to_utf8_path_buf(local_path);
                 return if local_path.exists() {
-                    Ok(SourceType::LocalDirectory { path: local_path })
+                    Ok((SourceType::LocalDirectory { path: local_path }, None))
                 } else {
                     Err(SourceError::SourceNotFound(local_path.to_string()))
                 };
@@ -220,9 +205,9 @@ impl SourceType {
             let local_path = Utf8PathBuf::from(path.as_ref());
             if local_path.exists() {
                 if local_path.is_dir() {
-                    Ok(SourceType::LocalDirectory { path: local_path })
+                    Ok((SourceType::LocalDirectory { path: local_path }, None))
                 } else {
-                    Ok(SourceType::LocalFile { path: local_path })
+                    Ok((SourceType::LocalFile { path: local_path }, None))
                 }
             } else {
                 Err(SourceError::SourceNotFound(local_path.to_string()))
@@ -234,12 +219,7 @@ impl SourceType {
 
     pub fn directory(&self) -> &Utf8Path {
         match self {
-            SourceType::RemoteGit {
-                url: _,
-                cache_path: path,
-                directory_name: _,
-                gitref: _,
-            } => path.as_path(),
+            SourceType::RemoteGit { tree_dir, .. } => tree_dir.as_path(),
             SourceType::LocalDirectory { path } => path.as_path(),
             SourceType::LocalFile { path } => path.parent().unwrap_or(path),
         }
@@ -247,12 +227,7 @@ impl SourceType {
 
     pub fn local_path(&self) -> &Utf8Path {
         match self {
-            SourceType::RemoteGit {
-                url: _,
-                cache_path: path,
-                directory_name: _,
-                gitref: _,
-            } => path.as_path(),
+            SourceType::RemoteGit { tree_dir, .. } => tree_dir.as_path(),
             SourceType::LocalDirectory { path } => path.as_path(),
             SourceType::LocalFile { path } => path.as_path(),
         }
@@ -260,38 +235,22 @@ impl SourceType {
 
     pub fn source(&self) -> &str {
         match self {
-            SourceType::RemoteGit {
-                url,
-                cache_path: _,
-                directory_name: _,
-                gitref: _,
-            } => url,
+            SourceType::RemoteGit { url, .. } => url,
             SourceType::LocalDirectory { path } => path.as_str(),
             SourceType::LocalFile { path } => path.as_str(),
         }
     }
 }
 
-fn get_cache_hash<S: AsRef<[u8]>>(input: S) -> u64 {
-    let result = farmhash::fingerprint64(input.as_ref());
-    result
-}
-
-fn get_cache_key<S: AsRef<[u8]>>(input: S) -> String {
-    format!("{}", get_cache_hash(input))
-}
-
-/// Clone/refresh a git source into `cache_destination` and check out `gitref`, delegating the
-/// two-gate (TTL + remote-hash) freshness logic to the shared `archetect-git-cache` crate. This is a
-/// thin adapter: archetect owns the cache directory scheme (the farmhash key above) and the
-/// per-process fetch dedup; the crate owns clone/fetch/ls-remote/checkout and the freshness gates.
-fn cache_git_repo(
+/// Resolve a git source through the content-addressed cache, returning the immutable tree dir and the
+/// session lease (hold it for as long as the tree is read). The crate owns the `sources/`+`trees/`
+/// layout under the cache dir and the freshness gate; archetect just supplies its config.
+fn resolve_git_source(
     archetect: &Archetect,
     url: &str,
-    gitref: &Option<String>,
-    cache_destination: &Utf8Path,
+    gitref: Option<&str>,
     force_pull: bool,
-) -> Result<(), SourceError> {
+) -> Result<(Utf8PathBuf, Lease), SourceError> {
     use archetect_git_cache::{FetchOptions, Freshness, RefPin};
 
     let interval = archetect
@@ -299,7 +258,7 @@ fn cache_git_repo(
         .updates()
         .interval()
         .to_std()
-        .unwrap_or_else(|_| std::time::Duration::from_secs(604800));
+        .unwrap_or_else(|_| std::time::Duration::from_secs(86400));
     let opts = FetchOptions {
         force: force_pull || archetect.configuration().updates().force(),
         offline: archetect.is_offline(),
@@ -309,22 +268,16 @@ fn cache_git_repo(
         pin: RefPin::Infer,
     };
 
-    let gitref = gitref.as_deref();
-    // Per-process dedup: the first sighting of a URL does the network-eligible fetch (which pulls
-    // every ref via `--tags`); later sightings in the same run only need a local re-checkout.
-    let outcome = if archetect.mark_source_fetched(url) {
-        archetect_git_cache::fetch(url, gitref, cache_destination, &opts)?
-    } else {
-        archetect_git_cache::checkout(gitref, cache_destination)?
-    };
+    let cache_root = archetect.layout().cache_dir();
+    let resolved = archetect_git_cache::resolve(url, gitref, &cache_root, &opts)?;
 
-    match outcome.freshness {
+    match resolved.freshness {
         Freshness::Cloned => info!("Cloning {}", url),
         Freshness::Updated => info!("Updating {}", url),
         Freshness::UpToDate { .. } => trace!("Using cache for {}", url),
     }
 
-    Ok(())
+    Ok((resolved.tree_dir, resolved.lease))
 }
 
 

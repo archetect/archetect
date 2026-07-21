@@ -237,6 +237,15 @@ pub fn command() -> Command {
                                 .help("The archetype/catalog source (Git URL or local path). If omitted, invalidates the configured catalog.")
                                 .action(ArgAction::Set)
                         )
+                )
+                .subcommand(
+                    Command::new("prune")
+                        .about("Reap materialized source trees unused past the configured retention")
+                        .long_about(
+                            "The cache keeps an immutable working tree per resolved commit. This removes trees\n\
+                             not used within the retention window (default 90 days), skipping any a render\n\
+                             session still holds. Safe to run anytime; runs opportunistically as well."
+                        )
                 ),
         )
         .subcommand(

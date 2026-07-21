@@ -29,6 +29,10 @@ pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Resu
         Some(("clear", _args)) => {
             handle_clear(archetect)?;
         }
+        Some(("prune", _args)) => {
+            let (removed, kept, in_use) = archetect.prune_cache()?;
+            info!("Prune complete: {removed} removed, {kept} kept, {in_use} in use");
+        }
         Some((command_name, _args)) => {
             error!("Unimplemented command: cache {}", command_name);
         }

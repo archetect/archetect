@@ -1,24 +1,18 @@
-//! Executable proofs of the two-gate freshness check, driven against real local git remotes.
-//!
-//! The TTL gate is controlled deterministically by the `interval` option — a huge interval keeps the
-//! cache "fresh" (TTL never expires), `Duration::ZERO` forces expiry. The "no network happened"
-//! cases are proved by **deleting the remote** after the initial clone: any code path that reaches
-//! the network then errors, so a successful `UpToDate` is proof the network was never touched.
+//! Freshness proofs for the content-addressed `resolve`: TTL gate, hash gate, force, offline,
+//! immutable pins, missing refs. The TTL is controlled by the `interval` option (huge = fresh,
+//! `ZERO` = expired); "no network" cases delete the remote so any network touch would error.
 
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use archetect_git_cache::{fetch, FetchOptions, Freshness, GitCacheError, RefPin};
+use archetect_git_cache::{resolve, FetchOptions, Freshness, GitCacheError, RefPin};
 use camino::Utf8PathBuf;
-
-// ── git test harness ────────────────────────────────────────────────────────────────────────────
 
 fn git(args: &[&str], cwd: &Path) {
     let status = Command::new("git")
         .args(args)
         .current_dir(cwd)
-        // Deterministic identity so `commit`/`tag` work on a bare CI runner.
         .env("GIT_AUTHOR_NAME", "gitcache")
         .env("GIT_AUTHOR_EMAIL", "gitcache@example.com")
         .env("GIT_COMMITTER_NAME", "gitcache")
@@ -38,16 +32,14 @@ fn git_out(args: &[&str], cwd: &Path) -> String {
     String::from_utf8(out.stdout).unwrap().trim().to_string()
 }
 
-/// A unique scratch root for a test (no rand/Date in tests — pid + a per-test tag).
 fn scratch(tag: &str) -> Utf8PathBuf {
     let mut p = Utf8PathBuf::from_path_buf(std::env::temp_dir()).unwrap();
-    p.push(format!("gitcache-{}-{tag}", std::process::id()));
+    p.push(format!("gitcache-fresh-{}-{tag}", std::process::id()));
     let _ = std::fs::remove_dir_all(&p);
     std::fs::create_dir_all(&p).unwrap();
     p
 }
 
-/// Build a non-bare remote with one commit on the default branch; return (remote_dir, head_oid).
 fn init_remote(root: &Utf8PathBuf, first: &str) -> (Utf8PathBuf, String) {
     let remote = root.join("remote");
     std::fs::create_dir_all(&remote).unwrap();
@@ -59,26 +51,11 @@ fn init_remote(root: &Utf8PathBuf, first: &str) -> (Utf8PathBuf, String) {
     (remote, oid)
 }
 
-/// Add a commit to the remote's default branch; return the new head oid.
 fn move_remote(remote: &Utf8PathBuf, content: &str) -> String {
     std::fs::write(remote.join("file.txt"), content).unwrap();
     git(&["add", "."], remote.as_std_path());
     git(&["commit", "-q", "-m", "second"], remote.as_std_path());
     git_out(&["rev-parse", "HEAD"], remote.as_std_path())
-}
-
-/// The OID recorded as the hash-gate baseline in the cache repo's config (there is one per test).
-fn stored_oid(cache: &Utf8PathBuf) -> Option<String> {
-    let out = Command::new("git")
-        .args(["config", "--get-regexp", r"^gitcache\..*\.oid"])
-        .current_dir(cache.as_std_path())
-        .output()
-        .ok()?;
-    let text = String::from_utf8(out.stdout).ok()?;
-    text.lines()
-        .next()
-        .and_then(|l| l.split_whitespace().nth(1))
-        .map(str::to_string)
 }
 
 fn opts(force: bool, offline: bool, interval: Duration, pin: RefPin) -> FetchOptions {
@@ -90,27 +67,22 @@ fn opts(force: bool, offline: bool, interval: Duration, pin: RefPin) -> FetchOpt
     }
 }
 
-const FRESH: Duration = Duration::from_secs(3600); // TTL never expires within a test
-const EXPIRED: Duration = Duration::ZERO; // TTL is always expired
+const FRESH: Duration = Duration::from_secs(3600);
+const EXPIRED: Duration = Duration::ZERO;
 
-/// Sleep just long enough that `now - checkedAt > 0`, so a `ZERO` interval reads as expired.
 fn let_ttl_expire() {
     std::thread::sleep(Duration::from_millis(20));
 }
 
-// ── proofs ──────────────────────────────────────────────────────────────────────────────────────
-
 #[test]
-fn absent_cache_clones_and_records_baseline() {
+fn absent_cache_clones_and_materializes() {
     let root = scratch("clone");
     let (remote, head) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    let out = fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
-
-    assert_eq!(out.freshness, Freshness::Cloned);
-    assert_eq!(out.resolved_oid, head);
-    assert_eq!(stored_oid(&cache).as_deref(), Some(head.as_str()));
+    let r = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    assert_eq!(r.freshness, Freshness::Cloned);
+    assert_eq!(r.oid, head);
+    assert_eq!(std::fs::read_to_string(r.tree_dir.join("file.txt")).unwrap(), "one");
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -118,14 +90,13 @@ fn absent_cache_clones_and_records_baseline() {
 fn within_ttl_uses_cache_with_zero_network() {
     let root = scratch("ttl-fresh");
     let (remote, _head) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    // Seed the cache, then DELETE the remote — a network touch now would fail.
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
-    std::fs::remove_dir_all(&remote).unwrap();
+    let first = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    std::fs::remove_dir_all(&remote).unwrap(); // any network touch now would fail
 
-    let out = fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
-    assert_eq!(out.freshness, Freshness::UpToDate { probed: false });
+    let r = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    assert_eq!(r.freshness, Freshness::UpToDate { probed: false });
+    assert_eq!(r.tree_dir, first.tree_dir); // same immutable tree
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -133,45 +104,43 @@ fn within_ttl_uses_cache_with_zero_network() {
 fn ttl_expired_but_remote_unchanged_stays_silent() {
     let root = scratch("ttl-match");
     let (remote, head) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
     let_ttl_expire();
 
-    // TTL expired → hash gate runs ls-remote → matches → no fetch, but a real network probe ran.
-    let out = fetch(
+    let r = resolve(
         remote.as_str(),
         None,
-        &cache,
+        &root,
         &opts(false, false, EXPIRED, RefPin::Infer),
     )
     .unwrap();
-    assert_eq!(out.freshness, Freshness::UpToDate { probed: true });
-    assert_eq!(out.resolved_oid, head); // unchanged
+    assert_eq!(r.freshness, Freshness::UpToDate { probed: true });
+    assert_eq!(r.oid, head);
     std::fs::remove_dir_all(&root).ok();
 }
 
 #[test]
 fn ttl_expired_and_remote_moved_updates() {
     let root = scratch("ttl-differ");
-    let (remote, first) = init_remote(&root, "one");
-    let cache = root.join("cache");
+    let (remote, first_oid) = init_remote(&root, "one");
 
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
-    let second = move_remote(&remote, "two");
-    assert_ne!(first, second);
+    let r1 = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let second_oid = move_remote(&remote, "two");
+    assert_ne!(first_oid, second_oid);
     let_ttl_expire();
 
-    let out = fetch(
+    let r2 = resolve(
         remote.as_str(),
         None,
-        &cache,
+        &root,
         &opts(false, false, EXPIRED, RefPin::Infer),
     )
     .unwrap();
-    assert_eq!(out.freshness, Freshness::Updated);
-    assert_eq!(out.resolved_oid, second);
-    assert_eq!(stored_oid(&cache).as_deref(), Some(second.as_str())); // baseline advanced
+    assert_eq!(r2.freshness, Freshness::Updated);
+    assert_eq!(r2.oid, second_oid);
+    assert_ne!(r2.tree_dir, r1.tree_dir); // a new immutable tree, not a re-checkout
+    assert_eq!(std::fs::read_to_string(r2.tree_dir.join("file.txt")).unwrap(), "two");
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -179,16 +148,14 @@ fn ttl_expired_and_remote_moved_updates() {
 fn force_updates_regardless_of_ttl() {
     let root = scratch("force");
     let (remote, first) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
     let second = move_remote(&remote, "two");
     assert_ne!(first, second);
 
-    // Fresh TTL would normally short-circuit; force skips the gate entirely.
-    let out = fetch(remote.as_str(), None, &cache, &opts(true, false, FRESH, RefPin::Infer)).unwrap();
-    assert_eq!(out.freshness, Freshness::Updated);
-    assert_eq!(out.resolved_oid, second);
+    let r = resolve(remote.as_str(), None, &root, &opts(true, false, FRESH, RefPin::Infer)).unwrap();
+    assert_eq!(r.freshness, Freshness::Updated);
+    assert_eq!(r.oid, second);
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -196,23 +163,14 @@ fn force_updates_regardless_of_ttl() {
 fn offline_uncached_errors_and_cached_uses_cache() {
     let root = scratch("offline");
     let (remote, _head) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    // Uncached + offline → a clear error, no network attempt.
-    let err = fetch(remote.as_str(), None, &cache, &opts(false, true, FRESH, RefPin::Infer)).unwrap_err();
+    let err = resolve(remote.as_str(), None, &root, &opts(false, true, FRESH, RefPin::Infer)).unwrap_err();
     assert!(matches!(err, GitCacheError::OfflineAndNotCached(_)), "got {err:?}");
 
-    // Seed, delete remote, then offline → cache is used.
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
     std::fs::remove_dir_all(&remote).unwrap();
-    let out = fetch(
-        remote.as_str(),
-        None,
-        &cache,
-        &opts(false, true, EXPIRED, RefPin::Infer),
-    )
-    .unwrap();
-    assert!(matches!(out.freshness, Freshness::UpToDate { .. }));
+    let r = resolve(remote.as_str(), None, &root, &opts(false, true, EXPIRED, RefPin::Infer)).unwrap();
+    assert!(matches!(r.freshness, Freshness::UpToDate { .. }));
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -221,27 +179,25 @@ fn immutable_pin_never_probes_past_ttl() {
     let root = scratch("immutable");
     let (remote, _head) = init_remote(&root, "one");
     git(&["tag", "v1"], remote.as_std_path());
-    let cache = root.join("cache");
 
-    // Cache the tag, then DELETE the remote: an immutable pin must not ls-remote or fetch.
-    fetch(
+    resolve(
         remote.as_str(),
         Some("v1"),
-        &cache,
+        &root,
         &opts(false, false, FRESH, RefPin::Immutable),
     )
     .unwrap();
     std::fs::remove_dir_all(&remote).unwrap();
     let_ttl_expire();
 
-    let out = fetch(
+    let r = resolve(
         remote.as_str(),
         Some("v1"),
-        &cache,
+        &root,
         &opts(false, false, EXPIRED, RefPin::Immutable),
     )
     .unwrap();
-    assert!(matches!(out.freshness, Freshness::UpToDate { .. }));
+    assert!(matches!(r.freshness, Freshness::UpToDate { .. }));
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -249,23 +205,19 @@ fn immutable_pin_never_probes_past_ttl() {
 fn missing_requested_ref_forces_fetch_within_ttl() {
     let root = scratch("missing-ref");
     let (remote, _head) = init_remote(&root, "one");
-    let cache = root.join("cache");
 
-    // Cache the default branch (no tags yet).
-    fetch(remote.as_str(), None, &cache, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
-    // Now the remote grows a tag the cache has never seen.
+    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
     git(&["tag", "v9"], remote.as_std_path());
     let tag_oid = git_out(&["rev-parse", "v9^{commit}"], remote.as_std_path());
 
-    // Even within a fresh TTL, a ref missing from the cache forces a fetch to obtain it.
-    let out = fetch(
+    let r = resolve(
         remote.as_str(),
         Some("v9"),
-        &cache,
+        &root,
         &opts(false, false, FRESH, RefPin::Infer),
     )
     .unwrap();
-    assert_eq!(out.freshness, Freshness::Updated);
-    assert_eq!(out.resolved_oid, tag_oid);
+    assert_eq!(r.freshness, Freshness::Updated);
+    assert_eq!(r.oid, tag_oid);
     std::fs::remove_dir_all(&root).ok();
 }

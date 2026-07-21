@@ -54,42 +54,57 @@ because the reader (the render) never holds the lock — the crate returns after
 caller reads afterward. In practice this only bites when the **same repo is used at different refs
 concurrently** through one shared cache (plausible in server mode; rare on a laptop).
 
-## Phase 2 — reader–writer (design; not yet implemented)
+## Phase 2 — content-addressed by commit (implemented)
 
-Three options, roughly by invasiveness. The choice is a deliberate follow-up.
+The reader–writer fix can't be "hold a read lock across the render", because an archetype render is
+**interactive**: the source is read from Initialize through the whole prompt loop. A user answering
+prompts and going to lunch would hold that lock for an hour and freeze every other session that needs
+to move the same repo. The lock can't span the render — so the render must read something that
+**can't change under it**.
 
-### (a) Shared-lock guard held across the render — *recommended*
-`fetch()` / `checkout()` return a `CacheGuard` that holds a **shared** lock (readers coexist); a
-`checkout` of a different ref needs the **exclusive** lock and therefore waits for readers to drain.
-The caller (archetect-core's render flow, prova-archetect's render) holds the guard across
-`archetype.render()`.
-- **Pros:** fully closes R-W; keeps the current one-dir-many-refs layout and disk footprint; the RW
-  file lock (`flock` `LOCK_SH`/`LOCK_EX`) already supports this cross-process.
-- **Cons:** an API change (return a guard) touching the two render call sites; serializes a
-  writer-for-ref-B against any in-flight reader of the same dir (correct, but reduces concurrency
-  for the same repo). Needs a real in-process `RwLock` per dir (owned guard — likely `parking_lot`
-  or a small self-managed registry) to pair with the cross-process `flock`.
+The unit of isolation is the resolved **commit**, not the ref (a ref moves; a commit never does). The
+cache is content-addressed:
 
-### (b) Per-`(url,ref)` checkout dirs
-Make archetect key the cache dir on `(url, ref)` (as prova's plugin cache already does), so each ref
-gets its own dir and is checked out once.
-- **Pros:** R-W disappears *structurally* — a reader of ref A and a writer of ref B touch different
-  dirs; readers of an already-populated immutable (tag/rev) dir need no lock at all. Unifies both
-  tools' layouts.
-- **Cons:** changes archetect's cache-key derivation (`SourceType::create`); more disk (a full clone
-  per ref) unless shared via a git object store / `--reference` / worktrees; a migration for
-  existing `~/.cache/archetect/<hash>/` dirs. The Phase 1 write lock is still needed for the initial
-  clone of each `(url,ref)` dir and for mutable-branch re-fetch.
+```text
+<cache_root>/
+  sources/<repo-hash>/       bare mirror per repo URL — objects + refs, the fetch target.
+  trees/<repo-hash>/<oid>/    immutable working tree at ONE commit, materialized from the mirror.
+    <oid>.lease              sessions hold a SHARED flock for their lifetime; the reaper needs EXCLUSIVE.
+    <oid>.used               last-use stamp (mtime) for retention.
+```
 
-### (c) Snapshot-under-lock
-Under the Phase 1 write lock: fetch + checkout, then copy the checked-out tree to a private
-per-render dir; release the lock; render from the private copy.
-- **Pros:** no API change to hold a lock across the render; no layout change; readers never touch the
-  shared tree beyond the locked window.
-- **Cons:** a tree copy per render (cheap for small archetypes, wasteful for large ones); doesn't
-  help a caller that legitimately wants to read the cache dir directly.
+`resolve(url, gitref, cache_root, opts) -> ResolvedSource { tree_dir, oid, freshness, lease }` does it
+all under a short per-repo **write lock**: ensure the mirror, run the freshness gate (TTL +
+`ls-remote`, silent when unchanged), resolve `ref → oid`, materialize the tree if absent (git2
+`checkout_tree` with a `target_dir`; `git archive | tar` fallback), and take a shared **lease**. The
+caller renders from `tree_dir` holding the returned `Lease` — **no lock spans the render**, because
+the tree is immutable. A branch that moves mid-session resolves to a new oid → a new tree; in-flight
+sessions keep theirs.
 
-**Recommendation:** (a) — it closes R-W with the smallest conceptual change and no new disk cost,
-and the cross-process RW `flock` is a natural extension of Phase 1. Revisit (b) if the per-`(url,ref)`
-layout becomes desirable for other reasons (it would also let archetect hold two refs of one repo
-live at once, which the multiplexed layout cannot).
+Why this beats the earlier options: it closes R-W **structurally** (a reader of commit A and a writer
+producing commit B touch different dirs), needs no lock across the render (so long-lived interactive
+sessions can't deadlock), and makes the gRPC/MCP per-request `Archetect` correct for free (each pins
+its own immutable tree — the per-instance `mark_source_fetched` dedup is gone). The write lock now
+guards only fetch/resolve/materialize — the scope a lock should have.
+
+**Lease** is two-layered: a shared `flock` (cross-process) plus a process-global refcount (in-process,
+because `flock` self-conflict across fds is unreliable on some platforms — the case a concurrent
+server needs). It only ever excludes the reaper.
+
+**Reaper** (`prune(cache_root, retention)` / `archetect cache prune`): walk `trees/`; for each whose
+last-use exceeds `retention` (default **90 days**), reap it only if no session holds it (in-process
+refcount **and** a non-blocking exclusive `flock`). Crash-leftover `.tmp-*` dirs are always removed.
+Runs per-repo under the write lock so it never races a resolve.
+
+**Freshness** default dropped 7d → **1 day** (a re-check is cheap and silent when unchanged;
+content-addressing means a moving branch just adds a tree, it doesn't disturb anyone). Configurable
+under `updates:` (`interval`, `retention`).
+
+**Disk** is bounded: one tree per distinct *rendered* commit — throttled by the freshness gate for
+branches, one-and-done for tags/revs, objects shared once in the bare mirror, and swept by the reaper.
+
+Proven by the crate's `content_addressing.rs` (a tree per commit; a long-lived session isolated from
+and non-blocking to a branch move; the reaper reaps unused but skips leased), `two_gate.rs`
+(freshness), and `concurrency.rs` (concurrent resolve into one cold cache). Both archetect (via
+`Source`, which holds the lease for the render) and prova (plugins via the run, archetypes via
+archetect-core's `Source`) share this one crate.
