@@ -24,8 +24,9 @@ error), `answer_key` (answer under a different key), `cases` (case-variant expan
    validated against the type.
 2. Defaults apply (`--headless`, `-D`, or `-d <key>`) → the prompt's `default`; if `optional`
    and no default → nil.
-3. Otherwise: ask interactively — or under `--headless`, ERROR
-   `Headless mode: no answer or default for '<message>'`. Answer that key; re-run.
+3. Otherwise: ask interactively — or under `--headless`, an ERROR that IS the interface:
+   `no answer or default for '<message>' — answer key `key` (CLI: -a key=<value>; MCP:
+   answers.key)`. Supply that key; re-run.
 
 ## The declarative mirror: `interface:`
 

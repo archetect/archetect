@@ -149,7 +149,7 @@ pub struct RenderRequest {
     /// Destination directory for rendered output
     pub destination: String,
     /// Pre-supplied answers as a JSON object (key-value pairs) to skip prompts
-    pub answers: Option<serde_json::Value>,
+    pub answers: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// Switches to enable (list of switch names). Switches are boolean flags
     /// that control hidden archetype behaviour — they are NOT prompted for
     /// during execution and must be set here, before the session starts.
@@ -180,7 +180,7 @@ pub struct CatalogRenderRequest {
     /// Destination directory for rendered output
     pub destination: String,
     /// Pre-supplied answers as a JSON object (key-value pairs) to skip prompts
-    pub answers: Option<serde_json::Value>,
+    pub answers: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// Switches to enable (list of switch names). Switches are boolean flags
     /// that control hidden archetype behaviour — they are NOT prompted for
     /// during execution and must be set here, before the session starts.
@@ -266,11 +266,9 @@ impl ArchetectMcpServer {
 
         // Parse answers
         let mut answers = archetect_api::ContextMap::new();
-        if let Some(answers_json) = &req.answers {
-            if let serde_json::Value::Object(obj) = answers_json {
-                for (k, v) in obj {
-                    answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
-                }
+        if let Some(obj) = &req.answers {
+            for (k, v) in obj {
+                answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
             }
         }
 
@@ -621,11 +619,9 @@ impl ArchetectMcpServer {
         // catalog index does not yet carry entry-level answers/switches;
         // when it does, merge them here (catalog first, request overrides).
         let mut answers = archetect_api::ContextMap::new();
-        if let Some(answers_json) = &req.answers {
-            if let serde_json::Value::Object(obj) = answers_json {
-                for (k, v) in obj {
-                    answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
-                }
+        if let Some(obj) = &req.answers {
+            for (k, v) in obj {
+                answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
             }
         }
 

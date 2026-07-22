@@ -438,7 +438,8 @@ fn multiselect_prompt(
             return Ok(None);
         }
         return Err(LuaError::RuntimeError(format!(
-            "Headless mode: no answer or default for '{}'", message
+            "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+            message, key, key, key
         )));
     }
 
@@ -650,7 +651,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
@@ -695,7 +697,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
@@ -738,7 +741,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
@@ -784,7 +788,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
@@ -871,7 +876,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
@@ -913,7 +919,8 @@ impl UserData for Context {
                     return Ok(None);
                 }
                 return Err(LuaError::RuntimeError(format!(
-                    "Headless mode: no answer or default for '{}'", message
+                    "no answer or default for '{}' — answer key `{}` (CLI: -a {}=<value>; MCP: answers.{})",
+                    message, key, key, key
                 )));
             }
 
