@@ -38,6 +38,11 @@ pub enum ArchetypeError {
     RequirementsError(#[from] RequirementsError),
     #[error("Archetype Script Aborted")]
     ScriptAbortError,
+    /// A catalog dispatch inside a script-less archetype failed. Carries
+    /// the underlying message verbatim — dispatch errors are already
+    /// user-facing (menu-in-headless, unresolvable entries, …).
+    #[error("{0}")]
+    CatalogDispatchError(String),
     /// User cancelled an interactive prompt (Esc / Ctrl-C). Propagates
     /// through nested render chains so a cancel inside a composed
     /// component also kills the parent archetype. The top-level CLI

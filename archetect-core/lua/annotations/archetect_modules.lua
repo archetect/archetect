@@ -153,11 +153,126 @@ function model.from_context(context) end
 
 ---@class Model
 ---A loaded AML model. Pass to templates via context, or iterate
----programmatically. Method surface is documented in archetect-aml.
+---programmatically via the query methods below. Entities come back
+---expanded: fields carry pre-computed case variants, so templates can
+---case-address them directly.
+Model = {}
+
+---Look up one entity by name, expanded (fields with case variants).
+---@param name string Entity name
+---@return table|nil entity The expanded entity, or nil if unknown
+function Model:entity(name) end
+
+---Look up one service boundary by name.
+---@param name string Boundary name
+---@return table|nil boundary The boundary, or nil if unknown
+function Model:boundary(name) end
+
+---Every service boundary in the model, in declaration order.
+---@return table[] boundaries
+function Model:all_boundaries() end
+
+---Boundaries whose `type` matches (e.g. "grpc").
+---@param btype string Boundary type
+---@return table[] boundaries
+function Model:boundaries_of_type(btype) end
+
+---The expanded entities a boundary owns.
+---@param boundary_name string Boundary name
+---@return table[] entities
+function Model:entities_for(boundary_name) end
+
+---Interfaces this boundary consumes from others (client side).
+---@param name string Boundary name
+---@return table[] interfaces
+function Model:outbound_interfaces(name) end
+
+---Interfaces other boundaries consume from this one (server side).
+---@param name string Boundary name
+---@return table[] interfaces
+function Model:inbound_interfaces(name) end
+
+---Names of the boundaries this boundary depends on — the service DAG
+---edge list for one node.
+---@param name string Boundary name
+---@return string[] dependencies
+function Model:dependencies(name) end
+
+---Cross-boundary entity references from this boundary — the entities it
+---reads but does not own (each implies a client stub).
+---@param name string Boundary name
+---@return table[] references
+function Model:remote_references(name) end
+
+---Everything one boundary needs in a single shape: its entities,
+---interfaces, dependencies, and remote references. Errors on an unknown
+---boundary name.
+---@param name string Boundary name
+---@return table slice
+function Model:slice(name) end
+
+---The organization + solution pair with case variants pre-computed.
+---@return table cases
+function Model:org_solution() end
+
+---The model's organization name.
+---@return string
+function Model:organization() end
+
+---The model's solution name.
+---@return string
+function Model:solution() end
 
 ---@class ModelBuilder
----Programmatic builder for constructing models in Lua. See
----archetect-aml for available methods.
+---Programmatic builder for constructing models in Lua. Set identity,
+---add entities/fields/relations/boundaries/interfaces, then `build()`.
+ModelBuilder = {}
+
+---Set the organization name.
+---@param org string
+function ModelBuilder:set_organization(org) end
+
+---Set the solution name.
+---@param sol string
+function ModelBuilder:set_solution(sol) end
+
+---Set the model description.
+---@param desc string
+function ModelBuilder:set_description(desc) end
+
+---Add an entity by name.
+---@param name string
+function ModelBuilder:add_entity(name) end
+
+---Add a simple typed field to an entity.
+---@param entity string Entity name
+---@param field_name string
+---@param field_type string Type name (e.g. "string", "decimal")
+function ModelBuilder:add_field(entity, field_name, field_type) end
+
+---Add a relation field to an entity.
+---@param entity string Entity name
+---@param field_name string
+---@param target string Target entity name
+---@param relation string Relation kind (e.g. "many_to_one")
+---@param required boolean
+function ModelBuilder:add_relation(entity, field_name, target, relation, required) end
+
+---Add a service boundary owning the listed entities.
+---@param name string Boundary name
+---@param btype string Boundary type (e.g. "grpc")
+---@param owns string[] Entity names this boundary owns
+function ModelBuilder:add_boundary(name, btype, owns) end
+
+---Add an interface between two boundaries.
+---@param from string Consuming boundary
+---@param to string Providing boundary
+---@param style string Interface style
+function ModelBuilder:add_interface(from, to, style) end
+
+---Finalize and return the Model. Resets the builder.
+---@return Model
+function ModelBuilder:build() end
 
 --
 -- archetect.model.interactive — Lua-implemented interactive builder

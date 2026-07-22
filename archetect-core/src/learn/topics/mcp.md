@@ -7,7 +7,7 @@ MCP mode by design — a render needing `--allow-exec` is a CLI move.
 | Tool | Mirrors | Notes |
 |---|---|---|
 | `learn { topic? }` / `introspect { filter? }` | `archetect learn` / `introspect` | the knowledge surface; topics also served as resources (`archetect://learn/<topic>`, `archetect://skill`) |
-| `catalog_browse { path? }` / `catalog_search { query }` | `ls` / `search` | read-only, from the startup index |
+| `catalog_browse { path?, all? }` / `catalog_search { query, all? }` | `ls` / `search` | read-only, from the startup index; hidden entries excluded unless `all`; browsing a leaf path returns its declared `interface` (prompts + switches) |
 | `render { source, destination, answers?, switches?, use_defaults_all? }` | `archetect render` | starts a stateful session; returns `complete`, `error`, or `prompting` + a PromptEnvelope |
 | `catalog_render { path, … }` | bare `archetect <path>` | same session flow, source resolved from the catalog |
 | `respond { value }` / `cancel {}` | (the terminal, inline) | answer the pending prompt / abort the session |

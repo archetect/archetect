@@ -124,9 +124,7 @@ impl Archetype {
                     )
                     .map_err(|e| match e {
                         ArchetectError::ArchetypeError(ae) => ae,
-                        other => ArchetypeError::SourceError(
-                            crate::errors::SourceError::SourceNotFound(other.to_string()),
-                        ),
+                        other => ArchetypeError::CatalogDispatchError(other.to_string()),
                     })
                 } else {
                     let msg = format!(

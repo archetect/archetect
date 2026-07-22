@@ -164,6 +164,9 @@ pub struct CatalogBrowseRequest {
     /// Catalog path to browse. Omit or leave empty for root entries.
     /// Use slash-separated paths like "services/rust" to browse deeper.
     pub path: Option<String>,
+    /// Include hidden entries (show: false — internal components and
+    /// libraries) in listings. Default false, mirroring `archetect ls -a`.
+    pub all: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -171,6 +174,9 @@ pub struct CatalogSearchRequest {
     /// Search query — space-separated terms. All terms must match (AND semantics).
     /// Searches across entry names, descriptions, paths, languages, frameworks, and tags.
     pub query: String,
+    /// Include hidden entries (show: false — internal components and
+    /// libraries) in results. Default false, mirroring `archetect search -a`.
+    pub all: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -194,7 +200,9 @@ pub struct CatalogRenderRequest {
 pub struct RespondRequest {
     /// Response value matching the prompt type: string for text/editor/select,
     /// integer for int, boolean for bool, array of strings for list/multiselect.
-    /// Use null to skip an optional prompt.
+    /// Use null to skip an optional prompt. String forms are accepted where a
+    /// client stringifies values: "true"/"false" for bool, a JSON-encoded
+    /// array or comma-separated list for list/multiselect.
     pub value: serde_json::Value,
 }
 
@@ -245,6 +253,15 @@ impl ArchetectMcpServer {
                 })
             })
             .collect();
+        if items.is_empty() {
+            // Mirror the CLI's no-match hint so an empty result reads as
+            // "bad filter", not "the API has no such surface".
+            return serde_json::json!({
+                "entries": items,
+                "hint": "no entries match — try a shorter filter, or none for the whole surface",
+            })
+            .to_string();
+        }
         serde_json::json!({ "entries": items }).to_string()
     }
 
@@ -502,13 +519,14 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_browse",
-        description = "Browse the archetype catalog tree. Returns entries at the given path. Omit path for root entries. Groups contain children; leaves are renderable archetypes."
+        description = "Browse the archetype catalog tree. Returns entries at the given path. Omit path for root entries. Groups contain children; leaves are renderable archetypes. Browsing a leaf path directly also returns its declared interface (prompts and switches) when the archetype declares one — use this to prepare answers and switches before rendering. Hidden (show: false) entries are excluded from listings unless all=true, but remain addressable by path."
     )]
     async fn catalog_browse(
         &self,
         Parameters(req): Parameters<CatalogBrowseRequest>,
     ) -> String {
         let path = req.path.as_deref().unwrap_or("");
+        let show_all = req.all.unwrap_or(false);
 
         if path.is_empty() {
             // Root entries
@@ -516,6 +534,7 @@ impl ArchetectMcpServer {
                 .catalog_index
                 .root()
                 .iter()
+                .filter(|entry| show_all || entry.show)
                 .map(CatalogEntryInfo::from_index_entry)
                 .collect();
             return to_json_generic(&CatalogBrowseResponse {
@@ -524,20 +543,29 @@ impl ArchetectMcpServer {
             });
         }
 
-        // Check if path resolves to a specific entry
+        // Check if path resolves to a specific entry. A directly-addressed
+        // entry is always returned even when hidden (hidden entries stay
+        // addressable by path) — only listings filter on `show`.
         match self.catalog_index.get(path) {
             Some(entry) => {
-                if entry.children.is_empty() {
-                    // Leaf or empty group — return single entry info
+                let is_renderable_leaf = entry.kind
+                    == archetect_core::catalog::catalog_index::IndexEntryKind::Leaf;
+                if is_renderable_leaf || entry.children.is_empty() {
+                    // Leaf (an archetype's own catalog children are
+                    // composition components, not navigation) or empty
+                    // group — return single entry info, including its
+                    // declared interface (prompts + switches) so agents
+                    // can prepare answers before rendering.
                     to_json_generic(&CatalogBrowseResponse {
                         path: path.to_owned(),
-                        entries: vec![CatalogEntryInfo::from_index_entry(entry)],
+                        entries: vec![CatalogEntryInfo::from_index_entry_detailed(entry)],
                     })
                 } else {
                     // Group — return children
                     let entries: Vec<CatalogEntryInfo> = entry
                         .children
                         .iter()
+                        .filter(|entry| show_all || entry.show)
                         .map(CatalogEntryInfo::from_index_entry)
                         .collect();
                     to_json_generic(&CatalogBrowseResponse {
@@ -557,16 +585,18 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_search",
-        description = "Search the archetype catalog. Returns entries whose name, description, path, languages, frameworks, or tags match all query terms (AND semantics). Use this to discover available archetypes."
+        description = "Search the archetype catalog. Returns entries whose name, description, path, languages, frameworks, or tags match all query terms (AND semantics). Use this to discover available archetypes. Hidden (show: false) entries — internal components and libraries — are excluded unless all=true."
     )]
     async fn catalog_search(
         &self,
         Parameters(req): Parameters<CatalogSearchRequest>,
     ) -> String {
+        let show_all = req.all.unwrap_or(false);
         let results: Vec<CatalogEntryInfo> = self
             .catalog_index
             .search(&req.query)
             .into_iter()
+            .filter(|entry| show_all || entry.show)
             .map(CatalogEntryInfo::from_index_entry)
             .collect();
 
@@ -578,7 +608,7 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_render",
-        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts. Switches must be set up front in this call — they are not prompted for during the session."
+        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Discover them first: catalog_browse on the entry's path returns its declared interface."
     )]
     async fn catalog_render(
         &self,

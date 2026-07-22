@@ -151,8 +151,13 @@ fn try_resolve_source_as_catalog(
     let source = entry.source.as_ref()?;
     let resolved = archetect.new_source(source).ok()?;
     let path = resolved.path().ok()?;
-    let manifest = Manifest::load(path).ok()?;
-    manifest.catalog
+    let manifest = Manifest::load(path.clone()).ok()?;
+    // Child sources may be relative to the catalog they're declared in —
+    // normalize them against the resolved catalog root before they're
+    // walked or rendered from an arbitrary CWD.
+    manifest
+        .catalog
+        .map(|catalog| normalize_catalog_sources(&path, &catalog))
 }
 
 /// Top-level dispatch for a catalog given an optional path.
@@ -380,6 +385,16 @@ pub fn present_entries(
 
     if visible.is_empty() {
         return Ok(ContextValue::Nil);
+    }
+
+    // A menu needs a human. In headless mode, fail with the available
+    // choices instead of letting the interactive prompt die on a missing
+    // TTY with an unrelated-looking error.
+    if archetect.is_headless() {
+        return Err(ArchetectError::GeneralError(format!(
+            "Cannot present a catalog menu in headless mode — name a leaf entry to render. Available entries: {:?}",
+            visible.keys().collect::<Vec<_>>()
+        )));
     }
 
     let choices: Vec<EntryItem> = visible

@@ -188,8 +188,9 @@ impl<'de> Deserialize<'de> for PromptOption {
 pub struct InterfaceSwitch {
     /// Switch name — passed to `archetype.switches.is_enabled()`.
     pub key: String,
-    /// Human-readable label.
-    pub label: String,
+    /// Human-readable label. Optional — clients fall back to the key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// Description of what the switch enables.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub help: Option<String>,
@@ -360,6 +361,20 @@ mod tests {
     }
 
     #[test]
+    fn test_switch_label_optional() {
+        // The documented minimal switch form: key + help, no label.
+        let yaml = indoc! {r#"
+            switches:
+              - key: ci
+                help: "Wire GitHub Actions"
+        "#};
+        let iface: ArchetypeInterface = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(iface.switches.len(), 1);
+        assert_eq!(iface.switches[0].key, "ci");
+        assert!(iface.switches[0].label.is_none());
+    }
+
+    #[test]
     fn test_default_interface_is_empty() {
         let iface = ArchetypeInterface::default();
         assert_eq!(iface.mode, InteractionMode::Interactive);
@@ -425,7 +440,7 @@ mod tests {
             }],
             switches: vec![InterfaceSwitch {
                 key: "ci".to_string(),
-                label: "CI".to_string(),
+                label: Some("CI".to_string()),
                 help: None,
                 default: false,
             }],

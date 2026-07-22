@@ -115,6 +115,26 @@ pub async fn drain_until_prompt_or_complete(
     }
 }
 
+/// Interpret a string a client sent where a list was expected. Tries a
+/// JSON array first (stringifying clients commonly send the encoded
+/// array), then falls back to comma-splitting with optional surrounding
+/// brackets. An empty string is an empty list.
+fn parse_string_as_list(s: &str) -> Vec<String> {
+    if let Ok(items) = serde_json::from_str::<Vec<String>>(s) {
+        return items;
+    }
+    let trimmed = s.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(trimmed);
+    inner
+        .split(',')
+        .map(|item| item.trim().trim_matches(|c| c == '"' || c == '\'').to_string())
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
 /// Convert a JSON value to the appropriate ClientMessage based on the prompt type.
 pub fn json_to_client_message(
     value: &serde_json::Value,
@@ -147,6 +167,14 @@ pub fn json_to_client_message(
         PromptType::Bool => {
             match value {
                 serde_json::Value::Bool(b) => Ok(ClientMessage::Boolean(*b)),
+                // Some MCP clients stringify every value (the `value` schema is
+                // untyped) — accept the string forms rather than dead-ending
+                // the session on a prompt the agent cannot answer any other way.
+                serde_json::Value::String(s) => match s.trim().to_lowercase().as_str() {
+                    "true" | "yes" => Ok(ClientMessage::Boolean(true)),
+                    "false" | "no" => Ok(ClientMessage::Boolean(false)),
+                    _ => Err(format!("Expected a boolean, got '{}'", s)),
+                },
                 serde_json::Value::Null => Ok(ClientMessage::None),
                 other => Err(format!("Expected a boolean value, got {}", other)),
             }
@@ -161,9 +189,70 @@ pub fn json_to_client_message(
                     }).collect();
                     strings.map(ClientMessage::Array)
                 }
+                // Stringifying clients again: accept a JSON-encoded array
+                // (`"[\"a\",\"b\"]"`) or a comma-separated list (`"a,b"`,
+                // `"[a, b]"`) — the same shapes `-a key=[a,b]` accepts on
+                // the CLI.
+                serde_json::Value::String(s) => Ok(ClientMessage::Array(parse_string_as_list(s))),
                 serde_json::Value::Null => Ok(ClientMessage::None),
                 other => Err(format!("Expected an array of strings, got {}", other)),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn to_array(value: serde_json::Value, prompt_type: PromptType) -> Vec<String> {
+        match json_to_client_message(&value, &prompt_type) {
+            Ok(ClientMessage::Array(items)) => items,
+            other => panic!("expected Array, got {:?}", other.map(|_| "non-array ok")),
+        }
+    }
+
+    #[test]
+    fn multiselect_accepts_json_encoded_array_string() {
+        let value = serde_json::Value::String(r#"["metrics","health"]"#.to_string());
+        assert_eq!(to_array(value, PromptType::MultiSelect), vec!["metrics", "health"]);
+    }
+
+    #[test]
+    fn list_accepts_comma_separated_string() {
+        let value = serde_json::Value::String("a, b ,c".to_string());
+        assert_eq!(to_array(value, PromptType::List), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn multiselect_accepts_bracketed_unquoted_string() {
+        let value = serde_json::Value::String("[metrics, health]".to_string());
+        assert_eq!(to_array(value, PromptType::MultiSelect), vec!["metrics", "health"]);
+    }
+
+    #[test]
+    fn multiselect_empty_string_is_empty_list() {
+        let value = serde_json::Value::String("".to_string());
+        assert_eq!(to_array(value, PromptType::MultiSelect), Vec::<String>::new());
+    }
+
+    #[test]
+    fn bool_accepts_string_forms() {
+        for (input, expected) in [("true", true), ("False", false), ("yes", true), ("no", false)] {
+            let value = serde_json::Value::String(input.to_string());
+            match json_to_client_message(&value, &PromptType::Bool) {
+                Ok(ClientMessage::Boolean(b)) => assert_eq!(b, expected, "input {input}"),
+                other => panic!("expected Boolean for {input}, got {:?}", other.map(|_| "ok")),
+            }
+        }
+    }
+
+    #[test]
+    fn bool_rejects_non_boolean_string() {
+        assert!(json_to_client_message(
+            &serde_json::Value::String("maybe".to_string()),
+            &PromptType::Bool
+        )
+        .is_err());
     }
 }

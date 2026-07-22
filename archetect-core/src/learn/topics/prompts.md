@@ -9,8 +9,8 @@ names when unanswered.
 | `prompt_text` | string | `min`/`max` (length), `cases` |
 | `prompt_int` | integer | `min`/`max` (value) |
 | `prompt_confirm` | boolean | — |
-| `prompt_select` | string | `options` (2nd arg), `page_size`, `allow_other`, `other_label` |
-| `prompt_multiselect` | string[] | `options` (2nd arg), `defaults`, `min`/`max` (item count), `page_size` |
+| `prompt_select` | string | `options` (2nd arg), `allow_other`, `other_label` |
+| `prompt_multiselect` | string[] | `options` (2nd arg), `default` (string[]), `min`/`max` (item count) |
 | `prompt_list` | string[] | `min`/`max` (item count) |
 | `prompt_editor` | string | — |
 
