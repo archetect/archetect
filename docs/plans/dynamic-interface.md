@@ -10,7 +10,8 @@
 | 3 | Consumers: `archetect interface <source\|path>` CLI (`--json`, `--answers-template`), MCP `describe` | **shipped 2026-07-22** (browse still serves the declared interface; probe-result caching by commit deferred) |
 | 4 | Drift detection (`--check`) + deprecation warning on declared interfaces | **shipped 2026-07-22** (clap-cli migration pending — it is the one ecosystem user) |
 | 5 | Branch exploration (`--explore` / `explore:true`): per-decision forking, `appears_when`, computed batch/interactive | **shipped 2026-07-22** (per-decision coverage, not full cartesian; nested decisions get their own runs) |
-| 6 | `DescribeArchetype` gRPC, probe-result caching by commit, proto carrying rich options, removal of declarative interface parsing | planned — removal deliberately waits for human sign-off + clap-cli migration |
+| 6 | `DescribeArchetype` gRPC (JSON-payload v1, served from the catalog path, explore supported) | **shipped 2026-07-22** (proofs drive a live server over reflection; fixing that surfaced and fixed a prova gRPC-client reflection bug) |
+| 7 | Remaining: probe-result caching by commit, browse serving the DERIVED interface, proto carrying rich options + typed describe, REMOVAL of declarative interface parsing | planned — removal deliberately waits for human sign-off + clap-cli migration (the one ecosystem user) |
 
 Acceptance bar: `proofs/interface/` (prova, black-box on the shipped binary) — 21 proofs
 covering probe transcript fidelity, switch recording, zero side effects, composition

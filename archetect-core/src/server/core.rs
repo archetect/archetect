@@ -257,6 +257,47 @@ impl ArchetectService for ArchetectServiceCore {
         Ok(Response::new(grpc::BrowseCatalogResponse { entries }))
     }
 
+    async fn describe_archetype(
+        &self,
+        request: Request<grpc::DescribeArchetypeRequest>,
+    ) -> Result<Response<grpc::DescribeArchetypeResponse>, Status> {
+        let req = request.into_inner();
+        let path = req.path;
+        let explore = req.explore;
+        let archetect = self.prototype.clone();
+
+        // Probing executes the archetype's script (against the recording
+        // driver — no writes, no exec). Blocking pool, like browse.
+        let interface_json = tokio::task::spawn_blocking(move || -> Result<String, String> {
+            let catalog = archetect
+                .configuration()
+                .catalog()
+                .cloned()
+                .ok_or_else(|| "server has no catalog".to_string())?;
+            let source = match crate::catalog::dispatch::walk_path(&archetect, &catalog, &path) {
+                Some(crate::catalog::dispatch::PathTarget::Leaf(entry)) => entry
+                    .source
+                    .ok_or_else(|| format!("catalog entry '{}' has no source", path))?,
+                _ => return Err(format!("'{}' is not a catalog leaf on this server", path)),
+            };
+            let options = crate::interface::ProbeOptions {
+                explore,
+                ..Default::default()
+            };
+            let layout_factory = || -> Result<Box<dyn crate::system::SystemLayout>, crate::errors::ArchetectError> {
+                Ok(Box::new(crate::system::XdgSystemLayout::new()?))
+            };
+            let derived = crate::interface::probe_interface(&archetect, &layout_factory, &source, &options)
+                .map_err(|e| format!("probe failed: {}", e))?;
+            serde_json::to_string(&derived).map_err(|e| format!("serialize: {}", e))
+        })
+        .await
+        .map_err(|err| Status::internal(format!("describe_archetype task failed: {}", err)))?
+        .map_err(Status::failed_precondition)?;
+
+        Ok(Response::new(grpc::DescribeArchetypeResponse { interface_json }))
+    }
+
     async fn search_catalog(
         &self,
         request: Request<grpc::SearchCatalogRequest>,

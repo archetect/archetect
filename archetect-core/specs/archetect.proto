@@ -12,6 +12,26 @@ service ArchetectService {
     rpc BrowseCatalog (BrowseCatalogRequest) returns (BrowseCatalogResponse);
     // AND-semantics full-text search across the server's catalog.
     rpc SearchCatalog (SearchCatalogRequest) returns (SearchCatalogResponse);
+    // Derive an archetype's interface server-side by probing its script
+    // (writes discarded, exec forbidden): prompt envelopes, consulted
+    // switches, batch/interactive classification.
+    rpc DescribeArchetype (DescribeArchetypeRequest) returns (DescribeArchetypeResponse);
+}
+
+message DescribeArchetypeRequest {
+    // Catalog leaf path on this server (e.g. "services/grpc").
+    string path = 1;
+    // Fork select/confirm branches to map conditional prompts and
+    // compute the batch/interactive classification.
+    bool explore = 2;
+}
+
+message DescribeArchetypeResponse {
+    // The derived interface, JSON-encoded — the same shape
+    // `archetect interface --json` and the MCP `describe` tool emit.
+    // JSON keeps the wire stable while the interface schema evolves;
+    // a typed message can follow once the shape settles.
+    string interface_json = 1;
 }
 
 message BrowseCatalogRequest {
