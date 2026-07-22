@@ -4,3 +4,4 @@ Cargo.lock
 /.idea
 /results
 *.swp
+.luarc.json

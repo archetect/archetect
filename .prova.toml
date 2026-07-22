@@ -1,0 +1,5 @@
+# Prova — archetect's black-box acceptance proofs (prova proves what archetect ships).
+# Run `prova` from anywhere in the repo; see `prova learn project`.
+
+[run]
+proofs = ["proofs"]
