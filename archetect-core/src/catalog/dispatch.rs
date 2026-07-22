@@ -114,9 +114,16 @@ pub fn walk_path(
         let is_last = i == segments.len() - 1;
 
         if is_last {
-            // Terminal segment: prefer inline catalog, then try source.
+            // Terminal segment: prefer inline catalog, then classify the
+            // source. An archetype whose manifest ALSO declares catalog
+            // entries (composition components) is still a renderable
+            // LEAF — only a script-less catalog becomes a submenu. Same
+            // rule the CatalogIndexer applies via archetype.lua.
             if let Some(nested) = entry.catalog.clone() {
                 return Some(PathTarget::Group(nested));
+            }
+            if source_has_script(archetect, &entry) {
+                return Some(PathTarget::Leaf(entry));
             }
             if let Some(resolved_catalog) = try_resolve_source_as_catalog(archetect, &entry) {
                 return Some(PathTarget::Group(resolved_catalog));
@@ -139,6 +146,22 @@ pub fn walk_path(
     }
 
     None
+}
+
+/// Whether the entry's source resolves to a tree with an `archetype.lua`
+/// — a renderable archetype, regardless of any catalog entries its
+/// manifest declares for composition.
+fn source_has_script(archetect: &Archetect, entry: &CatalogEntry) -> bool {
+    let Some(source) = entry.source.as_ref() else {
+        return false;
+    };
+    let Ok(resolved) = archetect.new_source(source) else {
+        return false;
+    };
+    resolved
+        .path()
+        .map(|p| p.join("archetype.lua").is_file())
+        .unwrap_or(false)
 }
 
 /// If an entry has a `source:` URL that resolves to a manifest with a
@@ -614,6 +637,56 @@ mod tests {
                 assert_eq!(remote_path, "", "bare server entry has empty remote_path");
             }
             other => panic!("expected Remote, got {:?}", other_discriminant(&other)),
+        }
+    }
+
+    #[test]
+    fn walk_path_terminal_archetype_with_components_is_a_leaf() {
+        // An archetype whose manifest declares catalog entries (composition
+        // components) must classify as a renderable LEAF at the terminal
+        // segment — only script-less catalogs become submenus. Regression:
+        // clap-cli (components + archetype.lua) walked to a Group, so
+        // `archetect <path>` presented a component menu instead of rendering.
+        use std::fs;
+        let workspace = tempfile::TempDir::new().unwrap();
+        let root = camino::Utf8PathBuf::from(workspace.path().to_str().unwrap());
+
+        let with_script = root.join("with-script");
+        fs::create_dir_all(&with_script).unwrap();
+        fs::write(
+            with_script.join("archetype.yaml"),
+            "description: \"A\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  helper:\n    source: \"git@github.com:org/helper.git\"\n",
+        )
+        .unwrap();
+        fs::write(with_script.join("archetype.lua"), "local c = Context.new()\n").unwrap();
+
+        let script_less = root.join("script-less");
+        fs::create_dir_all(&script_less).unwrap();
+        fs::write(
+            script_less.join("archetype.yaml"),
+            "description: \"B\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  child:\n    source: \"git@github.com:org/child.git\"\n",
+        )
+        .unwrap();
+
+        let yaml = format!(
+            "description: \"Test\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  app:\n    source: \"{}\"\n  menu:\n    source: \"{}\"\n",
+            with_script, script_less
+        );
+        let manifest: Manifest = serde_yaml::from_str(&yaml).unwrap();
+        let catalog = manifest.catalog.unwrap();
+        let archetect = dummy_archetect();
+
+        match walk_path(&archetect, &catalog, "app").expect("app resolves") {
+            PathTarget::Leaf(entry) => {
+                assert_eq!(entry.source.as_deref(), Some(with_script.as_str()));
+            }
+            other => panic!("archetype with components must be a Leaf, got {}", other_discriminant(&other)),
+        }
+        match walk_path(&archetect, &catalog, "menu").expect("menu resolves") {
+            PathTarget::Group(entries) => {
+                assert!(entries.contains_key("child"));
+            }
+            other => panic!("script-less catalog must be a Group, got {}", other_discriminant(&other)),
         }
     }
 
