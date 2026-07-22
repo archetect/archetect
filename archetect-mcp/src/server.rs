@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
+use rmcp::model::AnnotateAble;
 use rmcp::{tool, tool_handler, tool_router, ServerHandler};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -13,6 +14,7 @@ use archetect_core::archetype::archetype::Archetype;
 use archetect_core::archetype::render_context::RenderContext;
 use archetect_core::catalog::{CatalogIndex, CatalogIndexer};
 use archetect_core::source::SourceContents;
+use archetect_core::{help, learn};
 use archetect_core::Archetect;
 
 use crate::io_handle::McpScriptIoHandle;
@@ -51,10 +53,94 @@ impl ArchetectMcpServer {
             tool_router: Self::tool_router(),
         }
     }
+
+    /// The learn renderer's environment facts, computed fresh per ask so the answer is true at
+    /// the moment of asking (the catalog INDEX is startup-frozen; these cheap facts need not be).
+    fn learn_env(&self) -> learn::RenderEnv {
+        learn::RenderEnv::from_configuration(
+            self.archetect.configuration(),
+            self.archetect.layout().as_ref(),
+        )
+    }
 }
 
 #[tool_handler]
-impl ServerHandler for ArchetectMcpServer {}
+impl ServerHandler for ArchetectMcpServer {
+    /// The server's identity: the embedded skill arrives as `instructions`, so a connected
+    /// agent starts knowing the loop instead of six bare tool names.
+    fn get_info(&self) -> rmcp::model::ServerInfo {
+        rmcp::model::ServerInfo::new(
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_instructions(learn::SKILL)
+    }
+
+    /// The learn topics, protocol-native: `archetect://learn/<topic>` + `archetect://skill` —
+    /// the same content the `learn` tool serves, for clients that prefetch resources.
+    fn list_resources(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ListResourcesResult, rmcp::ErrorData>> + '_
+    {
+        let mut resources: Vec<rmcp::model::Resource> = vec![rmcp::model::RawResource {
+            uri: "archetect://skill".into(),
+            name: "skill".into(),
+            title: Some("The Archetect agent skill".into()),
+            description: Some("The practice: render, don't hand-write — and how to drive archetect".into()),
+            mime_type: Some("text/markdown".into()),
+            size: None,
+            icons: None,
+            meta: None,
+        }
+        .no_annotation()];
+        for topic in learn::Topic::ALL {
+            resources.push(
+                rmcp::model::RawResource {
+                    uri: format!("archetect://learn/{}", topic.key()),
+                    name: topic.key().into(),
+                    title: Some(format!("learn: {}", topic.key())),
+                    description: Some(topic.hook().into()),
+                    mime_type: Some("text/markdown".into()),
+                    size: None,
+                    icons: None,
+                    meta: None,
+                }
+                .no_annotation(),
+            );
+        }
+        std::future::ready(Ok(rmcp::model::ListResourcesResult::with_all_items(resources)))
+    }
+
+    fn read_resource(
+        &self,
+        request: rmcp::model::ReadResourceRequestParams,
+        _context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ReadResourceResult, rmcp::ErrorData>> + '_
+    {
+        let uri = request.uri.clone();
+        let answer = if uri == "archetect://skill" {
+            Ok(learn::SKILL.to_string())
+        } else if let Some(topic) = uri.strip_prefix("archetect://learn/") {
+            let env = self.learn_env();
+            learn::answer(Some(topic), &env, learn::Transport::Mcp)
+                .map_err(|e| format!("{uri}: {e}"))
+        } else {
+            Err(format!(
+                "unknown resource {uri:?} — this server serves archetect://skill and archetect://learn/<topic>"
+            ))
+        };
+        std::future::ready(match answer {
+            Ok(text) => Ok(rmcp::model::ReadResourceResult::new(vec![
+                rmcp::model::ResourceContents::text(text, uri),
+            ])),
+            Err(message) => Err(rmcp::ErrorData::resource_not_found(message, None)),
+        })
+    }
+}
 
 #[derive(Deserialize, JsonSchema)]
 pub struct RenderRequest {
@@ -112,8 +198,56 @@ pub struct RespondRequest {
     pub value: serde_json::Value,
 }
 
+#[derive(Deserialize, JsonSchema)]
+pub struct LearnRequest {
+    /// Topic key or alias (e.g. "authoring", "templates", "atl"). Omit to list every topic.
+    pub topic: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct IntrospectRequest {
+    /// Case-insensitive substring filter over API names and summaries (e.g. "prompt", "case").
+    /// Omit for the whole surface.
+    pub filter: Option<String>,
+}
+
 #[tool_router]
 impl ArchetectMcpServer {
+    #[tool(
+        name = "learn",
+        description = "Learn Archetect from the binary: progressive-disclosure topics, one screen each, computed for THIS environment (catalog, cache, locals). Call with no topic to list topics; aliases resolve (atl → templates). Returns markdown. Topics are also served as resources (archetect://learn/<topic>)."
+    )]
+    async fn learn(&self, Parameters(req): Parameters<LearnRequest>) -> String {
+        let env = self.learn_env();
+        match learn::answer(req.topic.as_deref(), &env, learn::Transport::Mcp) {
+            Ok(text) => text,
+            Err(message) => format!("learn: {message}"),
+        }
+    }
+
+    #[tool(
+        name = "introspect",
+        description = "The scripting API's shapes — every Context method, prompt option, module function, and class field, computed from the embedded annotations. Filter narrows by substring over names and summaries. Returns compact JSON { entries: [{ name, signature, summary }] }. Never guess an API shape: ask this."
+    )]
+    async fn introspect(&self, Parameters(req): Parameters<IntrospectRequest>) -> String {
+        let entries = help::core_entries();
+        let entries = match req.filter.as_deref() {
+            Some(needle) => help::filter(&entries, needle),
+            None => entries,
+        };
+        let items: Vec<serde_json::Value> = entries
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "name": e.name,
+                    "signature": e.signature,
+                    "summary": e.summary,
+                })
+            })
+            .collect();
+        serde_json::json!({ "entries": items }).to_string()
+    }
+
     #[tool(
         name = "render",
         description = "Render a project from an archetype template. Starts a stateful render session. Returns the first prompt (if any) or completion status. Use the 'respond' tool to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Check the archetype's interface.yaml for available switches and prompts."

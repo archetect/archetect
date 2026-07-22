@@ -6,8 +6,9 @@ use archetect_core::manifest::MANIFEST_FILE_NAMES;
 use archetect_core::system::SystemLayout;
 use serde_json::{json, Value};
 
-const ARCHETECT_LUA: &str = include_str!("../../../archetect-core/lua/annotations/archetect.lua");
-const ARCHETECT_MODULES_LUA: &str = include_str!("../../../archetect-core/lua/annotations/archetect_modules.lua");
+/// The annotation stubs ship embedded in archetect-core (`help::CORE_STUBS`) — one embedding,
+/// two sinks: runtime introspection (`archetect introspect`) and this IDE install.
+use archetect_core::help::CORE_STUBS;
 
 /// How `ide setup` treats the project's `.luarc.json` pointer. The annotation stubs are always
 /// (re)installed; this governs only whether — and how — the `.luarc.json` at the project root is
@@ -51,13 +52,11 @@ fn install_annotations(layout: &dyn SystemLayout) -> Result<PathBuf, ArchetectEr
     fs::create_dir_all(&annotations_dir)
         .map_err(|e| ArchetectError::GeneralError(format!("Failed to create {}: {}", annotations_dir.display(), e)))?;
 
-    let archetect_path = annotations_dir.join("archetect.lua");
-    fs::write(&archetect_path, ARCHETECT_LUA)
-        .map_err(|e| ArchetectError::GeneralError(format!("Failed to write {}: {}", archetect_path.display(), e)))?;
-
-    let modules_path = annotations_dir.join("archetect_modules.lua");
-    fs::write(&modules_path, ARCHETECT_MODULES_LUA)
-        .map_err(|e| ArchetectError::GeneralError(format!("Failed to write {}: {}", modules_path.display(), e)))?;
+    for (name, contents) in CORE_STUBS {
+        let path = annotations_dir.join(name);
+        fs::write(&path, contents)
+            .map_err(|e| ArchetectError::GeneralError(format!("Failed to write {}: {}", path.display(), e)))?;
+    }
 
     eprintln!("archetect: Lua annotations installed to {}", annotations_dir.display());
     Ok(annotations_dir)

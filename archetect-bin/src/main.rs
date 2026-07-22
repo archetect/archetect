@@ -173,6 +173,10 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 }
             }
         }
+        Some(("learn", args)) => subcommands::handle_learn_subcommand(args, &archetect)?,
+        Some(("eval", args)) => subcommands::handle_eval_subcommand(args, &archetect)?,
+        Some(("introspect", args)) => subcommands::handle_introspect_subcommand(args)?,
+        Some(("skill", args)) => subcommands::handle_skill_subcommand(args)?,
         Some(("mcp", _)) => subcommands::handle_mcp_subcommand(archetect)?,
         Some(("server", args)) => subcommands::handle_server_subcommand(args, archetect)?,
         Some(("connect", args)) => {

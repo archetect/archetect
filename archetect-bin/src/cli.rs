@@ -280,6 +280,46 @@ pub fn command() -> Command {
                 )
         )
         .subcommand(
+            Command::new("learn")
+                .about("Learn Archetect from the binary — progressive-disclosure topics, one screen each")
+                .arg(
+                    Arg::new("topic")
+                        .help("Topic key or alias (e.g. authoring, templates, atl); omit to list topics")
+                )
+        )
+        .subcommand(
+            Command::new("introspect")
+                .about("The scripting API's shapes, computed from the embedded annotations")
+                .arg(
+                    Arg::new("filter")
+                        .help("Case-insensitive substring filter over names and summaries")
+                )
+                .arg(
+                    Arg::new("json")
+                        .long("json")
+                        .action(ArgAction::SetTrue)
+                        .help("Emit entries as JSON")
+                )
+        )
+        .subcommand(
+            Command::new("eval")
+                .about("Run one Lua snippet in the scripting environment — the probe verb; end with `return <value>` to print it as YAML")
+                .arg(
+                    Arg::new("code")
+                        .help("The Lua snippet ('-' or omitted reads stdin). Runs headless in a synthesized temp archetype; shell/git need the configured exec policy")
+                )
+        )
+        .subcommand(
+            Command::new("skill")
+                .about("Print the embedded agent skill (--install writes .claude/skills/archetect/SKILL.md)")
+                .arg(
+                    Arg::new("install")
+                        .long("install")
+                        .action(ArgAction::SetTrue)
+                        .help("Write the skill into the current project's .claude/skills/archetect/")
+                )
+        )
+        .subcommand(
             Command::new("mcp")
                 .about("Start MCP stdio server for AI agent integration")
         )
