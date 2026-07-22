@@ -33,29 +33,23 @@ contract (what `-a` answers, what `default` names, what is stored); labels are d
    `no answer or default for '<message>' — answer key `key` (CLI: -a key=<value>; MCP:
    answers.key)`. Supply that key; re-run.
 
-## The declarative mirror: `interface:`
+## The derived interface: ask the archetype, don't trust a file
 
-The manifest (or sibling `interface.yaml`) can declare the same contract for external
-tooling — web UIs, MCP clients, docs — without running the script:
+The prompts ARE the interface — `archetect interface <source>` derives the whole contract
+by probing the script (writes discarded, exec forbidden): every prompt's envelope, the
+switch names it consults via `is_enabled` (never prompted, so this is their only discovery
+path), and a computed batch/interactive classification.
 
-```yaml
-interface:
-  prompts:
-    - key: service_name
-      type: text            # text|int|bool|select|multiselect|list|editor
-      label: "Service Name:"
-      required: true
-      validation: "^[a-z][a-z0-9-]*$"
-    - key: persistence
-      type: select
-      options: [Postgres, None]     # or {value,label,help} objects
-  switches:
-    - key: ci
-      help: "Wire GitHub Actions"
+```
+archetect interface <source|catalog-path>   # human summary
+  --json               # for tooling (same shape MCP `describe` returns)
+  --answers-template   # fill-in YAML for a zero-prompt `-A` render
+  --explore            # fork select/confirm branches: conditional prompts + appears_when
+  --check              # compare against a declared interface; drift is a non-zero exit
 ```
 
-The runtime does not enforce interface/script agreement yet — keep them in step by hand, and
-treat a drift as a bug in the archetype.
+A declared `interface:` block / sibling `interface.yaml` is DEPRECATED: it restates what
+the script already says, and drifts. Run `--check` until it passes, then delete it.
 
 Go deeper: `archetect learn rendering` (answering from the CLI) · `archetect learn mcp`
 (prompts as a turn-based session).

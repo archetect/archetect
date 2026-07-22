@@ -18,8 +18,9 @@ The loop:
 
 1. Find the thing to render: `archetect ls` / `archetect search <terms>` (catalog), or a direct
    git URL / local path.
-2. Learn what it asks: its `interface.yaml`/`archetype.yaml` names prompts and switches; probe
-   API shapes with `archetect introspect <filter>`.
+2. Learn what it asks: `archetect interface <source>` derives the contract by probing the
+   script — prompts, switches, batch/interactive; `--answers-template` emits a fill-in
+   answers file. Probe API shapes with `archetect introspect <filter>`.
 3. Render headlessly — never park on an interactive prompt:
    `archetect render <source> --destination <dir> --headless -a key=value -D`
    (`-a` answers, `-A <file>` answer files, `-s` switches, `-D` defaults for the rest;

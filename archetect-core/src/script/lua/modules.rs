@@ -669,9 +669,17 @@ fn build_env_table(lua: &Lua) -> LuaResult<Table> {
 fn build_switches_table(lua: &Lua, render_context: &RenderContext) -> LuaResult<Table> {
     let switches_table = lua.create_table()?;
     let switches = render_context.switches().clone();
+    let recorder = render_context.switch_recorder().cloned();
     switches_table.set(
         "is_enabled",
-        lua.create_function(move |_, name: String| Ok(switches.contains(&name)))?,
+        lua.create_function(move |_, name: String| {
+            if let Some(ref recorder) = recorder {
+                if let Ok(mut seen) = recorder.lock() {
+                    seen.insert(name.clone());
+                }
+            }
+            Ok(switches.contains(&name))
+        })?,
     )?;
     Ok(switches_table)
 }

@@ -173,6 +173,10 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
                 }
             }
         }
+        Some(("interface", args)) => {
+            let switches = get_switches(&matches, archetect.configuration())?;
+            subcommands::handle_interface_subcommand(args, &archetect, answers, switches)?
+        }
         Some(("learn", args)) => subcommands::handle_learn_subcommand(args, &archetect)?,
         Some(("eval", args)) => subcommands::handle_eval_subcommand(args, &archetect)?,
         Some(("introspect", args)) => subcommands::handle_introspect_subcommand(args)?,

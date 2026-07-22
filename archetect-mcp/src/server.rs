@@ -153,7 +153,7 @@ pub struct RenderRequest {
     /// Switches to enable (list of switch names). Switches are boolean flags
     /// that control hidden archetype behaviour — they are NOT prompted for
     /// during execution and must be set here, before the session starts.
-    /// Check the archetype's interface.yaml for available switches.
+    /// Discover them first with the `describe` tool.
     pub switches: Option<Vec<String>>,
     /// Use default values for all prompts that have defaults
     pub use_defaults_all: Option<bool>,
@@ -190,10 +190,23 @@ pub struct CatalogRenderRequest {
     /// Switches to enable (list of switch names). Switches are boolean flags
     /// that control hidden archetype behaviour — they are NOT prompted for
     /// during execution and must be set here, before the session starts.
-    /// Check the archetype's interface.yaml for available switches.
+    /// Discover them first with the `describe` tool.
     pub switches: Option<Vec<String>>,
     /// Use default values for all prompts that have defaults
     pub use_defaults_all: Option<bool>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct DescribeRequest {
+    /// Archetype source — a Git URL or local filesystem path. Provide
+    /// this OR `path`.
+    pub source: Option<String>,
+    /// Catalog leaf path (e.g. "services/grpc") resolved to its source.
+    pub path: Option<String>,
+    /// Fork the probe at select/confirm branches to map conditional
+    /// prompts and compute batch/interactive. Default false (one
+    /// default-path pass).
+    pub explore: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -267,7 +280,7 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "render",
-        description = "Render a project from an archetype template. Starts a stateful render session. Returns the first prompt (if any) or completion status. Use the 'respond' tool to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Check the archetype's interface.yaml for available switches and prompts."
+        description = "Render a project from an archetype template. Starts a stateful render session. Returns the first prompt (if any) or completion status. Use the 'respond' tool to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Discover prompts and switches first with the `describe` tool."
     )]
     async fn render(
         &self,
@@ -410,6 +423,55 @@ impl ArchetectMcpServer {
                     ))
                 }
             }
+        }
+    }
+
+    #[tool(
+        name = "describe",
+        description = "Derive an archetype's interface by probing it: run its script against a recording driver (writes discarded, exec forbidden) and return the prompt transcript — every prompt's envelope (type, key, default, pattern, options, group, ui), the switch names the script consults, and a computed batch/interactive classification. Pass explore=true to map conditional branches. Use this BEFORE render to prepare answers and switches."
+    )]
+    async fn describe(&self, Parameters(req): Parameters<DescribeRequest>) -> String {
+        let source = match (&req.source, &req.path) {
+            (Some(source), _) => source.clone(),
+            (None, Some(path)) => match self.catalog_index.get(path).and_then(|e| e.source.clone()) {
+                Some(source) => source,
+                None => {
+                    return to_json(&ToolResponse::error(format!(
+                        "Catalog path '{}' not found or has no source",
+                        path
+                    )));
+                }
+            },
+            (None, None) => {
+                return to_json(&ToolResponse::error(
+                    "Provide `source` (git URL / local path) or `path` (catalog leaf)",
+                ));
+            }
+        };
+
+        let options = archetect_core::interface::ProbeOptions {
+            explore: req.explore.unwrap_or(false),
+            ..Default::default()
+        };
+        let layout_factory = || -> Result<
+            Box<dyn archetect_core::system::SystemLayout>,
+            archetect_core::errors::ArchetectError,
+        > {
+            Ok(Box::new(archetect_core::system::XdgSystemLayout::new()?))
+        };
+        // Probing executes the archetype's Lua — blocking work, and the
+        // probe builds its own Archetect around a recording driver.
+        let archetect = self.archetect.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            archetect_core::interface::probe_interface(&archetect, &layout_factory, &source, &options)
+        })
+        .await;
+
+        match result {
+            Ok(Ok(derived)) => serde_json::to_string_pretty(&derived)
+                .unwrap_or_else(|e| to_json(&ToolResponse::error(format!("serialize: {}", e)))),
+            Ok(Err(e)) => to_json(&ToolResponse::error(format!("Probe failed: {}", e))),
+            Err(e) => to_json(&ToolResponse::error(format!("Probe task failed: {}", e))),
         }
     }
 

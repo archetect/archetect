@@ -31,6 +31,7 @@ prova.test("every agent-facing verb is taught by some topic or the skill", funct
 	local taught = {
 		"render", " ls", "search", "config", "cache", "check", "ide setup",
 		"learn", "introspect", "eval", "skill", "mcp", "system layout",
+		"interface",
 	}
 	t:expect_all(function()
 		for _, verb in ipairs(taught) do

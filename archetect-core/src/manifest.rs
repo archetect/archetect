@@ -248,6 +248,18 @@ impl Manifest {
             }
         }
 
+        // The declared interface is retiring: the prompts are the source
+        // of truth, and `archetect interface <source>` derives the
+        // contract from them. See docs/plans/dynamic-interface.md.
+        if manifest.interface.is_some() {
+            log::warn!(
+                "{}: declared `interface:`/interface.yaml is deprecated — the prompts are the \
+                 interface. Derive it with `archetect interface <source>`, verify agreement with \
+                 `--check`, then delete the declaration.",
+                path
+            );
+        }
+
         Ok(manifest)
     }
 

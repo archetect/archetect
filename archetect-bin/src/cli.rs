@@ -302,6 +302,39 @@ pub fn command() -> Command {
                 )
         )
         .subcommand(
+            Command::new("interface")
+                .about("Derive an archetype's interface by probing it — the prompt transcript, switches, and batch/interactive classification")
+                .arg(
+                    Arg::new("source")
+                        .help("Archetype source (git URL or local path) or catalog leaf path")
+                        .required(true)
+                )
+                .arg(
+                    Arg::new("json")
+                        .long("json")
+                        .action(ArgAction::SetTrue)
+                        .help("Emit the derived interface as JSON")
+                )
+                .arg(
+                    Arg::new("answers-template")
+                        .long("answers-template")
+                        .action(ArgAction::SetTrue)
+                        .help("Emit a fill-in YAML answers file for a zero-prompt headless render")
+                )
+                .arg(
+                    Arg::new("check")
+                        .long("check")
+                        .action(ArgAction::SetTrue)
+                        .help("Compare the derived interface against a declared (deprecated) interface: block; non-zero exit on drift")
+                )
+                .arg(
+                    Arg::new("explore")
+                        .long("explore")
+                        .action(ArgAction::SetTrue)
+                        .help("Fork the probe at select/confirm branches to map conditional prompts (computes batch/interactive)")
+                )
+        )
+        .subcommand(
             Command::new("eval")
                 .about("Run one Lua snippet in the scripting environment — the probe verb; end with `return <value>` to print it as YAML")
                 .arg(

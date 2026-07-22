@@ -5,6 +5,7 @@ pub mod configuration;
 pub mod errors;
 pub mod flags;
 pub mod help;
+pub mod interface;
 pub mod learn;
 mod archetect;
 pub mod script;

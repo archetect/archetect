@@ -1,7 +1,15 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
+use std::sync::{Arc, Mutex};
 
 use archetect_api::{ContextMap, ContextValue};
+
+/// Shared recorder for `archetype.switches.is_enabled` queries. The
+/// interface probe attaches one to observe which switch names a script
+/// consults — switches are never prompted, so this is the only way a
+/// derived interface can discover them. Cloned into child render
+/// contexts, so composition records into one set.
+pub type SwitchRecorder = Arc<Mutex<BTreeSet<String>>>;
 
 #[derive(Clone, Debug)]
 pub struct RenderContext {
@@ -11,6 +19,7 @@ pub struct RenderContext {
     use_defaults_all: bool,
     switches: HashSet<String>,
     settings: ContextMap,
+    switch_recorder: Option<SwitchRecorder>,
 }
 
 impl RenderContext {
@@ -33,7 +42,19 @@ impl RenderContext {
             use_defaults_all: false,
             switches: Default::default(),
             settings: Default::default(),
+            switch_recorder: None,
         }
+    }
+
+    /// Attach a recorder observing `switches.is_enabled` queries — see
+    /// [`SwitchRecorder`]. Used by the interface probe.
+    pub fn with_switch_recorder(mut self, recorder: SwitchRecorder) -> Self {
+        self.switch_recorder = Some(recorder);
+        self
+    }
+
+    pub fn switch_recorder(&self) -> Option<&SwitchRecorder> {
+        self.switch_recorder.as_ref()
     }
 
     pub fn answers(&self) -> &ContextMap {
