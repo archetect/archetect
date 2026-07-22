@@ -5,13 +5,20 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Feature audit (this document, §1) | done |
-| 1 | MCP identity: `get_info` instructions + embedded skill | planned |
-| 2 | `archetect learn [topic]` + MCP `learn {topic?}` + `archetect://learn/<topic>` resources | planned |
-| 3 | `archetect introspect [filter]` / MCP `introspect` computed from the embedded LuaLS stubs | planned |
-| 4 | `archetect eval '<lua>'` — one-shot probe of the scripting environment | planned |
-| 5 | Slot-computed "this environment" sections (catalog, locals, cache, config) | planned |
+| 1 | MCP identity: `get_info` instructions + embedded skill | **shipped 2026-07-21** |
+| 2 | `archetect learn [topic]` + MCP `learn {topic?}` + `archetect://learn/<topic>` resources | **shipped 2026-07-21** |
+| 3 | `archetect introspect [filter]` / MCP `introspect` computed from the embedded LuaLS stubs | **shipped 2026-07-21** |
+| 4 | `archetect eval '<lua>'` — one-shot probe of the scripting environment | **shipped 2026-07-21** (CLI; MCP eval deferred) |
+| 5 | Slot-computed "this environment" sections (catalog, locals, cache, config) | **shipped 2026-07-21** |
 | 6 | MCP parity gaps (cache/check/config tools, entry-level flags in `catalog_render`) | planned |
 | 7 | Outward flow: docs-site reference pages regenerated from the same sources | planned |
+
+Acceptance bar: `proofs/autodidact/autodidact_test.lua` (prova, black-box on the shipped
+binary) + in-crate invariants in `archetect-core/src/learn` and `src/help`. Deviation from
+§2.1: slots are spelled `[[slot:name]]`, not `{{name}}` — the templates topic teaches ATL,
+whose interpolation syntax IS `{{ }}`; the slot-vocabulary test caught the collision.
+Untaught verbs to burn down (tracked by the proof's ratchet list): `global`, `server`,
+`connect`, `completions`.
 
 This is the Archetect port of prova's autodidact system
 (`prova-rs/prova docs/plans/autodidact.md`, shipped in prova 2026-07-21). The two systems share
