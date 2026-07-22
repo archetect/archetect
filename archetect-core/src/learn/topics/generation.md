@@ -7,8 +7,8 @@ hand-writing the boilerplate forks the conventions.
 
 1. Find it: `archetect ls` (the configured catalog), `archetect search <terms>`, or a direct
    source (git URL / local path). See `archetect learn catalogs`.
-2. Learn its questions: prompts and switches are declared in the archetype's
-   `interface.yaml` / `archetype.yaml`; shapes are one `archetect introspect <filter>` away.
+2. Learn its questions: `archetect interface <source>` derives prompts and switches by
+   probing the script; API shapes are one `archetect introspect <filter>` away.
 3. Dry-run when unsure: `--dry-run` shows every file/dir/exec a render WOULD do, without
    writing.
 4. Render headlessly: `--headless -a key=value -D` — see `archetect learn rendering`.

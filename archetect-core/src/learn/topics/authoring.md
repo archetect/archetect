@@ -46,7 +46,7 @@ end
 ## Rules that bite
 
 - Prompt EVERY input through `ctx:prompt_*` — never read env vars or invent answers; that is
-  what makes headless `-a` answers and the `interface:` contract line up.
+  what makes headless `-a` answers and the derived interface (`archetect interface`) line up.
 - `ctx:set(key, nil)` stores a Nil sentinel; it does not remove the key.
 - Test the archetype by rendering it: `--dry-run` for the shape, a temp `--destination` for
   the content, `--headless -a … -D` for the automation path — and prove the OUTPUT builds

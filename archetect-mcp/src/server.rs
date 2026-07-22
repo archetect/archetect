@@ -581,7 +581,7 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_browse",
-        description = "Browse the archetype catalog tree. Returns entries at the given path. Omit path for root entries. Groups contain children; leaves are renderable archetypes. Browsing a leaf path directly also returns its declared interface (prompts and switches) when the archetype declares one — use this to prepare answers and switches before rendering. Hidden (show: false) entries are excluded from listings unless all=true, but remain addressable by path."
+        description = "Browse the archetype catalog tree. Returns entries at the given path. Omit path for root entries. Groups contain children; leaves are renderable archetypes. To learn a leaf's prompts and switches, call `describe` with its path — the interface is derived from the script. Hidden (show: false) entries are excluded from listings unless all=true, but remain addressable by path."
     )]
     async fn catalog_browse(
         &self,
@@ -615,12 +615,12 @@ impl ArchetectMcpServer {
                 if is_renderable_leaf || entry.children.is_empty() {
                     // Leaf (an archetype's own catalog children are
                     // composition components, not navigation) or empty
-                    // group — return single entry info, including its
-                    // declared interface (prompts + switches) so agents
-                    // can prepare answers before rendering.
+                    // group — return single entry info. Prompts and
+                    // switches come from the `describe` tool, which
+                    // derives them from the script.
                     to_json_generic(&CatalogBrowseResponse {
                         path: path.to_owned(),
-                        entries: vec![CatalogEntryInfo::from_index_entry_detailed(entry)],
+                        entries: vec![CatalogEntryInfo::from_index_entry(entry)],
                     })
                 } else {
                     // Group — return children
@@ -670,7 +670,7 @@ impl ArchetectMcpServer {
 
     #[tool(
         name = "catalog_render",
-        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Discover them first: catalog_browse on the entry's path returns its declared interface."
+        description = "Render an archetype by its catalog path (e.g. 'services/grpc'). Resolves the path in the catalog, applies any pre-configured answers and switches from the catalog entry, and starts a render session. Use 'respond' to answer prompts. Switches must be set up front in this call — they are not prompted for during the session. Discover them first: `describe` with the entry's path derives its interface from the script."
     )]
     async fn catalog_render(
         &self,

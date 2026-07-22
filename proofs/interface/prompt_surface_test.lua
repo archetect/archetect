@@ -12,11 +12,7 @@ end)
 -- A fixture archetype exercising every phase-1 surface at once.
 local arch = prova.fixture("phase1-archetype", Scope.File, function(ctx)
 	local ws = workspace.create(ctx)
-	ws:write("archetype/archetype.yaml", [[
-description: "Phase 1 prompt-surface fixture"
-requires:
-  archetect: "3.0.0"
-]])
+	ws:write("archetype/archetype.yaml", 'description: "Phase 1 prompt-surface fixture"\nrequires:\n  archetect: "3.0.0"\n')
 	ws:write("archetype/archetype.lua", [[
 local context = Context.new()
 

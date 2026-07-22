@@ -7,7 +7,6 @@ use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
 use crate::manifest::{CatalogEntry, Manifest};
 
-pub mod interface;
 pub mod requirements;
 pub mod templating;
 
@@ -28,9 +27,6 @@ pub struct ArchetypeManifest {
     /// Catalog entries (populated from unified Manifest).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     catalog: Option<LinkedHashMap<String, CatalogEntry>>,
-    /// Declarative input contract for external tooling (web portals, MCP, docs).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    interface: Option<interface::ArchetypeInterface>,
 }
 
 impl ArchetypeManifest {
@@ -118,11 +114,6 @@ impl ArchetypeManifest {
         self.catalog.as_ref()
     }
 
-    /// Returns the declared interface contract, if any.
-    pub fn interface(&self) -> Option<&interface::ArchetypeInterface> {
-        self.interface.as_ref()
-    }
-
     /// True if this manifest has non-empty catalog entries.
     pub fn has_catalog(&self) -> bool {
         self.catalog
@@ -143,7 +134,6 @@ impl From<Manifest> for ArchetypeManifest {
             requires: m.requires,
             templating: m.templating,
             catalog: m.catalog,
-            interface: m.interface,
         }
     }
 }

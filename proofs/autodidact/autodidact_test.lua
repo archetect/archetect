@@ -84,18 +84,27 @@ end)
 prova.test("mcp render consumes request answers (the silent-drop regression)", function(t)
 	local b = t:use(bin)
 	local dest = t:tempdir()
-	-- The render tool's `answers` must reach prompt resolution: with org/solution answered,
-	-- the session must NOT re-ask them — the next prompt is prefix_name. (The 2026-07-21
+	-- The render tool's `answers` must reach prompt resolution: with org_name answered,
+	-- the session must NOT re-ask it — the next prompt is solution_name. (The 2026-07-21
 	-- regression: an untyped `answers` schema let stringifying clients silently drop them.)
+	-- Self-contained fixture: proofs must not depend on remote repo contents.
+	local arch = t:tempdir()
+	fs.write(arch .. "/archetype.yaml", 'description: "Answers fixture"\nrequires:\n  archetect: "3.0.0"\n')
+	fs.write(arch .. "/archetype.lua", table.concat({
+		"local context = Context.new()",
+		'context:prompt_text("Org:", "org_name", {})',
+		'context:prompt_text("Solution:", "solution_name", {})',
+		"",
+	}, "\n"))
 	local requests = table.concat({
 		'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"prova","version":"0"}}}',
 		'{"jsonrpc":"2.0","method":"notifications/initialized"}',
-		'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"render","arguments":{"source":"https://github.com/archetect-rust/rust-clap-cli-archetype.git#v1","destination":"' .. dest .. '","answers":{"org_name":"proofs","solution_name":"paces"}}}}',
+		'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"render","arguments":{"source":"' .. arch .. '","destination":"' .. dest .. '","answers":{"org_name":"proofs"}}}}',
 	}, "\n")
 	local out = shell.run({ "sh", "-c", "printf '%s\\n' '" .. requests:gsub("\n", "' '") .. "' | " .. b .. " mcp" },
 		{ timeout = "120s", check = true })
 	t:expect(out.stdout, "answers consumed"):never():contains('\\"key\\":\\"org_name\\"')
-	t:expect(out.stdout, "advanced past answered prompts"):contains("prefix_name")
+	t:expect(out.stdout, "advanced past answered prompts"):contains("solution_name")
 end)
 
 prova.test("mcp serves identity and knowledge over stdio", function(t)

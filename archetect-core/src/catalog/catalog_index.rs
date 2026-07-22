@@ -1,6 +1,5 @@
 use linked_hash_map::LinkedHashMap;
 
-use crate::archetype::archetype_manifest::interface::ArchetypeInterface;
 use crate::manifest::{CatalogEntry, Manifest, Metadata};
 
 /// A flattened, searchable index of catalog entries built from a manifest's catalog tree.
@@ -44,11 +43,6 @@ pub struct IndexEntry {
     /// endpoint to target and how to translate the local path back
     /// into the server's own path. See `docs/plans/federated-catalog.md`.
     pub remote: Option<RemoteEntryInfo>,
-    /// The archetype's declared input contract (inline `interface:` or
-    /// sibling `interface.yaml`), captured when the indexer resolves the
-    /// source. This is how agents discover prompts and — critically —
-    /// switches, which are never surfaced by the prompt flow.
-    pub interface: Option<ArchetypeInterface>,
 }
 
 /// Shared state carried by every descendant of a `server:` catalog entry.
@@ -209,7 +203,6 @@ fn build_entries(entries: &LinkedHashMap<String, CatalogEntry>, prefix: &str) ->
                 is_archetype: false,
                 show: entry.show,
                 remote: None,
-                interface: None,
             }
         })
         .collect()

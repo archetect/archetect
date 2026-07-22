@@ -1,8 +1,8 @@
 # prompts — seven types, one resolution order
 
 Every input flows through `ctx:prompt_<type>(message, key, opts?)`. The KEY is the contract:
-it is what `-a key=value` answers, what `interface:` declares, and what the headless error
-names when unanswered.
+it is what `-a key=value` answers, what `archetect interface` reports, and what the headless
+error names when unanswered.
 
 | Type | Returns | Options beyond the shared set |
 |---|---|---|
@@ -45,11 +45,11 @@ archetect interface <source|catalog-path>   # human summary
   --json               # for tooling (same shape MCP `describe` returns)
   --answers-template   # fill-in YAML for a zero-prompt `-A` render
   --explore            # fork select/confirm branches: conditional prompts + appears_when
-  --check              # compare against a declared interface; drift is a non-zero exit
 ```
 
-A declared `interface:` block / sibling `interface.yaml` is DEPRECATED: it restates what
-the script already says, and drifts. Run `--check` until it passes, then delete it.
+Declared interfaces (`interface:` blocks / sibling `interface.yaml`) are GONE — a manifest
+still carrying one is a load ERROR: a declaration is a second copy of what the prompts
+already say, and second copies drift. Derive, don't declare.
 
 Go deeper: `archetect learn rendering` (answering from the CLI) · `archetect learn mcp`
 (prompts as a turn-based session).

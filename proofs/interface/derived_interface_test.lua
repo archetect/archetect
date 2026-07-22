@@ -68,9 +68,9 @@ local context = Context.new()
 context:prompt_text("Child Name:", "child_name", { default = "child" })
 ]])
 
-	-- drifted: declares an interface that lies about the script.
-	ws:write("drifted/archetype.yaml", table.concat({
-		'description: "Drifted"',
+	-- declared-inline: still carries an `interface:` block (removed feature).
+	ws:write("declared-inline/archetype.yaml", table.concat({
+		'description: "Declared inline"',
 		'requires:',
 		'  archetect: "3.0.0"',
 		'interface:',
@@ -80,10 +80,15 @@ context:prompt_text("Child Name:", "child_name", { default = "child" })
 		'      label: "Never asked"',
 		'',
 	}, "\n"))
-	ws:write("drifted/archetype.lua", [[
+	ws:write("declared-inline/archetype.lua", [[
 local context = Context.new()
 context:prompt_text("Real Key:", "real_key", { default = "x" })
 ]])
+
+	-- declared-sibling: still ships an interface.yaml file (removed feature).
+	ws:write("declared-sibling/archetype.yaml", 'description: "Declared sibling"\nrequires:\n  archetect: "3.0.0"\n')
+	ws:write("declared-sibling/interface.yaml", 'prompts:\n  - key: x\n    type: text\n    label: "X"\n')
+	ws:write("declared-sibling/archetype.lua", 'local context = Context.new()\n')
 
 	return ws
 end)
@@ -189,20 +194,28 @@ prova.test("answers-template round-trips to a zero-prompt render", function(t)
 	t:expect(ws:read("flat-render/out.toml")):contains('name = "orders"')
 end)
 
--- ── drift: the declared interface is now checkable ─────────────────
+-- ── the declared interface is GONE: carrying one is a hard error ───
 
-prova.test("drift check fails on a declared interface the script contradicts", function(t)
+prova.test("an inline declared interface is a load error naming the migration", function(t)
 	local ws = t:use(ws_fixture)
-	local out = shell.run({ t:use(bin), "interface", ws:file("drifted"), "--check" })
-	t:expect(out.code, "drift is an error"):never():equals(0)
-	t:expect(out.stderr .. out.stdout, "names the phantom"):contains("phantom_key")
-	t:expect(out.stderr .. out.stdout, "names the undeclared real prompt"):contains("real_key")
+	local out = shell.run({
+		t:use(bin), "render", ws:file("declared-inline"),
+		"--destination", ws:file("inline-render"), "--headless", "-D",
+	})
+	t:expect(out.code, "removed feature is an error"):never():equals(0)
+	t:expect(out.stderr, "says what happened"):contains("no longer supported")
+	t:expect(out.stderr, "points at the replacement"):contains("archetect interface")
 end)
 
-prova.test("drift check passes when declaration and script agree", function(t)
+prova.test("a sibling interface.yaml is a load error naming the migration", function(t)
 	local ws = t:use(ws_fixture)
-	local out = shell.run({ t:use(bin), "interface", ws:file("flat"), "--check" })
-	t:expect(out.code, "no declaration, nothing to contradict"):equals(0)
+	local out = shell.run({
+		t:use(bin), "render", ws:file("declared-sibling"),
+		"--destination", ws:file("sibling-render"), "--headless", "-D",
+	})
+	t:expect(out.code, "removed feature is an error"):never():equals(0)
+	t:expect(out.stderr):contains("interface.yaml")
+	t:expect(out.stderr, "points at the replacement"):contains("archetect interface")
 end)
 
 -- ── MCP describe mirrors the CLI ───────────────────────────────────
@@ -231,14 +244,3 @@ prova.test("MCP describe returns the same derived interface as --json", function
 	t:expect(described.switches[1]):equals("ci")
 end)
 
--- ── deprecation: the declarative interface announces its retirement ─
-
-prova.test("loading a declared interface warns toward derivation", function(t)
-	local ws = t:use(ws_fixture)
-	local out = shell.run({
-		t:use(bin), "render", ws:file("drifted"),
-		"--destination", ws:file("drift-render"), "--headless", "-D",
-	})
-	t:expect(out.stderr, "deprecation warning fires"):contains("deprecated")
-	t:expect(out.stderr, "points at the replacement"):contains("archetect interface")
-end)

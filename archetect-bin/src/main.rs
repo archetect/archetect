@@ -91,33 +91,7 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
     for (identifier, value) in configuration.answers() {
         answers.insert(identifier.clone(), value.clone());
     }
-
-    // Load answers from answer files
-    if let Some(answer_files) = matches.get_many::<String>("answer-file") {
-        for answer_file in answer_files {
-            let results = answers::read_answers(answer_file)?;
-            answers.extend(results);
-        }
-    }
-
-    // Load answers from individual answer arguments.
-    // Values are parsed as YAML for consistent type semantics with answer files:
-    //   -a count=42        → Integer
-    //   -a price=1.5       → Float
-    //   -a active=true     → Boolean
-    //   -a name=hello      → String
-    //   -a 'phone="5551234"' → String (YAML quoted)
-    //   -a 'tags=[a, b]'   → Array
-    //   -a 'db={host: localhost}' → Map
-    //   -a db.host=localhost → nested Map via dotted key
-    if let Some(answer_matches) = matches.get_many::<String>("answer") {
-        for answer_match in answer_matches {
-            let (key, raw_value) = parse_answer_pair(answer_match)
-                .map_err(|e| ArchetectError::ConfigError(format!("Invalid answer '{}': {}", answer_match, e)))?;
-            let value = parse_answer_value(&raw_value);
-            insert_dotted(&mut answers, &key, value);
-        }
-    }
+    load_explicit_answers(&matches, &mut answers)?;
 
     // MCP mode forces shell execution to Forbidden — no escape hatch.
     let configuration = if matches!(matches.subcommand(), Some(("mcp", _))) {
@@ -174,8 +148,13 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
             }
         }
         Some(("interface", args)) => {
+            // Derivation wants the ARCHETYPE's interface, not "the
+            // interface minus whatever this user's config pre-answers" —
+            // only explicit -a/-A answers narrow the probe.
+            let mut explicit_answers = ContextMap::new();
+            load_explicit_answers(&matches, &mut explicit_answers)?;
             let switches = get_switches(&matches, archetect.configuration())?;
-            subcommands::handle_interface_subcommand(args, &archetect, answers, switches)?
+            subcommands::handle_interface_subcommand(args, &archetect, explicit_answers, switches)?
         }
         Some(("learn", args)) => subcommands::handle_learn_subcommand(args, &archetect)?,
         Some(("eval", args)) => subcommands::handle_eval_subcommand(args, &archetect)?,
@@ -280,6 +259,35 @@ fn execute_catalog_dispatch(
     };
 
     archetect_core::catalog::dispatch::dispatch(&archetect, catalog, path, render_context)?;
+    Ok(())
+}
+
+/// Answers supplied explicitly on this invocation: `-A` files, then `-a`
+/// flags (last wins). Values are parsed as YAML for consistent type
+/// semantics with answer files:
+///   -a count=42        → Integer
+///   -a price=1.5       → Float
+///   -a active=true     → Boolean
+///   -a name=hello      → String
+///   -a 'phone="5551234"' → String (YAML quoted)
+///   -a 'tags=[a, b]'   → Array
+///   -a 'db={host: localhost}' → Map
+///   -a db.host=localhost → nested Map via dotted key
+fn load_explicit_answers(matches: &ArgMatches, answers: &mut ContextMap) -> Result<(), ArchetectError> {
+    if let Some(answer_files) = matches.get_many::<String>("answer-file") {
+        for answer_file in answer_files {
+            let results = answers::read_answers(answer_file)?;
+            answers.extend(results);
+        }
+    }
+    if let Some(answer_matches) = matches.get_many::<String>("answer") {
+        for answer_match in answer_matches {
+            let (key, raw_value) = parse_answer_pair(answer_match)
+                .map_err(|e| ArchetectError::ConfigError(format!("Invalid answer '{}': {}", answer_match, e)))?;
+            let value = parse_answer_value(&raw_value);
+            insert_dotted(answers, &key, value);
+        }
+    }
     Ok(())
 }
 

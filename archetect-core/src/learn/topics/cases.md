@@ -39,7 +39,7 @@ Inflections are dictionary-smart (soliloquy→soliloquies, calf→calves).
 
 ## Choosing where to case
 
-Prefer `cases = …` at the PROMPT (one input, all variants, `interface:`-friendly) over
+Prefer `cases = …` at the PROMPT (one input, all variants, visible to `archetect interface`) over
 filters in templates for identifiers used many times; use filters for one-off spots.
 Shapes: `archetect introspect Cases`.
 

@@ -322,12 +322,6 @@ pub fn command() -> Command {
                         .help("Emit a fill-in YAML answers file for a zero-prompt headless render")
                 )
                 .arg(
-                    Arg::new("check")
-                        .long("check")
-                        .action(ArgAction::SetTrue)
-                        .help("Compare the derived interface against a declared (deprecated) interface: block; non-zero exit on drift")
-                )
-                .arg(
                     Arg::new("explore")
                         .long("explore")
                         .action(ArgAction::SetTrue)

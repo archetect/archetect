@@ -12,7 +12,6 @@ key silently does nothing, so check spelling here first when a setting "doesn't 
 | `templating.undefined` | `lenient` (default) or `strict` — strict makes an undefined `{{ var }}` a render ERROR; turn it on, it catches typos |
 | `templating.trim_blocks` / `lstrip_blocks` | whitespace control for block tags |
 | `catalog` | ordered map of entries — presence of entries + no `archetype.lua` makes this a CATALOG; see `archetect learn catalogs` |
-| `interface` | declarative prompt/switch contract (or a sibling `interface.yaml`, which OVERRIDES the inline one); see `archetect learn prompts` |
 
 ## What is NOT configured here
 
@@ -29,5 +28,6 @@ archetect server). Plus per-entry `description`, `answers`, `switches`, `use_def
 `use_defaults_all`, `library: true` (stage its `lib/` into consumers), `show: false` (hide
 from menus, still addressable). Mixing kinds in one entry is a load error.
 
-Go deeper: `archetect learn catalogs` (entries in practice) · `archetect learn prompts` (the
-`interface:` block) · `archetect learn templates` (what `templating:` governs).
+Go deeper: `archetect learn catalogs` (entries in practice) · `archetect learn prompts`
+(the prompt contract, and deriving it) · `archetect learn templates` (what `templating:`
+governs).

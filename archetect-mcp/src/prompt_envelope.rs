@@ -44,11 +44,6 @@ pub struct CatalogEntryInfo {
     pub frameworks: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
-    /// The archetype's declared input contract (prompts + switches),
-    /// included only when a single entry is addressed directly — this is
-    /// where agents learn a render's switches before starting a session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interface: Option<serde_json::Value>,
 }
 
 impl CatalogEntryInfo {
@@ -74,22 +69,7 @@ impl CatalogEntryInfo {
             languages,
             frameworks,
             tags,
-            interface: None,
         }
-    }
-
-    /// Like `from_index_entry`, but carrying the entry's declared
-    /// interface. Used when a single entry is addressed directly;
-    /// listings omit the interface to keep result sets scannable.
-    pub fn from_index_entry_detailed(
-        entry: &archetect_core::catalog::catalog_index::IndexEntry,
-    ) -> Self {
-        let mut info = Self::from_index_entry(entry);
-        info.interface = entry
-            .interface
-            .as_ref()
-            .and_then(|iface| serde_json::to_value(iface).ok());
-        info
     }
 }
 

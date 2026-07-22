@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use archetect_api::ContextMap;
 
-use crate::archetype::archetype_manifest::interface::ArchetypeInterface;
 use crate::archetype::archetype_manifest::requirements::RuntimeRequirements;
 use crate::archetype::archetype_manifest::templating::TemplatingConfig;
 use crate::errors::ArchetypeError;
@@ -27,12 +26,10 @@ pub const MANIFEST_FILE_NAMES: &[&str] = &[
     "archetect.yml",
 ];
 
-/// Interface file name candidates in priority order.
-///
-/// When present alongside the manifest, the interface file is loaded and
-/// merged into `Manifest.interface`. If the manifest already contains an
-/// inline `interface:` section, the file takes precedence.
-pub const INTERFACE_FILE_NAMES: &[&str] = &["interface.yaml", "interface.yml"];
+/// The REMOVED declared-interface forms. A manifest carrying one is a
+/// hard error: the prompts are the interface, and `archetect interface`
+/// derives the contract from them (see docs/plans/dynamic-interface.md).
+const REMOVED_INTERFACE_FILE_NAMES: &[&str] = &["interface.yaml", "interface.yml"];
 
 /// Unified manifest for both archetypes and catalogs.
 ///
@@ -61,9 +58,6 @@ pub struct Manifest {
     // ── Archetype ──
     #[serde(default)]
     pub templating: TemplatingConfig,
-    /// Declarative input contract for external tooling (web portals, MCP, docs).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interface: Option<ArchetypeInterface>,
 }
 
 /// A recursive catalog entry. Either a leaf (has `source`) or a group (has `catalog`).
@@ -230,34 +224,27 @@ impl Manifest {
         let mut manifest = serde_yaml::from_str::<Manifest>(&config)
             .map_err(|source| ArchetypeError::ArchetypeManifestSyntaxError { path: path.clone(), source })?;
 
-        // Look for a sibling interface file. File takes precedence over
-        // an inline `interface:` section in the manifest.
-        if let Some(dir) = path.parent() {
-            for candidate in INTERFACE_FILE_NAMES {
-                let iface_path = dir.join(candidate);
-                if iface_path.exists() {
-                    let iface_yaml = fs::read_to_string(&iface_path)?;
-                    let iface = serde_yaml::from_str::<ArchetypeInterface>(&iface_yaml)
-                        .map_err(|source| ArchetypeError::ArchetypeManifestSyntaxError {
-                            path: iface_path,
-                            source,
-                        })?;
-                    manifest.interface = Some(iface);
-                    break;
-                }
+        // The declared interface was REMOVED after the derived interface
+        // shipped (docs/plans/dynamic-interface.md): a declaration is a
+        // second copy of what the prompts already say, and second copies
+        // drift. Carrying one is a hard error naming the migration.
+        if let Ok(raw) = serde_yaml::from_str::<serde_yaml::Value>(&config) {
+            if raw.get("interface").is_some() {
+                return Err(ArchetypeError::DeclaredInterfaceRemoved {
+                    path,
+                    form: "an inline `interface:` block".to_string(),
+                });
             }
         }
-
-        // The declared interface is retiring: the prompts are the source
-        // of truth, and `archetect interface <source>` derives the
-        // contract from them. See docs/plans/dynamic-interface.md.
-        if manifest.interface.is_some() {
-            log::warn!(
-                "{}: declared `interface:`/interface.yaml is deprecated — the prompts are the \
-                 interface. Derive it with `archetect interface <source>`, verify agreement with \
-                 `--check`, then delete the declaration.",
-                path
-            );
+        if let Some(dir) = path.parent() {
+            for candidate in REMOVED_INTERFACE_FILE_NAMES {
+                if dir.join(candidate).exists() {
+                    return Err(ArchetypeError::DeclaredInterfaceRemoved {
+                        path,
+                        form: format!("a sibling {}", candidate),
+                    });
+                }
+            }
         }
 
         Ok(manifest)
@@ -274,11 +261,6 @@ impl Manifest {
     /// Get the catalog entries, if any.
     pub fn catalog_entries(&self) -> Option<&LinkedHashMap<String, CatalogEntry>> {
         self.catalog.as_ref()
-    }
-
-    /// Returns the declared interface contract, if any.
-    pub fn interface(&self) -> Option<&ArchetypeInterface> {
-        self.interface.as_ref()
     }
 
     /// Get metadata for indexing/search.

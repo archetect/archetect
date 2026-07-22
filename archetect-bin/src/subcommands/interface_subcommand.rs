@@ -5,17 +5,15 @@ use clap::ArgMatches;
 use archetect_api::ContextMap;
 use archetect_core::errors::ArchetectError;
 use archetect_core::interface::{
-    check_drift, probe_interface, DerivedInterface, InterfacePrompt, ProbeOptions,
+    probe_interface, DerivedInterface, InterfacePrompt, ProbeOptions,
 };
-use archetect_core::manifest::Manifest;
 use archetect_core::system::{SystemLayout, XdgSystemLayout};
 use archetect_core::Archetect;
 
 /// `archetect interface <source>` — derive an archetype's interface by
 /// probing it: run the script against a recording driver, print the
 /// prompt transcript. `--json` for tooling, `--answers-template` for a
-/// ready-to-fill `-A` file, `--check` to compare against a declared
-/// (deprecated) `interface:` block, `--explore` to map branches.
+/// ready-to-fill `-A` file, `--explore` to map branches.
 pub fn handle_interface_subcommand(
     matches: &ArgMatches,
     archetect: &Archetect,
@@ -41,10 +39,6 @@ pub fn handle_interface_subcommand(
         Ok(Box::new(XdgSystemLayout::new()?))
     };
     let derived = probe_interface(archetect, &layout_factory, &source, &options)?;
-
-    if matches.get_flag("check") {
-        return run_check(archetect, &source, &derived);
-    }
 
     if matches.get_flag("answers-template") {
         print!("{}", answers_template(&source, &derived));
@@ -81,34 +75,6 @@ fn resolve_target(archetect: &Archetect, target: &str) -> Result<String, Archete
         "'{}' is neither a resolvable source nor a catalog leaf path",
         target
     )))
-}
-
-fn run_check(
-    archetect: &Archetect,
-    source: &str,
-    derived: &DerivedInterface,
-) -> Result<(), ArchetectError> {
-    let resolved = archetect.new_source(source)?;
-    let manifest = Manifest::load(resolved.path()?)?;
-    let Some(declared) = manifest.interface.as_ref() else {
-        println!("no declared interface — nothing to drift. (The derived interface is the truth; keep it that way.)");
-        return Ok(());
-    };
-    let findings = check_drift(declared, derived);
-    if findings.is_empty() {
-        println!(
-            "declared interface agrees with the script ({} prompt(s), {} switch(es)) — safe to delete the declaration.",
-            derived.prompts.len(),
-            derived.switches.len()
-        );
-        return Ok(());
-    }
-    let mut report = String::from("interface drift detected:\n");
-    for finding in &findings {
-        report.push_str(&format!("  - {}\n", finding));
-    }
-    report.push_str("The script is the truth; fix or delete the declared interface.");
-    Err(ArchetectError::GeneralError(report))
 }
 
 fn describe_prompt(prompt: &InterfacePrompt) -> String {

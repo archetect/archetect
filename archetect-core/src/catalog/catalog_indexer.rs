@@ -129,7 +129,6 @@ impl CatalogIndexer {
                     endpoint: server.endpoint.clone(),
                     local_prefix: path,
                 }),
-                interface: None,
             };
         }
 
@@ -152,7 +151,6 @@ impl CatalogIndexer {
                 is_archetype: false,
                 show: entry.show,
                 remote: None,
-                interface: None,
             };
         }
 
@@ -182,7 +180,6 @@ impl CatalogIndexer {
                     is_archetype: expanded.has_script,
                     show: entry.show,
                     remote: None,
-                    interface: expanded.interface,
                 };
             }
         }
@@ -199,8 +196,7 @@ impl CatalogIndexer {
             is_archetype: false,
             show: entry.show,
             remote: None,
-            interface: None,
-        }
+            }
     }
 
     /// Try to resolve a source, load its manifest, and return metadata + child entries.
@@ -243,7 +239,6 @@ impl CatalogIndexer {
         };
 
         let metadata = child_manifest.metadata();
-        let interface = child_manifest.interface.clone();
         let children = match child_manifest.catalog_entries() {
             Some(child_entries) => {
                 debug!("Expanding '{}' — {} catalog entries", name, child_entries.len());
@@ -268,7 +263,6 @@ impl CatalogIndexer {
             metadata,
             children,
             has_script,
-            interface,
         })
     }
 
@@ -357,7 +351,6 @@ fn proto_to_index_entry(
         is_archetype: entry.is_archetype,
         show: entry.show,
         remote: Some(remote_info.clone()),
-        interface: None,
     }
 }
 
@@ -367,7 +360,6 @@ struct ExpandedSource {
     metadata: crate::manifest::Metadata,
     children: Vec<IndexEntry>,
     has_script: bool,
-    interface: Option<crate::archetype::archetype_manifest::interface::ArchetypeInterface>,
 }
 
 #[cfg(test)]
@@ -762,44 +754,6 @@ mod tests {
         );
         // And the normalized source resolved, so metadata was captured.
         assert!(child.metadata.is_some());
-    }
-
-    #[test]
-    fn test_index_captures_interface() {
-        let (_layout_temp, archetect) = build_archetect();
-        let workspace = TempDir::new().unwrap();
-        let workspace_path = Utf8PathBuf::from(workspace.path().to_str().unwrap());
-
-        let child_dir = workspace_path.join("with-interface");
-        write_manifest(
-            &child_dir,
-            indoc! {r#"
-                description: "Has Interface"
-                requires:
-                  archetect: "3.0.0"
-                interface:
-                  prompts:
-                    - key: service_name
-                      type: text
-                      label: "Service Name:"
-                  switches:
-                    - key: ci
-                      help: "Wire CI"
-            "#},
-        );
-
-        let catalog = build_config_catalog(vec![
-            ("svc", "Service", Some(child_dir.as_str())),
-        ]);
-
-        let index = CatalogIndexer::new(archetect).build_index(&catalog);
-
-        let svc = index.get("svc").expect("entry indexed");
-        let iface = svc.interface.as_ref().expect("interface captured");
-        assert_eq!(iface.prompts.len(), 1);
-        assert_eq!(iface.prompts[0].key, "service_name");
-        assert_eq!(iface.switches.len(), 1);
-        assert_eq!(iface.switches[0].key, "ci");
     }
 
     #[test]

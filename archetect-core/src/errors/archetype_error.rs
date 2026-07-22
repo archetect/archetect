@@ -43,6 +43,16 @@ pub enum ArchetypeError {
     /// user-facing (menu-in-headless, unresolvable entries, …).
     #[error("{0}")]
     CatalogDispatchError(String),
+    /// The archetype still carries a declared interface, a feature that
+    /// was REMOVED once derivation shipped — a declaration is a second
+    /// copy of what the prompts already say, and second copies drift.
+    #[error(
+        "{path}: {form} is no longer supported — the prompts ARE the interface. \
+         Derive the contract with `archetect interface <source>` (`--answers-template` \
+         for a headless answers file), then delete the declaration. \
+         See docs/plans/dynamic-interface.md."
+    )]
+    DeclaredInterfaceRemoved { path: Utf8PathBuf, form: String },
     /// User cancelled an interactive prompt (Esc / Ctrl-C). Propagates
     /// through nested render chains so a cancel inside a composed
     /// component also kills the parent archetype. The top-level CLI

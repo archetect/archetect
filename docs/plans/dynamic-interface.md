@@ -11,7 +11,13 @@
 | 4 | Drift detection (`--check`) + deprecation warning on declared interfaces | **shipped 2026-07-22** (clap-cli migration pending — it is the one ecosystem user) |
 | 5 | Branch exploration (`--explore` / `explore:true`): per-decision forking, `appears_when`, computed batch/interactive | **shipped 2026-07-22** (per-decision coverage, not full cartesian; nested decisions get their own runs) |
 | 6 | `DescribeArchetype` gRPC (JSON-payload v1, served from the catalog path, explore supported) | **shipped 2026-07-22** (proofs drive a live server over reflection; fixing that surfaced and fixed a prova gRPC-client reflection bug) |
-| 7 | Remaining: probe-result caching by commit, browse serving the DERIVED interface, proto carrying rich options + typed describe, REMOVAL of declarative interface parsing | planned — removal deliberately waits for human sign-off + clap-cli migration (the one ecosystem user) |
+| 7 | REMOVAL of the declared interface: `interface:` / `interface.yaml` are a hard load error naming the migration; `--check` retired with them; docs-site + learn topics + spec swept; clap-cli migrated (validated with `--check --explore` first, then deleted) | **shipped 2026-07-22** (sign-off given) |
+| 8 | Remaining polish: probe-result caching by commit, typed proto carrying rich options over gRPC | planned |
+
+**Removal ripple:** the rust-clap-cli-archetype fix is committed locally but the remote
+`#v1` tag still ships interface.yaml — renders of the REMOTE clap-cli error under the new
+binary until that commit is pushed and the tag recut. Everything else in the ecosystem was
+already declaration-free.
 
 Acceptance bar: `proofs/interface/` (prova, black-box on the shipped binary) — 21 proofs
 covering probe transcript fidelity, switch recording, zero side effects, composition
