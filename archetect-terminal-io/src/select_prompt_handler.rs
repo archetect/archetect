@@ -13,20 +13,28 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
     let allow_other = prompt_info.allow_other();
     let other_label = prompt_info.other_label().to_string();
 
-    let mut display_options: Vec<String> = prompt_info.options().to_vec();
+    // The menu shows LABELS; the answer stores VALUES. Selection maps
+    // back through the option index (the "other" sentinel sits past the
+    // real options).
+    let mut display_options: Vec<String> = prompt_info
+        .options()
+        .iter()
+        .map(|option| option.label().to_string())
+        .collect();
     if allow_other {
         display_options.push(other_label.clone());
     }
 
     // Compute default cursor placement once; rebuild the Select each loop
     // iteration so inquire can redraw cleanly when we reprompt on Esc.
+    // Defaults name option VALUES, not labels.
     let default_cursor = prompt_info
         .default()
         .map(|d| {
             let in_opts = prompt_info
                 .options()
                 .iter()
-                .position(|item| item.as_str() == d);
+                .position(|item| item.value.as_str() == d);
             match (in_opts, allow_other) {
                 (Some(idx), _) => Some((idx, None)),
                 (None, true) => Some((display_options.len() - 1, Some(d))),
@@ -96,7 +104,14 @@ pub fn handle_select_prompt(prompt_info: SelectPromptInfo, responses: &dyn Respo
         return;
     }
 
-    responses.respond(ClientMessage::String(answer));
+    // Map the chosen label back to its option's value.
+    let value = display_options
+        .iter()
+        .position(|item| *item == answer)
+        .and_then(|idx| prompt_info.options().get(idx))
+        .map(|option| option.value.clone())
+        .unwrap_or(answer);
+    responses.respond(ClientMessage::String(value));
 }
 
 fn collect_other_text(

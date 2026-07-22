@@ -5,7 +5,7 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Design (this document) + inventory of `interface.yaml` consumers | done |
-| 1 | Prompt-surface completion: `pattern`, rich options, `group` — enforced, not descriptive | planned |
+| 1 | Prompt-surface completion: `pattern`, rich options, `group`/`ui` — enforced, not descriptive | **shipped 2026-07-22** (proofs: `proofs/interface/prompt_surface_test.lua`; gRPC carries option values only until phase 6) |
 | 2 | Shared `PromptEnvelope` + `InterfaceProbe` driver (default-path recording) | planned |
 | 3 | Consumers: `archetect interface <source>` CLI, MCP `describe`, browse swap, answer templates | planned |
 | 4 | Drift detection + deprecation of `interface:` / `interface.yaml` | planned |

@@ -6,7 +6,7 @@ names when unanswered.
 
 | Type | Returns | Options beyond the shared set |
 |---|---|---|
-| `prompt_text` | string | `min`/`max` (length), `cases` |
+| `prompt_text` | string | `min`/`max` (length), `pattern` (regex, ENFORCED on every path), `cases` |
 | `prompt_int` | integer | `min`/`max` (value) |
 | `prompt_confirm` | boolean | — |
 | `prompt_select` | string | `options` (2nd arg), `allow_other`, `other_label` |
@@ -16,7 +16,12 @@ names when unanswered.
 
 Shared options: `default`, `help`, `placeholder`, `optional` (unanswered → nil instead of
 error), `answer_key` (answer under a different key), `cases` (case-variant expansion — see
-`archetect learn cases`).
+`archetect learn cases`), `group` (UI section label) and `ui` (opaque metadata table) —
+both pure metadata, carried to clients (MCP envelopes, future interface probes) untouched.
+
+Select/multiselect `options` entries are bare strings or rich tables
+`{ value = "pg", label = "PostgreSQL", help = "Production-grade" }` — the VALUE is the
+contract (what `-a` answers, what `default` names, what is stored); labels are display-only.
 
 ## Resolution order (same for every type)
 

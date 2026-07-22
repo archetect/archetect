@@ -5,7 +5,7 @@ use mlua::{Error as LuaError, Lua, Result as LuaResult, Table, UserData, UserDat
 
 use archetect_api::{
     BoolPromptInfo, ClientMessage, ContextMap, ContextValue, EditorPromptInfo, IntPromptInfo,
-    ListPromptInfo, MultiSelectPromptInfo, ScriptMessage, SelectPromptInfo, TextPromptInfo,
+    ListPromptInfo, MultiSelectPromptInfo, PromptOption, ScriptMessage, SelectPromptInfo, TextPromptInfo,
 };
 
 use crate::archetype::render_context::RenderContext;
@@ -337,6 +337,76 @@ fn get_opt_string_array(opts: &Table, key: &str) -> LuaResult<Option<Vec<String>
     }
 }
 
+/// Parse a prompt options array: bare strings and/or rich
+/// `{ value, label?, help? }` tables, mirroring the two YAML forms the
+/// declarative interface accepted — but here the declaration is live.
+fn parse_prompt_options(options: &Table) -> LuaResult<Vec<PromptOption>> {
+    let len = options.raw_len();
+    let mut out = Vec::with_capacity(len);
+    for i in 1..=len {
+        match options.raw_get::<Value>(i)? {
+            Value::String(s) => out.push(PromptOption::new(s.to_string_lossy().to_string())),
+            Value::Table(t) => {
+                let value = match t.get::<Value>("value")? {
+                    Value::String(s) => s.to_string_lossy().to_string(),
+                    _ => {
+                        return Err(LuaError::RuntimeError(format!(
+                            "option #{} must be a string or a table with a string `value`",
+                            i
+                        )))
+                    }
+                };
+                let mut option = PromptOption::new(value);
+                if let Value::String(s) = t.get::<Value>("label")? {
+                    option.label = Some(s.to_string_lossy().to_string());
+                }
+                if let Value::String(s) = t.get::<Value>("help")? {
+                    option.help = Some(s.to_string_lossy().to_string());
+                }
+                out.push(option);
+            }
+            other => {
+                return Err(LuaError::RuntimeError(format!(
+                    "option #{} must be a string or a table with a string `value`, got {}",
+                    i,
+                    other.type_name()
+                )))
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Extract the opaque `ui` metadata table, converted to JSON for the wire.
+fn get_opt_ui(opts: &Table) -> LuaResult<Option<serde_json::Value>> {
+    match opts.get::<Value>("ui")? {
+        Value::Table(t) => {
+            let value = lua_table_to_context_value(&t)?;
+            Ok(serde_json::to_value(&value).ok())
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Enforce a `pattern` opt against a resolved value. The error names the
+/// key and the pattern — like the headless missing-answer error, it IS
+/// the interface: what to supply, and what shape it must take.
+fn validate_pattern(pattern: Option<&str>, key: &str, value: &str) -> LuaResult<()> {
+    let Some(pattern) = pattern else {
+        return Ok(());
+    };
+    let regex = regex::Regex::new(pattern).map_err(|e| {
+        LuaError::RuntimeError(format!("invalid pattern for key `{}`: {}", key, e))
+    })?;
+    if !regex.is_match(value) {
+        return Err(LuaError::RuntimeError(format!(
+            "value '{}' for key `{}` does not match pattern `{}`",
+            value, key, pattern
+        )));
+    }
+    Ok(())
+}
+
 /// Extract CaseSpec list from an opts table's "cases" field.
 fn extract_cases(opts: &Option<Table>) -> Vec<CaseSpec> {
     let opts = match opts {
@@ -382,8 +452,9 @@ fn extract_cases(opts: &Option<Table>) -> Vec<CaseSpec> {
 fn multiselect_prompt(
     _lua: &mlua::Lua,
     this: &mut Context,
-    (message, key, options, opts): (String, String, Vec<String>, Option<Table>),
+    (message, key, options, opts): (String, String, Table, Option<Table>),
 ) -> LuaResult<Option<Vec<String>>> {
+    let options = parse_prompt_options(&options)?;
     let mut info = MultiSelectPromptInfo::new(&message, Some(&key), options);
 
     if let Some(ref opts) = opts {
@@ -392,6 +463,8 @@ fn multiselect_prompt(
         info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
         info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
         info.defaults = get_opt_string_array(opts, "default")?;
+        info.group = get_opt_string(opts, "group")?;
+        info.ui = get_opt_ui(opts)?;
         if let Some(optional) = get_opt_bool(opts, "optional")? {
             info.optional = optional;
         }
@@ -631,6 +704,9 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
                 info.min = get_opt_i64(opts, "min")?;
                 info.max = get_opt_i64(opts, "max")?;
+                info.pattern = get_opt_string(opts, "pattern")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -638,12 +714,14 @@ impl UserData for Context {
 
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::String(answer)) = this.data.get(&answer_key).cloned() {
+                validate_pattern(info.pattern.as_deref(), &key, &answer)?;
                 this.store_string_with_cases(&key, &answer, &cases);
                 return Ok(Some(answer));
             }
 
             if this.use_default(&key) {
                 if let Some(ref default) = info.default {
+                    validate_pattern(info.pattern.as_deref(), &key, default)?;
                     this.store_string_with_cases(&key, default, &cases);
                     return Ok(Some(default.clone()));
                 }
@@ -656,8 +734,10 @@ impl UserData for Context {
                 )));
             }
 
+            let pattern = info.pattern.clone();
             let response = this.send_prompt(ScriptMessage::PromptForText(info))?;
             if let Some(value) = handle_response_string(response)? {
+                validate_pattern(pattern.as_deref(), &key, &value)?;
                 this.store_string_with_cases(&key, &value, &cases);
                 Ok(Some(value))
             } else {
@@ -675,6 +755,8 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
                 info.min = get_opt_i64(opts, "min")?;
                 info.max = get_opt_i64(opts, "max")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -719,6 +801,8 @@ impl UserData for Context {
                 info.default = get_opt_bool(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -756,7 +840,8 @@ impl UserData for Context {
         });
 
         // ctx:prompt_select(...) — returns the selected string (or nil).
-        methods.add_method_mut("prompt_select", |_, this, (message, key, options, opts): (String, String, Vec<String>, Option<Table>)| -> LuaResult<Option<String>> {
+        methods.add_method_mut("prompt_select", |_, this, (message, key, options, opts): (String, String, Table, Option<Table>)| -> LuaResult<Option<String>> {
+            let options = parse_prompt_options(&options)?;
             let mut info = SelectPromptInfo::new(&message, Some(&key), options);
             let cases = extract_cases(&opts);
 
@@ -764,6 +849,8 @@ impl UserData for Context {
                 info.default = get_opt_string(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -813,7 +900,7 @@ impl UserData for Context {
         //
         // Kept so archetypes written before the rename keep working. Remove
         // in a future version once the ecosystem has had time to migrate.
-        methods.add_method_mut("prompt_multi_select", |lua, this, args: (String, String, Vec<String>, Option<Table>)| {
+        methods.add_method_mut("prompt_multi_select", |lua, this, args: (String, String, Table, Option<Table>)| {
             let _ = this.archetect.request(ScriptMessage::LogWarn(
                 "prompt_multi_select is deprecated; use prompt_multiselect instead.".to_string(),
             ));
@@ -830,6 +917,8 @@ impl UserData for Context {
                 info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
                 info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
                 info.defaults = get_opt_string_array(opts, "default")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
                 }
@@ -900,6 +989,8 @@ impl UserData for Context {
                 info.default = get_opt_string(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
+                info.group = get_opt_string(opts, "group")?;
+                info.ui = get_opt_ui(opts)?;
             }
 
             let answer_key = get_answer_key(&opts, &key);

@@ -15,7 +15,7 @@ fn test_lua_multiselect_prompt() -> Result<(), ArchetectError> {
     let prompt_info = harness.expect_multiselect_prompt();
     assert_eq!(prompt_info.message(), "Languages:");
     assert_eq!(prompt_info.key(), Some("languages"));
-    assert_eq!(prompt_info.options(), &["Rust", "Java", "Go"]);
+    assert_eq!(prompt_info.option_values(), vec!["Rust", "Java", "Go"]);
     assert!(!prompt_info.optional());
 
     harness.respond_array(vec!["Rust", "Go"]);

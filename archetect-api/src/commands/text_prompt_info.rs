@@ -11,6 +11,16 @@ pub struct TextPromptInfo {
     pub help: Option<String>,
     pub placeholder: Option<String>,
     pub optional: bool,
+    /// Regex the value must match — enforced on every input path
+    /// (interactive, answers, defaults), not merely advertised.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// Optional UI section label — metadata carried to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Opaque author-supplied UI metadata, passed through to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<serde_json::Value>,
 }
 
 impl PromptInfo for TextPromptInfo {
@@ -77,6 +87,9 @@ impl TextPromptInfo {
             help: Default::default(),
             placeholder: Default::default(),
             optional: Default::default(),
+            pattern: Default::default(),
+            group: Default::default(),
+            ui: Default::default(),
         }
     }
     pub fn default(&self) -> Option<String> {

@@ -3,9 +3,32 @@ use serde::Serialize;
 use archetect_api::{
     BoolPromptInfo, EditorPromptInfo, IntPromptInfo, ListPromptInfo,
     MultiSelectPromptInfo, PromptInfo, PromptInfoItemsRestrictions,
-    PromptInfoLengthRestrictions, ScriptMessage,
+    PromptInfoLengthRestrictions, PromptOption, ScriptMessage,
     SelectPromptInfo, TextPromptInfo,
 };
+
+/// One selectable choice as the envelope presents it: the VALUE is what
+/// `respond`/answers supply and what gets stored; the label is display.
+#[derive(Clone, Debug, Serialize)]
+pub struct EnvelopeOption {
+    pub value: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+}
+
+impl EnvelopeOption {
+    fn from_options(options: &[PromptOption]) -> Vec<EnvelopeOption> {
+        options
+            .iter()
+            .map(|o| EnvelopeOption {
+                value: o.value.clone(),
+                label: o.label().to_string(),
+                help: o.help.clone(),
+            })
+            .collect()
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -41,7 +64,7 @@ pub struct PromptEnvelope {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<Vec<String>>,
+    pub options: Option<Vec<EnvelopeOption>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub help: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -49,6 +72,16 @@ pub struct PromptEnvelope {
     pub optional: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<PromptConstraints>,
+    /// Regex the value must satisfy (text prompts) — enforced by the
+    /// runtime; carried here so clients can validate before responding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// Author-declared UI section label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Opaque author-supplied UI metadata, passed through untouched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<serde_json::Value>,
 }
 
 impl PromptEnvelope {
@@ -81,6 +114,9 @@ impl PromptEnvelope {
                 min_items: None,
                 max_items: None,
             }),
+            pattern: info.pattern.clone(),
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -100,6 +136,9 @@ impl PromptEnvelope {
                 min_items: None,
                 max_items: None,
             }),
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -114,6 +153,9 @@ impl PromptEnvelope {
             placeholder: info.placeholder().map(String::from),
             optional: info.optional(),
             constraints: None,
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -135,6 +177,9 @@ impl PromptEnvelope {
                 min_items: info.min_items(),
                 max_items: info.max_items(),
             }),
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -144,11 +189,14 @@ impl PromptEnvelope {
             key: info.key().map(String::from),
             message: info.message().to_string(),
             default: info.default().map(serde_json::Value::String),
-            options: Some(info.options().to_vec()),
+            options: Some(EnvelopeOption::from_options(info.options())),
             help: info.help().map(String::from),
             placeholder: info.placeholder().map(String::from),
             optional: info.optional(),
             constraints: None,
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -160,7 +208,7 @@ impl PromptEnvelope {
             default: info.defaults().map(|d| serde_json::Value::Array(
                 d.iter().map(|s| serde_json::Value::String(s.clone())).collect()
             )),
-            options: Some(info.options().to_vec()),
+            options: Some(EnvelopeOption::from_options(info.options())),
             help: info.help().map(String::from),
             placeholder: info.placeholder().map(String::from),
             optional: info.optional(),
@@ -170,6 +218,9 @@ impl PromptEnvelope {
                 min_items: info.min_items(),
                 max_items: info.max_items(),
             }),
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 
@@ -189,6 +240,9 @@ impl PromptEnvelope {
                 min_items: None,
                 max_items: None,
             }),
+            pattern: None,
+            group: info.group.clone(),
+            ui: info.ui.clone(),
         }
     }
 }

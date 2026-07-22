@@ -1,4 +1,5 @@
 use crate::commands::prompt_info::PromptInfo;
+use crate::commands::prompt_option::PromptOption;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use crate::PromptInfoPageable;
@@ -7,7 +8,7 @@ use crate::PromptInfoPageable;
 pub struct SelectPromptInfo {
     pub message: String,
     pub key: Option<String>,
-    pub options: Vec<String>,
+    pub options: Vec<PromptOption>,
     pub default: Option<String>,
     pub help: Option<String>,
     pub placeholder: Option<String>,
@@ -22,6 +23,12 @@ pub struct SelectPromptInfo {
     /// Label for the "other" menu entry. Defaults to "Other..." when None.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub other_label: Option<String>,
+    /// Optional UI section label — metadata carried to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Opaque author-supplied UI metadata, passed through to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<serde_json::Value>,
 }
 
 impl PromptInfo for SelectPromptInfo {
@@ -70,11 +77,15 @@ impl PromptInfoPageable for SelectPromptInfo {
 
 //noinspection DuplicatedCode
 impl SelectPromptInfo {
-    pub fn new<M: Into<String>, K: AsRef<str>>(message: M, key: Option<K>, options: Vec<String>) -> Self {
+    pub fn new<M: Into<String>, K: AsRef<str>, O: Into<PromptOption>>(
+        message: M,
+        key: Option<K>,
+        options: Vec<O>,
+    ) -> Self {
         SelectPromptInfo {
             message: message.into(),
             key: key.map(|v|v.as_ref().to_string()),
-            options,
+            options: options.into_iter().map(Into::into).collect(),
             default: Default::default(),
             help: Default::default(),
             placeholder: Default::default(),
@@ -82,6 +93,8 @@ impl SelectPromptInfo {
             page_size: Some(10),
             allow_other: false,
             other_label: None,
+            group: None,
+            ui: None,
         }
     }
 
@@ -103,8 +116,13 @@ impl SelectPromptInfo {
         self
     }
 
-    pub fn options(&self) -> &[String] {
+    pub fn options(&self) -> &[PromptOption] {
         self.options.deref()
+    }
+
+    /// The answer domain: each option's stored value.
+    pub fn option_values(&self) -> Vec<String> {
+        self.options.iter().map(|o| o.value.clone()).collect()
     }
 
     pub fn default(&self) -> Option<String> {

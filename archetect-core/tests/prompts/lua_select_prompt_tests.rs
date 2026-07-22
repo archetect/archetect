@@ -15,7 +15,7 @@ fn test_lua_select_prompt() -> Result<(), ArchetectError> {
     let prompt_info = harness.expect_select_prompt();
     assert_eq!(prompt_info.message(), "Language:");
     assert_eq!(prompt_info.key(), Some("language"));
-    assert_eq!(prompt_info.options(), &["Rust", "Java", "Go"]);
+    assert_eq!(prompt_info.option_values(), vec!["Rust", "Java", "Go"]);
     assert_eq!(prompt_info.default(), None);
     assert!(!prompt_info.optional());
 
@@ -91,7 +91,7 @@ fn test_lua_select_prompt_allow_other() -> Result<(), ArchetectError> {
         .build()?;
 
     let prompt_info = harness.expect_select_prompt();
-    assert_eq!(prompt_info.options(), &["Rust", "Java", "Go"]);
+    assert_eq!(prompt_info.option_values(), vec!["Rust", "Java", "Go"]);
     assert!(prompt_info.allow_other());
     assert_eq!(prompt_info.other_label(), "Custom...");
 

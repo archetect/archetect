@@ -9,14 +9,22 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
     let is_optional = prompt_info.optional();
     let page_size = prompt_info.page_size();
 
-    // Precompute default indices once.
+    // The menu shows LABELS; the answer stores VALUES. Selection maps
+    // back through the option index.
+    let display_options: Vec<String> = prompt_info
+        .options()
+        .iter()
+        .map(|option| option.label().to_string())
+        .collect();
+
+    // Precompute default indices once — defaults name option VALUES.
     let mut indices = vec![];
     if let Some(defaults) = prompt_info.defaults() {
         for default in defaults.iter() {
             if let Some(position) = prompt_info
                 .options()
                 .iter()
-                .position(|option| option.as_str() == default.as_str())
+                .position(|option| option.value.as_str() == default.as_str())
             {
                 indices.push(position);
             }
@@ -25,7 +33,7 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
 
     // Required: Esc reprompts, Ctrl+C aborts. Optional: Esc skips, Ctrl+C aborts.
     loop {
-        let mut prompt = MultiSelect::new(prompt_info.message(), prompt_info.options().to_vec())
+        let mut prompt = MultiSelect::new(prompt_info.message(), display_options.clone())
             .with_render_config(get_render_config());
         prompt.help_message = help_str.as_deref();
         if let Some(p) = page_size {
@@ -43,7 +51,17 @@ pub fn handle_multiselect_prompt(prompt_info: MultiSelectPromptInfo, responses: 
 
         match result {
             Ok(Some(answer)) => {
-                responses.respond(ClientMessage::Array(answer));
+                let values: Vec<String> = answer
+                    .iter()
+                    .map(|label| {
+                        display_options
+                            .iter()
+                            .position(|item| item == label)
+                            .map(|idx| prompt_info.options()[idx].value.clone())
+                            .unwrap_or_else(|| label.clone())
+                    })
+                    .collect();
+                responses.respond(ClientMessage::Array(values));
                 return;
             }
             Ok(None) => {

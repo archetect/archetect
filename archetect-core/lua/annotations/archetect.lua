@@ -85,7 +85,7 @@ function Context:prompt_confirm(message, key, opts) end
 ---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
----@param options string[] Available options
+---@param options (string|SelectOption)[] Available options — bare strings, or rich `{ value, label?, help? }` tables; the VALUE is what answers supply and what is stored
 ---@param opts? SelectPromptOpts
 ---@return string? value
 function Context:prompt_select(message, key, options, opts) end
@@ -94,7 +94,7 @@ function Context:prompt_select(message, key, options, opts) end
 ---Returns `nil` when an optional prompt is skipped.
 ---@param message string Prompt message
 ---@param key string Key to store the result under
----@param options string[] Available options
+---@param options (string|SelectOption)[] Available options — bare strings, or rich `{ value, label?, help? }` tables; the VALUE is what answers supply and what is stored
 ---@param opts? MultiSelectPromptOpts
 ---@return string[]? value
 function Context:prompt_multiselect(message, key, options, opts) end
@@ -115,14 +115,25 @@ function Context:prompt_list(message, key, opts) end
 ---@return string? value
 function Context:prompt_editor(message, key, opts) end
 
+---@class SelectOption
+---One choice in a select/multiselect prompt. Bare strings are shorthand
+---for `{ value = s }`; labels are display-only — answers, defaults, and
+---stored context always use `value`.
+---@field value string The stored/answered value
+---@field label? string Display label (defaults to the value)
+---@field help? string Per-option help text
+
 ---@class TextPromptOpts
 ---@field default? string Default value
 ---@field help? string Help text shown to the user
 ---@field placeholder? string Placeholder text
 ---@field min? integer Minimum length
 ---@field max? integer Maximum length
+---@field pattern? string Regex the value must match — enforced on every input path (answers, defaults, interactive), and carried to clients
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class IntPromptOpts
@@ -132,6 +143,8 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum value
 ---@field max? integer Maximum value
 ---@field optional? boolean Whether the prompt can be skipped
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class ConfirmPromptOpts
@@ -139,6 +152,8 @@ function Context:prompt_editor(message, key, opts) end
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class SelectPromptOpts
@@ -149,6 +164,8 @@ function Context:prompt_editor(message, key, opts) end
 ---@field allow_other? boolean Append an "Other..." entry that opens a free-text prompt
 ---@field other_label? string Label for the "other" entry (default: "Other...")
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class MultiSelectPromptOpts
@@ -158,6 +175,8 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum selections
 ---@field max? integer Maximum selections
 ---@field optional? boolean Whether the prompt can be skipped
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class ListPromptOpts
@@ -166,12 +185,16 @@ function Context:prompt_editor(message, key, opts) end
 ---@field min? integer Minimum items
 ---@field max? integer Maximum items
 ---@field optional? boolean Whether the prompt can be skipped
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 ---@class EditorPromptOpts
 ---@field default? string Default text in editor
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
+---@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
 --

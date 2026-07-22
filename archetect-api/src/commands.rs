@@ -10,6 +10,7 @@ pub use crate::commands::multiselect_prompt_info::MultiSelectPromptInfo;
 pub use crate::commands::prompt_info::{
     PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRestrictions, PromptInfoPageable,
 };
+pub use crate::commands::prompt_option::PromptOption;
 pub use crate::commands::select_prompt_info::SelectPromptInfo;
 pub use crate::commands::text_prompt_info::TextPromptInfo;
 pub use crate::commands::write_directory_info::WriteDirectoryInfo;
@@ -21,6 +22,7 @@ mod int_prompt_info;
 mod list_prompt_info;
 mod multiselect_prompt_info;
 mod prompt_info;
+mod prompt_option;
 mod select_prompt_info;
 mod text_prompt_info;
 mod write_directory_info;

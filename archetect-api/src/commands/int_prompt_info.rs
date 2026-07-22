@@ -12,6 +12,12 @@ pub struct IntPromptInfo {
     pub help: Option<String>,
     pub placeholder: Option<String>,
     pub optional: bool,
+    /// Optional UI section label — metadata carried to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Opaque author-supplied UI metadata, passed through to clients untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<serde_json::Value>,
 }
 
 impl PromptInfo for IntPromptInfo {
@@ -78,6 +84,8 @@ impl IntPromptInfo {
             help: Default::default(),
             placeholder: Default::default(),
             optional: Default::default(),
+            group: None,
+            ui: None,
         }
     }
 
