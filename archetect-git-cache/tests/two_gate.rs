@@ -221,3 +221,63 @@ fn missing_requested_ref_forces_fetch_within_ttl() {
     assert_eq!(r.oid, tag_oid);
     std::fs::remove_dir_all(&root).ok();
 }
+
+/// Re-point tag `name` at a NEW commit — the floating-major move (`v1` tracking v1.x.y).
+fn retag(remote: &Utf8PathBuf, name: &str, content: &str) -> String {
+    let oid = move_remote(remote, content);
+    git(&["tag", "-f", name], remote.as_std_path());
+    oid
+}
+
+#[test]
+fn inferred_tag_follows_a_move_past_ttl() {
+    let root = scratch("tag-moves");
+    let (remote, first) = init_remote(&root, "one");
+    git(&["tag", "v1"], remote.as_std_path());
+
+    let r1 = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    assert_eq!(r1.oid, first);
+
+    let second = retag(&remote, "v1", "two");
+    assert_ne!(first, second);
+    let_ttl_expire();
+
+    // A tag is a symbolic ref: past the TTL it takes the hash gate and follows the move.
+    let r2 = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    assert_eq!(r2.freshness, Freshness::Updated);
+    assert_eq!(r2.oid, second);
+    assert_eq!(std::fs::read_to_string(r2.tree_dir.join("file.txt")).unwrap(), "two");
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn inferred_tag_unchanged_probes_silently() {
+    let root = scratch("tag-still");
+    let (remote, head) = init_remote(&root, "one");
+    git(&["tag", "v1"], remote.as_std_path());
+
+    resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let_ttl_expire();
+
+    // Unmoved tag past the TTL: one probe, hash matches, no fetch — silent.
+    let r = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    assert_eq!(r.freshness, Freshness::UpToDate { probed: true });
+    assert_eq!(r.oid, head);
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn inferred_bare_rev_never_probes() {
+    let root = scratch("rev-pin");
+    let (remote, first) = init_remote(&root, "one");
+
+    resolve(remote.as_str(), Some(&first), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    move_remote(&remote, "two");
+    let_ttl_expire();
+
+    // A bare commit id is content-addressed: past the TTL it is not even probed.
+    let r = resolve(remote.as_str(), Some(&first), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    assert_eq!(r.freshness, Freshness::UpToDate { probed: false });
+    assert_eq!(r.oid, first);
+    std::fs::remove_dir_all(&root).ok();
+}

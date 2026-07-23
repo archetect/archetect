@@ -57,16 +57,20 @@ pub struct FetchOptions {
     pub pin: RefPin,
 }
 
-/// Whether a ref is expected to move upstream. An immutable ref (a tag or a commit) is never probed
-/// or re-fetched once cached; a mutable ref (a branch, or the default branch) gets the hash gate.
+/// Whether a ref is expected to move upstream. Only a bare commit id is content-addressed and
+/// truly immutable — it is never probed or re-fetched once cached. Everything symbolic (branches
+/// AND tags) gets the hash gate: git allows any ref to move, and the ecosystem's floating-major
+/// convention (`v1` tracking the latest v1.x.y) depends on tags moving. The gate keeps that cheap:
+/// within the TTL, zero network; past it, one ls-remote, pulling only when the oid differs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefPin {
-    /// A branch or the default branch: gets the ls-remote hash gate.
+    /// A symbolic ref — branch, tag, or the default branch: gets the ls-remote hash gate.
     Mutable,
-    /// A tag or commit rev: never probed, never re-fetched once cached.
+    /// A bare commit rev: content-addressed, never probed, never re-fetched once cached. Callers
+    /// should assert this only for refs that cannot move (a rev), not for tags.
     Immutable,
-    /// The caller can't tell (e.g. archetect's `url#ref`): infer from local resolution — a tag or a
-    /// bare commit ⇒ immutable, a branch ⇒ mutable, the default branch ⇒ mutable.
+    /// The caller can't tell (e.g. archetect's `url#ref`): infer from local resolution — a bare
+    /// commit ⇒ immutable; a tag, a branch, or the default branch ⇒ mutable.
     Infer,
 }
 
@@ -210,7 +214,7 @@ fn resolve_locked(
                 Some(ts) if now.saturating_sub(ts) <= interval_ms(opts) => false, // TTL fresh: no network
                 Some(_) => {
                     if is_immutable(opts.pin, &repo, gitref) {
-                        // A tag/rev never moves — don't probe; just reset the TTL and stay silent.
+                        // A bare rev cannot move — don't probe; just reset the TTL and stay silent.
                         let mut cfg = meta_config(sources_dir)?;
                         refresh_checked_at(&mut cfg, &slug, now)?;
                         false
@@ -556,8 +560,10 @@ fn default_branch(repo: &Repository) -> Result<String, GitCacheError> {
     Err(GitCacheError::NoDefaultBranch)
 }
 
-/// Under `RefPin::Infer`, decide immutability from local resolution: a tag or a bare commit never
-/// moves; a branch (or the default branch) does.
+/// Under `RefPin::Infer`, decide immutability from local resolution. Only a bare commit rev is
+/// content-addressed and cannot move; a tag is a symbolic ref exactly like a branch — git allows
+/// it to move, and floating majors (`v1` tracking v1.x.y) rely on that — so every symbolic ref
+/// takes the hash gate.
 fn is_immutable(pin: RefPin, repo: &Repository, gitref: Option<&str>) -> bool {
     match pin {
         RefPin::Immutable => true,
@@ -565,13 +571,9 @@ fn is_immutable(pin: RefPin, repo: &Repository, gitref: Option<&str>) -> bool {
         RefPin::Infer => match gitref {
             None => false,
             Some(g) => {
-                if is_tag(repo, g) {
-                    true
-                } else if is_branch(repo, g) {
-                    false
-                } else {
-                    repo.revparse_single(&format!("{g}^{{commit}}")).is_ok()
-                }
+                !is_tag(repo, g)
+                    && !is_branch(repo, g)
+                    && repo.revparse_single(&format!("{g}^{{commit}}")).is_ok()
             }
         },
     }
