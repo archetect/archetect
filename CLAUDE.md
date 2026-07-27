@@ -10,39 +10,44 @@
 - **GitHub Org**: https://github.com/archetect
 - **License**: MIT
 
-The codebase currently reflects v2.1.0. v3 work builds on top of it.
+The workspace is at **3.4.0**. v3 is its own codebase now, not a layer on top of v2.
 
 ## v3 Initiatives
 
-Three planned initiatives, documented in `docs/plans/`:
+Plans live in `docs/plans/`; specs in `docs/specs/`. The major arcs:
 
-1. **[IO Protocol Overhaul](docs/plans/archetect-3-io-overhaul.md)** — Route file writes through the IO channel (not direct `std::fs`). Introduce `ScriptIoHandle`/`ClientIoHandle` traits, fallible error handling, WriteFile/WriteDirectory/Complete/Ack/Initialize messages. Enables the closed-source CodegenExtension for COS.
+1. **[IO Protocol Overhaul](docs/plans/archetect-3-io-overhaul.md)** — Route file writes through the IO channel rather than direct `std::fs`. `ScriptIoHandle`/`ClientIoHandle` traits, fallible error handling, WriteFile/WriteDirectory/Complete/Ack/Initialize messages.
 
-2. **[Lua Scripting Engine](docs/plans/archetect-3-lua-scripting-engine.md)** — Add Lua (via mlua) as the primary scripting engine with a redesigned v3 API. Rhai retained as a frozen compatibility layer for v2 archetypes. The Lua API is not a port of Rhai — it's a clean-slate redesign: `Context` object, dedicated prompt methods (`ctx:text()`, `ctx:select()`), simplified case system (`Cases.programming()`), namespaced modules (`git.init()`, `shell.run()`), LuaLS annotations for full IDE support.
+2. **[Lua Scripting Engine](docs/plans/archetect-3-lua-scripting-engine.md)** — Lua (via mlua) as **the** scripting engine, a clean-slate redesign: `Context` object, dedicated prompt methods, simplified case system, namespaced modules, LuaLS annotations for IDE support. **Rhai has been removed entirely** — there is no `script/rhai/` and no rhai dependency.
 
-3. **[Warts and Improvements](docs/plans/archetect-3-warts-and-improvements.md)** — Comprehensive catalog of v2 issues: 25+ panic paths via `.unwrap()`, lost script error context, missing manifest validation, no dry-run, no test framework, no component versioning, documentation gaps. Prioritized fix list for v3.
+3. **[Dynamic Interface](docs/plans/dynamic-interface.md)** — Derive an archetype's interface by probing its script, so a UI can render a form without hand-maintaining one. Backs `archetect interface`, the MCP `describe` tool, and the gRPC `DescribeArchetype` RPC.
+
+4. **[Federated Catalog](docs/plans/federated-catalog.md)** — Catalog browse/search over the wire, so a client can navigate a server's catalog.
+
+5. **[Model-Driven Generation](docs/plans/archetect-3-model-driven-generation.md)** — AML: generate whole architectures from a domain model (`archetect-aml`).
 
 ## Related Projects
 
-- **v2 codebase**: `/Users/jimmie/personal/archetect/archetect` — stable production CLI, do not mix with v3 work
-- **Production archetypes**: `/Users/jimmie/work/p6m-archetypes` — ~80 Rhai archetypes, the backwards-compat benchmark
+- **v2 codebase**: the `2.x` bookmark — stable production CLI, do not mix with v3 work
+- **Production archetypes**: `/Users/jimmie/work/p6m-archetypes` — the real-world catalog v3 must serve
 - **COS / Onyx**: `/Users/jimmie/personal/jimmiebfulton/onyx` — the CodegenExtension target platform
-- **feature/client-server** (v2 branch): Has working gRPC proof-of-concept with the richer IO protocol. Reference implementation for the IO overhaul — don't port verbatim, but use as a guide
+- **Archetect Studio**: `/Users/jimmie/personal/archetect-swift` — SwiftUI client, first consumer of the client/server surface
 
 ## Workspace Structure
 
-Cargo workspace with 9 crates. Dependency graph:
+Cargo workspace with 10 members:
 
 ```
 archetect-bin (CLI entry point)
-├── archetect-core (business logic, scripting, rendering)
-│   ├── archetect-api (IoDriver trait, command types)
-│   ├── archetect-templating (vendored MiniJinja 0.30.6)
-│   ├── archetect-terminal-io (terminal IoDriver impl)
-│   │   └── archetect-terminal-prompts (vendored inquire fork)
+├── archetect-core (business logic, Lua scripting, ATL rendering, gRPC client + server)
+│   ├── archetect-api (ScriptIoHandle/ClientIoHandle traits, command + envelope types)
+│   ├── archetect-git-cache (git source caching)
 │   ├── archetect-inflections (case conversions, pluralization)
+│   ├── archetect-terminal-io (terminal IoDriver impl + terminal client)
 │   └── archetect-validations (validation error types)
-└── xtask (build/install automation)
+├── archetect-aml (AML: model-driven architecture generation)
+└── archetect-mcp (MCP server: learn/introspect/describe/render over stdio)
+xtask (build/install automation)
 ```
 
 ### Crate Purposes
@@ -50,11 +55,12 @@ archetect-bin (CLI entry point)
 | Crate | Purpose |
 |-------|---------|
 | `archetect-bin` | CLI (clap), configuration loading (figment), subcommand dispatch |
-| `archetect-core` | Archetype/catalog loading, Rhai engine, template rendering, source/cache management |
-| `archetect-api` | `ScriptIoHandle`/`ClientIoHandle` traits, prompt/write command structs |
-| `archetect-templating` | Vendored MiniJinja — do not update from upstream without care |
-| `archetect-terminal-io` | `TerminalIoDriver` bridging prompts to `ScriptIoHandle` |
-| `archetect-terminal-prompts` | Vendored inquire fork — interactive terminal prompts |
+| `archetect-core` | Archetype/catalog loading, Lua engine, ATL templating, source/cache, gRPC client + server |
+| `archetect-api` | `ScriptIoHandle`/`ClientIoHandle` traits, prompt/write commands, `PromptEnvelope` |
+| `archetect-aml` | Domain-model expansion for architecture generation |
+| `archetect-mcp` | MCP server surface — session, prompt envelopes, tool dispatch |
+| `archetect-git-cache` | Git source fetching, caching, locking |
+| `archetect-terminal-io` | `TerminalIoDriver` + `TerminalClient` — the reference IO client |
 | `archetect-inflections` | String transforms: camelCase, snake_case, plural/singular, etc. |
 | `archetect-validations` | Validation rules and error types |
 | `xtask` | `cargo xtask install` with optional `--static-openssl` |
@@ -62,214 +68,197 @@ archetect-bin (CLI entry point)
 ## Build & Development Commands
 
 ```bash
-# Build
 cargo build
-
-# Run tests (entire workspace)
-cargo test
-
-# Test specific crate
-cargo test -p archetect-core
-cargo test -p archetect-templating
-
-# Install CLI locally for manual testing
-cargo xtask install
-
-# Run CLI without installing
+cargo test                          # entire workspace
+cargo test -p archetect-core        # one crate
+cargo xtask install                 # install CLI locally
 cargo run -p archetect-bin -- <args>
-
-# Lint and format
 cargo clippy --all-targets --all-features
 cargo fmt
-
-# Build requires protoc (for gRPC proto compilation in archetect-core/build.rs)
-# macOS: brew install protobuf
-# Ubuntu: sudo apt install protobuf-compiler
 ```
+
+`build.rs` in `archetect-core` compiles `specs/archetect.proto`. A vendored `protoc` is used
+automatically, so no system install is required (an explicit `PROTOC` env var still wins).
 
 ## Architecture Deep Dive
 
 ### Core Flow: Rendering an Archetype
 
-1. CLI parses args → loads Configuration (merging YAML config + CLI overrides via figment)
+1. CLI parses args → loads Configuration (YAML + CLI overrides via figment)
 2. `Source` resolves the archetype origin (local path or Git URL with caching)
-3. `Archetype` loads `archetype.yaml` manifest and validates requirements
-4. Rhai engine executes `main.rhai` (or manifest-specified script)
-5. Script calls `prompt()` → messages sent via `ScriptIoHandle` → terminal responds
-6. Script calls `render_directory()` or `render()` → MiniJinja processes templates
-7. Output files written to destination directory
+3. `Archetype` loads `archetype.yaml` and validates requirements
+4. The Lua engine executes `archetype.lua` (or the manifest-specified script)
+5. Script prompts via `Context` methods → `ScriptMessage` over `ScriptIoHandle` → client responds
+6. Script calls `directory.render()` / `file.render()` / `template.render()` → ATL processes templates
+7. Rendered files go out as `WriteFile`/`WriteDirectory` messages — **the client writes them**
 
 ### Key Source Files
 
 | File | What it does |
 |------|-------------|
-| `archetect-bin/src/main.rs` | CLI entry point, arg parsing, subcommand dispatch |
-| `archetect-core/src/archetect/archetect.rs` | `Archetect` struct — main orchestrator, builder pattern |
+| `archetect-bin/src/main.rs` | CLI entry, arg parsing, subcommand dispatch |
+| `archetect-core/src/archetect/archetect.rs` | `Archetect` — main orchestrator, builder pattern |
 | `archetect-core/src/archetype/archetype.rs` | `Archetype` — loading, rendering, script execution |
-| `archetect-core/src/source.rs` | `Source` — Git/local resolution, caching |
-| `archetect-core/src/script/rhai/` | Rhai engine setup and all custom modules |
-| `archetect-core/src/catalog/` | Catalog loading and action dispatching |
-| `archetect-core/src/configuration/` | Configuration struct, YAML loading, merging |
-| `archetect-core/src/system.rs` | `SystemLayout` trait — filesystem layout abstraction |
-| `archetect-api/src/io_driver.rs` | `ScriptIoHandle` / `ClientIoHandle` traits |
+| `archetect-core/src/script/lua/` | Lua engine setup, `Context`, cases, module registration |
+| `archetect-core/src/templating/atl/` | ATL — the Jinja-shaped template engine |
+| `archetect-core/src/interface/` | Interface probing (`DerivedInterface`, `ProbeOptions`) |
+| `archetect-core/src/server/` | gRPC service (`ArchetectServiceCore`) and server lifecycle |
+| `archetect-core/src/client/` | gRPC client — drives `StreamingApi`, materializes writes |
+| `archetect-core/src/catalog/` | Catalog loading, indexing, dispatch |
+| `archetect-core/src/system.rs` | `SystemLayout` — filesystem layout abstraction |
+| `archetect-api/src/prompt_envelope.rs` | `PromptEnvelope` — one prompt as every client sees it |
+| `archetect-core/specs/archetect.proto` | The wire contract for client/server |
 
-### Rhai Scripting Modules
+### Scripting API — ask the binary, don't grep
 
-All in `archetect-core/src/script/rhai/modules/`:
+The Lua surface changes faster than any table in this file. **Never guess an API shape:**
 
-| Module | Functions |
-|--------|-----------|
-| `prompt_module` | `prompt()` — text, int, bool, list, select, multiselect, editor |
-| `render_module` | `render()` — render single template string |
-| `directory_module` | `render_directory()` — render template directory to destination |
-| `cases_module` | Case conversions: `CamelCase()`, `snake_case()`, `kebab-case()`, etc. |
-| `exec_module` | `exec()` — run shell commands |
-| `log_module` | `trace()`, `debug()`, `info()`, `warn()`, `error()`, `display()`, `print()` |
-| `path_module` | Path manipulation utilities |
-| `git_module` | `git_init()`, `git_add()`, `git_commit()`, `git_branch()`, `git_push()`, etc. |
-| `github_module` | `gh_repo_exists()`, `gh_repo_create()` (requires `GITHUB_TOKEN`) |
-| `archive_module` | `zip()`, `tar()`, `tar_gz()` — create archives |
-| `archetect_module` | `archetect::version()`, `archetect::env::*`, runtime info |
-| `archetype_module` | `archetect::archetype::description()`, `::directory()`, etc. |
-| `set_module` | Set data structure operations |
-| `pair_module` | Pair operations |
-| `utils_module` | Miscellaneous utilities |
-| `rand` | Random number generation |
-| `formats_module` | Format transformations |
+```bash
+archetect learn                 # topic catalog (authoring, templates, catalogs, mcp, model…)
+archetect learn <topic>         # one screen, computed for THIS environment
+archetect introspect <filter>   # every Context method, module function, prompt option
+archetect eval '<lua>'          # probe live behavior, headless
+```
 
-### Template System
+Modules are `require`d under `archetect.*` (`archetect.shell`, `archetect.git`,
+`archetect.github`, `archetect.archive`, `archetect.model`). Rendering verbs
+(`directory`, `file`, `template`, `catalog`) and `Context` are available directly.
 
-- Jinja2-compatible syntax: `{{ variable }}`, `{% if %}`, `{% for %}`
-- Custom filters from inflections: `{{ name | snake_case }}`, `{{ name | pluralize }}`
-- Template files live in archetype's `contents/` or `templates/` directory
-- Directory and file names can be parameterized: `{{ artifact_id }}/src/main.rs`
+### Template System (ATL)
+
+- Jinja-shaped syntax: `{{ variable }}`, `{% if %}`, `{% for %}` — Lua underneath
+- Inflection filters: `{{ name | snake_case }}`, `{{ name | pluralize }}`
+- Templates live in the archetype's `contents/` (directory render) or `templates/` (single-file)
+- Directory and file names are parameterized: `{{ artifact_id }}/src/main.rs`
 
 ### Configuration
 
-Loaded from (in merge order):
-1. Defaults (built-in)
-2. `~/.archetect/archetect.yaml` (user config)
-3. `~/.archetect/etc.d/*.yaml` (drop-in configs)
-4. `.archetect.yaml` (project-local)
-5. `--config-file` CLI option
-6. CLI flags (`--offline`, `--headless`, answers, switches, defaults)
+XDG paths on Unix-likes (including macOS), native on Windows:
 
-Key config sections: `actions`, `offline`, `headless`, `answers`, `switches`, `security`, `locals`, `updates`.
+- config `~/.config/archetect/`, cache `~/.cache/archetect/`, data `~/.local/share/archetect/`
+- Lua IDE annotations live in `data_dir/lua/annotations`
+- v2 still uses `~/.archetect/` and is unaffected — both coexist
+
+Merge order: built-in defaults → user config → `etc.d/*.yaml` drop-ins → project-local →
+`--config-file` → CLI flags. Key sections: `actions`, `catalog`, `server`, `client`, `offline`,
+`headless`, `answers`, `switches`, `security`, `locals`, `updates`.
 
 ### IO Driver Architecture
 
 All script↔user communication flows through `ScriptIoHandle` (trait in `archetect-api`):
+
 - Script sends `ScriptMessage` (prompts, file writes, logs)
 - Client responds with `ClientMessage` (string, int, bool, array, ack, abort)
-- `TerminalIoDriver` implements this for CLI interaction
-- This abstraction allows alternative frontends (tests use `SyncIoDriver`)
+- `TerminalIoDriver` implements this for CLI interaction; the MCP session and the gRPC
+  server are alternative drivers over the same protocol
+
+**`WriteFile`/`WriteDirectory` are script→client messages: the CLIENT owns the filesystem.**
+In server mode the server streams bytes and never writes the tree itself — which is why a
+relative `--destination` resolves against the *client's* cwd.
+
+Note the asymmetry: `archetect.archive`, `archetect.git`, `archetect.github`, and
+`archetect.shell` still call `std::fs`/git2/HTTP directly against
+`render_context.destination()`, bypassing the channel. In server mode that directory is
+never populated. See the open specs in `proofs/server/materialization_test.lua`.
+
+### Client / Server
+
+`archetect server` serves gRPC (tonic, with reflection + health); `archetect connect
+<endpoint>` is the reference client. The contract is `archetect-core/specs/archetect.proto`:
+
+| RPC | Purpose |
+|---|---|
+| `StreamingApi` (bidi) | the interactive render session — prompts and writes both cross here |
+| `BrowseCatalog` / `SearchCatalog` | catalog navigation from the server's startup index |
+| `DescribeArchetype` | derived interface as JSON — lets a UI render a form up front |
+
+TLS is configurable on both ends (`--tls-cert`/`--tls-key`, `--tls-ca`, mutual TLS).
+`Initialize` selects a `catalog_path`; there is no free-form source over the wire.
 
 ### Source & Caching
 
-- Git sources cached in `~/.archetect/cache/`
-- Pull timestamps tracked via git notes (`archetect.pulled`)
-- Supports branch/tag refs
-- Local overrides via `locals` config section
-- Cache commands: `archetect cache clear|pull|manage`
+- Git sources cached under the XDG cache dir; pull timestamps tracked via git notes
+- Supports branch/tag refs; local overrides via the `locals` config section
+- `archetect cache clear|pull|manage`
 
 ## Testing
 
-### Running Tests
+Two layers, and they answer different questions.
+
+### prova — black-box acceptance proofs
+
+**Prova proves what archetect ships.** `.prova.toml` sets `proofs = ["proofs"]`.
 
 ```bash
-cargo test                          # All workspace tests
-cargo test -p archetect-core        # Core crate only
-cargo test -p archetect-templating  # Template engine only
-cargo test -p archetect-inflections # String inflection tests
+prova                                   # everything
+prova proofs/server/materialization_test.lua
+prova --node "a relative destination resolves on the CLIENT, not the server"
+prova --last-failed                     # re-run only what's red
+prova specs                             # the open executable backlog
+prova learn <topic>                     # authoring, fixtures, drivers, running…
 ```
 
-### Test Structure
+Working practice (PDD):
 
-- **`archetect-core/tests/`** — Integration tests using `TestHarness` (in `test_utils.rs`)
-  - `prompts/` — Test archetypes for each prompt type (text, int, bool, list, multiselect)
-  - `utils/` — Utility and switch tests
-  - `git/` — Git module integration tests
-  - `github/` — GitHub module tests
-- **`archetect-templating/tests/`** — 11 test files with `insta` snapshot testing (114+ template inputs)
-- **`archetect-inflections/tests/`** — 60+ case conversion test cases
+1. Write the proof first. Red is correct at that stage.
+2. Implement until green. **Never weaken a proof to pass it** — fix the system, or
+   renegotiate the bar.
+3. Commit suite + implementation together as a proof-carrying change.
+
+**Specs are the executable backlog.** A contract you can state but are not implementing now
+gets authored flagged `{ spec = "reason" }` — the reason is mandatory and carries the *why*
+while the proof is red. Open specs keep CI green and are listed by `prova specs`. When a
+spec's body starts passing it **fails**, demanding graduation: convert `spec = "..."` to
+`proves = "..."` (preferred — the design story stays next to the assertions) in the same
+commit as the implementation.
+
+Conventions in this repo:
+
+- A `Scope.File` fixture runs `cargo build -p archetect` and returns `target/debug/archetect`;
+  proofs drive that binary, not library internals.
+- Servers are spawned with `shell.spawn` on a `net.free_port()`, then `grpc.wait_for`.
+- **prova's gRPC driver is unary-only** — it cannot drive the bidi `StreamingApi`. Prove
+  streaming behavior through `archetect connect` via `shell.run` argv instead. That is the
+  real client, so it stays genuinely black-box.
+- Give the server its own cwd when the proof needs to distinguish which side wrote a file.
+
+### cargo test — unit and integration
+
+```bash
+cargo test                          # all workspace tests
+cargo test -p archetect-core        # core only
+cargo test -p archetect-inflections # case conversions
+```
+
+- **`archetect-core/tests/`** — integration tests via `TestHarness` (`test_utils.rs`), covering
+  `prompts/`, `cases/`, `catalog/`, `context/`, `errors/`, `git/`, `github/`, `grpc/`, `headless/`
 - **Inline `#[cfg(test)]`** modules throughout source files
 
-### TestHarness Pattern
+`TestHarness` spawns a render on a separate thread, uses `SyncIoDriver` for programmatic
+prompt/response, and checks `render_succeeded()`.
 
-Integration tests use `TestHarness` which:
-1. Spawns archetype rendering in a separate thread
-2. Uses `SyncIoDriver` for programmatic prompt/response
-3. Sends `ClientMessage` responses to prompts
-4. Validates `ScriptMessage` outputs
-5. Checks `render_succeeded()` status
-
-### Testing with Real Archetypes
-
-Generate projects from published archetypes to verify end-to-end behavior:
+### Testing with real archetypes
 
 ```bash
-# Simple archetype render (interactive prompts)
-cargo run -p archetect-bin -- render https://github.com/archetect/archetype-rust-cli.git /tmp/test-output
-
-# Non-interactive with answers
-cargo run -p archetect-bin -- render https://github.com/archetect/archetype-rust-cli.git /tmp/test-output \
-  -a project-name=my-project -a description="Test project" -D
-
-# Browse a catalog interactively
-cargo run -p archetect-bin -- render https://github.com/archetect/catalog-rust.git /tmp/test-output
-
-# Render from local archetype (e.g., test fixtures)
-cargo run -p archetect-bin -- render archetect-core/tests/prompts/text_prompt_scalar_tests /tmp/test-output
-
-# Use --use-defaults-all (-D) for non-interactive CI testing
-cargo run -p archetect-bin -- render <source> /tmp/test-output -D
+cargo run -p archetect-bin -- render <source> /tmp/test-output -D    # -D = use all defaults
+archetect interface <source>                                          # derive the prompt contract
+archetect interface <source> --answers-template                       # emit a fill-in answers file
 ```
 
-**Available test archetypes from GitHub org:**
+## Archetype Anatomy
 
-| Archetype | Description |
-|-----------|-------------|
-| `archetype-rust-cli` | Basic Rust CLI with clap |
-| `archetype-rust-service-tonic-workspace` | gRPC microservice |
-| `archetype-rust-service-actix-diesel-workspace` | Actix + Diesel web service |
-| `archetect-initializer` | Archetect config initializer |
-| `dot-gitignore.archetype` | .gitignore generator |
-
-**Available catalogs:**
-
-| Catalog | Description |
-|---------|-------------|
-| `catalog-rust` | Rust archetype catalog |
-| `catalog-java` | Java archetype catalog |
-| `catalog-go` | Go archetype catalog |
-| `archetect.catalog` | Master catalog aggregating all |
-
-### Local Test Archetype Structure
-
-Each test archetype in `archetect-core/tests/` follows:
-```
-test_name/
-├── archetype.yaml    # Manifest (description, requires)
-├── archetype.rhai    # Script exercising features
-└── contents/         # Template files (if any)
-```
-
-## Archetype Anatomy (for reference when modifying rendering)
-
-A typical archetype:
 ```
 my-archetype/
-├── archetype.yaml          # Manifest: description, authors, requires, scripting, templating config
-├── archetype.rhai          # Main Rhai script (or path specified in manifest)
-├── rhai/                   # Additional Rhai modules
-├── contents/               # Template directory (rendered via render_directory())
+├── archetype.yaml          # Manifest: description, authors, requires, scripting, templating
+├── archetype.lua           # Main Lua script (or path specified in manifest)
+├── lua/                    # Additional Lua modules
+├── contents/               # Template directory (rendered via directory.render())
 │   └── {{ project_name }}/
 │       └── src/
 │           └── main.rs
-└── templates/              # Individual templates (rendered via render())
+└── templates/              # Individual templates (rendered via file.render())
 ```
 
-`archetype.yaml` manifest fields:
 ```yaml
 description: "My Archetype"
 authors: ["Author"]
@@ -277,37 +266,42 @@ languages: ["Rust"]
 frameworks: ["Actix"]
 tags: ["web", "api"]
 requires:
-  archetect: "2.0.0"
+  archetect: "3.0.0"
 scripting:
-  main: "archetype.rhai"
-  modules: "rhai"
+  main: "archetype.lua"
+  modules: "lua"
 templating:
   content_directory: "contents"
   templates_directory: "templates"
   undefined_behavior: "strict"   # strict | lenient | chainable
-components:
+catalog:
   child-name:
     source: "https://github.com/org/child-archetype.git"
 ```
 
 ## CI/CD
 
-GitHub Actions workflows in `.github/workflows/`:
-- **`build.yml`** — Runs on all branch pushes: `cargo build` + `cargo test` on Ubuntu 24.04 (requires `protobuf-compiler`)
-- **`release.yml`** — Runs on tag pushes: cross-platform builds (Linux x64, macOS aarch64, Windows x64), creates GitHub release with archives and checksums
+GitHub Actions in `.github/workflows/`:
+- **`build.yml`** — all branch pushes: `cargo build` + `cargo test` on Ubuntu 24.04
+- **`release.yml`** — tag pushes: cross-platform builds (Linux x64, macOS aarch64, Windows x64),
+  GitHub release with archives and checksums
 
 ## Version Control
 
-This repository uses **Jujutsu (jj)** for version control. Use `jj` commands instead of `git`:
+This repository uses **Jujutsu (jj)**. Use `jj`, never `git`.
 
 ```bash
-jj status          # instead of git status
-jj log             # instead of git log
-jj diff            # instead of git diff
-jj new             # create new change
-jj describe -m ""  # set change description
-jj bookmark set    # instead of git branch
+jj st --no-pager          # status
+jj log --no-pager         # history
+jj diff --no-pager        # working-copy diff
+jj commit -m "..."        # seal completed work AND start a fresh empty @
+jj new -m "..."           # new empty change on top
+jj bookmark list          # bookmarks (labels, not branches)
 ```
+
+`jj commit` — not `jj describe` — is how finished work is sealed; describe leaves the change
+as the working copy, so the next edit silently piles into it. This repo is outside `~/work/`,
+so **do not sign**. Never push, move bookmarks, or squash without being asked.
 
 ## Project Documentation
 
@@ -323,10 +317,12 @@ battle-tested and the ecosystem consistent.
 
 | Creating a new... | Use this starter |
 |---|---|
-| Archetype | `archetect-rust/archetype-starter-archetype` (or `archetect-common/archetype-starter-archetype` — master catalog aliases it under `common/starters/archetype-starter`) |
-| Component | `common/starters/component-starter` |
-| Catalog | `common/starters/catalog-starter` |
-| Library | `common/starters/library-starter` |
+| Archetype | `archetect/common/starters/archetype-starter` |
+| Catalog | `archetect/common/starters/catalog-starter` |
+| Library | `archetect/common/starters/library-starter` |
+
+(There is no component starter in the catalog — `library-starter` covers prompts, content,
+context return, and lib/include exports. Verify with `catalog_browse` before assuming a path.)
 
 ### Use the archetect MCP from agent sessions
 
@@ -344,13 +340,15 @@ args: ["mcp"]
 ```
 
 Tools provided:
+- `learn { topic? }` / `introspect { filter? }` — the knowledge surface
 - `catalog_search { query }` — discover archetypes by keyword (AND terms)
 - `catalog_browse { path? }` — walk the catalog tree
+- `describe { source | path, explore? }` — derive the prompt contract BEFORE rendering
 - `catalog_render { path, destination, answers?, switches?, use_defaults_all? }` — render by catalog path
 - `render { source, destination, ... }` — render from a URL or local path
-- `respond { value }` — answer an interactive prompt in an active session
-- `cancel` — abort the current render
+- `respond { value }` / `cancel` — answer or abort an interactive prompt
 
+Shell-exec is forbidden in MCP mode by design; a render needing `--allow-exec` is a CLI move.
 Users working interactively at the CLI still use `archetect render` directly.
 
 ### Typical agent flow
@@ -358,8 +356,9 @@ Users working interactively at the CLI still use `archetect render` directly.
 ```
 catalog_search { query: "archetype starter" }
 → discover archetect/common/starters/archetype-starter
-catalog_render { path: "<full path>", destination: "<scratch-dir>" }
-→ respond to prompts via `respond` until complete
+describe { path: "<full path>" }
+→ prepare answers from the derived interface
+catalog_render { path: "<full path>", destination: "<scratch-dir>", answers: {...} }
 ```
 
 Afterward, edit the generated `archetype.lua`, templates, and README in
@@ -373,20 +372,40 @@ generated artifact.
 
 ## Common Development Patterns
 
-- **Adding a new Rhai function**: Add to appropriate module in `archetect-core/src/script/rhai/modules/`, register in the module's `register()` function
-- **Adding a template filter**: Register in the MiniJinja environment setup in `archetect-core/src/archetype/`
-- **Adding a CLI subcommand**: Add clap variant in `archetect-bin/src/main.rs`, implement handler in `archetect-bin/src/subcommands/`
-- **Adding a prompt type**: Implement in `archetect-core/src/script/rhai/modules/prompt_module/`, add message types in `archetect-api/src/commands/`
-- **Modifying vendored crates** (`archetect-templating`, `archetect-terminal-prompts`): These are forks — changes stay local, no upstream sync expected
+- **Adding a Lua function**: add to the appropriate module in
+  `archetect-core/src/script/lua/`, register it in `require_modules.rs` (or `modules.rs` for
+  globals), and add the LuaLS annotation so `introspect` and IDEs both see it
+- **Adding a template filter**: register in the ATL environment setup under
+  `archetect-core/src/templating/atl/`
+- **Adding a CLI subcommand**: add the clap command in `archetect-bin/src/cli.rs`, implement
+  the handler in `archetect-bin/src/subcommands/`, dispatch from `main.rs`
+- **Adding a prompt type**: implement in the Lua prompt surface, add message types in
+  `archetect-api/src/commands/`, extend `PromptEnvelope`, and add the proto variant
+- **Changing the wire protocol**: edit `archetect-core/specs/archetect.proto`; `build.rs`
+  regenerates on build. Update `archetect-core/src/proto/conversions.rs` in the same change.
 
 ## Backwards Compatibility
 
-There is an established catalog of archetypes used in production at the maintainer's company. **Backwards compatibility of the archetype syntax (Rhai scripting API, `archetype.yaml` manifest format) and configuration language (`archetect.yaml`) is critical.** Changes to these surfaces must not break existing archetypes or user configs. If a breaking change is truly necessary, it requires careful migration planning.
+There is an established catalog of archetypes used in production. **Backwards compatibility of
+the archetype syntax (Lua scripting API, `archetype.yaml` manifest format) and configuration
+language is critical.** Changes to these surfaces must not break existing archetypes or user
+configs. If a breaking change is truly necessary, it requires careful migration planning.
+
+Because the scripting API is a public contract, prefer adding to it over reshaping it, and
+prove additions with a proof rather than a unit test where the behavior is user-visible.
 
 ## Gotchas
 
-- `archetect-templating` and `archetect-terminal-prompts` are **vendored forks**, not upstream dependencies. Edit them directly.
-- The `build.rs` in `archetect-core` compiles `specs/archetect.proto` — if you modify the proto, regeneration happens automatically on build.
-- `SystemLayout` has two implementations: `XdgSystemLayout` (production, XDG paths on Unix-likes including macOS, native on Windows) and `RootedSystemLayout` (custom root, used for tests via `RootedSystemLayout::temp()` and `RootedSystemLayout::new()`). The trait exposes `etc_dir`, `etc_d_dir`, `cache_dir`, and `data_dir`.
-- v3 paths (XDG): config `~/.config/archetect/`, cache `~/.cache/archetect/`, data `~/.local/share/archetect/`. Lua IDE annotations live in `data_dir/lua/annotations`. v2 still uses `~/.archetect/` and is unaffected — both can coexist.
-- The `feature/client-server` branch is stale. The gRPC client/server architecture was removed in favor of direct CLI invocation on main.
+- **CLI arg lookups must be fallible across subcommands.** `clap`'s `get_one` *panics* on an
+  arg id the subcommand never declared. `archetect connect` shipped broken for exactly this
+  reason. Use `try_get_one` in any helper shared between subcommands.
+- **A remote render must report failure.** The client cannot see the server's logs — a
+  server-side render error has to become a `CompleteError` and a non-zero client exit, or a
+  broken generation looks identical to a successful one.
+- `SystemLayout` has two implementations: `XdgSystemLayout` (production) and
+  `RootedSystemLayout` (custom root, for tests via `::temp()` / `::new()`). The trait exposes
+  `etc_dir`, `etc_d_dir`, `cache_dir`, `data_dir`.
+- ATL is a first-party engine under `archetect-core/src/templating/atl/`, no longer a vendored
+  MiniJinja crate. The old `archetect-templating` and `archetect-terminal-prompts` crates are
+  gone.
+- The catalog `server:` entry key lets a catalog entry delegate to a remote Archetect server.
