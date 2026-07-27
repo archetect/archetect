@@ -80,6 +80,10 @@ pub fn resolve_client_options(
     }
 
     options.tls = resolve_client_tls(args, cfg);
+    options.capabilities = args
+        .get_many::<String>("allow")
+        .map(|values| values.map(String::from).collect())
+        .unwrap_or_default();
     options
 }
 

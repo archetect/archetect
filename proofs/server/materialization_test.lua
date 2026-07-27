@@ -60,6 +60,7 @@ directory.render("contents", context)
 	-- archiving belongs to the script and not to the consumer.
 	ws:write("packaged/archetype.yaml", 'description: "Packaged"\nrequires:\n  archetect: "3.0.0"\n')
 	ws:write("packaged/archetype.lua", [[
+local archive = require("archetect.archive")
 local context = Context.new()
 context:prompt_text("Service Name:", "service_name", { default = "orders" })
 directory.render("contents", context)
@@ -70,7 +71,10 @@ archive.zip(name, name .. ".zip")
 
 	-- Renders first, then reaches for an external system with platform
 	-- credentials — the effect class that must be authorized, not ambient.
-	ws:write("publishing/archetype.yaml", 'description: "Publishing"\nrequires:\n  archetect: "3.0.0"\n')
+	ws:write(
+		"publishing/archetype.yaml",
+		'description: "Publishing"\nrequires:\n  archetect: "3.0.0"\n  capabilities:\n    - publish\n'
+	)
 	ws:write("publishing/archetype.lua", [[
 local github = require("archetect.github")
 local context = Context.new()
@@ -134,10 +138,11 @@ prova.test("a server-side render failure reaches the client", {
 end)
 
 prova.test("archive.zip materializes where the tree lives", {
-	spec = "materialization: archive bypasses the IO channel — require_modules.rs:771 writes "
-		.. "via std::fs against the SERVER's destination, which is never populated in server "
-		.. "mode. Archiving must become a channel intent executed by whichever side holds the "
-		.. "tree, while the script keeps deriving both names from answers.",
+	proves = "archiving reads the render's write journal, not the disk, and ships the result "
+		.. "back as an ordinary WriteFile. That is what makes it work over the wire — the "
+		.. "server has no rendered tree to read — and it means a client needs no archiving "
+		.. "capability of its own to receive a zip. The script still derives both names from "
+		.. "answers, which is knowledge no consumer has.",
 }, function(t)
 	local srv = t:use(servers)
 	local home = client_home(srv, "client-packaged")
@@ -150,9 +155,9 @@ prova.test("archive.zip materializes where the tree lives", {
 end)
 
 prova.test("completion reports the artifacts a render produced", {
-	spec = "materialization: CompleteSuccess carries no payload (archetect.proto:166), so a "
-		.. "client cannot learn the script-derived archive name. Ybor Studio needs exactly "
-		.. "this to offer a download. Completion must carry an artifact manifest.",
+	proves = "CompleteSuccess carries an artifact manifest, so a caller who cannot inspect the "
+		.. "destination still learns the script-derived archive name. This is what lets Ybor "
+		.. "Studio offer a download without conventions shared out of band.",
 }, function(t)
 	local srv = t:use(servers)
 	local home = client_home(srv, "client-manifest")
@@ -164,10 +169,11 @@ prova.test("completion reports the artifacts a render produced", {
 end)
 
 prova.test("a render needing publish is refused before it writes anything", {
-	spec = "materialization: github.create_repo is ambient authority — any archetype in the "
-		.. "catalog can reach a third-party system with the platform's token. A PaaS cannot "
-		.. "safely host an open catalog under that rule. Publish must be a capability the "
-		.. "client grants at Initialize, checked up front rather than mid-render.",
+	proves = "github.create_repo would otherwise be ambient authority — any archetype in the "
+		.. "catalog could reach a third-party system with the host's token. A PaaS cannot "
+		.. "safely host an open catalog under that rule. The manifest declares the capability, "
+		.. "the client grants it at Initialize, and the mismatch is settled before rendering so "
+		.. "a refusal never leaves a half-written tree.",
 }, function(t)
 	local srv = t:use(servers)
 	local home = client_home(srv, "client-publish")
@@ -177,4 +183,20 @@ prova.test("a render needing publish is refused before it writes anything", {
 
 	t:expect(result:ok(), "an ungranted capability fails the render"):equals(false)
 	t:expect(fs.exists(home .. "/orders"), "refused up front — nothing was written"):equals(false)
+end)
+
+prova.test("granting the capability lets the render proceed", {
+	proves = "the refusal above must be about the capability, not about the render failing for "
+		.. "any reason at all. With --allow publish the gate opens and the tree is rendered; "
+		.. "whatever happens at the GitHub call afterwards is a different concern.",
+}, function(t)
+	local srv = t:use(servers)
+	local home = client_home(srv, "client-publish-allowed")
+
+	shell.run(
+		{ t:use(bin), "connect", srv.publishing.addr, "--destination", ".", "-D", "--allow", "publish" },
+		{ cwd = home, timeout = "120s", check = false }
+	)
+
+	t:expect(fs.exists(home .. "/orders/README.md"), "the gate opened and the render ran"):equals(true)
 end)

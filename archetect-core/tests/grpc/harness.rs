@@ -189,6 +189,9 @@ pub mod msg {
                     use_defaults_all: false,
                     destination,
                     catalog_path,
+                    // These harness renders exercise the streaming protocol,
+                    // not the capability gate; nothing here declares one.
+                    capabilities: Vec::new(),
                 },
             )),
         }

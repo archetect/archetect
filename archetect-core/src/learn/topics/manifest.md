@@ -9,6 +9,7 @@ key silently does nothing, so check spelling here first when a setting "doesn't 
 | `description` / `summary` | what this is; `summary` feeds search listings |
 | `authors`, `languages`, `frameworks`, `tags` | metadata; `search` matches all of these |
 | `requires.archetect` | version gate: majors are walls (a 2.x archetype refuses a 3.x binary with a "use archetect2" error); within a major it is a minimum floor |
+| `requires.capabilities` | effects reaching OUTSIDE the destination, declared up front — currently `publish` (creating/pushing a repo). Local renders grant everything; a connected session denies anything not granted with `--allow`, and refuses before rendering rather than mid-way |
 | `templating.undefined` | `lenient` (default) or `strict` — strict makes an undefined `{{ var }}` a render ERROR; turn it on, it catches typos |
 | `templating.trim_blocks` / `lstrip_blocks` | whitespace control for block tags |
 | `catalog` | ordered map of entries — presence of entries + no `archetype.lua` makes this a CATALOG; see `archetect learn catalogs` |

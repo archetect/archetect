@@ -1,3 +1,4 @@
+mod artifact_report;
 mod bool_prompt_handler;
 mod editor_prompt_info;
 mod int_prompt_handler;

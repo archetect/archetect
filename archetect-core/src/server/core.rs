@@ -118,6 +118,15 @@ impl ArchetectService for ArchetectServiceCore {
                                         ContextMap::new()
                                     });
 
+                                    // Default-deny for anything reaching outside
+                                    // the destination: the client enumerates
+                                    // what it will allow, and the render is
+                                    // refused up front if the archetype needs
+                                    // more than that.
+                                    archetect.restrict_capabilities(
+                                        initialize.capabilities.clone(),
+                                    );
+
                                     let destination = initialize.destination;
                                     // Resolve the source. Priority order:
                                     //   1. Initialize.catalog_path — follow the slash-
@@ -167,8 +176,11 @@ impl ArchetectService for ArchetectServiceCore {
                                                 match archetype.render(render_context) {
                                                     Ok(_) => {
                                                         info!("Successfully rendered");
+                                                        let artifacts = archetect.artifacts();
                                                         let _ = archetect.request(
-                                                            ScriptMessage::CompleteSuccess,
+                                                            ScriptMessage::CompleteSuccess(
+                                                                artifacts,
+                                                            ),
                                                         );
                                                     }
                                                     Err(err) => {

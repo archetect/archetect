@@ -1,3 +1,4 @@
+mod artifact;
 mod commands;
 mod context_map;
 mod errors;
@@ -5,6 +6,7 @@ mod io_driver;
 mod prompt_envelope;
 mod value_source;
 
+pub use artifact::*;
 pub use commands::*;
 pub use context_map::*;
 pub use errors::*;

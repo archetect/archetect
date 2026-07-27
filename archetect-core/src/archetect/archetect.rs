@@ -1,9 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use camino::{Utf8Path, Utf8PathBuf};
 use semver::Version;
 
-use archetect_api::{ClientMessage, IoError, ScriptIoHandle, ScriptMessage};
+use archetect_api::{Artifact, ClientMessage, IoError, ScriptIoHandle, ScriptMessage};
 use archetect_terminal_io::TerminalScriptIoHandle;
+
+use crate::archive::ArchiveEntry;
 
 use crate::archetype::archetype::Archetype;
 use crate::configuration::Configuration;
@@ -22,15 +25,41 @@ struct Inner {
     io_driver: Box<dyn ScriptIoHandle>,
     layout: Box<dyn SystemLayout>,
     configuration: Configuration,
+    journal: Mutex<RenderJournal>,
+    /// Capabilities this session grants. Unset means unrestricted — the local
+    /// CLI, where the user *is* the trust boundary. Once set, anything not
+    /// named is denied. `OnceLock` because a session's grants are established
+    /// at initialization and must never widen afterwards.
+    capabilities: std::sync::OnceLock<std::collections::HashSet<String>>,
+}
+
+/// What this render has produced so far.
+///
+/// `WriteFile` is a script→client message, so the rendered tree may never exist
+/// on this side of the wire. The journal is therefore the only record we have —
+/// archiving reads it back, and completion reports from it.
+#[derive(Debug, Default)]
+struct RenderJournal {
+    files: Vec<(Utf8PathBuf, Vec<u8>)>,
+    artifacts: Vec<Artifact>,
 }
 
 pub struct ArchetectBuilder {
     configuration: Option<Configuration>,
     layout: Option<Box<dyn SystemLayout>>,
     driver: Option<Box<dyn ScriptIoHandle>>,
+    capabilities: Option<std::collections::HashSet<String>>,
 }
 
 impl ArchetectBuilder {
+    /// Restrict this session to the given capabilities. Not calling this leaves
+    /// the session unrestricted, which is correct for the local CLI and wrong
+    /// for anything accepting renders from elsewhere.
+    pub fn with_capabilities<I: IntoIterator<Item = String>>(mut self, capabilities: I) -> Self {
+        self.capabilities = Some(capabilities.into_iter().collect());
+        self
+    }
+
     pub fn with_layout<L: Into<Box<dyn SystemLayout>>>(mut self, layout: L) -> Self {
         self.layout = Some(layout.into());
         self
@@ -58,7 +87,11 @@ impl ArchetectBuilder {
             None => XdgSystemLayout::new()?.into(),
         };
         let driver = self.driver.unwrap_or_else(|| TerminalScriptIoHandle::default().into());
-        Ok(Archetect::new(configuration, driver, layout))
+        let archetect = Archetect::new(configuration, driver, layout);
+        if let Some(capabilities) = self.capabilities {
+            archetect.restrict_capabilities(capabilities);
+        }
+        Ok(archetect)
     }
 }
 
@@ -68,6 +101,7 @@ impl Default for ArchetectBuilder {
             configuration: None,
             layout: None,
             driver: None,
+            capabilities: None,
         }
     }
 }
@@ -85,8 +119,30 @@ impl Archetect {
                 io_driver: driver.into(),
                 layout: layout.into(),
                 configuration,
+                journal: Mutex::new(RenderJournal::default()),
+                capabilities: std::sync::OnceLock::new(),
             }),
         }
+    }
+
+    /// Whether this session grants `capability`. An unrestricted session (the
+    /// local CLI) grants everything; a session that enumerated its grants
+    /// denies anything it did not name.
+    pub fn grants(&self, capability: &str) -> bool {
+        self.inner
+            .capabilities
+            .get()
+            .is_none_or(|granted| granted.contains(capability))
+    }
+
+    /// Restrict this session to `capabilities`. Idempotent-by-construction: a
+    /// second call is ignored, so a session cannot widen its own grants after
+    /// initialization.
+    pub fn restrict_capabilities<I: IntoIterator<Item = String>>(&self, capabilities: I) {
+        let _ = self
+            .inner
+            .capabilities
+            .set(capabilities.into_iter().collect());
     }
 
     pub fn builder() -> ArchetectBuilder {
@@ -127,7 +183,50 @@ impl Archetect {
     }
 
     pub fn request(&self, command: ScriptMessage) -> Result<(), IoError> {
+        if let ScriptMessage::WriteFile(info) = &command {
+            if let Ok(mut journal) = self.inner.journal.lock() {
+                journal
+                    .files
+                    .push((Utf8PathBuf::from(&info.destination), info.contents.clone()));
+            }
+        }
         self.inner.io_driver.send(command)
+    }
+
+    /// Every file this render wrote beneath `dir`, addressed relative to it.
+    ///
+    /// Note this is what the render *produced*, not what happens to be on disk:
+    /// files a shell-out created are invisible here, because they never crossed
+    /// the IO channel.
+    pub fn archive_entries_under(&self, dir: &Utf8Path) -> Vec<ArchiveEntry> {
+        let Ok(journal) = self.inner.journal.lock() else {
+            return Vec::new();
+        };
+        journal
+            .files
+            .iter()
+            .filter_map(|(path, contents)| {
+                let relative = path.strip_prefix(dir).ok()?;
+                Some(ArchiveEntry {
+                    path: relative.as_str().replace('\\', "/"),
+                    contents: contents.clone(),
+                })
+            })
+            .collect()
+    }
+
+    pub fn record_artifact(&self, artifact: Artifact) {
+        if let Ok(mut journal) = self.inner.journal.lock() {
+            journal.artifacts.push(artifact);
+        }
+    }
+
+    pub fn artifacts(&self) -> Vec<Artifact> {
+        self.inner
+            .journal
+            .lock()
+            .map(|journal| journal.artifacts.clone())
+            .unwrap_or_default()
     }
 
     pub fn configuration(&self) -> &Configuration {

@@ -1,6 +1,7 @@
 use archetect_api::{
-    BoolPromptInfo, EditorPromptInfo, ExistingFilePolicy, IntPromptInfo, ListPromptInfo,
-    MultiSelectPromptInfo, SelectPromptInfo, TextPromptInfo, WriteDirectoryInfo, WriteFileInfo,
+    Artifact, ArtifactKind, BoolPromptInfo, EditorPromptInfo, ExistingFilePolicy, IntPromptInfo,
+    ListPromptInfo, MultiSelectPromptInfo, SelectPromptInfo, TextPromptInfo, WriteDirectoryInfo,
+    WriteFileInfo,
 };
 
 use super::grpc;
@@ -109,8 +110,10 @@ impl From<ApiScriptMessage> for grpc::script_message::Message {
             ApiScriptMessage::LogError(msg) => Message::LogError(msg),
             ApiScriptMessage::Print(msg) => Message::Print(msg),
             ApiScriptMessage::Display(msg) => Message::Display(msg),
-            ApiScriptMessage::CompleteSuccess => {
-                Message::CompleteSuccess(grpc::CompleteSuccess {})
+            ApiScriptMessage::CompleteSuccess(artifacts) => {
+                Message::CompleteSuccess(grpc::CompleteSuccess {
+                    artifacts: artifacts.into_iter().map(api_artifact_to_proto).collect(),
+                })
             }
             ApiScriptMessage::CompleteError(message) => {
                 Message::CompleteError(grpc::CompleteError { message })
@@ -240,7 +243,9 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 group: None,
                 ui: None,
             }),
-            Message::CompleteSuccess(_) => ApiScriptMessage::CompleteSuccess,
+            Message::CompleteSuccess(c) => ApiScriptMessage::CompleteSuccess(
+                c.artifacts.into_iter().map(proto_artifact_to_api).collect(),
+            ),
             Message::CompleteError(e) => ApiScriptMessage::CompleteError(e.message),
             Message::WriteFile(wf) => ApiScriptMessage::WriteFile(WriteFileInfo {
                 destination: wf.destination,
@@ -275,6 +280,7 @@ impl From<ApiClientMessage> for grpc::ClientMessage {
                 use_defaults_all,
                 destination,
                 catalog_path,
+                capabilities,
             } => Message::Initialize(grpc::Initialize {
                 answers_yaml,
                 switches,
@@ -282,6 +288,7 @@ impl From<ApiClientMessage> for grpc::ClientMessage {
                 use_defaults_all,
                 destination,
                 catalog_path,
+                capabilities,
             }),
         };
         grpc::ClientMessage {
@@ -314,6 +321,7 @@ impl From<grpc::ClientMessage> for ApiClientMessage {
                 use_defaults_all: init.use_defaults_all,
                 destination: init.destination,
                 catalog_path: init.catalog_path,
+                capabilities: init.capabilities,
             },
             Message::String(v) => ApiClientMessage::String(v),
             Message::Integer(v) => ApiClientMessage::Integer(v),
@@ -328,6 +336,32 @@ impl From<grpc::ClientMessage> for ApiClientMessage {
 }
 
 // --- ExistingFilePolicy helpers ---
+
+fn api_artifact_to_proto(artifact: Artifact) -> grpc::Artifact {
+    let kind = match artifact.kind {
+        ArtifactKind::Archive => grpc::ArtifactKind::Archive,
+        ArtifactKind::Repository => grpc::ArtifactKind::Repository,
+    };
+    grpc::Artifact {
+        kind: kind as i32,
+        // proto3 has no optional scalars here; empty string means absent, and
+        // the API side round-trips it back to None.
+        path: artifact.path.unwrap_or_default(),
+        uri: artifact.uri.unwrap_or_default(),
+    }
+}
+
+fn proto_artifact_to_api(artifact: grpc::Artifact) -> Artifact {
+    let kind = match grpc::ArtifactKind::try_from(artifact.kind) {
+        Ok(grpc::ArtifactKind::Repository) => ArtifactKind::Repository,
+        _ => ArtifactKind::Archive,
+    };
+    Artifact {
+        kind,
+        path: Some(artifact.path).filter(|p| !p.is_empty()),
+        uri: Some(artifact.uri).filter(|u| !u.is_empty()),
+    }
+}
 
 fn api_policy_to_proto(policy: ExistingFilePolicy) -> grpc::ExistingFilePolicy {
     match policy {

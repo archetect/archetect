@@ -78,6 +78,11 @@ impl Archetype {
         render_context: RenderContext,
         action: Option<&str>,
     ) -> Result<ContextValue, ArchetypeError> {
+        // Before anything is rendered. A capability refused halfway through
+        // leaves a half-written tree and tells the caller nothing useful, so
+        // the manifest declares what it needs and we settle it here.
+        self.manifest().requires().check_capabilities(&self.archetect)?;
+
         match self.directory().script() {
             Some(script_path) => {
                 // Check for .rhai scripts and emit a helpful error

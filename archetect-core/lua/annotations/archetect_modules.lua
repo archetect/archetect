@@ -84,7 +84,10 @@ local github = {}
 function github.repo_exists(repo) end
 
 ---Create a new GitHub repository, or report on an existing one.
----Requires `GITHUB_TOKEN` environment variable.
+---Requires `GITHUB_TOKEN` environment variable, and the `publish` capability:
+---declare it in the manifest (`requires.capabilities`) so a host can refuse the
+---render up front rather than partway through. Local renders grant everything;
+---a connected session denies publish unless started with `--allow publish`.
 ---Returns a table describing the outcome. `created` is true iff this call
 ---newly created the repo. `empty` is true iff the repo has no commits —
 ---which callers use to decide whether it is safe to push without clobbering.
@@ -101,20 +104,25 @@ function github.create_repo(repo, opts) end
 ---@class archetect.archive
 local archive = {}
 
----Create a ZIP archive from a source directory.
----Paths are relative to the render destination.
+---Create a ZIP archive of what this render wrote beneath `source`.
+---Paths are relative to the render destination. The archive is packaged from
+---the render's own output and written like any other file, so it works
+---identically over a client/server connection. Files created by a shell-out are
+---NOT included — they never crossed the IO channel.
 ---@param source string Source directory path
 ---@param destination string Output archive path
 function archive.zip(source, destination) end
 
----Create a gzipped tar archive from a source directory.
----Paths are relative to the render destination.
+---Create a gzipped tar archive of what this render wrote beneath `source`.
+---Paths are relative to the render destination. See `archive.zip` for what is
+---and is not included.
 ---@param source string Source directory path
 ---@param destination string Output archive path
 function archive.tar_gz(source, destination) end
 
----Create a tar archive (uncompressed) from a source directory.
----Paths are relative to the render destination.
+---Create a tar archive (uncompressed) of what this render wrote beneath `source`.
+---Paths are relative to the render destination. See `archive.zip` for what is
+---and is not included.
 ---@param source string Source directory path
 ---@param destination string Output archive path
 function archive.tar(source, destination) end

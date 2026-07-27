@@ -52,6 +52,10 @@ pub struct ClientOptions {
     /// inside are additionally optional — an empty `ClientTlsOptions`
     /// uses the system trust store with the endpoint's hostname as SNI.
     pub tls: Option<ClientTlsOptions>,
+    /// Capabilities this client grants the render. Default-deny: a remote
+    /// archetype does not get to reach outside the destination — publish to a
+    /// repository, say — just because it asked. The operator opts in.
+    pub capabilities: Vec<String>,
 }
 
 impl Default for ClientOptions {
@@ -65,6 +69,7 @@ impl Default for ClientOptions {
             http2_keepalive_interval: Some(Duration::from_secs(30)),
             http2_keepalive_timeout: Some(Duration::from_secs(10)),
             tls: None,
+            capabilities: Vec::new(),
         }
     }
 }
@@ -175,7 +180,8 @@ async fn start_async(
     });
 
     // Send Initialize message
-    let initialize = create_initialize_message(render_context, catalog_path);
+    let initialize =
+        create_initialize_message(render_context, catalog_path, options.capabilities.clone());
     client_tx.send(initialize).await?;
 
     // Forward ScriptMessages from gRPC stream to the client handle
@@ -248,7 +254,11 @@ fn build_client_tls_config(tls: &ClientTlsOptions) -> anyhow::Result<ClientTlsCo
     Ok(config)
 }
 
-fn create_initialize_message(value: RenderContext, catalog_path: String) -> grpc::ClientMessage {
+fn create_initialize_message(
+    value: RenderContext,
+    catalog_path: String,
+    capabilities: Vec<String>,
+) -> grpc::ClientMessage {
     let api_message = ClientMessage::Initialize {
         answers_yaml: serde_yaml::to_string(value.answers()).unwrap_or_default(),
         switches: value.switches().iter().map(|v| v.to_string()).collect(),
@@ -256,6 +266,7 @@ fn create_initialize_message(value: RenderContext, catalog_path: String) -> grpc
         use_defaults_all: value.use_defaults_all(),
         destination: value.destination().to_string(),
         catalog_path,
+        capabilities,
     };
     api_message.into()
 }

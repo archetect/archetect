@@ -126,10 +126,11 @@ pub fn register_require_modules(
 
     // archetect.archive
     {
+        let arc = archetect.clone();
         let ctx = render_context.clone();
         preload.set(
             "archetect.archive",
-            lua.create_function(move |lua, ()| create_archive_module(lua, &ctx))?,
+            lua.create_function(move |lua, ()| create_archive_module(lua, &arc, &ctx))?,
         )?;
     }
 
@@ -618,6 +619,17 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
         "create_repo",
         lua.create_function(move |lua_ctx, (repo, opts): (String, Option<Table>)| {
             let arc = arc.clone();
+            // Belt and braces: the manifest declaration is checked up front, but
+            // an archetype that reaches for publish without declaring it must
+            // not slip through on the strength of an undeclared call.
+            if !arc.grants("publish") {
+                return Err(LuaError::RuntimeError(
+                    "github.create_repo requires the `publish` capability, which this session \
+                     did not grant. Declare it in the manifest (requires.capabilities) and \
+                     grant it with `--allow publish`."
+                        .to_string(),
+                ));
+            }
             let make_result = |lua: &Lua, created: bool, empty: bool| -> LuaResult<Table> {
                 let t = lua.create_table()?;
                 t.set("created", created)?;
@@ -768,42 +780,133 @@ fn create_github_module(lua: &Lua, archetect: &Archetect) -> LuaResult<Table> {
 
 // --- archive module ---
 
-fn create_archive_module(lua: &Lua, render_context: &RenderContext) -> LuaResult<Table> {
+#[derive(Copy, Clone)]
+enum ArchiveFormat {
+    Zip,
+    Tar,
+    TarGz,
+}
+
+impl ArchiveFormat {
+    fn label(self) -> &'static str {
+        match self {
+            ArchiveFormat::Zip => "zip",
+            ArchiveFormat::Tar => "tar",
+            ArchiveFormat::TarGz => "tar_gz",
+        }
+    }
+}
+
+/// Package what the render wrote beneath `source` and emit it as an ordinary
+/// `WriteFile`.
+///
+/// Building from the write journal rather than from disk is what makes this
+/// work over the wire: in server mode the rendered tree lives on the *client*,
+/// so there is nothing here to read. Emitting the result as a `WriteFile` means
+/// the archive lands wherever the rest of the render landed, and a client needs
+/// no archiving capability of its own to receive one.
+fn emit_archive(
+    archetect: &crate::Archetect,
+    destination_root: &str,
+    source: &str,
+    destination: &str,
+    format: ArchiveFormat,
+) -> LuaResult<()> {
+    if dry_run_skip(
+        archetect,
+        &format!("{} {} -> {}", format.label(), source, destination),
+    ) {
+        return Ok(());
+    }
+
+    let source_path = Utf8PathBuf::from(format!("{}/{}", destination_root, source));
+    let output_path = Utf8PathBuf::from(format!("{}/{}", destination_root, destination));
+
+    let root = source_path.file_name().ok_or_else(|| {
+        LuaError::RuntimeError(format!(
+            "{}: source '{}' has no directory name",
+            format.label(),
+            source
+        ))
+    })?;
+
+    let entries = archetect.archive_entries_under(&source_path);
+    if entries.is_empty() {
+        // Not fatal — an archetype may legitimately archive an empty tree — but
+        // silence here is how "the archive is empty" bugs hide.
+        let _ = archetect.request(ScriptMessage::LogWarn(format!(
+            "{}: nothing was rendered beneath '{}'; the archive will be empty",
+            format.label(),
+            source
+        )));
+    }
+
+    let contents = match format {
+        ArchiveFormat::Zip => crate::archive::build_zip(root, &entries),
+        ArchiveFormat::Tar => crate::archive::build_tar(root, &entries, false),
+        ArchiveFormat::TarGz => crate::archive::build_tar(root, &entries, true),
+    }
+    .map_err(|e| LuaError::RuntimeError(format!("{} error: {}", format.label(), e)))?;
+
+    archetect
+        .request(ScriptMessage::WriteFile(archetect_api::WriteFileInfo {
+            destination: output_path.to_string(),
+            contents,
+            existing_file_policy: archetect_api::ExistingFilePolicy::Overwrite,
+        }))
+        .map_err(|e| LuaError::RuntimeError(format!("{} write failed: {}", format.label(), e)))?;
+
+    match archetect.response() {
+        Ok(archetect_api::ClientMessage::Ack) => {}
+        Ok(archetect_api::ClientMessage::Error(msg)) => {
+            return Err(LuaError::RuntimeError(format!(
+                "{} write failed: {}",
+                format.label(),
+                msg
+            )))
+        }
+        Ok(other) => {
+            return Err(LuaError::RuntimeError(format!(
+                "{}: unexpected response {:?}",
+                format.label(),
+                other
+            )))
+        }
+        Err(err) => {
+            return Err(LuaError::RuntimeError(format!(
+                "{} write failed: {}",
+                format.label(),
+                err
+            )))
+        }
+    }
+
+    archetect.record_artifact(archetect_api::Artifact::archive(destination));
+    Ok(())
+}
+
+fn create_archive_module(
+    lua: &Lua,
+    archetect: &crate::Archetect,
+    render_context: &RenderContext,
+) -> LuaResult<Table> {
     let module = lua.create_table()?;
-    let dest = render_context.destination().to_string();
+    let destination_root = render_context.destination().to_string();
 
-    let d = dest.clone();
-    module.set(
-        "zip",
-        lua.create_function(move |_, (source, destination): (String, String)| {
-            let source_path = Utf8PathBuf::from(format!("{}/{}", d, source));
-            let dest_path = Utf8PathBuf::from(format!("{}/{}", d, destination));
-            crate::archive::create_zip_archive(&source_path, &dest_path)
-                .map_err(|e| LuaError::RuntimeError(format!("zip error: {}", e)))
-        })?,
-    )?;
-
-    let d = dest.clone();
-    module.set(
-        "tar_gz",
-        lua.create_function(move |_, (source, destination): (String, String)| {
-            let source_path = Utf8PathBuf::from(format!("{}/{}", d, source));
-            let dest_path = Utf8PathBuf::from(format!("{}/{}", d, destination));
-            crate::archive::create_tar_archive(&source_path, &dest_path, true)
-                .map_err(|e| LuaError::RuntimeError(format!("tar_gz error: {}", e)))
-        })?,
-    )?;
-
-    let d = dest.clone();
-    module.set(
-        "tar",
-        lua.create_function(move |_, (source, destination): (String, String)| {
-            let source_path = Utf8PathBuf::from(format!("{}/{}", d, source));
-            let dest_path = Utf8PathBuf::from(format!("{}/{}", d, destination));
-            crate::archive::create_tar_archive(&source_path, &dest_path, false)
-                .map_err(|e| LuaError::RuntimeError(format!("tar error: {}", e)))
-        })?,
-    )?;
+    for (name, format) in [
+        ("zip", ArchiveFormat::Zip),
+        ("tar", ArchiveFormat::Tar),
+        ("tar_gz", ArchiveFormat::TarGz),
+    ] {
+        let arc = archetect.clone();
+        let root = destination_root.clone();
+        module.set(
+            name,
+            lua.create_function(move |_, (source, destination): (String, String)| {
+                emit_archive(&arc, &root, &source, &destination, format)
+            })?,
+        )?;
+    }
 
     Ok(module)
 }

@@ -379,7 +379,7 @@ impl ArchetectMcpServer {
 
             match result {
                 Ok(()) => {
-                    let _ = archetect.request(archetect_api::ScriptMessage::CompleteSuccess);
+                    let _ = archetect.request(archetect_api::ScriptMessage::CompleteSuccess(archetect.artifacts()));
                 }
                 Err(e) => {
                     let _ = archetect.request(archetect_api::ScriptMessage::CompleteError(e));
@@ -793,7 +793,7 @@ impl ArchetectMcpServer {
 
             match result {
                 Ok(()) => {
-                    let _ = archetect.request(archetect_api::ScriptMessage::CompleteSuccess);
+                    let _ = archetect.request(archetect_api::ScriptMessage::CompleteSuccess(archetect.artifacts()));
                 }
                 Err(e) => {
                     let _ = archetect.request(archetect_api::ScriptMessage::CompleteError(e));

@@ -157,13 +157,38 @@ message Initialize {
     // Empty = use the server's default catalog entry. Added for the
     // federated catalog design — see docs/plans/federated-catalog.md.
     string catalog_path = 6;
+    // Capabilities the CLIENT grants this render. Effects that reach
+    // outside the destination (currently "publish") are refused unless
+    // granted here, so an archetype cannot silently borrow the server's
+    // credentials. Empty = grant nothing.
+    repeated string capabilities = 7;
 }
 
 message Array {
     repeated string values = 1;
 }
 
-message CompleteSuccess {}
+enum ArtifactKind {
+    ARTIFACT_KIND_UNSPECIFIED = 0;
+    ARTIFACT_KIND_ARCHIVE = 1;
+    ARTIFACT_KIND_REPOSITORY = 2;
+}
+
+// Something the render produced that the caller may want to act on.
+// A remote caller cannot inspect the destination to work this out, and
+// the names are computed by the script from answers, so they cannot be
+// guessed either.
+message Artifact {
+    ArtifactKind kind = 1;
+    // Destination-relative path, for artifacts written to the tree.
+    string path = 2;
+    // Locator for artifacts living outside the destination (a repo URL).
+    string uri = 3;
+}
+
+message CompleteSuccess {
+    repeated Artifact artifacts = 1;
+}
 
 message CompleteError {
     string message = 1;

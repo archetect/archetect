@@ -82,7 +82,9 @@ pub async fn drain_until_prompt_or_complete(
                 client_tx.send(ClientMessage::Ack).await
                     .map_err(|_| "Render thread died while sending Ack".to_string())?;
             }
-            Some(ScriptMessage::CompleteSuccess) => {
+            // Artifacts need no special handling here: an archive is emitted as
+            // an ordinary WriteFile, so it is already in `files_written`.
+            Some(ScriptMessage::CompleteSuccess(_)) => {
                 return Ok(DrainResult {
                     logs,
                     files_written,

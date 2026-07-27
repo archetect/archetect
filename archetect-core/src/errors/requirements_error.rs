@@ -18,6 +18,13 @@ pub enum RequirementsError {
     ArchetectVersionMajor(Version, VersionReq, u64),
     #[error("IO Error Reading Requirements File `{0}`.")]
     IoError(std::io::Error),
+    #[error(
+        "This archetype requires the `{0}` capability, which this session did not grant. \
+         Capabilities that reach outside the destination are denied by default over a \
+         connection; grant it explicitly with `--allow {0}` if you trust this archetype \
+         with it."
+    )]
+    CapabilityNotGranted(String),
 }
 
 impl From<std::io::Error> for RequirementsError {

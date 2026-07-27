@@ -8,6 +8,12 @@ use crate::errors::RequirementsError;
 pub struct RuntimeRequirements {
     #[serde(rename = "archetect")]
     archetect_version: VersionReq,
+    /// Effects this archetype needs that reach outside the destination —
+    /// currently just `publish`. Declaring them here (rather than discovering
+    /// them when the script calls out) is what lets a host refuse *before*
+    /// anything is rendered, and lets a catalog be audited by reading manifests.
+    #[serde(default)]
+    capabilities: Vec<String>,
 }
 
 impl RuntimeRequirements {
@@ -15,8 +21,22 @@ impl RuntimeRequirements {
         &self.archetect_version
     }
 
+    pub fn capabilities(&self) -> &[String] {
+        &self.capabilities
+    }
+
     pub fn check_requirements(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
-        check_version(archetect.version(), &self.archetect_version)
+        check_version(archetect.version(), &self.archetect_version)?;
+        self.check_capabilities(archetect)
+    }
+
+    pub fn check_capabilities(&self, archetect: &Archetect) -> Result<(), RequirementsError> {
+        for capability in &self.capabilities {
+            if !archetect.grants(capability) {
+                return Err(RequirementsError::CapabilityNotGranted(capability.clone()));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -63,6 +83,7 @@ impl Default for RuntimeRequirements {
             .expect("CARGO_PKG_VERSION is always a valid semver requirement");
         RuntimeRequirements {
             archetect_version,
+            capabilities: Vec::new(),
         }
     }
 }

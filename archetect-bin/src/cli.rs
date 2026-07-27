@@ -455,6 +455,14 @@ pub fn command() -> Command {
                         .env("ARCHETECT_CLIENT_TLS_DOMAIN")
                         .action(ArgAction::Set),
                 )
+                .arg(
+                    Arg::new("allow")
+                        .help("Grant a capability to the remote render (e.g. --allow publish). Repeatable. Denied by default.")
+                        .long("allow")
+                        .env("ARCHETECT_CLIENT_ALLOW")
+                        .value_delimiter(',')
+                        .action(ArgAction::Append),
+                )
                 .args(render_args(true)),
         )
         .allow_external_subcommands(true)

@@ -62,8 +62,9 @@ where
             ScriptMessage::Display(msg) => eprintln!("{}", msg),
             ScriptMessage::WriteFile(info) => handle_write_file(info, &responder),
             ScriptMessage::WriteDirectory(info) => handle_write_directory(info, &responder),
-            ScriptMessage::CompleteSuccess => {
+            ScriptMessage::CompleteSuccess(artifacts) => {
                 debug!("Archetype completed successfully");
+                crate::artifact_report::report_artifacts(&artifacts);
                 return false;
             }
             ScriptMessage::CompleteError(msg) => {

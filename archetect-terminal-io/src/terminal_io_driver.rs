@@ -72,8 +72,9 @@ impl ScriptIoHandle for TerminalScriptIoHandle {
             ScriptMessage::WriteDirectory(write_info) => {
                 handle_write_directory(write_info, &self.responses_tx);
             }
-            ScriptMessage::CompleteSuccess => {
+            ScriptMessage::CompleteSuccess(artifacts) => {
                 debug!("Archetype completed successfully");
+                crate::artifact_report::report_artifacts(&artifacts);
             }
             ScriptMessage::CompleteError(message) => {
                 // CompleteError is a session-termination signal. The

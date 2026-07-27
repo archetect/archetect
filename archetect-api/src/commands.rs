@@ -62,8 +62,8 @@ pub enum ScriptMessage {
     WriteFile(WriteFileInfo),
     /// Create a directory at the destination
     WriteDirectory(WriteDirectoryInfo),
-    /// Signal successful completion
-    CompleteSuccess,
+    /// Signal successful completion, carrying what the render produced
+    CompleteSuccess(Vec<crate::Artifact>),
     /// Signal completion with an error
     CompleteError(String),
 }
@@ -91,5 +91,8 @@ pub enum ClientMessage {
         /// entry (legacy behavior). Added for federated catalog — see
         /// `docs/plans/federated-catalog.md`.
         catalog_path: String,
+        /// Capabilities the client grants this render. Effects reaching
+        /// outside the destination are refused unless granted here.
+        capabilities: Vec<String>,
     },
 }

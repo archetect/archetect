@@ -156,10 +156,28 @@ All script↔user communication flows through `ScriptIoHandle` (trait in `archet
 In server mode the server streams bytes and never writes the tree itself — which is why a
 relative `--destination` resolves against the *client's* cwd.
 
-Note the asymmetry: `archetect.archive`, `archetect.git`, `archetect.github`, and
-`archetect.shell` still call `std::fs`/git2/HTTP directly against
-`render_context.destination()`, bypassing the channel. In server mode that directory is
-never populated. See the open specs in `proofs/server/materialization_test.lua`.
+`archetect.archive` follows from that: it packages the render's **write journal**
+(`Archetect::archive_entries_under`), not the disk, and emits the result as an ordinary
+`WriteFile`. So archives work identically local and remote, and a client needs no archiving
+capability of its own. Files produced by a shell-out are invisible to it — they never
+crossed the channel.
+
+**Still bypassing the channel:** `archetect.git` and `archetect.shell` operate directly on
+`render_context.destination()`, which in server mode is never populated. They are effectively
+CLI-only today. If you make them work over the wire, prove it in
+`proofs/server/materialization_test.lua` alongside the archive proofs.
+
+### Capabilities
+
+Effects that reach *outside* the destination are gated. An archetype declares what it needs
+in the manifest (`requires.capabilities`, currently just `publish`); the caller grants what
+it allows. Local renders are unrestricted — the user is the trust boundary. A connected
+session is **default-deny**, granting only what `--allow` names, and refuses before rendering
+so a refusal never leaves a half-written tree. `Archetect::grants()` is the single predicate;
+`restrict_capabilities` is set-once via `OnceLock`, so a session cannot widen its own grants.
+
+This is what makes it safe to host an open catalog: without it, any archetype on the server
+could reach GitHub with the host's token.
 
 ### Client / Server
 
@@ -173,7 +191,11 @@ never populated. See the open specs in `proofs/server/materialization_test.lua`.
 | `DescribeArchetype` | derived interface as JSON — lets a UI render a form up front |
 
 TLS is configurable on both ends (`--tls-cert`/`--tls-key`, `--tls-ca`, mutual TLS).
-`Initialize` selects a `catalog_path`; there is no free-form source over the wire.
+`Initialize` selects a `catalog_path` and carries the capabilities the client grants; there is
+no free-form source over the wire. `CompleteSuccess` carries an artifact manifest — what the
+render produced (archives, published repos) with script-derived names a caller could not
+otherwise guess. `archetect connect` prints it; that is how Ybor Studio learns which zip to
+offer for download.
 
 ### Source & Caching
 
