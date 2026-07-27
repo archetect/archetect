@@ -172,7 +172,17 @@ impl ArchetectService for ArchetectServiceCore {
                                                         );
                                                     }
                                                     Err(err) => {
+                                                        // The client cannot see this log — it is
+                                                        // on the other end of a wire. Without a
+                                                        // CompleteError the stream just ends and
+                                                        // a failed render is indistinguishable
+                                                        // from a successful one.
                                                         error!("Render error: {:?}", err);
+                                                        let _ = archetect.request(
+                                                            ScriptMessage::CompleteError(
+                                                                err.to_string(),
+                                                            ),
+                                                        );
                                                     }
                                                 }
                                             }

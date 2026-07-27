@@ -113,9 +113,9 @@ local function mcp_first_prompt(t, ws, tag, answers_json)
 	local reqfile = ws:write("mcp-requests-" .. tag .. ".jsonl", reqs)
 	local out = shell.run({ "sh", "-c", t:use(bin) .. " mcp < " .. reqfile }, { timeout = "60s" })
 	for line in string.gmatch(out.stdout, "[^\n]+") do
-		local ok, msg = pcall(prova.parse.json, line)
+		local ok, msg = pcall(json.decode, line)
 		if ok and type(msg) == "table" and msg.id == 2 then
-			return prova.parse.json(msg.result.content[1].text).prompt
+			return json.decode(msg.result.content[1].text).prompt
 		end
 	end
 	return nil

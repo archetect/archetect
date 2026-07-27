@@ -28,13 +28,20 @@ pub mod vendor;
 /// `destination-pos` (second positional on render / global / top-level
 /// action) wins over the `--destination` / `--dest` flag. Falls back to
 /// `.` when neither is supplied.
+///
+/// Both lookups are fallible: not every caller defines both args. `connect`
+/// takes `--destination` (via the global render args) but has no positional,
+/// and clap's `get_one` PANICS on an id the subcommand never declared —
+/// which made `archetect connect` abort before it could dial the server.
 fn resolve_destination(args: &ArgMatches) -> String {
-    if let Some(pos) = args.get_one::<String>("destination-pos") {
+    if let Ok(Some(pos)) = args.try_get_one::<String>("destination-pos") {
         if !pos.is_empty() {
             return pos.clone();
         }
     }
-    args.get_one::<String>("destination")
+    args.try_get_one::<String>("destination")
+        .ok()
+        .flatten()
         .cloned()
         .unwrap_or_else(|| ".".to_string())
 }

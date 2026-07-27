@@ -99,7 +99,7 @@ local function interface_json(t, ws, rel, flags)
 		table.insert(cmd, f)
 	end
 	local out = shell.run(cmd, { check = true })
-	return prova.parse.json(out.stdout)
+	return json.decode(out.stdout)
 end
 
 -- ── the probe: transcript, switches, no side effects ───────────────
@@ -146,7 +146,7 @@ end)
 prova.test("an unbounded prompt loop trips the budget instead of hanging", function(t)
 	local ws = t:use(ws_fixture)
 	local out = shell.run({ t:use(bin), "interface", ws:file("looping"), "--json" }, { timeout = "60s" })
-	local result = prova.parse.json(out.stdout)
+	local result = json.decode(out.stdout)
 	t:expect(result.budget_hit):equals(true)
 	t:expect(result.coverage):equals("partial")
 	t:expect(result.mode):equals("interactive")
@@ -233,9 +233,9 @@ prova.test("MCP describe returns the same derived interface as --json", function
 	local out = shell.run({ "sh", "-c", t:use(bin) .. " mcp < " .. reqfile }, { timeout = "60s" })
 	local described
 	for line in string.gmatch(out.stdout, "[^\n]+") do
-		local ok, msg = pcall(prova.parse.json, line)
+		local ok, msg = pcall(json.decode, line)
 		if ok and type(msg) == "table" and msg.id == 2 then
-			described = prova.parse.json(msg.result.content[1].text)
+			described = json.decode(msg.result.content[1].text)
 		end
 	end
 	t:expect(described ~= nil, "describe answered"):equals(true)

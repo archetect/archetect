@@ -179,9 +179,19 @@ async fn start_async(
     client_tx.send(initialize).await?;
 
     // Forward ScriptMessages from gRPC stream to the client handle
+    let mut render_error = None;
     while let Some(script_message) = response_stream.message().await? {
         match &script_message.message {
-            Some(Message::CompleteSuccess(_)) | Some(Message::CompleteError(_)) => {
+            Some(Message::CompleteSuccess(_)) => {
+                script_tx.send(script_message).await?;
+                break;
+            }
+            Some(Message::CompleteError(complete)) => {
+                // Capture before forwarding — the message moves into the
+                // terminal client, which surfaces it to the user. We still
+                // need it here to fail the process: a remote render that
+                // exits 0 on failure is worse than no error message at all.
+                render_error = Some(complete.message.clone());
                 script_tx.send(script_message).await?;
                 break;
             }
@@ -192,6 +202,10 @@ async fn start_async(
     }
 
     handle.await?;
+
+    if let Some(message) = render_error {
+        anyhow::bail!("Render failed: {}", message);
+    }
     Ok(())
 }
 
