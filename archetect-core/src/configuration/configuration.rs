@@ -68,6 +68,18 @@ impl Configuration {
         &self.updates
     }
 
+    /// Force a re-probe of every moving ref this run — the programmatic `-U`/`--force-update`.
+    ///
+    /// The CLI sets `updates.force` through figment; an embedder builds a `Configuration` in code
+    /// and had no path to it, so it could not offer its own `-U`. Pairs with [`Self::with_offline`]
+    /// as the two freshness knobs an embedder needs: force a probe, or forbid one.
+    pub fn with_force_update(mut self, value: bool) -> Self {
+        // In place: replacing the section with `Default` to use its builder would reset a
+        // figment-loaded `interval`/`retention` as a side effect of setting one unrelated flag.
+        self.updates.set_force(value);
+        self
+    }
+
     pub fn locals(&self) -> &ConfigurationLocalsSection {
         &self.locals
     }
