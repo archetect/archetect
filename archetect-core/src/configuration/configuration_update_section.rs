@@ -7,7 +7,12 @@ pub struct ConfigurationUpdateSection {
     force: Option<bool>,
     /// How often a moving ref re-checks the remote, in seconds. Default 1 day — content-addressing
     /// makes a re-check cheap (silent when the remote hasn't moved), so a short interval keeps
-    /// branches fresh without churn; tags/revs never re-check regardless.
+    /// moving refs fresh without churn.
+    ///
+    /// "Moving" means branches AND tags: only a bare commit rev is immutable and skips the probe
+    /// entirely (see `RefPin` in archetect-git-cache). Tags move by design — the floating-major
+    /// convention (`v1` tracking the latest v1.x.y) depends on it — so this interval governs how
+    /// long a freshly published `v1` stays invisible to consumers.
     interval: i64,
     /// How long an unused materialized tree survives before `cache prune` reaps it, in seconds.
     /// Default 90 days.

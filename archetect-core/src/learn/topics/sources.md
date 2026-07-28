@@ -8,9 +8,24 @@ git@github.com:acme/thing.git            # SSH shorthand
 ./relative/or/absolute/path              # local dir (catalog-relative when in a catalog)
 ```
 
-No ref → the default branch. Tags and commits are immutable — cached once, never re-probed.
-Branches are mutable — re-checked when the configured interval lapses (hash-gated: no
-change, no re-clone).
+No ref → the default branch. **Only a bare commit is immutable** — cached once, never
+re-probed. Everything symbolic (branches AND tags) is mutable and re-checked when the update
+interval lapses (hash-gated: one `ls-remote`, no change → no re-clone). Tags are mutable on
+purpose: the floating-major convention (`v1` tracking the latest v1.x.y) depends on it.
+
+The interval is the whole story for freshness. Within it there is **zero network** — a tag
+that moved upstream keeps serving the cached tree until the TTL lapses, which is correct but
+surprising right after you publish. Two ways out:
+
+```
+archetect render <source> -U         # force a re-probe now, one run
+```
+
+```yaml
+# archetect.yaml — a shorter TTL, e.g. while authoring libraries
+updates:
+  interval: 60        # seconds; default 86400 (1 day)
+```
 
 ## The cache (shared with prova — same trees, both binaries)
 
