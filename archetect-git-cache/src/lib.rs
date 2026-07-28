@@ -388,10 +388,7 @@ fn prune_repo_trees(
             continue;
         }
         let lease_path = repo_trees.join(format!("{oid}.lease"));
-        let lease = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(lease_path.as_std_path());
+        let lease = open_lock_file(lease_path.as_std_path());
         match lease {
             Ok(file) if FileExt::try_lock_exclusive(&file).is_ok() => {
                 let _ = std::fs::remove_dir_all(path.as_std_path());
@@ -422,14 +419,33 @@ fn materialize_atomic(
     let tmp = trees_root.join(format!(".tmp-{oid}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(tmp.as_std_path());
     git::materialize(mirror_dir, oid, &tmp)?;
-    match std::fs::rename(tmp.as_std_path(), tree_dir.as_std_path()) {
-        Ok(()) => Ok(()),
-        Err(_) if tree_dir.exists() => {
-            let _ = std::fs::remove_dir_all(tmp.as_std_path());
-            Ok(())
+
+    // Windows can transiently fail the rename with ERROR_ACCESS_DENIED (os error 5): right after the
+    // checkout writes the tree, an antivirus scanner (or a lingering libgit2 handle) briefly holds a
+    // handle to a just-written file, and MoveFile refuses while it is open. The lock clears in
+    // milliseconds, so retry with a short backoff before giving up — the same remedy cargo and rustup
+    // use for this exact race. POSIX renames succeed on the first attempt, so this is a no-op there.
+    let max_attempts = 10;
+    let mut delay = Duration::from_millis(10);
+    for attempt in 1..=max_attempts {
+        match std::fs::rename(tmp.as_std_path(), tree_dir.as_std_path()) {
+            Ok(()) => return Ok(()),
+            // Another process materialized the same oid first — the tree is present, adopt it.
+            Err(_) if tree_dir.exists() => {
+                let _ = std::fs::remove_dir_all(tmp.as_std_path());
+                return Ok(());
+            }
+            Err(e) if attempt == max_attempts => {
+                let _ = std::fs::remove_dir_all(tmp.as_std_path());
+                return Err(e.into());
+            }
+            Err(_) => {
+                std::thread::sleep(delay);
+                delay = (delay * 2).min(Duration::from_millis(500));
+            }
         }
-        Err(e) => Err(e.into()),
     }
+    unreachable!("the loop returns on the final attempt")
 }
 
 fn touch_used(trees_root: &Utf8Path, oid: &str, now_ms: i64) -> Result<(), GitCacheError> {
@@ -442,7 +458,7 @@ fn acquire_shared_lease(trees_root: &Utf8Path, oid: &str) -> Result<Lease, GitCa
     let tree_dir = trees_root.join(oid);
     lease_incr(&tree_dir);
     let path = trees_root.join(format!("{oid}.lease"));
-    let file = OpenOptions::new().create(true).append(true).open(path.as_std_path())?;
+    let file = open_lock_file(path.as_std_path())?;
     if let Err(err) = FileExt::lock_shared(&file) {
         lease_decr(&tree_dir); // don't leak the refcount if the flock fails
         return Err(err.into());
@@ -631,12 +647,22 @@ fn acquire_exclusive_lock(sources_dir: &Utf8Path) -> Result<File, GitCacheError>
         Some(parent) => parent.join(format!("{name}.lock")),
         None => Utf8PathBuf::from(format!("{sources_dir}.lock")),
     };
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(lock_path.as_std_path())?;
+    let file = open_lock_file(lock_path.as_std_path())?;
     FileExt::lock_exclusive(&file)?;
     Ok(file)
+}
+
+/// Open a file that will hold an `fs4` advisory lock. **read+write, never append**: Windows
+/// `LockFileEx` (what fs4's `lock_*` calls) requires a handle carrying GENERIC_READ/WRITE, and
+/// `.append(true)` alone yields only FILE_APPEND_DATA — so the lock fails with ERROR_ACCESS_DENIED
+/// (os error 5). POSIX `flock` ignores the open mode, which is why append-only only ever bit
+/// Windows. The file is a pure lock handle; its contents are never read or written.
+fn open_lock_file(path: &std::path::Path) -> std::io::Result<File> {
+    OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(path)
 }
 
 // ── small helpers ───────────────────────────────────────────────────────────────────────────────
