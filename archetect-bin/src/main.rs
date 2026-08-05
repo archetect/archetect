@@ -181,7 +181,18 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
             let client_cfg = archetect.configuration().client().cloned();
             let endpoint = subcommands::resolve_endpoint(args, client_cfg.as_ref())?;
             let options = subcommands::resolve_client_options(args, client_cfg.as_ref());
-            archetect_core::client::start_with_options(render_context, endpoint, options)?;
+            // `connect <endpoint> <path>` addresses a catalog leaf on the
+            // server (Initialize.catalog_path). An unset action (clap's
+            // "default" fill-in) sends the empty path — the server's own
+            // action or unambiguous default decides.
+            let action_was_default =
+                args.value_source("action") == Some(clap::parser::ValueSource::DefaultValue);
+            let catalog_path = if action_was_default {
+                String::new()
+            } else {
+                args.get_one::<String>("action").cloned().unwrap_or_default()
+            };
+            archetect_core::client::start_remote(render_context, endpoint, catalog_path, options)?;
         }
         Some((_, _args)) => {
             execute_catalog_dispatch(&matches, archetect, answers)?;

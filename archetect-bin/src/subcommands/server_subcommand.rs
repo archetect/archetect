@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::parser::ValueSource;
 use clap::ArgMatches;
 
+use archetect_core::catalog::dispatch::{self, PathTarget};
 use archetect_core::configuration::ConfigurationServerSection;
 use archetect_core::errors::ArchetectError;
 use archetect_core::server::{ArchetectServer, ArchetectServiceCore, TlsConfig};
@@ -19,6 +20,12 @@ pub fn handle_server_subcommand(
     let port = resolve_port(args, server_cfg.as_ref());
     let tls = resolve_tls_config(args, server_cfg.as_ref())?;
 
+    // `archetect server <action>` scopes what a pathless render targets.
+    // Validate it NOW, before binding the port: a server whose action does
+    // not name a renderable leaf can only ever serve callers the wrong
+    // archetype, so it must refuse to start — loudly, at deploy time.
+    let default_action = resolve_default_action(args, &archetect)?;
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -28,7 +35,10 @@ pub fn handle_server_subcommand(
 
     runtime
         .block_on(async {
-            let core = ArchetectServiceCore::builder(archetect).build().await?;
+            let core = ArchetectServiceCore::builder(archetect)
+                .with_default_action(default_action)
+                .build()
+                .await?;
             let mut builder = ArchetectServer::builder(core)
                 .with_host(host)
                 .with_port(port);
@@ -63,6 +73,47 @@ fn cli_explicit(args: &ArgMatches, id: &str) -> bool {
         args.value_source(id),
         Some(ValueSource::CommandLine | ValueSource::EnvVariable)
     )
+}
+
+/// The startup action, validated against the catalog with the same walker
+/// `DescribeArchetype` uses. An unset action (clap's "default" fill-in) means
+/// "no explicit action" — the catalog's own unambiguous default applies at
+/// render time. An explicit action must resolve to a renderable leaf.
+fn resolve_default_action(
+    args: &ArgMatches,
+    archetect: &Archetect,
+) -> Result<Option<String>, ArchetectError> {
+    if !cli_explicit(args, "action") {
+        return Ok(None);
+    }
+    let action = args
+        .get_one::<String>("action")
+        .expect("has default")
+        .to_string();
+
+    let catalog = archetect.configuration().catalog().ok_or_else(|| {
+        ArchetectError::ServerError(format!(
+            "Cannot serve action '{}': this configuration has no catalog",
+            action
+        ))
+    })?;
+
+    match dispatch::walk_path(archetect, catalog, &action) {
+        Some(PathTarget::Leaf(_)) => Ok(Some(action)),
+        Some(PathTarget::Group(_)) => Err(ArchetectError::ServerError(format!(
+            "Server action '{}' names a catalog group — name a renderable leaf",
+            action
+        ))),
+        Some(PathTarget::Remote { .. }) => Err(ArchetectError::ServerError(format!(
+            "Server action '{}' is a federated entry — point clients at its server directly",
+            action
+        ))),
+        None => Err(ArchetectError::ServerError(format!(
+            "Server action '{}' not found in the catalog. Available top-level entries: {:?}",
+            action,
+            catalog.keys().collect::<Vec<_>>()
+        ))),
+    }
 }
 
 fn resolve_host(args: &ArgMatches, cfg: Option<&ConfigurationServerSection>) -> String {

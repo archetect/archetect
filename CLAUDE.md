@@ -182,7 +182,8 @@ could reach GitHub with the host's token.
 ### Client / Server
 
 `archetect server` serves gRPC (tonic, with reflection + health); `archetect connect
-<endpoint>` is the reference client. The contract is `archetect-core/specs/archetect.proto`:
+<endpoint> [path]` is the reference client. The contract is
+`archetect-core/specs/archetect.proto`:
 
 | RPC | Purpose |
 |---|---|
@@ -192,7 +193,12 @@ could reach GitHub with the host's token.
 
 TLS is configurable on both ends (`--tls-cert`/`--tls-key`, `--tls-ca`, mutual TLS).
 `Initialize` selects a `catalog_path` and carries the capabilities the client grants; there is
-no free-form source over the wire. `CompleteSuccess` carries an artifact manifest — what the
+no free-form source over the wire. Paths resolve through the same walker `DescribeArchetype`
+uses (`dispatch::walk_path` + `render_leaf`, so entry answers/switches apply); with no path,
+only an UNAMBIGUOUS default renders — the server's startup action (`archetect server <action>`,
+validated at startup, fail-fast), a "default" entry, or a single-leaf catalog — never the
+first entry by declaration order (`proofs/server/action_resolution_test.lua`).
+`CompleteSuccess` carries an artifact manifest — what the
 render produced (archives, published repos) with script-derived names a caller could not
 otherwise guess. `archetect connect` prints it; that is how Ybor Studio learns which zip to
 offer for download.

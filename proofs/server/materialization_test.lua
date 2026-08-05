@@ -16,9 +16,10 @@ local bin = prova.fixture("archetect-bin", Scope.File, function(ctx)
 	return prova.root .. "/target/debug/archetect"
 end)
 
--- Each archetype gets its own single-entry server: `connect` always renders the
--- server's `default` catalog entry (no catalog-path flag on the subcommand), so
--- selecting between archetypes means selecting between endpoints.
+-- Each archetype gets its own single-entry server. `connect <endpoint> <path>`
+-- can address a catalog leaf now (see action_resolution_test.lua) — these
+-- proofs keep the one-archetype-per-endpoint shape because materialization,
+-- not addressing, is what they isolate.
 local function start_server(ctx, ws, name)
 	ws:write(name .. "-config.yaml", table.concat({
 		"catalog:",

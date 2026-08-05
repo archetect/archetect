@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::catalog::catalog_index::{IndexEntry, IndexEntryKind};
 use crate::catalog::catalog_indexer::CatalogIndexer;
+use crate::catalog::dispatch;
 use crate::manifest::CatalogEntry;
 
 use archetect_api::ScriptMessage;
@@ -27,6 +28,11 @@ use crate::Archetect;
 #[derive(Clone, Debug)]
 pub struct ArchetectServiceCore {
     prototype: Archetect,
+    /// The catalog path renders target when `Initialize.catalog_path` is empty —
+    /// `archetect server <action>`, validated at startup. `None` = no explicit
+    /// action: fall back to the catalog's own unambiguous default (see
+    /// [`resolve_default_entry`]).
+    default_action: Option<String>,
 }
 
 impl ArchetectServiceCore {
@@ -41,16 +47,26 @@ impl ArchetectServiceCore {
 
 pub struct ArchetectServiceCoreBuilder {
     prototype: Archetect,
+    default_action: Option<String>,
 }
 
 impl ArchetectServiceCoreBuilder {
     pub fn new(prototype: Archetect) -> Self {
-        Self { prototype }
+        Self {
+            prototype,
+            default_action: None,
+        }
+    }
+
+    pub fn with_default_action(mut self, action: Option<String>) -> Self {
+        self.default_action = action;
+        self
     }
 
     pub async fn build(self) -> Result<ArchetectServiceCore, ArchetectError> {
         Ok(ArchetectServiceCore {
             prototype: self.prototype,
+            default_action: self.default_action,
         })
     }
 }
@@ -96,6 +112,7 @@ impl ArchetectService for ArchetectServiceCore {
 
         let mut archetect_handle = None;
         let mut initialized = false;
+        let default_action = self.default_action.clone();
 
         let task_span = stream_span.clone();
         tokio::spawn(async move {
@@ -104,6 +121,7 @@ impl ArchetectService for ArchetectServiceCore {
                     Ok(message) => {
                         if !initialized {
                             let archetect = archetect.clone();
+                            let default_action = default_action.clone();
                             archetect_handle = Some(tokio::task::spawn_blocking(move || {
                                 if let grpc::ClientMessage {
                                     message:
@@ -128,86 +146,76 @@ impl ArchetectService for ArchetectServiceCore {
                                     );
 
                                     let destination = initialize.destination;
-                                    // Resolve the source. Priority order:
-                                    //   1. Initialize.catalog_path — follow the slash-
-                                    //      separated path into the server's catalog
-                                    //      tree (federation case).
-                                    //   2. Catalog entry named "default".
-                                    //   3. First entry in the catalog with a source
-                                    //      (legacy fallback).
-                                    let source = archetect
-                                        .configuration()
-                                        .catalog()
-                                        .and_then(|catalog| {
-                                            if !initialize.catalog_path.is_empty() {
-                                                resolve_source_by_path(catalog, &initialize.catalog_path)
-                                            } else {
-                                                catalog
-                                                    .get("default")
-                                                    .and_then(|e| e.source.clone())
-                                                    .or_else(|| {
-                                                        catalog
-                                                            .values()
-                                                            .find_map(|e| e.source.clone())
-                                                    })
-                                            }
-                                        });
+                                    let render_context = RenderContext::new(destination, answers)
+                                        .with_switches(
+                                            initialize
+                                                .switches
+                                                .iter()
+                                                .map(|v| v.to_string())
+                                                .collect(),
+                                        )
+                                        .with_use_defaults(
+                                            initialize
+                                                .use_defaults
+                                                .iter()
+                                                .map(|v| v.to_string())
+                                                .collect(),
+                                        )
+                                        .with_use_defaults_all(initialize.use_defaults_all);
 
-                                    if let Some(source) = source {
-                                        let render_context = RenderContext::new(destination, answers)
-                                            .with_switches(
-                                                initialize
-                                                    .switches
-                                                    .iter()
-                                                    .map(|v| v.to_string())
-                                                    .collect(),
-                                            )
-                                            .with_use_defaults(
-                                                initialize
-                                                    .use_defaults
-                                                    .iter()
-                                                    .map(|v| v.to_string())
-                                                    .collect(),
-                                            )
-                                            .with_use_defaults_all(initialize.use_defaults_all);
-
-                                        match archetect.new_archetype(&source) {
-                                            Ok(archetype) => {
-                                                match archetype.render(render_context) {
-                                                    Ok(_) => {
-                                                        info!("Successfully rendered");
-                                                        let artifacts = archetect.artifacts();
-                                                        let _ = archetect.request(
-                                                            ScriptMessage::CompleteSuccess(
-                                                                artifacts,
-                                                            ),
-                                                        );
-                                                    }
-                                                    Err(err) => {
-                                                        // The client cannot see this log — it is
-                                                        // on the other end of a wire. Without a
-                                                        // CompleteError the stream just ends and
-                                                        // a failed render is indistinguishable
-                                                        // from a successful one.
-                                                        error!("Render error: {:?}", err);
-                                                        let _ = archetect.request(
-                                                            ScriptMessage::CompleteError(
-                                                                err.to_string(),
-                                                            ),
-                                                        );
-                                                    }
+                                    // Resolve the render target. Priority:
+                                    //   1. Initialize.catalog_path — resolved with the
+                                    //      SAME walker DescribeArchetype uses, so any
+                                    //      path a client can describe, it can render.
+                                    //   2. The server's startup action (`archetect
+                                    //      server <action>`), validated at startup.
+                                    //   3. The catalog's own unambiguous default: a
+                                    //      "default" entry, or a single-leaf catalog.
+                                    // A caller is NEVER handed an arbitrary entry: an
+                                    // unresolvable or ambiguous target is an error
+                                    // naming the choices.
+                                    match resolve_render_target(
+                                        &archetect,
+                                        &initialize.catalog_path,
+                                        default_action.as_deref(),
+                                    ) {
+                                        Ok((entry, label)) => {
+                                            match dispatch::render_leaf(
+                                                &archetect,
+                                                &entry,
+                                                &label,
+                                                render_context,
+                                            ) {
+                                                Ok(_) => {
+                                                    info!("Successfully rendered '{}'", label);
+                                                    let artifacts = archetect.artifacts();
+                                                    let _ = archetect.request(
+                                                        ScriptMessage::CompleteSuccess(
+                                                            artifacts,
+                                                        ),
+                                                    );
+                                                }
+                                                Err(err) => {
+                                                    // The client cannot see this log — it is
+                                                    // on the other end of a wire. Without a
+                                                    // CompleteError the stream just ends and
+                                                    // a failed render is indistinguishable
+                                                    // from a successful one.
+                                                    error!("Render error: {:?}", err);
+                                                    let _ = archetect.request(
+                                                        ScriptMessage::CompleteError(
+                                                            err.to_string(),
+                                                        ),
+                                                    );
                                                 }
                                             }
-                                            Err(err) => {
-                                                let _ = archetect.request(
-                                                    ScriptMessage::CompleteError(err.to_string()),
-                                                );
-                                            }
                                         }
-                                    } else {
-                                        let _ = archetect.request(ScriptMessage::CompleteError(
-                                            "No default action configured".to_string(),
-                                        ));
+                                        Err(message) => {
+                                            error!("Target resolution error: {}", message);
+                                            let _ = archetect.request(
+                                                ScriptMessage::CompleteError(message),
+                                            );
+                                        }
                                     }
                                 } else {
                                     let _ = archetect.request(ScriptMessage::LogError(
@@ -368,28 +376,75 @@ fn index_entry_to_proto(entry: &IndexEntry) -> grpc::CatalogIndexEntry {
     }
 }
 
-/// Walk a slash-separated catalog path to its leaf entry and return that
-/// entry's source. Nested sub-catalogs are traversed via `CatalogEntry::catalog`.
-/// Returns None if any segment is missing or if the leaf has no source.
-fn resolve_source_by_path(
-    catalog: &LinkedHashMap<String, CatalogEntry>,
-    path: &str,
-) -> Option<String> {
-    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if segments.is_empty() {
-        return None;
+/// Resolve what a streaming render targets: the client's `catalog_path` if it
+/// sent one, else the server's startup action, else the catalog's own
+/// unambiguous default. Returns the entry plus the path label it resolved
+/// from (for error messages and entry-flag reporting).
+///
+/// Paths resolve through [`dispatch::walk_path`] — the same walker
+/// `DescribeArchetype` uses — so describe and render cannot disagree about
+/// what a path names. Anything other than a renderable leaf is an error
+/// naming the problem; a caller is never silently handed a different entry.
+fn resolve_render_target(
+    archetect: &Archetect,
+    catalog_path: &str,
+    default_action: Option<&str>,
+) -> Result<(CatalogEntry, String), String> {
+    let catalog = archetect
+        .configuration()
+        .catalog()
+        .ok_or_else(|| "This server has no catalog configured".to_string())?;
+
+    let requested = if !catalog_path.is_empty() {
+        Some(catalog_path)
+    } else {
+        default_action
+    };
+
+    match requested {
+        Some(path) => match dispatch::walk_path(archetect, catalog, path) {
+            Some(dispatch::PathTarget::Leaf(entry)) => Ok((entry, path.to_string())),
+            Some(dispatch::PathTarget::Group(_)) => Err(format!(
+                "Catalog path '{}' is a group on this server — name a renderable leaf",
+                path
+            )),
+            Some(dispatch::PathTarget::Remote { .. }) => Err(format!(
+                "Catalog path '{}' is a federated entry on this server — dispatch to its server directly",
+                path
+            )),
+            None => Err(format!(
+                "Catalog path '{}' not found on this server. Available top-level entries: {:?}",
+                path,
+                catalog.keys().collect::<Vec<_>>()
+            )),
+        },
+        None => resolve_default_entry(catalog).ok_or_else(|| {
+            format!(
+                "No unambiguous default on this server — send a catalog path. Available top-level entries: {:?}",
+                catalog.keys().collect::<Vec<_>>()
+            )
+        }),
     }
-    let mut current: &LinkedHashMap<String, CatalogEntry> = catalog;
-    let mut entry: Option<&CatalogEntry> = None;
-    for (i, segment) in segments.iter().enumerate() {
-        let found = current.get(*segment)?;
-        if i == segments.len() - 1 {
-            entry = Some(found);
-        } else {
-            current = found.catalog.as_ref()?;
+}
+
+/// The catalog's own default render target, honored only when UNAMBIGUOUS:
+/// an entry named "default", or a catalog with exactly one (source-bearing)
+/// entry. A multi-entry catalog without a "default" entry has no honest
+/// answer — the old behavior of picking the first source by declaration
+/// order handed callers an arbitrary archetype.
+fn resolve_default_entry(
+    catalog: &LinkedHashMap<String, CatalogEntry>,
+) -> Option<(CatalogEntry, String)> {
+    if let Some(entry) = catalog.get("default") {
+        return Some((entry.clone(), "default".to_string()));
+    }
+    if catalog.len() == 1 {
+        let (name, entry) = catalog.iter().next()?;
+        if entry.source.is_some() {
+            return Some((entry.clone(), name.clone()));
         }
     }
-    entry.and_then(|e| e.source.clone())
+    None
 }
 
 #[cfg(test)]
@@ -434,45 +489,51 @@ mod tests {
     }
 
     #[test]
-    fn resolves_nested_path() {
-        let mut services = LinkedHashMap::new();
+    fn default_entry_wins_by_name() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("default", "git://example.com/default.git");
+        root.insert(n, e);
+        let (n, e) = leaf("other", "git://example.com/other.git");
+        root.insert(n, e);
+
+        let (entry, label) = resolve_default_entry(&root).expect("default resolves");
+        assert_eq!(label, "default");
+        assert_eq!(entry.source.as_deref(), Some("git://example.com/default.git"));
+    }
+
+    #[test]
+    fn single_leaf_catalog_is_unambiguous_whatever_its_name() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("solo", "git://example.com/solo.git");
+        root.insert(n, e);
+
+        let (entry, label) = resolve_default_entry(&root).expect("single leaf resolves");
+        assert_eq!(label, "solo");
+        assert_eq!(entry.source.as_deref(), Some("git://example.com/solo.git"));
+    }
+
+    #[test]
+    fn multi_entry_catalog_without_default_is_ambiguous() {
+        let mut root = LinkedHashMap::new();
+        let (n, e) = leaf("alpha", "git://example.com/alpha.git");
+        root.insert(n, e);
+        let (n, e) = leaf("beta", "git://example.com/beta.git");
+        root.insert(n, e);
+
+        // The old behavior rendered `alpha` here (first source by declaration
+        // order) — the arbitrary-entry bug this helper exists to kill.
+        assert!(resolve_default_entry(&root).is_none());
+    }
+
+    #[test]
+    fn single_group_catalog_is_not_a_render_target() {
+        let mut children = LinkedHashMap::new();
         let (n, e) = leaf("grpc", "git://example.com/grpc.git");
-        services.insert(n, e);
+        children.insert(n, e);
         let mut root = LinkedHashMap::new();
-        let (n, e) = group("services", services);
+        let (n, e) = group("services", children);
         root.insert(n, e);
 
-        assert_eq!(
-            resolve_source_by_path(&root, "services/grpc"),
-            Some("git://example.com/grpc.git".to_string())
-        );
-    }
-
-    #[test]
-    fn resolves_top_level_path() {
-        let mut root = LinkedHashMap::new();
-        let (n, e) = leaf("default", "git://example.com/default.git");
-        root.insert(n, e);
-        assert_eq!(
-            resolve_source_by_path(&root, "default"),
-            Some("git://example.com/default.git".to_string())
-        );
-    }
-
-    #[test]
-    fn returns_none_for_missing_segment() {
-        let mut root = LinkedHashMap::new();
-        let (n, e) = leaf("default", "git://example.com/default.git");
-        root.insert(n, e);
-        assert!(resolve_source_by_path(&root, "missing").is_none());
-        assert!(resolve_source_by_path(&root, "default/extra").is_none());
-    }
-
-    #[test]
-    fn returns_none_for_empty_path() {
-        let mut root = LinkedHashMap::new();
-        let (n, e) = leaf("default", "git://example.com/default.git");
-        root.insert(n, e);
-        assert!(resolve_source_by_path(&root, "").is_none());
+        assert!(resolve_default_entry(&root).is_none());
     }
 }
