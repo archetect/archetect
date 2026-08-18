@@ -35,6 +35,8 @@ local UNGATED = "archetect-inflections/"
 -- number, and change it on a prost bump with no commit to explain the move.
 local GENERATED = "/target/"
 
+local custody = require("custody")
+
 local findings = prova.fixture("clippy-findings", Scope.File, function()
 	local out = shell.run({
 		"cargo", "clippy", "--workspace", "--all-targets", "--keep-going",
@@ -64,7 +66,7 @@ local findings = prova.fixture("clippy-findings", Scope.File, function()
 
 	local path = prova.root .. "/target/clippy-findings.json"
 	fs.write(path, json.encode({ total = total, by_lint = by_lint, sample = sample }))
-	report.publish {
+	custody.publish {
 		name = "clippy",
 		summary = string.format("%d findings across %d lints (%s not gated yet)",
 			total, (function() local n = 0 for _ in pairs(by_lint) do n = n + 1 end return n end)(), UNGATED),

@@ -16,6 +16,8 @@
 -- Scope.Run: one conduct per run, whatever reads it. The exit code is
 -- deliberately not asserted at conduct time — the adopting proof below reports
 -- red with the deputed cases' OWN names, which a dead fixture would hide.
+local custody = require("custody")
+
 local nextest = prova.fixture("nextest-junit", Scope.Run, function()
 	local artifact = prova.root .. "/target/nextest/prova/junit.xml"
 	-- Removed FIRST, so a deputy that dies before emitting leaves nothing behind
@@ -50,7 +52,7 @@ local nextest = prova.fixture("nextest-junit", Scope.Run, function()
 	-- `prova reports unit-cases`.
 	if fs.exists(artifact) then
 		local adopted = junit.load(artifact)
-		report.publish {
+		custody.publish {
 			name = "unit-cases",
 			summary = string.format(
 				"%d cases · %d passed · %d failed · %d skipped",

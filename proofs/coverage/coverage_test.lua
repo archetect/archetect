@@ -24,6 +24,8 @@
 --- `target/debug` — an instrumented archetect there would be the binary every
 --- later `prova` run drives, silently dropping a profraw wherever it was invoked.
 
+local custody = require("custody")
+
 local COV_DIR = prova.root .. "/target/llvm-cov-target"
 local UNIT_STAGE = prova.root .. "/target/coverage-unit-stage"
 
@@ -272,7 +274,7 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 		forms.html = html_dir .. "/html"
 	end
 
-	report.publish {
+	custody.publish {
 		name = "coverage",
 		summary = string.format("unit %.2f%% · black-box %.2f%% · merged %.2f%% (%d/%d lines)",
 			pct(unit), pct(blackbox), pct(merged),
