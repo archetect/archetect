@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-use archetect_api::{ContextMap, PromptEnvelope, PromptType};
+use archetect_api::{ContextMap, PromptEnvelope, PromptType, SegmentKind};
 
 use crate::archetype::archetype::Archetype;
 use crate::archetype::render_context::RenderContext;
@@ -29,7 +29,7 @@ use crate::source::SourceContents;
 use crate::system::SystemLayout;
 use crate::Archetect;
 
-pub use probe_driver::ProbeDriver;
+pub use probe_driver::{ProbeDriver, ProbeEvent};
 
 /// How much of the prompt tree a probe result covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,12 +78,134 @@ pub struct InterfacePrompt {
     pub appears_when: Vec<AppearsWhen>,
 }
 
+/// A container in the derived interface, with what it holds.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InterfaceSegment {
+    /// Stable identity — what a wizard routes on. `title` is display text
+    /// and gets reworded; this should not.
+    pub key: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<serde_json::Value>,
+    /// Always present, possibly empty: a review step that asks nothing is
+    /// still a step.
+    pub children: Vec<InterfaceNode>,
+}
+
+/// One position in the interface's layout. Prompt nodes reference the flat
+/// `prompts` list **by key** rather than repeating it — one source of truth,
+/// nothing to drift.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum InterfaceNode {
+    Prompt { key: String },
+    Page(InterfaceSegment),
+    Section(InterfaceSegment),
+}
+
+impl InterfaceNode {
+    fn segment(kind: SegmentKind, segment: InterfaceSegment) -> Self {
+        match kind {
+            SegmentKind::Page => InterfaceNode::Page(segment),
+            SegmentKind::Section => InterfaceNode::Section(segment),
+        }
+    }
+
+    fn key(&self) -> &str {
+        match self {
+            InterfaceNode::Prompt { key } => key,
+            InterfaceNode::Page(segment) | InterfaceNode::Section(segment) => &segment.key,
+        }
+    }
+
+    /// Same slot for merge purposes: same kind, same key.
+    fn same_slot_as(&self, other: &InterfaceNode) -> bool {
+        self.key() == other.key()
+            && std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+}
+
+/// Fold one run's event stream into a tree.
+///
+/// A run that died inside a page leaves it open; the leftovers are closed on
+/// the way out so the mapped prefix keeps its structure instead of vanishing.
+fn build_layout(events: &[ProbeEvent]) -> Vec<InterfaceNode> {
+    let mut root: Vec<InterfaceNode> = Vec::new();
+    let mut open: Vec<(SegmentKind, InterfaceSegment)> = Vec::new();
+
+    fn place(node: InterfaceNode, open: &mut [(SegmentKind, InterfaceSegment)], root: &mut Vec<InterfaceNode>) {
+        match open.last_mut() {
+            Some((_, segment)) => segment.children.push(node),
+            None => root.push(node),
+        }
+    }
+
+    for event in events {
+        match event {
+            ProbeEvent::Enter(info) => open.push((
+                info.kind,
+                InterfaceSegment {
+                    key: info.key.clone(),
+                    title: info.title.clone(),
+                    help: info.help.clone(),
+                    ui: info.ui.clone(),
+                    children: Vec::new(),
+                },
+            )),
+            ProbeEvent::Exit => {
+                if let Some((kind, segment)) = open.pop() {
+                    place(InterfaceNode::segment(kind, segment), &mut open, &mut root);
+                }
+            }
+            ProbeEvent::Prompt(envelope) => {
+                let key = envelope
+                    .key
+                    .clone()
+                    .unwrap_or_else(|| envelope.message.clone());
+                place(InterfaceNode::Prompt { key }, &mut open, &mut root);
+            }
+        }
+    }
+
+    while let Some((kind, segment)) = open.pop() {
+        place(InterfaceNode::segment(kind, segment), &mut open, &mut root);
+    }
+    root
+}
+
+/// Union two runs' trees: same-slot containers merge their children, and
+/// anything new appends. Exploration must produce ONE layout — a wizard
+/// cannot render a fork — so a section found only down the `postgres` branch
+/// lands inside the page it was declared in, after what the baseline saw.
+fn merge_layout(into: &mut Vec<InterfaceNode>, from: &[InterfaceNode]) {
+    for incoming in from {
+        if let Some(existing) = into.iter_mut().find(|node| node.same_slot_as(incoming)) {
+            match (existing, incoming) {
+                (
+                    InterfaceNode::Page(target) | InterfaceNode::Section(target),
+                    InterfaceNode::Page(source) | InterfaceNode::Section(source),
+                ) => merge_layout(&mut target.children, &source.children),
+                _ => {}
+            }
+        } else {
+            into.push(incoming.clone());
+        }
+    }
+}
+
 /// The derived interface — the probe's transcript, structured.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DerivedInterface {
     pub mode: InterfaceMode,
     pub coverage: ProbeCoverage,
     pub prompts: Vec<InterfacePrompt>,
+    /// The prompt order as the author structured it: pages, sections, and
+    /// loose prompts, nested. Always present — an archetype that declares no
+    /// containers gets bare prompt nodes, so a client has one code path
+    /// whether or not the author paginated.
+    pub layout: Vec<InterfaceNode>,
     /// Switch names the script consulted via `switches.is_enabled` —
     /// never prompted, so this recording is their only discovery path.
     pub switches: Vec<String>,
@@ -130,6 +252,7 @@ impl Default for ProbeOptions {
 /// One probe run's raw outcome.
 struct RunOutcome {
     prompts: Vec<PromptEnvelope>,
+    events: Vec<ProbeEvent>,
     switches: Vec<String>,
     completed: bool,
     error: Option<String>,
@@ -159,6 +282,7 @@ pub fn probe_interface(
             // A single default path never proves batch-safety.
             mode: InterfaceMode::Interactive,
             coverage,
+            layout: build_layout(&baseline.events),
             prompts: baseline
                 .prompts
                 .iter()
@@ -316,6 +440,11 @@ fn explore(
     switches.sort();
     switches.dedup();
 
+    let mut layout: Vec<InterfaceNode> = Vec::new();
+    for (_, outcome) in &runs {
+        merge_layout(&mut layout, &build_layout(&outcome.events));
+    }
+
     let first_error = runs.iter().find_map(|(_, o)| o.error.clone());
     Ok(DerivedInterface {
         mode: if fully_explored {
@@ -331,6 +460,7 @@ fn explore(
             ProbeCoverage::Partial
         },
         prompts,
+        layout,
         switches,
         completed: all_completed,
         error: first_error,
@@ -398,6 +528,7 @@ fn run_probe(
 
     Ok(RunOutcome {
         prompts: recorded.prompts.clone(),
+        events: recorded.events.clone(),
         switches,
         completed: result.is_ok(),
         error: result.err().map(|e| e.to_string()),

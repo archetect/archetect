@@ -1,11 +1,15 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use mlua::{Error as LuaError, Lua, Result as LuaResult, Table, UserData, UserDataMethods, Value};
+use mlua::{
+    AnyUserData, Error as LuaError, Function, Lua, MultiValue, Result as LuaResult, Table, UserData,
+    UserDataMethods, Value,
+};
 
 use archetect_api::{
-    BoolPromptInfo, ClientMessage, ContextMap, ContextValue, EditorPromptInfo, IntPromptInfo,
-    ListPromptInfo, MultiSelectPromptInfo, PromptOption, ScriptMessage, SelectPromptInfo, TextPromptInfo,
+    segment_key_from_title, BoolPromptInfo, ClientMessage, ContextMap, ContextValue,
+    EditorPromptInfo, IntPromptInfo, ListPromptInfo, MultiSelectPromptInfo, PromptOption,
+    ScriptMessage, SegmentEnd, SegmentInfo, SegmentKind, SelectPromptInfo, TextPromptInfo,
 };
 
 use crate::archetype::render_context::RenderContext;
@@ -583,6 +587,79 @@ fn handle_response_array(response: ClientMessage) -> LuaResult<Option<Vec<String
     }
 }
 
+/// Read a `page`/`section` declaration: either a bare title string, or a
+/// table carrying `title` plus the optional `key`, `help`, and `ui`.
+///
+/// The title is the one required field. A container a UI cannot label is
+/// not renderable, and failing at the call site beats emitting a nameless
+/// step for a client to invent a name for.
+fn parse_segment_spec(verb: &str, spec: &Value) -> LuaResult<SegmentInfo> {
+    let kind = if verb == "page" { SegmentKind::Page } else { SegmentKind::Section };
+    let missing_title = || {
+        LuaError::RuntimeError(format!(
+            "context:{}() requires a title — pass a string, or a table with a `title` field",
+            verb
+        ))
+    };
+    match spec {
+        Value::String(title) => {
+            let title = title.to_string_lossy().to_string();
+            if title.trim().is_empty() {
+                return Err(missing_title());
+            }
+            Ok(SegmentInfo {
+                kind,
+                key: segment_key_from_title(&title),
+                title,
+                help: None,
+                ui: None,
+            })
+        }
+        Value::Table(table) => {
+            let title = get_opt_string(table, "title")?.ok_or_else(missing_title)?;
+            if title.trim().is_empty() {
+                return Err(missing_title());
+            }
+            let key = get_opt_string(table, "key")?
+                .unwrap_or_else(|| segment_key_from_title(&title));
+            Ok(SegmentInfo {
+                kind,
+                key,
+                title,
+                help: get_opt_string(table, "help")?,
+                ui: get_opt_ui(table)?,
+            })
+        }
+        _ => Err(LuaError::RuntimeError(format!(
+            "context:{}() expected a title string or an options table with a `title` field",
+            verb
+        ))),
+    }
+}
+
+/// Shared body for `Context:page` and `Context:section`.
+///
+/// Registered as a FUNCTION rather than a method on purpose: the body it
+/// runs calls `ctx:prompt_*`, which needs a mutable borrow of the same
+/// userdata. Holding a borrow across the call would deadlock the script
+/// on its own first prompt.
+///
+/// `EndSegment` is sent even when the body fails, so the message stream
+/// stays balanced on a failed render — the error is still the result.
+fn run_segment(
+    verb: &str,
+    (this, spec, body): (AnyUserData, Value, Function),
+) -> LuaResult<MultiValue> {
+    let info = parse_segment_spec(verb, &spec)?;
+    let archetect = this.borrow::<Context>()?.archetect.clone();
+    let end = SegmentEnd { kind: info.kind, key: info.key.clone() };
+
+    let _ = archetect.request(ScriptMessage::BeginSegment(info));
+    let result = body.call::<MultiValue>(Value::UserData(this));
+    let _ = archetect.request(ScriptMessage::EndSegment(end));
+    result
+}
+
 impl UserData for Context {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         // tostring(ctx) — yields YAML of the context's data. Round-trips
@@ -1022,6 +1099,20 @@ impl UserData for Context {
             } else {
                 Ok(None)
             }
+        });
+
+        // ctx:page(title|opts, body) / ctx:section(title|opts, body)
+        //
+        // Containers. A page is a wizard step, a section a grouping inside
+        // one — but archetect only carries the distinction; what either
+        // LOOKS like is the renderer's call. The body receives the context,
+        // so `function(ctx) ... end` reads the same as closing over the
+        // outer variable, and its return values pass through.
+        methods.add_function("page", |_, args: (AnyUserData, Value, Function)| {
+            run_segment("page", args)
+        });
+        methods.add_function("section", |_, args: (AnyUserData, Value, Function)| {
+            run_segment("section", args)
         });
     }
 }

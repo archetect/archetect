@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::commands::{
     BoolPromptInfo, EditorPromptInfo, IntPromptInfo, ListPromptInfo,
     MultiSelectPromptInfo, PromptInfo, PromptInfoItemsRestrictions,
-    PromptInfoLengthRestrictions, PromptOption, ScriptMessage,
+    PromptInfoLengthRestrictions, PromptOption, ScriptMessage, SegmentRef,
     SelectPromptInfo, TextPromptInfo,
 };
 
@@ -88,9 +88,21 @@ pub struct PromptEnvelope {
     /// Opaque author-supplied UI metadata, passed through untouched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<serde_json::Value>,
+    /// The containers this prompt was asked inside, outermost first. Empty
+    /// unless the script declared pages/sections. A batch client reads the
+    /// derived interface's `layout`; an INTERACTIVE one gets one envelope at
+    /// a time and needs this to say "Step 2 · Ownership".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub segments: Vec<SegmentRef>,
 }
 
 impl PromptEnvelope {
+    /// Stamp the breadcrumb of containers this prompt was asked inside.
+    pub fn within(mut self, segments: Vec<SegmentRef>) -> Self {
+        self.segments = segments;
+        self
+    }
+
     pub fn from_script_message(msg: &ScriptMessage) -> Option<Self> {
         match msg {
             ScriptMessage::PromptForText(info) => Some(Self::from_text(info)),
@@ -123,6 +135,7 @@ impl PromptEnvelope {
             pattern: info.pattern.clone(),
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -145,6 +158,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -162,6 +176,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -186,6 +201,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -203,6 +219,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -227,6 +244,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 
@@ -249,6 +267,7 @@ impl PromptEnvelope {
             pattern: None,
             group: info.group.clone(),
             ui: info.ui.clone(),
+            segments: Vec::new(),
         }
     }
 }

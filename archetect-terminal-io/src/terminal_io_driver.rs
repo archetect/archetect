@@ -10,6 +10,7 @@ use crate::bool_prompt_handler::handle_prompt_bool;
 use crate::editor_prompt_info::handle_editor_prompt;
 use crate::int_prompt_handler::handle_prompt_int;
 use crate::multiselect_prompt_handler::handle_multiselect_prompt;
+use crate::segment_handler::handle_begin_segment;
 use crate::select_prompt_handler::handle_select_prompt;
 use crate::text_prompt_handler::handle_prompt_text;
 use crate::write_directory_handler::handle_write_directory;
@@ -45,6 +46,10 @@ impl ScriptIoHandle for TerminalScriptIoHandle {
             ScriptMessage::PromptForEditor(prompt_info) => {
                 handle_editor_prompt(prompt_info, &self.responses_tx);
             }
+            // Containers carry the author's grouping intent; the terminal
+            // renders it as a heading. No reply is expected either way.
+            ScriptMessage::BeginSegment(info) => handle_begin_segment(&info),
+            ScriptMessage::EndSegment(_) => {}
             ScriptMessage::LogInfo(message) => {
                 info!("{}", message)
             }

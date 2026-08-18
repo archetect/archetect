@@ -11,6 +11,9 @@ pub use crate::commands::prompt_info::{
     PromptInfo, PromptInfoItemsRestrictions, PromptInfoLengthRestrictions, PromptInfoPageable,
 };
 pub use crate::commands::prompt_option::PromptOption;
+pub use crate::commands::segment_info::{
+    segment_key_from_title, SegmentEnd, SegmentInfo, SegmentKind, SegmentRef,
+};
 pub use crate::commands::select_prompt_info::SelectPromptInfo;
 pub use crate::commands::text_prompt_info::TextPromptInfo;
 pub use crate::commands::write_directory_info::WriteDirectoryInfo;
@@ -23,6 +26,7 @@ mod list_prompt_info;
 mod multiselect_prompt_info;
 mod prompt_info;
 mod prompt_option;
+mod segment_info;
 mod select_prompt_info;
 mod text_prompt_info;
 mod write_directory_info;
@@ -44,6 +48,11 @@ pub enum ScriptMessage {
     PromptForMultiSelect(MultiSelectPromptInfo),
     /// Prompt to gather text from an editor
     PromptForEditor(EditorPromptInfo),
+    /// Enter an author-declared container (a page or a section). Carries
+    /// the grouping intent a renderer needs; expects no reply.
+    BeginSegment(SegmentInfo),
+    /// Leave the container most recently entered. Expects no reply.
+    EndSegment(SegmentEnd),
     /// Log a String at Trace Level
     LogTrace(String),
     /// Log a String at Debug Level

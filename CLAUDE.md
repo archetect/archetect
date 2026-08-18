@@ -222,8 +222,9 @@ prova                                   # everything
 prova proofs/server/materialization_test.lua
 prova --node "a relative destination resolves on the CLIENT, not the server"
 prova --last-failed                     # re-run only what's red
-prova specs                             # the open executable backlog
-prova learn <topic>                     # authoring, fixtures, drivers, running…
+prova tests --promises                  # the open executable backlog (nothing runs)
+prova owed                              # what is promised and not yet kept
+prova learn <topic>                     # promises, authoring, fixtures, drivers, running…
 ```
 
 Working practice (PDD):
@@ -233,12 +234,16 @@ Working practice (PDD):
    renegotiate the bar.
 3. Commit suite + implementation together as a proof-carrying change.
 
-**Specs are the executable backlog.** A contract you can state but are not implementing now
-gets authored flagged `{ spec = "reason" }` — the reason is mandatory and carries the *why*
-while the proof is red. Open specs keep CI green and are listed by `prova specs`. When a
-spec's body starts passing it **fails**, demanding graduation: convert `spec = "..."` to
-`proves = "..."` (preferred — the design story stays next to the assertions) in the same
-commit as the implementation.
+**Promises are the executable backlog.** A contract you can state but are not implementing
+now gets authored flagged `{ promises = "reason" }` — the reason is mandatory and carries the
+*why* while the proof is red. Open promises keep CI green (outcome `PROMISED`) and are listed
+by `prova owed` / `prova tests --promises`. When a promise's body starts passing it **fails**,
+demanding graduation: convert `promises = "..."` to `proves = "..."` (preferred — the design
+story stays next to the assertions) in the same commit as the implementation. `proves` is
+runtime-inert and can be retrofitted to any existing proof.
+
+(`spec = "..."` was prova's older spelling and is refused outright since 0.18 — see
+`prova learn promises`.)
 
 Conventions in this repo:
 

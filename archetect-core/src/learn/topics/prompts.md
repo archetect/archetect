@@ -33,12 +33,47 @@ contract (what `-a` answers, what `default` names, what is stored); labels are d
    `no answer or default for '<message>' — answer key `key` (CLI: -a key=<value>; MCP:
    answers.key)`. Supply that key; re-run.
 
+## Pages and sections: where a long form breaks
+
+A thirty-prompt archetype renders as a thirty-field wall unless the author says otherwise.
+`context:page` and `context:section` are how the script says it — containers around the
+prompts a body declares:
+
+```lua
+context:page("Service Identity", function(ctx)
+  ctx:prompt_text("Service Name:", "service_name")
+  ctx:section("Ownership", function(ctx)
+    ctx:prompt_text("Team:", "team")
+  end)
+end)
+
+context:page({ title = "Persistence", key = "storage", help = "Where state lives." }, function(ctx)
+  ctx:prompt_select("Database:", "database", { "none", "postgres" })
+end)
+```
+
+The two verbs are the same container with a different `kind`; archetect carries the
+distinction and refuses to decide what either LOOKS like. A wizard makes a page a step and a
+section a fieldset; the terminal makes both headings; `--answers-template` makes them comment
+banners. Nesting is unrestricted — sections hold sections, and a page inside a page is not an
+error.
+
+`title` is required. `key` defaults to a slug of it (`"Service Identity"` → `service_identity`)
+and is what a wizard routes on, so pin one if the title may be reworded. `help` and `ui` behave
+as they do on prompts.
+
+They cost nothing to adopt: containers change what a render *looks* like, never what it
+*produces*, and an archetype that declares none behaves exactly as before. The older per-prompt
+`group` opt still works and is unaffected.
+
 ## The derived interface: ask the archetype, don't trust a file
 
 The prompts ARE the interface — `archetect interface <source>` derives the whole contract
 by probing the script (writes discarded, exec forbidden): every prompt's envelope, the
 switch names it consults via `is_enabled` (never prompted, so this is their only discovery
-path), and a computed batch/interactive classification.
+path), a `layout` tree of the pages and sections above, and a computed batch/interactive
+classification. `layout` is always present — an archetype with no containers gets bare prompt
+nodes, so a client has one code path either way.
 
 ```
 archetect interface <source|catalog-path>   # human summary

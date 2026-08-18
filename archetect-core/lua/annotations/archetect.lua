@@ -115,6 +115,48 @@ function Context:prompt_list(message, key, opts) end
 ---@return string? value
 function Context:prompt_editor(message, key, opts) end
 
+---Group the prompts a body declares into a PAGE — a wizard step, a screen,
+---a top-level break in a long form. The body receives the context, so
+---`function(ctx) ... end` reads the same as closing over the outer variable,
+---and whatever the body returns passes through.
+---
+---A page is a declaration, not a layout: archetect carries the title, help,
+---and key to whoever renders, and the renderer decides what a page looks
+---like. A wizard makes it a step; the terminal makes it a heading; the
+---answers template makes it a comment banner.
+---
+---    context:page("Service Identity", function(ctx)
+---      ctx:prompt_text("Service Name:", "service_name")
+---    end)
+---
+---    context:page({ title = "Persistence", key = "storage", help = "Where state lives." }, function(ctx)
+---      ctx:prompt_select("Database:", "database", { "none", "postgres" })
+---    end)
+---@param spec string|SegmentOpts A title, or a table carrying `title` plus optional `key`/`help`/`ui`
+---@param body fun(ctx:Context) Declares the prompts and sections this page holds
+---@return any result Whatever `body` returned
+function Context:page(spec, body) end
+
+---Group the prompts a body declares into a SECTION — a fieldset inside a
+---page, or a subordinate grouping anywhere. Identical to `Context:page`
+---except for the kind a renderer sees; nesting is unrestricted, so sections
+---may hold sections.
+---
+---    context:section("Ownership", function(ctx)
+---      ctx:prompt_text("Team:", "team")
+---    end)
+---@param spec string|SegmentOpts A title, or a table carrying `title` plus optional `key`/`help`/`ui`
+---@param body fun(ctx:Context) Declares the prompts and sections this section holds
+---@return any result Whatever `body` returned
+function Context:section(spec, body) end
+
+---@class SegmentOpts
+---The table form of a `page`/`section` declaration.
+---@field title string Display heading — required; a container a UI cannot label is not renderable
+---@field key? string Stable identity a wizard routes on. Defaults to a slug of the title ("Service Identity" → `service_identity`); pin one when the title may be reworded
+---@field help? string Explanatory text shown under the heading
+---@field ui? table Opaque UI metadata table, passed through to clients untouched
+
 ---@class SelectOption
 ---One choice in a select/multiselect prompt. Bare strings are shorthand
 ---for `{ value = s }`; labels are display-only — answers, defaults, and

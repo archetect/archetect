@@ -147,6 +147,33 @@ message PromptForEditor {
     bool optional = 8;
 }
 
+// An author-declared container being entered — a page (a wizard step) or a
+// section (a grouping within one). Carries the grouping intent a client needs
+// to paginate a form or head a terminal run; expects no reply.
+message SegmentInfo {
+    SegmentKind kind = 1;
+    // Stable identity a client routes on; derived from the title unless pinned.
+    string key = 2;
+    string title = 3;
+    optional string help = 4;
+    // Opaque author-supplied UI metadata, JSON-encoded and passed through
+    // untouched — same contract the local session gives prompts.
+    optional string ui_json = 5;
+}
+
+// The container most recently entered, being left. Self-describing so a
+// client need not track the open stack to close the right one.
+message SegmentEnd {
+    SegmentKind kind = 1;
+    string key = 2;
+}
+
+enum SegmentKind {
+    SEGMENT_KIND_UNSPECIFIED = 0;
+    SEGMENT_KIND_PAGE = 1;
+    SEGMENT_KIND_SECTION = 2;
+}
+
 message Initialize {
     string answers_yaml = 1;
     repeated string switches = 2;
@@ -232,6 +259,8 @@ message ScriptMessage {
         CompleteError complete_error = 17;
         WriteFile write_file = 18;
         WriteDirectory write_directory = 19;
+        SegmentInfo begin_segment = 20;
+        SegmentEnd end_segment = 21;
     }
 }
 

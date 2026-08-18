@@ -4,14 +4,29 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use archetect_api::{
-    ClientMessage, IoError, PromptEnvelope, ScriptIoHandle, ScriptMessage,
+    ClientMessage, IoError, PromptEnvelope, ScriptIoHandle, ScriptMessage, SegmentInfo, SegmentRef,
 };
+
+/// One thing the probe saw, in the order the script did it. Prompts alone
+/// give a flat list; the container events are what let the probe hand back a
+/// tree — including a page whose prompts were all skipped, which no amount
+/// of inspecting the prompts could recover.
+#[derive(Clone, Debug)]
+pub enum ProbeEvent {
+    Prompt(PromptEnvelope),
+    Enter(SegmentInfo),
+    Exit,
+}
 
 /// What one probe run recorded.
 #[derive(Debug, Default)]
 pub struct ProbeState {
     pub prompts: Vec<PromptEnvelope>,
+    /// Prompts and container boundaries interleaved, in script order.
+    pub events: Vec<ProbeEvent>,
     pub budget_hit: bool,
+    /// Containers currently open — stamped onto each prompt as its breadcrumb.
+    open: Vec<SegmentRef>,
     queued: VecDeque<ClientMessage>,
 }
 
@@ -132,11 +147,21 @@ impl ScriptIoHandle for ProbeDriver {
                 .override_for(envelope.key.as_deref())
                 .or_else(|| synthesize(&request))
                 .unwrap_or(ClientMessage::None);
+            let envelope = envelope.within(state.open.clone());
+            state.events.push(ProbeEvent::Prompt(envelope.clone()));
             state.prompts.push(envelope);
             state.queued.push_back(answer);
             return Ok(());
         }
         match request {
+            ScriptMessage::BeginSegment(info) => {
+                state.open.push(SegmentRef::from(&info));
+                state.events.push(ProbeEvent::Enter(info));
+            }
+            ScriptMessage::EndSegment(_) => {
+                state.open.pop();
+                state.events.push(ProbeEvent::Exit);
+            }
             ScriptMessage::WriteFile(_) | ScriptMessage::WriteDirectory(_) => {
                 // Acknowledged, never written — the probe observes, it
                 // does not scaffold.

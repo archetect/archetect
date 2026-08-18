@@ -1,7 +1,7 @@
 use archetect_api::{
     Artifact, ArtifactKind, BoolPromptInfo, EditorPromptInfo, ExistingFilePolicy, IntPromptInfo,
-    ListPromptInfo, MultiSelectPromptInfo, SelectPromptInfo, TextPromptInfo, WriteDirectoryInfo,
-    WriteFileInfo,
+    ListPromptInfo, MultiSelectPromptInfo, SegmentEnd, SegmentInfo, SegmentKind, SelectPromptInfo,
+    TextPromptInfo, WriteDirectoryInfo, WriteFileInfo,
 };
 
 use super::grpc;
@@ -126,7 +126,37 @@ impl From<ApiScriptMessage> for grpc::script_message::Message {
             ApiScriptMessage::WriteDirectory(info) => {
                 Message::WriteDirectory(grpc::WriteDirectory { path: info.path })
             }
+            ApiScriptMessage::BeginSegment(info) => Message::BeginSegment(grpc::SegmentInfo {
+                kind: api_segment_kind_to_proto(info.kind).into(),
+                key: info.key,
+                title: info.title,
+                help: info.help,
+                // `ui` is opaque by contract; JSON is the only shape that
+                // survives the trip without the proto inventing a schema
+                // for something the author owns.
+                ui_json: info.ui.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+            }),
+            ApiScriptMessage::EndSegment(end) => Message::EndSegment(grpc::SegmentEnd {
+                kind: api_segment_kind_to_proto(end.kind).into(),
+                key: end.key,
+            }),
         }
+    }
+}
+
+fn api_segment_kind_to_proto(kind: SegmentKind) -> grpc::SegmentKind {
+    match kind {
+        SegmentKind::Page => grpc::SegmentKind::Page,
+        SegmentKind::Section => grpc::SegmentKind::Section,
+    }
+}
+
+/// Unspecified reads as `section`: a client that cannot place a container
+/// should render it subordinate rather than promote it to a wizard step.
+fn proto_segment_kind_to_api(kind: i32) -> SegmentKind {
+    match grpc::SegmentKind::try_from(kind) {
+        Ok(grpc::SegmentKind::Page) => SegmentKind::Page,
+        _ => SegmentKind::Section,
     }
 }
 
@@ -255,6 +285,20 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
             Message::WriteDirectory(wd) => {
                 ApiScriptMessage::WriteDirectory(WriteDirectoryInfo { path: wd.path })
             }
+            Message::BeginSegment(s) => ApiScriptMessage::BeginSegment(SegmentInfo {
+                kind: proto_segment_kind_to_api(s.kind),
+                key: s.key,
+                title: s.title,
+                help: s.help,
+                ui: s
+                    .ui_json
+                    .as_deref()
+                    .and_then(|json| serde_json::from_str(json).ok()),
+            }),
+            Message::EndSegment(e) => ApiScriptMessage::EndSegment(SegmentEnd {
+                kind: proto_segment_kind_to_api(e.kind),
+                key: e.key,
+            }),
         }
     }
 }

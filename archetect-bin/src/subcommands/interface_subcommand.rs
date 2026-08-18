@@ -1,11 +1,12 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use clap::ArgMatches;
 
 use archetect_api::ContextMap;
 use archetect_core::errors::ArchetectError;
 use archetect_core::interface::{
-    probe_interface, DerivedInterface, InterfacePrompt, ProbeOptions,
+    probe_interface, DerivedInterface, InterfaceNode, InterfacePrompt, InterfaceSegment,
+    ProbeOptions,
 };
 use archetect_core::system::{SystemLayout, XdgSystemLayout};
 use archetect_core::Archetect;
@@ -77,6 +78,22 @@ fn resolve_target(archetect: &Archetect, target: &str) -> Result<String, Archete
     )))
 }
 
+/// Index the flat prompt list by the key a layout node references.
+fn prompts_by_key(derived: &DerivedInterface) -> BTreeMap<String, &InterfacePrompt> {
+    derived
+        .prompts
+        .iter()
+        .map(|prompt| {
+            let key = prompt
+                .envelope
+                .key
+                .clone()
+                .unwrap_or_else(|| prompt.envelope.message.clone());
+            (key, prompt)
+        })
+        .collect()
+}
+
 fn describe_prompt(prompt: &InterfacePrompt) -> String {
     let envelope = &prompt.envelope;
     let mut parts: Vec<String> = Vec::new();
@@ -110,6 +127,58 @@ fn describe_prompt(prompt: &InterfacePrompt) -> String {
     parts.join("  ·  ")
 }
 
+fn summarize_node(
+    node: &InterfaceNode,
+    depth: usize,
+    lookup: &BTreeMap<String, &InterfacePrompt>,
+    seen: &mut HashSet<String>,
+    out: &mut String,
+) {
+    let indent = "  ".repeat(depth + 1);
+    match node {
+        InterfaceNode::Prompt { key } => {
+            seen.insert(key.clone());
+            match lookup.get(key) {
+                Some(prompt) => {
+                    out.push_str(&format!("{}{:<20} {}\n", indent, key, describe_prompt(prompt)));
+                    out.push_str(&format!("{}{:<20}   \"{}\"\n", indent, "", prompt.envelope.message));
+                }
+                // A layout key with no envelope would mean the two halves of
+                // the probe disagreed; say so rather than drop the row.
+                None => out.push_str(&format!("{}{:<20} (no envelope recorded)\n", indent, key)),
+            }
+        }
+        InterfaceNode::Page(segment) => summarize_segment("PAGE", segment, depth, lookup, seen, out),
+        InterfaceNode::Section(segment) => {
+            summarize_segment("SECTION", segment, depth, lookup, seen, out)
+        }
+    }
+}
+
+fn summarize_segment(
+    label: &str,
+    segment: &InterfaceSegment,
+    depth: usize,
+    lookup: &BTreeMap<String, &InterfacePrompt>,
+    seen: &mut HashSet<String>,
+    out: &mut String,
+) {
+    let indent = "  ".repeat(depth + 1);
+    out.push_str(&format!(
+        "\n{}▸ {} {}  ({})\n",
+        indent, label, segment.title, segment.key
+    ));
+    if let Some(help) = &segment.help {
+        out.push_str(&format!("{}    {}\n", indent, help));
+    }
+    if segment.children.is_empty() {
+        out.push_str(&format!("{}    (asks nothing)\n", indent));
+    }
+    for child in &segment.children {
+        summarize_node(child, depth + 1, lookup, seen, out);
+    }
+}
+
 fn human_summary(source: &str, derived: &DerivedInterface) -> String {
     let mut out = String::new();
     out.push_str(&format!("# Derived interface — {}\n", source));
@@ -124,14 +193,28 @@ fn human_summary(source: &str, derived: &DerivedInterface) -> String {
     if let Some(error) = &derived.error {
         out.push_str(&format!("stopped by: {}\n\n", error));
     }
-    if derived.prompts.is_empty() {
+    if derived.prompts.is_empty() && derived.layout.is_empty() {
         out.push_str("(no prompts reached the driver — everything was pre-answered, or the script asks nothing)\n");
     } else {
         out.push_str("Prompts (answer with -a <key>=<value> / -A <file> / MCP answers):\n");
-        for prompt in &derived.prompts {
-            let key = prompt.envelope.key.clone().unwrap_or_else(|| "?".into());
-            out.push_str(&format!("  {:<20} {}\n", key, describe_prompt(prompt)));
-            out.push_str(&format!("  {:<20}   \"{}\"\n", "", prompt.envelope.message));
+        let lookup = prompts_by_key(derived);
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut after_segment = false;
+        for node in &derived.layout {
+            // A loose prompt following a container needs the same breathing
+            // room a container gets before itself.
+            if after_segment && matches!(node, InterfaceNode::Prompt { .. }) {
+                out.push('\n');
+            }
+            after_segment = !matches!(node, InterfaceNode::Prompt { .. });
+            summarize_node(node, 0, &lookup, &mut seen, &mut out);
+        }
+        // Belt and braces: anything the layout somehow missed still shows up.
+        for (key, prompt) in &lookup {
+            if !seen.contains(key) {
+                out.push_str(&format!("  {:<20} {}\n", key, describe_prompt(prompt)));
+                out.push_str(&format!("  {:<20}   \"{}\"\n", "", prompt.envelope.message));
+            }
         }
     }
     if !derived.switches.is_empty() {
@@ -157,6 +240,94 @@ fn yaml_scalar(value: &serde_json::Value) -> String {
     }
 }
 
+fn template_entry(prompt: &InterfacePrompt, out: &mut String) {
+    let envelope = &prompt.envelope;
+    let Some(key) = envelope.key.as_deref() else { return };
+    let mut annotation: Vec<String> = Vec::new();
+    annotation.push(envelope.message.to_string());
+    if let Some(pattern) = &envelope.pattern {
+        annotation.push(format!("pattern: {}", pattern));
+    }
+    if let Some(options) = &envelope.options {
+        let values: Vec<&str> = options.iter().map(|o| o.value.as_str()).collect();
+        annotation.push(format!("one of: [{}]", values.join(", ")));
+    }
+    for condition in &prompt.appears_when {
+        annotation.push(format!("only when {} = {}", condition.key, condition.equals));
+    }
+    out.push_str(&format!("# {}\n", annotation.join(" — ")));
+    match &envelope.default {
+        Some(default) => out.push_str(&format!("{}: {}\n\n", key, yaml_scalar(default))),
+        None if envelope.optional => {
+            out.push_str(&format!("# {}:            # optional — uncomment to answer\n\n", key))
+        }
+        None => out.push_str(&format!(
+            "# {}:            # REQUIRED — uncomment and fill in\n\n",
+            key
+        )),
+    }
+}
+
+/// Does this node contribute anything a human could fill in? A review page
+/// that asks nothing is a real wizard step, but in an ANSWERS file it is a
+/// heading over emptiness — so the template skips it.
+fn node_has_answers(node: &InterfaceNode, lookup: &BTreeMap<String, &InterfacePrompt>) -> bool {
+    match node {
+        InterfaceNode::Prompt { key } => lookup
+            .get(key)
+            .is_some_and(|prompt| prompt.envelope.key.is_some()),
+        InterfaceNode::Page(segment) | InterfaceNode::Section(segment) => segment
+            .children
+            .iter()
+            .any(|child| node_has_answers(child, lookup)),
+    }
+}
+
+/// Walk the layout, emitting each container as a comment banner above the
+/// keys it covers. YAML keys stay at column zero — the file has to remain a
+/// valid `-A` answer file, so the structure is carried in comments only.
+fn template_node(
+    node: &InterfaceNode,
+    lookup: &BTreeMap<String, &InterfacePrompt>,
+    seen: &mut HashSet<String>,
+    out: &mut String,
+) {
+    if !node_has_answers(node, lookup) {
+        return;
+    }
+    match node {
+        InterfaceNode::Prompt { key } => {
+            seen.insert(key.clone());
+            if let Some(prompt) = lookup.get(key) {
+                template_entry(prompt, out);
+            }
+        }
+        InterfaceNode::Page(segment) => {
+            out.push_str(&format!(
+                "# ═══════════════════ {} ═══════════════════\n",
+                segment.title
+            ));
+            if let Some(help) = &segment.help {
+                out.push_str(&format!("# {}\n", help));
+            }
+            out.push('\n');
+            for child in &segment.children {
+                template_node(child, lookup, seen, out);
+            }
+        }
+        InterfaceNode::Section(segment) => {
+            out.push_str(&format!("# ─── {} ───\n", segment.title));
+            if let Some(help) = &segment.help {
+                out.push_str(&format!("# {}\n", help));
+            }
+            out.push('\n');
+            for child in &segment.children {
+                template_node(child, lookup, seen, out);
+            }
+        }
+    }
+}
+
 fn answers_template(source: &str, derived: &DerivedInterface) -> String {
     let mut out = String::new();
     out.push_str(&format!(
@@ -169,33 +340,18 @@ fn answers_template(source: &str, derived: &DerivedInterface) -> String {
         );
     }
     out.push('\n');
-    for prompt in &derived.prompts {
-        let envelope = &prompt.envelope;
-        let Some(key) = envelope.key.as_deref() else { continue };
-        let mut annotation: Vec<String> = Vec::new();
-        annotation.push(format!("{}", envelope.message));
-        if let Some(pattern) = &envelope.pattern {
-            annotation.push(format!("pattern: {}", pattern));
-        }
-        if let Some(options) = &envelope.options {
-            let values: Vec<&str> = options.iter().map(|o| o.value.as_str()).collect();
-            annotation.push(format!("one of: [{}]", values.join(", ")));
-        }
-        for condition in &prompt.appears_when {
-            annotation.push(format!("only when {} = {}", condition.key, condition.equals));
-        }
-        out.push_str(&format!("# {}\n", annotation.join(" — ")));
-        match &envelope.default {
-            Some(default) => out.push_str(&format!("{}: {}\n\n", key, yaml_scalar(default))),
-            None if envelope.optional => {
-                out.push_str(&format!("# {}:            # optional — uncomment to answer\n\n", key))
-            }
-            None => out.push_str(&format!(
-                "# {}:            # REQUIRED — uncomment and fill in\n\n",
-                key
-            )),
+
+    let lookup = prompts_by_key(derived);
+    let mut seen: HashSet<String> = HashSet::new();
+    for node in &derived.layout {
+        template_node(node, &lookup, &mut seen, &mut out);
+    }
+    for (key, prompt) in &lookup {
+        if !seen.contains(key) {
+            template_entry(prompt, &mut out);
         }
     }
+
     if !derived.switches.is_empty() {
         out.push_str(&format!(
             "# Switches this archetype consults (pass -s <name> on the CLI; not answerable here):\n#   {}\n",

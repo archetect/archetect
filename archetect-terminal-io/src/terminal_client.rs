@@ -8,6 +8,7 @@ use crate::int_prompt_handler::handle_prompt_int;
 use crate::list_prompt_handler::handle_list_prompt;
 use crate::multiselect_prompt_handler::handle_multiselect_prompt;
 use crate::responder::Responder;
+use crate::segment_handler::handle_begin_segment;
 use crate::select_prompt_handler::handle_select_prompt;
 use crate::text_prompt_handler::handle_prompt_text;
 use crate::write_directory_handler::handle_write_directory;
@@ -53,6 +54,10 @@ where
                 handle_multiselect_prompt(info, &responder)
             }
             ScriptMessage::PromptForEditor(info) => handle_editor_prompt(info, &responder),
+            // Containers carry the author's grouping intent; the terminal
+            // renders it as a heading. No reply is expected either way.
+            ScriptMessage::BeginSegment(info) => handle_begin_segment(&info),
+            ScriptMessage::EndSegment(_) => {}
             ScriptMessage::LogInfo(msg) => info!("{}", msg),
             ScriptMessage::LogWarn(msg) => warn!("{}", msg),
             ScriptMessage::LogDebug(msg) => debug!("{}", msg),
