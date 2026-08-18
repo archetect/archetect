@@ -10,11 +10,9 @@
 --- is a different fingerprint, so this does not reuse the plain clippy gate's
 --- artifacts. One conduct feeds both ratchets.
 
--- `--keep-going` and the span filter, for the reason clippy_test.lua spells out:
--- archetect-inflections' upstream `#![deny(warnings)]` escalates these very
--- lints to hard errors, aborting its compilation and taking the rest of the
--- workspace's diagnostics with it. Measured live: 4 and 7 for identical code.
-local UNGATED = "archetect-inflections/"
+-- `--keep-going` lints every crate even when one fails to compile, so one
+-- crate's `#![deny(warnings)]` cannot take the rest of the workspace's
+-- diagnostics with it and make the count nondeterministic. See clippy_test.lua.
 
 -- Generated code is not this repo's code. `archetect-core/build.rs` compiles the
 -- proto with prost, whose output trips lints nobody here can fix — counting them
@@ -33,7 +31,7 @@ local UNGATED = "archetect-inflections/"
 -- (Unix-shaped: a Windows absolute path starts `C:\`. The quality lane runs on
 -- macOS and Linux; revisit if that changes.)
 local function is_ours(file)
-	return file:sub(1, 1) ~= "/" and not file:find(UNGATED, 1, true)
+	return file:sub(1, 1) ~= "/"
 end
 
 local restricted = prova.fixture("clippy-restrictions", Scope.File, function()

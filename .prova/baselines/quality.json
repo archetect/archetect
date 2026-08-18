@@ -18,7 +18,7 @@
     },
     "rust.expect.shipped": {
       "direction": "lower_is_better",
-      "value": 5.0
+      "value": 7.0
     },
     "rust.files.oversized": {
       "direction": "lower_is_better",

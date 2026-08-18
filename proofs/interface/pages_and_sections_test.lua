@@ -491,6 +491,85 @@ prova.test("MCP describe carries the layout", {
 	)
 end)
 
+-- Driving a STATEFUL MCP session needs request 3 sent only after response 2
+-- arrives. Piping every request at once races: the server dispatches the calls
+-- concurrently and `respond` can reach the session lock before `render` has
+-- stored anything, which reads as "No active render session". prova's Process
+-- handle has no stdin, so the exchange gets a small co-process driver.
+local mcp_driver = prova.fixture("mcp-session-driver", Scope.File, function(ctx)
+	local ws = workspace.create(ctx)
+	return ws:write("drive_session.py", [==[
+import json, subprocess, sys
+
+binary, source, destination = sys.argv[1], sys.argv[2], sys.argv[3]
+proc = subprocess.Popen([binary, "mcp"], stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, text=True, bufsize=1)
+
+def send(obj):
+    proc.stdin.write(json.dumps(obj) + "\n")
+    proc.stdin.flush()
+
+def await_id(want):
+    for line in proc.stdout:
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        if message.get("id") == want:
+            return message
+    raise SystemExit("stream ended before id %s" % want)
+
+send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+      "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                 "clientInfo": {"name": "proof", "version": "0"}}})
+await_id(1)
+send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+send({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+      "params": {"name": "render",
+                 "arguments": {"source": source, "destination": destination}}})
+first = await_id(2)
+
+send({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+      "params": {"name": "respond", "arguments": {"value": "svc"}}})
+second = await_id(3)
+
+proc.stdin.close()
+proc.kill()
+print(json.dumps([json.loads(r["result"]["content"][0]["text"]) for r in (first, second)]))
+]==])
+end)
+
+prova.test("an MCP agent answering one prompt at a time is told where it is", {
+	requires = { "python3" },
+	proves = "`describe` gives a batch client the whole tree, but an agent driving a live "
+		.. "render sees one envelope per turn and would otherwise have no idea a page "
+		.. "existed. This is the interactive half, and MCP is the surface that has to "
+		.. "assemble it itself — a gRPC client gets the raw Begin/End messages and keeps "
+		.. "its own stack, while the MCP session must carry one ACROSS exchanges: the "
+		.. "section below opens during the first turn and is still open on the second.",
+}, function(t)
+	local ws = t:use(ws_fixture)
+	local out = shell.run({
+		"python3", t:use(mcp_driver), t:use(bin), ws:file("wizard"), ws:file("mcp-render"),
+	}, { timeout = "60s", check = true })
+
+	local turns = json.decode(out.stdout)
+	local first, second = turns[1], turns[2]
+
+	t:expect(first.status, "the render stopped to ask"):equals("prompting")
+	t:expect(first.prompt.key):equals("service_name")
+	t:expect(#first.prompt.segments, "inside the page"):equals(1)
+	t:expect(first.prompt.segments[1].kind):equals("page")
+	t:expect(first.prompt.segments[1].title):equals("Service Identity")
+
+	t:expect(second.status, "and asked again"):equals("prompting")
+	t:expect(second.prompt.key):equals("team")
+	t:expect(#second.prompt.segments, "page > section, across two exchanges"):equals(2)
+	t:expect(second.prompt.segments[1].key):equals("service_identity")
+	t:expect(second.prompt.segments[2].key):equals("ownership")
+end)
+
 -- ── over the wire ──────────────────────────────────────────────────
 
 -- The wire proofs get their own workspace and server: this file's other
@@ -562,6 +641,69 @@ prova.test("DescribeArchetype serves the layout to a remote form generator", {
 	t:expect(shape(page.children)):equals("prompt:service_name,section:ownership")
 end)
 
+prova.test("a wizard renders a whole archetype in one exchange, with no prompts at all", {
+	proves = "the round-trip cost a wizard actually pays. `describe` hands the client the "
+		.. "layout AND every prompt up front, so a paginated UI can collect the lot and "
+		.. "submit them with the render — one describe, one render, zero prompt exchanges. "
+		.. "This is the flow Studio wants, and proving it end-to-end is what says the "
+		.. "streaming session is an option rather than an obligation.",
+}, function(t)
+	local srv = t:use(server)
+	local home = srv.ws:file("wizard-client")
+	srv.ws:write("wizard-client/.keep", "")
+
+	-- Step 1: ask the server what to render. A wizard walks `layout` to lay out
+	-- its steps; here we walk it to build the answer set, which exercises the
+	-- same traversal.
+	local client = grpc.client(srv.addr)
+	local reply = client:call("archetect.ArchetectService/DescribeArchetype", { path = "wizard" })
+	local payload = json.decode(reply.interface_json)
+
+	local answers, keys = {}, {}
+	local function collect(nodes)
+		for _, node in ipairs(nodes or {}) do
+			if node.type == "prompt" then
+				keys[#keys + 1] = node.key
+				answers[#answers + 1] = node.key .. ": wizard-" .. node.key
+			else
+				collect(node.children)
+			end
+		end
+	end
+	collect(payload.layout)
+	t:expect(#keys, "the layout named every prompt to collect"):equals(2)
+
+	-- Step 2: render with the collected answers. Deliberately NO `-D`: if any
+	-- prompt were unanswered the client would have to ask, so a clean exit is
+	-- itself the evidence that nothing needed asking.
+	local file = srv.ws:write("wizard-answers.yaml", table.concat(answers, "\n") .. "\n")
+	local out = shell.run({
+		t:use(bin), "connect", srv.addr, "wizard", "--destination", ".", "-A", file,
+	}, { cwd = home, timeout = "60s" })
+	t:expect(out.code, "every prompt was pre-answered"):equals(0)
+	t:expect(srv.ws:read("wizard-client/out.toml"),
+		"the wizard's values reached the render"):contains("wizard-service_name")
+end)
+
+prova.test("without the collected answers, the same render does NOT produce them", {
+	proves = "the negative control for the proof above. Both prompts carry defaults, so a "
+		.. "render that quietly fell back to them would exit 0 and write a plausible file "
+		.. "— and the wizard proof would be green while proving nothing about whether the "
+		.. "answers crossed the wire at all.",
+}, function(t)
+	local srv = t:use(server)
+	local home = srv.ws:file("wizard-control")
+	srv.ws:write("wizard-control/.keep", "")
+
+	local out = shell.run({
+		t:use(bin), "connect", srv.addr, "wizard", "--destination", ".", "-D",
+	}, { cwd = home, timeout = "60s", check = true })
+	t:expect(out.code):equals(0)
+	t:expect(srv.ws:read("wizard-control/out.toml"),
+		"defaults, not the wizard's values"):never():contains("wizard-service_name")
+	t:expect(srv.ws:read("wizard-control/out.toml")):contains("orders")
+end)
+
 -- ── the authoring surface teaches itself ──────────────────────────
 
 prova.test("introspect teaches page and section", {
@@ -591,17 +733,30 @@ end)
 
 -- ── the executable backlog ─────────────────────────────────────────
 
-prova.test("a wizard submits a whole page in one round trip", {
-	promises = "a wizard's Next button currently costs N round trips for an N-field step, "
-		.. "because the session protocol is strictly one prompt per exchange. A page is "
-		.. "the natural batch: the server would send the page's envelopes together and "
-		.. "accept one keyed answer map back. Needs a ClientMessage variant and a "
-		.. "look-ahead in the script loop, which is a protocol change worth doing on its "
-		.. "own rather than riding along with the DSL.",
+prova.test("an INTERACTIVE archetype's page is answered in one exchange", {
+	promises = "the original premise — 'a wizard's Next costs N round trips' — turned out "
+		.. "to be wrong for most archetypes, and the two proofs above are why: `describe` "
+		.. "hands a client the layout AND every prompt, so a batch-classified archetype is "
+		.. "collected up front and rendered with zero prompt exchanges. What is left is "
+		.. "the honest case: an archetype whose prompt set depends on its own answers "
+		.. "classifies `interactive`, cannot be collected in advance, and still pays one "
+		.. "round trip per field.\n\n"
+		.. "Batching THAT needs the server to know a page's prompts before executing it, "
+		.. "and the only way to learn them is to run the body — so the shape is two-pass: "
+		.. "execute the page against a recording driver, send the envelopes as one batch, "
+		.. "take a keyed answer map back, then re-execute with those answers seeded. The "
+		.. "hazard is the reason this is not built yet: a page body that renders a child, "
+		.. "shells out, or reads the clock would run twice. Suppressing writes and exec on "
+		.. "pass one (the probe already does) covers most of it and not `catalog.render`. "
+		.. "Needs a decision on that hazard, a ClientMessage variant for the answer map, "
+		.. "and a proof that counts exchanges rather than asserting an exit code.",
 }, function(t)
 	local srv = t:use(server)
+	local home = srv.ws:file("wizard-interactive")
+	srv.ws:write("wizard-interactive/.keep", "")
 	local out = shell.run({
-		t:use(bin), "connect", srv.addr, "--destination", ".", "-D", "--page-at-a-time",
-	}, { cwd = srv.ws:file("client-home"), timeout = "120s" })
+		t:use(bin), "connect", srv.addr, "wizard", "--destination", ".", "-D",
+		"--page-at-a-time",
+	}, { cwd = home, timeout = "60s" })
 	t:expect(out.code):equals(0)
 end)

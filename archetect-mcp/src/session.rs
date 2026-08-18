@@ -4,7 +4,7 @@ use std::path::Path;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use archetect_api::{ClientMessage, ScriptMessage};
+use archetect_api::{ClientMessage, ScriptMessage, SegmentRef};
 
 use crate::prompt_envelope::{LogEntry, PromptEnvelope, PromptType};
 
@@ -27,6 +27,10 @@ pub enum SessionState {
     /// Render thread running, waiting for agent to respond to a prompt.
     Prompting {
         pending_prompt: PromptEnvelope,
+        /// Containers currently open, outermost first. Lives in the session
+        /// because a page opens in one drain and its prompts arrive in later
+        /// ones — the stack has to outlive a single `respond`.
+        segments: Vec<SegmentRef>,
         client_tx: mpsc::Sender<ClientMessage>,
         script_rx: mpsc::Receiver<ScriptMessage>,
         #[allow(dead_code)]
@@ -50,10 +54,16 @@ impl SessionState {
 }
 
 /// Drain messages from the render thread until we hit a prompt or completion.
-/// Auto-Acks WriteFile/WriteDirectory and accumulates logs.
+/// Auto-Acks WriteFile/WriteDirectory, accumulates logs, and tracks the open
+/// page/section stack so each prompt can say where it is.
+///
+/// `segments` is borrowed rather than owned because it spans drains: an agent
+/// answering the third field of a page is four calls into a stack that opened
+/// on the first.
 pub async fn drain_until_prompt_or_complete(
     script_rx: &mut mpsc::Receiver<ScriptMessage>,
     client_tx: &mpsc::Sender<ClientMessage>,
+    segments: &mut Vec<SegmentRef>,
 ) -> Result<DrainResult, String> {
     let mut logs = Vec::new();
     let mut files_written = Vec::new();
@@ -98,12 +108,21 @@ pub async fn drain_until_prompt_or_complete(
                     outcome: DrainOutcome::Complete { success: false, message: Some(msg) },
                 });
             }
+            // Containers: no reply expected, but the agent gets to know which
+            // page and section it is being asked inside — the same breadcrumb a
+            // batch client reads off the derived interface's `layout`.
+            Some(ScriptMessage::BeginSegment(info)) => {
+                segments.push(SegmentRef::from(&info));
+            }
+            Some(ScriptMessage::EndSegment(_)) => {
+                segments.pop();
+            }
             Some(msg) => {
                 if let Some(envelope) = PromptEnvelope::from_script_message(&msg) {
                     return Ok(DrainResult {
                         logs,
                         files_written,
-                        outcome: DrainOutcome::Prompt(envelope),
+                        outcome: DrainOutcome::Prompt(envelope.within(segments.clone())),
                     });
                 } else if let Some(entry) = LogEntry::from_script_message(&msg) {
                     logs.push(entry);

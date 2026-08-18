@@ -388,7 +388,8 @@ impl ArchetectMcpServer {
         });
 
         // Drain until first prompt or completion
-        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx).await {
+        let mut segments = Vec::new();
+        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx, &mut segments).await {
             Ok(r) => r,
             Err(e) => {
                 return to_json(&ToolResponse::error(e));
@@ -404,6 +405,7 @@ impl ArchetectMcpServer {
                 );
                 *session = SessionState::Prompting {
                     pending_prompt: envelope,
+                    segments,
                     client_tx,
                     script_rx,
                     render_handle,
@@ -485,14 +487,15 @@ impl ArchetectMcpServer {
     ) -> String {
         let mut session = self.session.lock().await;
 
-        let (pending_prompt, client_tx, mut script_rx, render_handle) =
+        let (pending_prompt, mut segments, client_tx, mut script_rx, render_handle) =
             match std::mem::replace(&mut *session, SessionState::Idle) {
                 SessionState::Prompting {
                     pending_prompt,
+                    segments,
                     client_tx,
                     script_rx,
                     render_handle,
-                } => (pending_prompt, client_tx, script_rx, render_handle),
+                } => (pending_prompt, segments, client_tx, script_rx, render_handle),
                 SessionState::Idle => {
                     return to_json(&ToolResponse::error(
                         "No active render session. Use 'render' to start one.",
@@ -507,6 +510,7 @@ impl ArchetectMcpServer {
                 // Put session back
                 *session = SessionState::Prompting {
                     pending_prompt,
+                    segments,
                     client_tx,
                     script_rx,
                     render_handle,
@@ -522,7 +526,7 @@ impl ArchetectMcpServer {
         }
 
         // Drain until next prompt or completion
-        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx).await {
+        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx, &mut segments).await {
             Ok(r) => r,
             Err(e) => {
                 *session = SessionState::Idle;
@@ -539,6 +543,7 @@ impl ArchetectMcpServer {
                 );
                 *session = SessionState::Prompting {
                     pending_prompt: envelope,
+                    segments,
                     client_tx,
                     script_rx,
                     render_handle,
@@ -802,7 +807,8 @@ impl ArchetectMcpServer {
         });
 
         // Drain until first prompt or completion
-        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx).await {
+        let mut segments = Vec::new();
+        let drain_result = match drain_until_prompt_or_complete(&mut script_rx, &client_tx, &mut segments).await {
             Ok(r) => r,
             Err(e) => {
                 return to_json(&ToolResponse::error(e));
@@ -818,6 +824,7 @@ impl ArchetectMcpServer {
                 );
                 *session = SessionState::Prompting {
                     pending_prompt: envelope,
+                    segments,
                     client_tx,
                     script_rx,
                     render_handle,

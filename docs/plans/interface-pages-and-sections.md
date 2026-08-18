@@ -93,7 +93,10 @@ Every consumer then does what it wants with the same stream:
   them into a tree.
 - **gRPC** carries them in the `ScriptMessage` oneof, so `archetect connect` and Ybor Studio's
   live session get headings mid-render, not only up front.
-- **MCP's session** ignores them (unknown messages already fall through), so nothing breaks.
+- **MCP's session** tracks the stack across turns and stamps each envelope's breadcrumb. It
+  is the one interactive surface that must assemble this itself: a gRPC client receives the raw
+  Begin/End messages and keeps its own stack, but an MCP agent sees one envelope per tool call,
+  and a page opened on turn one is still open on turn four.
 
 ## What the derived interface gains
 
@@ -157,18 +160,31 @@ envelope at a time can still say "Step 2 of 4 · Ownership".
 - MCP `describe` carries `layout`.
 - `--answers-template` groups by container.
 
+## What a wizard actually does
+
+Proven end-to-end: `DescribeArchetype` → walk `layout` to lay out the steps → collect every
+answer → render with them. **One describe, one render, zero prompt exchanges** — the streaming
+session is an option, not an obligation, and the "N round trips per step" worry does not apply
+to a batch-classified archetype at all. An archetype whose prompt set depends on its own
+answers classifies `interactive` and is the case still open below.
+
 ## Open promises (authored red, not implemented)
 
-- **Page-at-a-time submission**: the streaming session accepts a whole page's answers in one
-  client message, so a wizard's "Next" is one round trip rather than N.
+- **Page-at-a-time submission, for INTERACTIVE archetypes only**: the streaming session accepts
+  a whole page's answers in one client message. Needs two-pass page execution (record the page's
+  prompts, batch them, re-execute with the answers seeded) and a decision about bodies whose
+  side effects would then run twice — `catalog.render` in particular, which suppressing writes
+  and exec does not cover.
 
 Flagged `promises = "..."` in the proof suite and listed by `prova owed`.
 
 ## Status
 
-Shipped 2026-08-18. 23 proofs in `proofs/interface/pages_and_sections_test.lua` (21 kept,
-2 promised). Touches: `archetect-api` (`SegmentInfo`/`SegmentEnd`/`SegmentRef`, two
+Shipped 2026-08-18. 27 proofs in `proofs/interface/pages_and_sections_test.lua` (26 kept,
+1 promised). Touches: `archetect-api` (`SegmentInfo`/`SegmentEnd`/`SegmentRef`, two
 `ScriptMessage` variants, `PromptEnvelope.segments`), `archetect-core` (`Context:page` /
 `Context:section`, `ProbeEvent`, `DerivedInterface.layout`, proto + conversions),
-`archetect-terminal-io` (headings in both the driver and the connect client), `archetect-bin`
-(layout-aware summary and answers template), plus the LuaCATS stub and `learn prompts`.
+`archetect-terminal-io` (headings in both the driver and the connect client), `archetect-mcp`
+(the session's breadcrumb across turns), `archetect-bin` (layout-aware summary and answers
+template), plus the LuaCATS stub and `learn prompts`. The per-prompt `group` opt was removed in
+the same arc.

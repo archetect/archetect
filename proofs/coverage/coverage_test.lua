@@ -64,25 +64,6 @@ local function llvm_cov_env()
 	return { CARGO_LLVM_COV_TARGET_DIR = COV_DIR }
 end
 
---- `cargo llvm-cov show-env` as a table (values arrive single-quoted). This IS
---- the full map, and it is for the plain `cargo build` of the subject — the one
---- invocation that has no llvm-cov wrapper of its own.
-local function build_env()
-	local out = shell.run({ "cargo", "llvm-cov", "show-env" },
-		{ cwd = prova.root, env = llvm_cov_env() })
-	local env = {}
-	for line in (out.stdout or ""):gmatch("[^\n]+") do
-		local key, value = line:match("^([%w_]+)='?([^']*)'?$")
-		if key then
-			env[key] = value
-		end
-	end
-	-- show-env reports its own default for this one; the whole point of the
-	-- conduct is that it is somewhere else.
-	env.CARGO_LLVM_COV_TARGET_DIR = COV_DIR
-	return env
-end
-
 --- Per-file line percent from a full report.
 local function by_file(report_)
 	local out = {}
@@ -109,8 +90,6 @@ end
 ---   puts lines a test suite has no business exercising into the denominator of
 ---   every layer, which is not a coverage gap but a category error.
 ---
---- Scoped on their own merits, and the floors are re-banked against the new
---- denominator in the same commit, so nothing is credited twice.
 --- `.*` between `build` and `out` on purpose: the classic layout is
 --- `build/<pkg>-<hash>/out/`, and cargo's newer build-dir splits it into
 --- `build/<pkg>/<hash>/out/`. A pattern pinned to one segment matched nothing
@@ -133,7 +112,14 @@ local function fresh_report()
 	local out = shell.run(
 		{ "cargo", "llvm-cov", "report", "--json", "--ignore-filename-regex", IGNORE_FILES },
 		{ cwd = prova.root, env = llvm_cov_env(), timeout = "600s" })
-	return json.decode(out.stdout or "{}")
+	-- Say what broke. An unchecked failure here hands `json.decode` an empty
+	-- string, and the conduct dies on "EOF while parsing" three frames away from
+	-- the command that actually failed.
+	if out.code ~= 0 or (out.stdout or "") == "" then
+		error(string.format("`cargo llvm-cov report` failed (exit %s):\n%s",
+			tostring(out.code), (out.stderr or "") .. (out.stdout or "")))
+	end
+	return json.decode(out.stdout)
 end
 
 local function totals(report_)
@@ -220,22 +206,48 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 	fs.remove_all(COV_DIR)
 	fs.mkdir(COV_DIR)
 
-	-- ORDER MATTERS, and not for the reason you would guess.
+	-- ORDER MATTERS, and both halves of it were learned the hard way.
 	--
-	-- The unit layer runs FIRST because `report` derives its denominator from
-	-- every instrumented object it can scan, and nextest's test binaries are part
-	-- of that set. Report the black-box layer before they exist and it answers
-	-- over 14,946 lines; report it after and the same data reads over 20,695 —
-	-- a ten-point "regression" between a cold conduct and a warm one, with no
-	-- code change anywhere.
+	-- The SUBJECT is built first so its object is registered before anything
+	-- reports. `report` derives its denominator from every instrumented object it
+	-- can scan, so a layer reported before the binary exists answers over a
+	-- smaller population than one reported after — a ten-point swing between a
+	-- cold conduct and a warm one with no code change anywhere.
 	--
-	-- Two ways out: hide the test binaries while the black-box layer reports
-	-- (a smaller, arguably purer denominator), or make sure they are always there
-	-- (one denominator for all three layers). This takes the second, because the
-	-- point of measuring three layers is COMPARING them: unit 61% and black-box
-	-- 27% only add up to a merged 72% if all three count the same lines, and the
-	-- unit-owed worklist at the bottom subtracts one layer's per-file percent from
-	-- the other's.
+	-- The UNIT layer then runs before the black-box layer for the same reason in
+	-- reverse: nextest's test binaries join the object set too. Once both are
+	-- present, all three layers count the same lines, which is the whole point of
+	-- measuring three — unit 61% and black-box 27% only add up to a merged 72% if
+	-- they share a denominator, and the unit-owed worklist at the bottom subtracts
+	-- one layer's per-file percent from the other's.
+	--
+	-- The alternative (hide the test binaries while the black-box layer reports,
+	-- for a smaller and arguably purer denominator) is deliberately not taken:
+	-- comparability across layers is worth more here than layer purity.
+
+	-- The instrumented subject, built BY cargo-llvm-cov rather than by a bare
+	-- `cargo build --target-dir`.
+	--
+	-- This is not a style choice. `report` attributes a profraw's counters using
+	-- the object list llvm-cov itself recorded, and a binary cargo built behind
+	-- its back is not on that list — so its counters are silently dropped.
+	-- Measured: the black-box layer read 2.46%, covering only the dependency
+	-- rlibs nextest had registered (git-cache, api, terminal-io) and NOTHING from
+	-- archetect-core or archetect-bin, which is where a CLI's work happens. No
+	-- error, no warning, just a number 25 points low.
+	--
+	-- `run --bin` is the way to make llvm-cov do the build and register the
+	-- object. `--version` is a throwaway argument — the binary has to be invoked
+	-- for `run` to exist, and the profraw it drops is purged below so the layer
+	-- measures the suite and not this.
+	local build = shell.run(
+		{ "cargo", "llvm-cov", "run", "--no-report", "--bin", "archetect", "--", "--version" },
+		{ cwd = prova.root, env = llvm_cov_env(), timeout = "1800s", merge_stderr = true })
+	if build.code ~= 0 then
+		return { error = "instrumented build failed:\n" .. (build.stdout or "") }
+	end
+	purge(COV_DIR, "*.profraw")
+
 	local unit_run = shell.run({ "cargo", "llvm-cov", "nextest", "--workspace", "--no-report" },
 		{ cwd = prova.root, env = llvm_cov_env(), timeout = "1800s", idle_timeout = "600s",
 		  merge_stderr = true })
@@ -248,14 +260,6 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 		return { error = "staging moved no unit profraws — the scan-root assumption broke" }
 	end
 
-	-- The instrumented subject. `--target-dir` is explicit: without it this lands
-	-- in target/debug and every later `prova` invocation silently drives an
-	-- instrumented archetect, littering profraws wherever it is run from.
-	local build = shell.run({ "cargo", "build", "-p", "archetect", "--target-dir", COV_DIR },
-		{ cwd = prova.root, env = build_env(), timeout = "1800s", merge_stderr = true })
-	if build.code ~= 0 then
-		return { error = "instrumented build failed:\n" .. (build.stdout or "") }
-	end
 	local subject = COV_DIR .. "/debug/archetect"
 
 	-- The black-box layer: the whole suite, through the instrumented binary.

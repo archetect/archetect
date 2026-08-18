@@ -271,22 +271,22 @@ fn test_is_not_alphanumeric_on_is_not_alphanumeric() {
 
 #[test]
 fn test_char_is_uppercase_when_it_is() {
-    assert_eq!(char_is_uppercase('A'), true)
+    assert!(char_is_uppercase('A'))
 }
 
 #[test]
 fn test_char_is_uppercase_when_it_is_not() {
-    assert_eq!(char_is_uppercase('a'), false)
+    assert!(!char_is_uppercase('a'))
 }
 
 #[test]
 fn test_next_or_previous_char_is_lowercase_true() {
-    assert_eq!(next_or_previous_char_is_lowercase("TestWWW", 3), true)
+    assert!(next_or_previous_char_is_lowercase("TestWWW", 3))
 }
 
 #[test]
 fn test_next_or_previous_char_is_lowercase_false() {
-    assert_eq!(next_or_previous_char_is_lowercase("TestWWW", 5), false)
+    assert!(!next_or_previous_char_is_lowercase("TestWWW", 5))
 }
 
 #[test]
@@ -323,115 +323,110 @@ fn snake_like_no_seperator_upper() {
 
 #[test]
 fn requires_seperator_upper_not_first_wrap_is_safe_current_upper() {
-    assert_eq!(requires_seperator((2, 'C'), false, "test"), true)
+    assert!(requires_seperator((2, 'C'), false, "test"))
 }
 
 #[test]
 fn requires_seperator_upper_not_first_wrap_is_safe_current_lower() {
-    assert_eq!(requires_seperator((2, 'c'), false, "test"), false)
+    assert!(!requires_seperator((2, 'c'), false, "test"))
 }
 
 #[test]
 fn requires_seperator_upper_first_wrap_is_safe_current_upper() {
-    assert_eq!(requires_seperator((0, 'T'), true, "Test"), false)
+    assert!(!requires_seperator((0, 'T'), true, "Test"))
 }
 
 #[test]
 fn requires_seperator_upper_first_wrap_is_safe_current_lower() {
-    assert_eq!(requires_seperator((0, 't'), true, "Test"), false)
+    assert!(!requires_seperator((0, 't'), true, "Test"))
 }
 
 #[test]
 fn requires_seperator_upper_first_wrap_is_safe_current_lower_next_is_too() {
-    assert_eq!(requires_seperator((0, 't'), true, "test"), false)
+    assert!(!requires_seperator((0, 't'), true, "test"))
 }
 
 #[test]
 fn test_char_is_seperator_dash() {
-    assert_eq!(char_is_seperator(&'-'), true)
+    assert!(char_is_seperator(&'-'))
 }
 
 #[test]
 fn test_char_is_seperator_underscore() {
-    assert_eq!(char_is_seperator(&'_'), true)
+    assert!(char_is_seperator(&'_'))
 }
 
 #[test]
 fn test_char_is_seperator_space() {
-    assert_eq!(char_is_seperator(&' '), true)
+    assert!(char_is_seperator(&' '))
 }
 
 #[test]
 fn test_char_is_seperator_when_not() {
-    assert_eq!(char_is_seperator(&'A'), false)
+    assert!(!char_is_seperator(&'A'))
 }
 
 #[test]
 fn test_last_char_lower_current_is_upper_or_new_word_with_new_word() {
-    assert_eq!(
-        last_char_lower_current_is_upper_or_new_word(true, ' ', '-'),
-        true
+    assert!(
+        last_char_lower_current_is_upper_or_new_word(true, ' ', '-')
     )
 }
 
 #[test]
 fn test_last_char_lower_current_is_upper_or_new_word_last_char_space() {
-    assert_eq!(
-        last_char_lower_current_is_upper_or_new_word(false, ' ', '-'),
-        false
+    assert!(
+        !last_char_lower_current_is_upper_or_new_word(false, ' ', '-')
     )
 }
 
 #[test]
 fn test_last_char_lower_current_is_upper_or_new_word_last_char_lower_current_upper() {
-    assert_eq!(
-        last_char_lower_current_is_upper_or_new_word(false, 'a', 'A'),
-        true
+    assert!(
+        last_char_lower_current_is_upper_or_new_word(false, 'a', 'A')
     )
 }
 
 #[test]
 fn test_last_char_lower_current_is_upper_or_new_word_last_char_upper_current_upper() {
-    assert_eq!(
-        last_char_lower_current_is_upper_or_new_word(false, 'A', 'A'),
-        false
+    assert!(
+        !last_char_lower_current_is_upper_or_new_word(false, 'A', 'A')
     )
 }
 
 #[test]
 fn test_last_char_lower_current_is_upper_or_new_word_last_char_upper_current_lower() {
-    assert_eq!(
-        last_char_lower_current_is_upper_or_new_word(false, 'A', 'a'),
-        false
+    assert!(
+        !last_char_lower_current_is_upper_or_new_word(false, 'A', 'a')
     )
 }
 
 #[test]
 fn test_first_word_or_not_inverted_with_first_word() {
-    assert_eq!(first_word_or_not_inverted(true, false), true)
+    assert!(first_word_or_not_inverted(true, false))
 }
 
 #[test]
 fn test_first_word_or_not_inverted_not_first_word_not_inverted() {
-    assert_eq!(first_word_or_not_inverted(false, false), true)
+    assert!(first_word_or_not_inverted(false, false))
 }
 
 #[test]
 fn test_first_word_or_not_inverted_not_first_word_is_inverted() {
-    assert_eq!(first_word_or_not_inverted(false, true), false)
+    assert!(!first_word_or_not_inverted(false, true))
 }
 
 #[test]
 fn test_not_first_word_and_has_seperator_is_first_and_not_seperator() {
-    assert_eq!(not_first_word_and_has_seperator(true, false), false)
+    assert!(!not_first_word_and_has_seperator(true, false))
 }
 
 #[test]
 fn test_not_first_word_and_has_seperator_not_first_and_not_seperator() {
-    assert_eq!(not_first_word_and_has_seperator(false, false), false)
+    assert!(!not_first_word_and_has_seperator(false, false))
 }
 
 #[test]
 fn test_not_first_word_and_has_seperator_not_first_and_has_seperator() {
-    assert_eq!(not_first_word_and_has_seperator(false, true), true)
+    assert!(not_first_word_and_has_seperator(false, true))
 }

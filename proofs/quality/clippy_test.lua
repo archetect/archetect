@@ -11,23 +11,16 @@
 --- unless thrown. `prova run quality` throws it; `prova -s quality` is the
 --- ad-hoc door.
 
--- WHY the count is measured this way, and why it is not a loophole.
+-- `--keep-going` lints every crate even when one fails to compile.
 --
--- `archetect-inflections` carries `#![deny(warnings)]` from its upstream (it is
--- a fork of the Inflector crate), which turns every clippy lint in it into a
--- hard ERROR and ABORTS its compilation. Without `--keep-going`, downstream
--- crates then never get linted at all, and the total depends on how far the
--- build got before the abort: measured live, three consecutive whole-workspace
--- counts read 221, 243, and 221 with no code change between them. A ratchet on
--- a number that moves by twenty on its own is worse than no ratchet — it fails
--- randomly and gets switched off.
---
--- So: `--keep-going` lints everything regardless, and that crate's own findings
--- are filtered out by SPAN rather than by excluding it from the build. Filtering
--- after the fact is what keeps its debt honest — it stays measurable (the
--- promise at the bottom of this file counts it), it just does not corrupt the
--- rest. Stable to the unit this way: 146, 146, 146.
-local UNGATED = "archetect-inflections/"
+-- `archetect-inflections` carries `#![deny(warnings)]` from its upstream, which
+-- escalates clippy lints to hard errors and aborts that crate. Without
+-- --keep-going the crates after it were never linted at all, and the total
+-- depended on how far the build got: three consecutive whole-workspace counts
+-- read 221, 243, and 221 with no code change between them. That crate is clean
+-- now (see the bottom of this file), so nothing currently aborts — the flag
+-- stays because the next crate to sprout a deny should cost this gate a couple
+-- of findings, not its determinism.
 
 -- Generated code is not this repo's code. `archetect-core/build.rs` compiles the
 -- proto with prost, whose output trips lints nobody here can fix — counting them
@@ -46,7 +39,7 @@ local UNGATED = "archetect-inflections/"
 -- (Unix-shaped: a Windows absolute path starts `C:\`. The quality lane runs on
 -- macOS and Linux; revisit if that changes.)
 local function is_ours(file)
-	return file:sub(1, 1) ~= "/" and not file:find(UNGATED, 1, true)
+	return file:sub(1, 1) ~= "/"
 end
 
 local custody = require("custody")
@@ -80,8 +73,8 @@ local findings = prova.fixture("clippy-findings", Scope.File, function()
 	fs.write(path, json.encode({ total = total, by_lint = by_lint, sample = sample }))
 	custody.publish {
 		name = "clippy",
-		summary = string.format("%d findings across %d lints (%s not gated yet)",
-			total, (function() local n = 0 for _ in pairs(by_lint) do n = n + 1 end return n end)(), UNGATED),
+		summary = string.format("%d findings across %d lints (whole workspace)",
+			total, (function() local n = 0 for _ in pairs(by_lint) do n = n + 1 end return n end)()),
 		explains = "rust.clippy.findings",
 		forms = { json = path },
 	}
@@ -129,11 +122,13 @@ end)
 prova.test("archetect-inflections lints under the same gate as the rest of the workspace", {
 	switch = "quality",
 	locks = { prova.writes("cargo") },
-	promises = "the crate's upstream `#![deny(warnings)]` turns clippy lints into hard "
-		.. "errors and aborts its compilation, so the gate above filters its findings out "
-		.. "by span and its debt is counted by nobody. Fixing it means clearing its own "
-		.. "findings (mostly `assert_eq!(x, true)` in its tests) or scoping the deny — a "
-		.. "self-contained job in a forked crate rather than part of any feature.",
+	proves = "the crate's upstream `#![deny(warnings)]` escalates clippy lints to hard "
+		.. "errors and ABORTS its compilation, which used to take the rest of the "
+		.. "workspace's diagnostics with it — three consecutive counts read 221, 243, and "
+		.. "221 on identical code. Excluding it bought a stable number at the price of 97 "
+		.. "findings nobody counted. All 97 were one machine-applicable lint "
+		.. "(`assert_eq!(x, true)`), so the crate joins the gate at zero rather than being "
+		.. "grandfathered, and the deny that made it dangerous now keeps it honest.",
 }, function(t)
 	local out = shell.run({
 		"cargo", "clippy", "-p", "archetect-inflections", "--all-targets", "--", "-D", "warnings",
