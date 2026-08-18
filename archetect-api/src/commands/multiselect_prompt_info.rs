@@ -16,9 +16,6 @@ pub struct MultiSelectPromptInfo {
     pub min_items: Option<usize>,
     pub max_items: Option<usize>,
     pub page_size: Option<usize>,
-    /// Optional UI section label — metadata carried to clients untouched.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     /// Opaque author-supplied UI metadata, passed through to clients untouched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui: Option<serde_json::Value>,
@@ -104,7 +101,6 @@ impl MultiSelectPromptInfo {
             min_items: Default::default(),
             max_items: Default::default(),
             page_size: Some(10),
-            group: None,
             ui: None,
         }
     }

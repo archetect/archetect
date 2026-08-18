@@ -16,8 +16,8 @@ error names when unanswered.
 
 Shared options: `default`, `help`, `placeholder`, `optional` (unanswered → nil instead of
 error), `answer_key` (answer under a different key), `cases` (case-variant expansion — see
-`archetect learn cases`), `group` (UI section label) and `ui` (opaque metadata table) —
-both pure metadata, carried to clients (MCP envelopes, future interface probes) untouched.
+`archetect learn cases`), and `ui` (an opaque metadata table carried to clients untouched).
+Grouping is not an option — see pages and sections below.
 
 Select/multiselect `options` entries are bare strings or rich tables
 `{ value = "pg", label = "PostgreSQL", help = "Production-grade" }` — the VALUE is the
@@ -42,29 +42,26 @@ prompts a body declares:
 ```lua
 context:page("Service Identity", function(ctx)
   ctx:prompt_text("Service Name:", "service_name")
-  ctx:section("Ownership", function(ctx)
-    ctx:prompt_text("Team:", "team")
-  end)
+  ctx:section("Ownership", function(ctx) ctx:prompt_text("Team:", "team") end)
 end)
-
 context:page({ title = "Persistence", key = "storage", help = "Where state lives." }, function(ctx)
   ctx:prompt_select("Database:", "database", { "none", "postgres" })
 end)
 ```
 
-The two verbs are the same container with a different `kind`; archetect carries the
-distinction and refuses to decide what either LOOKS like. A wizard makes a page a step and a
-section a fieldset; the terminal makes both headings; `--answers-template` makes them comment
-banners. Nesting is unrestricted — sections hold sections, and a page inside a page is not an
-error.
+The two verbs are the same container with a different `kind`; archetect carries the distinction
+and refuses to decide what either LOOKS like. A wizard makes a page a step and a section a
+fieldset; the terminal makes both headings; `--answers-template` makes them comment banners.
+Nesting is unrestricted.
 
 `title` is required. `key` defaults to a slug of it (`"Service Identity"` → `service_identity`)
 and is what a wizard routes on, so pin one if the title may be reworded. `help` and `ui` behave
 as they do on prompts.
 
-They cost nothing to adopt: containers change what a render *looks* like, never what it
-*produces*, and an archetype that declares none behaves exactly as before. The older per-prompt
-`group` opt still works and is unaffected.
+Containers change what a render *looks* like, never what it *produces*, and an archetype that
+declares none behaves exactly as before. They REPLACE the old per-prompt `group = "Identity"`
+label — a string with no extent and nothing that rendered it. Passing `group` is now an error
+naming this syntax.
 
 ## The derived interface: ask the archetype, don't trust a file
 

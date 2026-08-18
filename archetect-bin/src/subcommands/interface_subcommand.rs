@@ -118,9 +118,6 @@ fn describe_prompt(prompt: &InterfacePrompt) -> String {
         let values: Vec<&str> = options.iter().map(|o| o.value.as_str()).collect();
         parts.push(format!("options: [{}]", values.join(", ")));
     }
-    if let Some(group) = &envelope.group {
-        parts.push(format!("group: {}", group));
-    }
     for condition in &prompt.appears_when {
         parts.push(format!("when {} = {}", condition.key, condition.equals));
     }

@@ -30,10 +30,24 @@
 local UNGATED = "archetect-inflections/"
 
 -- Generated code is not this repo's code. `archetect-core/build.rs` compiles the
--- proto into `target/.../out/archetect.rs`, and prost's output trips lints nobody
--- here can fix — it would put a dependency's codegen style into archetect's debt
--- number, and change it on a prost bump with no commit to explain the move.
-local GENERATED = "/target/"
+-- proto with prost, whose output trips lints nobody here can fix — counting them
+-- would put a dependency's codegen style into archetect's debt number and move it
+-- on a prost bump with no commit to explain the change.
+--
+-- Identified by being OUTSIDE the workspace, not by a path substring. Cargo
+-- reports workspace sources as repo-relative (`archetect-core/src/...`) and
+-- everything else absolute, so a leading slash IS the test. The substring this
+-- replaces (`/target/`) was measured against a build that happened to put OUT_DIR
+-- under the repo; cargo's build-dir is a machine-level setting, and when it moved
+-- to `~/.cache/cargo/build/...` the filter silently matched nothing and the count
+-- jumped 138 → 146 with no code change. A ratchet that depends on where cargo
+-- keeps its scratch files is not measuring the codebase.
+--
+-- (Unix-shaped: a Windows absolute path starts `C:\`. The quality lane runs on
+-- macOS and Linux; revisit if that changes.)
+local function is_ours(file)
+	return file:sub(1, 1) ~= "/" and not file:find(UNGATED, 1, true)
+end
 
 local custody = require("custody")
 
@@ -54,9 +68,7 @@ local findings = prova.fixture("clippy-findings", Scope.File, function()
 			local m = msg.message or {}
 			local code = m.code and m.code.code
 			local file = (m.spans and m.spans[1] and m.spans[1].file_name) or "?"
-			if code and (m.level == "warning" or m.level == "error")
-				and not file:find(UNGATED, 1, true)
-				and not file:find(GENERATED, 1, true) then
+			if code and (m.level == "warning" or m.level == "error") and is_ours(file) then
 				total = total + 1
 				by_lint[code] = (by_lint[code] or 0) + 1
 				sample[code] = sample[code] or file

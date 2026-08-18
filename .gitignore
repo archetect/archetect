@@ -13,3 +13,9 @@ Cargo.lock
 # Run timings are machine-dependent and no ratchet consults them; `--update-baseline`
 # writes this set anyway, so keep it out of the tree rather than churning it per host.
 /.prova/baselines/timings.json
+
+# Coverage strays. An instrumented process whose LLVM_PROFILE_FILE is lost falls
+# back to `default_<sig>_0_<pid>.profraw` in its own cwd — LLVM's default, not a
+# path anything here controls. The coverage conduct sweeps them, but a stray must
+# never be able to reach history: 1,385 of them were staged once before this line.
+*.profraw

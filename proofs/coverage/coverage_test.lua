@@ -83,6 +83,40 @@ local function build_env()
 	return env
 end
 
+--- Per-file line percent from a full report.
+local function by_file(report_)
+	local out = {}
+	for _, file in ipairs(report_.data[1].files or {}) do
+		out[file.filename] = file.summary.lines.percent
+	end
+	return out
+end
+
+--- What coverage is measured ABOUT: this repo's shipping code.
+---
+--- Two exclusions, each for its own reason, both structural rather than tied to
+--- where a particular machine keeps its build dir:
+---
+---   build-script output — `<anything>/build/<pkg>-<hash>/out/…` is cargo's own
+---   convention. `archetect-core/build.rs` compiles the proto with prost, and
+---   407 lines of its codegen is not archetect's coverage to earn or lose. It
+---   also DIVERGED the layers: the subject build linked it, the nextest build
+---   used a different build-script hash, and the two reports disagreed on the
+---   denominator by exactly one file until this landed.
+---
+---   xtask — build automation. It runs on a developer's machine to produce
+---   artifacts, it is never in a release, and no user can reach it. Measuring it
+---   puts lines a test suite has no business exercising into the denominator of
+---   every layer, which is not a coverage gap but a category error.
+---
+--- Scoped on their own merits, and the floors are re-banked against the new
+--- denominator in the same commit, so nothing is credited twice.
+--- `.*` between `build` and `out` on purpose: the classic layout is
+--- `build/<pkg>-<hash>/out/`, and cargo's newer build-dir splits it into
+--- `build/<pkg>/<hash>/out/`. A pattern pinned to one segment matched nothing
+--- under the other and let 407 lines of codegen back into the denominator.
+local IGNORE_FILES = "(/build/.*/out/)|(^|/)xtask/"
+
 local function purge(dir, pattern)
 	for _, path in ipairs(fs.glob(dir, pattern)) do
 		fs.remove_all(path)
@@ -96,7 +130,8 @@ end
 --- "three layers with identical totals" rather than as an error.
 local function fresh_report()
 	purge(COV_DIR, "*.profdata")
-	local out = shell.run({ "cargo", "llvm-cov", "report", "--json" },
+	local out = shell.run(
+		{ "cargo", "llvm-cov", "report", "--json", "--ignore-filename-regex", IGNORE_FILES },
 		{ cwd = prova.root, env = llvm_cov_env(), timeout = "600s" })
 	return json.decode(out.stdout or "{}")
 end
@@ -124,31 +159,66 @@ local function stage(into_stage)
 	return moved
 end
 
-local conduct = prova.fixture("layered-coverage", Scope.File, function()
-	-- Data-only clean: the instrumented build artifacts are the expensive stage
-	-- and stay for incremental conducts. Stale DATA, though, is a previous run's
-	-- verdicts wearing this one's face.
-	fs.mkdir(COV_DIR)
-	purge(COV_DIR, "*.profraw")
-	purge(COV_DIR, "*.profdata")
-	-- llvm-cov's own index of which profraws it last merged. Left behind, it
-	-- makes `report` answer for a previous conduct's data set.
-	purge(COV_DIR, "*-profraw-list")
-	fs.remove_all(UNIT_STAGE)
-
-	-- A stale-GENERATION guard. Instrumented objects from a different toolchain
-	-- inflate the denominator, and a target dir carrying a half-migrated llvm-cov
-	-- layout breaks the next conduct in a way that reads as a test failure
-	-- (observed: `cargo llvm-cov nextest` failing its own rustc probe with a wall
-	-- of identical errors). Cheap to detect, expensive to debug.
-	local stamp_path = COV_DIR .. "/.archetect-coverage-stamp"
-	local rustc = shell.run({ "rustc", "--version" }, { cwd = prova.root })
-	local stamp = (rustc.stdout or "?"):gsub("%s+$", "")
-	if not fs.exists(stamp_path) or fs.read(stamp_path) ~= stamp then
-		fs.remove_all(COV_DIR)
-		fs.mkdir(COV_DIR)
-		fs.write(stamp_path, stamp)
+--- Sweep LLVM's fallback profraws out of the source tree.
+---
+--- An instrumented process whose `LLVM_PROFILE_FILE` does not reach it writes
+--- `default_<sig>_0_<pid>.profraw` into its own CWD — LLVM's default, not a path
+--- this conduct controls. Measured: 1,385 of them across the repo root and
+--- `archetect-aml/`, and they were staged into a commit before `.gitignore`
+--- learned about them.
+---
+--- DELETED rather than swept into the scan, deliberately. The data is mergeable,
+--- but nothing says which layer produced it — a unit-test binary's profraw folded
+--- into the black-box layer would inflate exactly the number this suite exists to
+--- keep honest. A little lost coverage beats coverage attributed to the wrong
+--- layer, and the `suite-*.profraw` floor below already proves the black-box
+--- layer measured the subject.
+local function sweep_strays()
+	local roots = { prova.root, prova.root .. "/xtask" }
+	for _, dir in ipairs(fs.glob(prova.root, "archetect-*")) do
+		roots[#roots + 1] = dir
 	end
+	local swept = 0
+	for _, dir in ipairs(roots) do
+		if fs.exists(dir) then
+			for _, path in ipairs(fs.glob(dir, "default_*.profraw")) do
+				fs.remove_all(path)
+				swept = swept + 1
+			end
+		end
+	end
+	return swept
+end
+
+local conduct = prova.fixture("layered-coverage", Scope.File, function()
+	fs.remove_all(UNIT_STAGE)
+	sweep_strays()
+
+	-- EVERY CONDUCT STARTS CLEAN, and the incremental path is gone on purpose.
+	--
+	-- `report` derives its denominator from every instrumented object it can
+	-- scan, and cargo does not evict the previous build's objects from `deps/`.
+	-- A second conduct therefore scans two generations of the same crates and
+	-- adds their line counts together. Measured live, twice:
+	--
+	--   * deleting the `group` option — code REMOVED — moved the denominator from
+	--     20,695 lines to 22,038 and dropped all three layers ~4pp. Every floor
+	--     tripped, and it looked exactly like lost coverage.
+	--   * a repeat conduct on unchanged sources reported the unit layer over
+	--     20,682 lines and the black-box layer over 21,089, because relinking the
+	--     subject left the prior binary's objects in the scan.
+	--
+	-- A digest-stamped wipe fixed the first and not the second: sources are not
+	-- the only input to what ends up in `deps/`. Since a percent whose
+	-- denominator moves on its own is not a metric, the dir goes. That costs a
+	-- clean instrumented rebuild per conduct — minutes, on a lane that runs
+	-- nightly and on demand, which is the right place to spend them.
+	--
+	-- The wipe also settles a second failure mode it used to take a stamp to
+	-- avoid: a half-migrated llvm-cov layout breaking the next conduct's rustc
+	-- probe with a wall of identical errors.
+	fs.remove_all(COV_DIR)
+	fs.mkdir(COV_DIR)
 
 	-- ORDER MATTERS, and not for the reason you would guess.
 	--
@@ -166,11 +236,6 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 	-- 27% only add up to a merged 72% if all three count the same lines, and the
 	-- unit-owed worklist at the bottom subtracts one layer's per-file percent from
 	-- the other's.
-	--
-	-- The cache llvm-cov's rustc probe keeps here is dropped first: a plain
-	-- instrumented `cargo build` (below) writes it in a shape `cargo llvm-cov`
-	-- then chokes on. It is a probe cache — rebuilding it costs one rustc call.
-	fs.remove_all(COV_DIR .. "/.rustc_info.json")
 	local unit_run = shell.run({ "cargo", "llvm-cov", "nextest", "--workspace", "--no-report" },
 		{ cwd = prova.root, env = llvm_cov_env(), timeout = "1800s", idle_timeout = "600s",
 		  merge_stderr = true })
@@ -252,6 +317,9 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 	-- The merge: the unit profraws rejoin, one whole-bar total.
 	stage(false)
 	local merged = fresh_report()
+	-- The legs above are what drop strays; leaving them would litter the tree the
+	-- moment someone runs this lane and forgets what wrote the files.
+	sweep_strays()
 
 	-- Custody. The conduct has produced the answer to "which lines"; without this
 	-- it is discarded with `target/`, and a red floor can refuse a regression
@@ -260,7 +328,8 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 	local html_dir = prova.root .. "/target/coverage-html"
 	fs.remove_all(html_dir)
 	local html = shell.run(
-		{ "cargo", "llvm-cov", "report", "--html", "--output-dir", html_dir },
+		{ "cargo", "llvm-cov", "report", "--html", "--output-dir", html_dir,
+		  "--ignore-filename-regex", IGNORE_FILES },
 		{ cwd = prova.root, env = llvm_cov_env(), timeout = "600s" })
 	local json_path = prova.root .. "/target/coverage-merged.json"
 	fs.write(json_path, json.encode(merged))
@@ -287,15 +356,6 @@ local conduct = prova.fixture("layered-coverage", Scope.File, function()
 
 	return { unit = unit, blackbox = blackbox, merged = merged }
 end)
-
---- Per-file line percent from a full report.
-local function by_file(report_)
-	local out = {}
-	for _, file in ipairs(report_.data[1].files or {}) do
-		out[file.filename] = file.summary.lines.percent
-	end
-	return out
-end
 
 prova.test("whole-bar line coverage — unit AND black-box merged — does not regress", {
 	locks = { prova.writes("cargo") },
@@ -325,6 +385,20 @@ prova.test("whole-bar line coverage — unit AND black-box merged — does not r
 		:equals(totals(produced.merged).count)
 	t:expect(totals(produced.blackbox).count, "black-box and merged measure the same denominator")
 		:equals(totals(produced.merged).count)
+
+	-- The exclusion is a regex in a shell argument: a typo silently measures
+	-- everything again and the floors drift for a reason nobody can see. Assert
+	-- the denominator itself rather than trusting the flag went through.
+	for _, layer in ipairs({ produced.unit, produced.blackbox, produced.merged }) do
+		local strays = {}
+		for file in pairs(by_file(layer)) do
+			if file:find("/out/", 1, true) or file:find("/xtask/", 1, true) then
+				strays[#strays + 1] = file
+			end
+		end
+		t:expect(strays, "generated code and build automation stay out of the denominator")
+			:has_length(0)
+	end
 
 	measure.ratchet(t, "rust.coverage.lines", pct(produced.merged), {
 		set = "quality", direction = "higher_is_better",

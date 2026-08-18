@@ -6,15 +6,15 @@
     },
     "rust.coverage.blackbox": {
       "direction": "higher_is_better",
-      "value": 26.32
+      "value": 26.44
     },
     "rust.coverage.lines": {
       "direction": "higher_is_better",
-      "value": 71.24
+      "value": 71.64
     },
     "rust.coverage.unit": {
       "direction": "higher_is_better",
-      "value": 59.78
+      "value": 60.14
     },
     "rust.expect.shipped": {
       "direction": "lower_is_better",

@@ -1,6 +1,10 @@
 -- Dynamic-interface phase 1, proven black-box: the prompt surface says everything
 -- interface.yaml could say — and unlike interface.yaml, saying it makes it SO.
--- (docs/plans/dynamic-interface.md §2 — pattern, rich options, group/ui metadata.)
+-- (docs/plans/dynamic-interface.md §2 — pattern, rich options, ui metadata.)
+--
+-- Phase 1's third deliverable, the flat `group` label, is GONE: `context:section`
+-- replaced it with a container that has an extent and can nest. Its removal is
+-- proven in pages_and_sections_test.lua.
 
 local workspace = require("prova.workspace")
 
@@ -18,14 +22,13 @@ local context = Context.new()
 context:prompt_text("Service Name:", "service_name", {
   pattern = "^[a-z][a-z0-9-]*$",
   help = "Lowercase kebab identifier",
-  group = "Identity",
   ui = { widget = "text", advanced = false },
 })
 
 context:prompt_select("Persistence:", "persistence", {
   { value = "pg", label = "PostgreSQL", help = "Production-grade" },
   "none",
-}, { default = "pg", group = "Storage" })
+}, { default = "pg" })
 
 context:prompt_multiselect("Features:", "features", {
   { value = "m", label = "Metrics" },
@@ -120,13 +123,12 @@ local function mcp_first_prompt(t, ws, tag, answers_json)
 	return nil
 end
 
-prova.test("MCP text envelope carries pattern, group, and ui", function(t)
+prova.test("MCP text envelope carries pattern and ui", function(t)
 	local ws = t:use(arch)
 	local p = mcp_first_prompt(t, ws, "text", nil)
 	t:expect(p ~= nil, "render returned a prompt"):equals(true)
 	t:expect(p.key):equals("service_name")
 	t:expect(p.pattern, "pattern rides the envelope"):equals("^[a-z][a-z0-9-]*$")
-	t:expect(p.group, "group rides the envelope"):equals("Identity")
 	t:expect(p.ui.widget, "ui passes through opaquely"):equals("text")
 end)
 
@@ -135,7 +137,6 @@ prova.test("MCP select envelope carries option values, labels, and help", functi
 	local p = mcp_first_prompt(t, ws, "select", '{"service_name":"svc"}')
 	t:expect(p ~= nil, "render returned a prompt"):equals(true)
 	t:expect(p.key):equals("persistence")
-	t:expect(p.group, "group rides the envelope"):equals("Storage")
 	t:expect(p.options[1].value, "options carry values"):equals("pg")
 	t:expect(p.options[1].label, "options carry labels"):equals("PostgreSQL")
 	t:expect(p.options[1].help, "options carry help"):equals("Production-grade")
@@ -145,11 +146,10 @@ end)
 
 -- ── the binary teaches the new surface (autodidact ratchet) ────────
 
-prova.test("introspect teaches pattern, group, ui, and rich options", function(t)
+prova.test("introspect teaches pattern, ui, and rich options", function(t)
 	local b = t:use(bin)
 	local text_opts = shell.run({ b, "introspect", "TextPromptOpts" }, { check = true }).stdout
 	t:expect(text_opts):contains("pattern")
-	t:expect(text_opts):contains("group")
 	t:expect(text_opts):contains("ui")
 	local select_sig = shell.run({ b, "introspect", "prompt_select" }, { check = true }).stdout
 	t:expect(select_sig, "options accept rich tables"):contains("SelectOption")

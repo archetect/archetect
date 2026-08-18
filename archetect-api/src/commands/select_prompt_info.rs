@@ -23,9 +23,6 @@ pub struct SelectPromptInfo {
     /// Label for the "other" menu entry. Defaults to "Other..." when None.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub other_label: Option<String>,
-    /// Optional UI section label — metadata carried to clients untouched.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     /// Opaque author-supplied UI metadata, passed through to clients untouched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui: Option<serde_json::Value>,
@@ -93,7 +90,6 @@ impl SelectPromptInfo {
             page_size: Some(10),
             allow_other: false,
             other_label: None,
-            group: None,
             ui: None,
         }
     }

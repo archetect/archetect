@@ -5,7 +5,7 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Design (this document) + inventory of `interface.yaml` consumers | done |
-| 1 | Prompt-surface completion: `pattern`, rich options, `group`/`ui` — enforced, not descriptive | **shipped 2026-07-22** (proofs: `proofs/interface/prompt_surface_test.lua`; gRPC carries option values only until phase 6) |
+| 1 | Prompt-surface completion: `pattern`, rich options, `group`/`ui` — enforced, not descriptive | **shipped 2026-07-22** (proofs: `proofs/interface/prompt_surface_test.lua`; gRPC carries option values only until phase 6). `group` was **removed 2026-08-18** — `context:section` replaced it, see [Pages & Sections](interface-pages-and-sections.md) |
 | 2 | Shared `PromptEnvelope` (moved mcp → api) + `ProbeDriver` (default-path recording, switch recording, budget guard) | **shipped 2026-07-22** |
 | 3 | Consumers: `archetect interface <source\|path>` CLI (`--json`, `--answers-template`), MCP `describe` | **shipped 2026-07-22** (browse still serves the declared interface; probe-result caching by commit deferred) |
 | 4 | Drift detection (`--check`) + deprecation warning on declared interfaces | **shipped 2026-07-22** (clap-cli migration pending — it is the one ecosystem user) |
@@ -67,7 +67,7 @@ opts, where it stops being a claim and becomes a behavior:
 |---|---|---|
 | `validation: "^[a-z]…"` | `pattern` on `prompt_text` | enforced on every path: interactive, `-a`, answer files, MCP |
 | `options: [{value,label,help}]` | options arrays accept tables alongside strings | terminal + web render labels; value is what's stored/answered |
-| `groups:` | `group = "Identity"` shared opt | envelope carries it; ordering stays script order |
+| `groups:` | `group = "Identity"` shared opt | envelope carries it; ordering stays script order — *superseded by `context:section`, 2026-08-18* |
 
 Plus a free-form `ui = { … }` shared opt: an opaque table recorded into the envelope and
 passed through untouched (widget hints, `advanced = true`, icons). Intrinsic hints belong
@@ -186,5 +186,7 @@ Prova proofs (`proofs/interface/`, black-box on the shipped binary):
   `batch` classification — they classify `interactive`, and that's the right answer.
 - **Envelope relocation** (mcp → api) touches the gRPC proto conversions; do it in phase 2
   before consumers multiply.
-- Does `group` belong in phase 1, or is script order + `ui` passthrough enough? Decide
-  when migrating clap-cli — it is the only real grouping user.
+- ~~Does `group` belong in phase 1, or is script order + `ui` passthrough enough?~~ **Answered
+  2026-08-18: neither.** A flat label was too little — it could not say where a group ended or
+  nest one inside another, so no renderer ever consumed it. `context:section` is the shape the
+  question was reaching for, and `group` was removed in the same change.

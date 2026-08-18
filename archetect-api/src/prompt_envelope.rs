@@ -82,9 +82,6 @@ pub struct PromptEnvelope {
     /// runtime; carried here so clients can validate before responding.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
-    /// Author-declared UI section label.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     /// Opaque author-supplied UI metadata, passed through untouched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<serde_json::Value>,
@@ -133,7 +130,6 @@ impl PromptEnvelope {
                 max_items: None,
             }),
             pattern: info.pattern.clone(),
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -156,7 +152,6 @@ impl PromptEnvelope {
                 max_items: None,
             }),
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -174,7 +169,6 @@ impl PromptEnvelope {
             optional: info.optional(),
             constraints: None,
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -199,7 +193,6 @@ impl PromptEnvelope {
                 max_items: info.max_items(),
             }),
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -217,7 +210,6 @@ impl PromptEnvelope {
             optional: info.optional(),
             constraints: None,
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -242,7 +234,6 @@ impl PromptEnvelope {
                 max_items: info.max_items(),
             }),
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }
@@ -265,7 +256,6 @@ impl PromptEnvelope {
                 max_items: None,
             }),
             pattern: None,
-            group: info.group.clone(),
             ui: info.ui.clone(),
             segments: Vec::new(),
         }

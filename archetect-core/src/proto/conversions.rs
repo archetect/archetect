@@ -64,8 +64,8 @@ impl From<ApiScriptMessage> for grpc::script_message::Message {
                 Message::PromptForSelect(grpc::PromptForSelect {
                     message: info.message,
                     key: info.key,
-                    // Values only — option labels/help and group/ui metadata
-                    // ride the local session; the proto gains them in the
+                    // Values only — option labels/help and `ui` metadata ride
+                    // the local session; the proto gains them in the
                     // dynamic-interface plan's server phase.
                     options: info.options.into_iter().map(|o| o.value).collect(),
                     default: info.default,
@@ -194,7 +194,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 placeholder: p.placeholder,
                 optional: p.optional,
                 pattern: None,
-                group: None,
                 ui: None,
             }),
             Message::PromptForInt(p) => ApiScriptMessage::PromptForInt(IntPromptInfo {
@@ -206,7 +205,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 help: p.help,
                 placeholder: p.placeholder,
                 optional: p.optional,
-                group: None,
                 ui: None,
             }),
             Message::PromptForBool(p) => ApiScriptMessage::PromptForBool(BoolPromptInfo {
@@ -216,7 +214,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 help: p.help,
                 placeholder: p.placeholder,
                 optional: p.optional,
-                group: None,
                 ui: None,
             }),
             Message::PromptForList(p) => ApiScriptMessage::PromptForList(ListPromptInfo {
@@ -228,7 +225,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 min_items: p.min_items.map(|v| v as usize),
                 max_items: p.max_items.map(|v| v as usize),
                 optional: p.optional,
-                group: None,
                 ui: None,
             }),
             Message::PromptForSelect(p) => ApiScriptMessage::PromptForSelect(SelectPromptInfo {
@@ -242,7 +238,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 optional: p.optional,
                 allow_other: p.allow_other,
                 other_label: p.other_label,
-                group: None,
                 ui: None,
             }),
             Message::PromptForMultiSelect(p) => {
@@ -257,7 +252,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                     max_items: p.max_items.map(|v| v as usize),
                     page_size: p.page_size.map(|v| v as usize),
                     optional: p.optional,
-                    group: None,
                     ui: None,
                 })
             }
@@ -270,7 +264,6 @@ impl From<grpc::ScriptMessage> for ApiScriptMessage {
                 help: p.help,
                 placeholder: p.placeholder,
                 optional: p.optional,
-                group: None,
                 ui: None,
             }),
             Message::CompleteSuccess(c) => ApiScriptMessage::CompleteSuccess(

@@ -103,14 +103,11 @@ context:page("Doomed", function(ctx)
 end)
 ]])
 
-	-- legacy-groups: the flat `group =` opt, which pages and sections succeed
-	-- but do not retire.
-	ws:write("legacy-groups/archetype.yaml", 'description: "Legacy groups"\nrequires:\n  archetect: "3.0.0"\n')
-	ws:write("legacy-groups/archetype.lua", [[
+	-- legacy-group: the flat `group =` opt pages and sections REPLACED.
+	ws:write("legacy-group/archetype.yaml", 'description: "Legacy group"\nrequires:\n  archetect: "3.0.0"\n')
+	ws:write("legacy-group/archetype.lua", [[
 local context = Context.new()
 context:prompt_text("Service Name:", "service_name", { default = "orders", group = "Identity" })
-context:prompt_text("Team:", "team", { default = "platform", group = "Identity" })
-context:prompt_int("Port:", "port", { default = 8080, group = "Network" })
 ]])
 
 	return ws
@@ -320,15 +317,22 @@ prova.test("containers change nothing about what a render produces", {
 	t:expect(ws:read("wizard-out/out.toml")):contains('team = "platform"')
 end)
 
-prova.test("the flat `group` opt keeps working alongside pages", {
-	proves = "`group` shipped before this and archetypes use it. Pages supersede it "
-		.. "without retiring it — a removal would be a breaking change to a public "
-		.. "authoring surface for no gain.",
+prova.test("the flat `group` opt is a script error naming its replacement", {
+	proves = "`group` was a label carried to clients that nothing rendered — a section "
+		.. "with no extent, no nesting, and no way to hold anything. Sections do the job "
+		.. "properly, so two ways to say one thing would be two things to learn and one "
+		.. "of them a dead end. Removed rather than deprecated because it is ERRORING "
+		.. "that makes the replacement discoverable: a silently dropped `group` ships an "
+		.. "ungrouped form that looks deliberate.",
 }, function(t)
 	local ws = t:use(ws_fixture)
-	local derived = interface_json(t, ws, "legacy-groups")
-	t:expect(prompt_named(derived, "service_name").group):equals("Identity")
-	t:expect(prompt_named(derived, "port").group):equals("Network")
+	local out = shell.run({
+		t:use(bin), "render", ws:file("legacy-group"),
+		"--destination", ws:file("legacy-group-out"), "--headless", "-D",
+	})
+	t:expect(out.code, "a removed option must not be silently ignored"):never():equals(0)
+	t:expect(out.stderr, "says what happened"):contains("no longer supported")
+	t:expect(out.stderr, "points at the replacement"):contains("context:section")
 end)
 
 -- ── exploration, composition, failure ──────────────────────────────
@@ -586,22 +590,6 @@ prova.test("learn prompts documents pages and sections", {
 end)
 
 -- ── the executable backlog ─────────────────────────────────────────
-
-prova.test("a legacy `group` opt is promoted into a section", {
-	promises = "pages/sections and the flat `group` opt now say overlapping things. Promoting "
-		.. "consecutive same-group prompts into a synthesized section would paginate every "
-		.. "archetype that already uses `group` without touching a single script. Held back "
-		.. "because a synthesized container needs a key rule that cannot collide with an "
-		.. "author-declared one, and that rule should be settled with a real catalog in "
-		.. "hand rather than guessed at.",
-}, function(t)
-	local ws = t:use(ws_fixture)
-	local derived = interface_json(t, ws, "legacy-groups")
-	t:expect(shape(derived.layout)):equals("section:identity,section:network")
-	t:expect(shape(find_node(derived.layout, "identity").children)):equals(
-		"prompt:service_name,prompt:team"
-	)
-end)
 
 prova.test("a wizard submits a whole page in one round trip", {
 	promises = "a wizard's Next button currently costs N round trips for an N-field step, "

@@ -174,7 +174,6 @@ function Context:section(spec, body) end
 ---@field pattern? string Regex the value must match — enforced on every input path (answers, defaults, interactive), and carried to clients
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -185,7 +184,6 @@ function Context:section(spec, body) end
 ---@field min? integer Minimum value
 ---@field max? integer Maximum value
 ---@field optional? boolean Whether the prompt can be skipped
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -194,7 +192,6 @@ function Context:section(spec, body) end
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
 ---@field optional? boolean Whether the prompt can be skipped
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -206,7 +203,6 @@ function Context:section(spec, body) end
 ---@field allow_other? boolean Append an "Other..." entry that opens a free-text prompt
 ---@field other_label? string Label for the "other" entry (default: "Other...")
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -217,7 +213,6 @@ function Context:section(spec, body) end
 ---@field min? integer Minimum selections
 ---@field max? integer Maximum selections
 ---@field optional? boolean Whether the prompt can be skipped
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -227,7 +222,6 @@ function Context:section(spec, body) end
 ---@field min? integer Minimum items
 ---@field max? integer Maximum items
 ---@field optional? boolean Whether the prompt can be skipped
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 
@@ -235,7 +229,6 @@ function Context:section(spec, body) end
 ---@field default? string Default text in editor
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
----@field group? string UI section label — metadata carried to clients (envelopes, future interface probes) untouched
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
 

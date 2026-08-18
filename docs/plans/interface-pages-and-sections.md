@@ -130,9 +130,13 @@ envelope at a time can still say "Step 2 of 4 · Ownership".
 
 - Existing archetypes emit no segment messages and are byte-identical in behavior; their
   `layout` is the flat prompt list they already implied.
-- The existing per-prompt `group = "Identity"` opt keeps working untouched. It is the flat
-  precursor of a section, and promoting it into the tree automatically is deliberately
-  **not** done here — see the open spec.
+- The per-prompt `group = "Identity"` opt is **removed**, not kept. Sections superseded it, and
+  keeping both would mean two ways to say one thing with one of them a dead end: `group` was a
+  string carried to clients with no extent, no nesting, and nothing that rendered it. Passing it
+  is now an error naming `context:section` — an error rather than a silent no-op because an
+  author who wrote `group` meant to group something, and dropping it quietly ships an ungrouped
+  form that looks deliberate. Safe to remove outright: a sweep of the production catalog and the
+  materialized cache found zero uses, which is unsurprising for a label no renderer consumed.
 - The `ScriptMessage` additions are new proto oneof fields; a client built against the old
   proto sees an unrecognized oneof and skips it, which is exactly the MCP behavior.
 
@@ -155,12 +159,10 @@ envelope at a time can still say "Step 2 of 4 · Ownership".
 
 ## Open promises (authored red, not implemented)
 
-- **`group` promotion**: an archetype using only the flat `group =` opt gets a synthesized
-  section tree, so legacy archetypes paginate without an edit.
 - **Page-at-a-time submission**: the streaming session accepts a whole page's answers in one
   client message, so a wizard's "Next" is one round trip rather than N.
 
-Both are flagged `promises = "..."` in the proof suite and listed by `prova owed`.
+Flagged `promises = "..."` in the proof suite and listed by `prova owed`.
 
 ## Status
 

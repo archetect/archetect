@@ -467,7 +467,7 @@ fn multiselect_prompt(
         info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
         info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
         info.defaults = get_opt_string_array(opts, "default")?;
-        info.group = get_opt_string(opts, "group")?;
+        reject_group(opts)?;
         info.ui = get_opt_ui(opts)?;
         if let Some(optional) = get_opt_bool(opts, "optional")? {
             info.optional = optional;
@@ -585,6 +585,24 @@ fn handle_response_array(response: ClientMessage) -> LuaResult<Option<Vec<String
             other
         ))),
     }
+}
+
+/// `group = "Identity"` was the flat precursor of a section: a label carried to
+/// clients that nothing rendered, with no extent and no way to nest. Sections
+/// replaced it, so it is REMOVED rather than deprecated — and passing it is an
+/// error rather than a silent no-op, because an author who wrote it meant to
+/// group something. Dropping it quietly would ship an ungrouped form that looks
+/// deliberate, which is the one outcome nobody would think to check.
+fn reject_group(opts: &Table) -> LuaResult<()> {
+    if opts.contains_key("group")? {
+        return Err(LuaError::RuntimeError(
+            "the `group` prompt option is no longer supported — wrap the prompts in \
+             `context:section(\"<Title>\", function(ctx) ... end)` instead, which groups them \
+             for every renderer (see `archetect learn prompts`)"
+                .to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Read a `page`/`section` declaration: either a bare title string, or a
@@ -782,7 +800,7 @@ impl UserData for Context {
                 info.min = get_opt_i64(opts, "min")?;
                 info.max = get_opt_i64(opts, "max")?;
                 info.pattern = get_opt_string(opts, "pattern")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
@@ -832,7 +850,7 @@ impl UserData for Context {
                 info.placeholder = get_opt_string(opts, "placeholder")?;
                 info.min = get_opt_i64(opts, "min")?;
                 info.max = get_opt_i64(opts, "max")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
@@ -878,7 +896,7 @@ impl UserData for Context {
                 info.default = get_opt_bool(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
@@ -926,7 +944,7 @@ impl UserData for Context {
                 info.default = get_opt_string(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
@@ -994,7 +1012,7 @@ impl UserData for Context {
                 info.min_items = get_opt_i64(opts, "min")?.map(|v| v as usize);
                 info.max_items = get_opt_i64(opts, "max")?.map(|v| v as usize);
                 info.defaults = get_opt_string_array(opts, "default")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
                 if let Some(optional) = get_opt_bool(opts, "optional")? {
                     info.optional = optional;
@@ -1066,7 +1084,7 @@ impl UserData for Context {
                 info.default = get_opt_string(opts, "default")?;
                 info.help = get_opt_string(opts, "help")?;
                 info.placeholder = get_opt_string(opts, "placeholder")?;
-                info.group = get_opt_string(opts, "group")?;
+                reject_group(opts)?;
                 info.ui = get_opt_ui(opts)?;
             }
 
