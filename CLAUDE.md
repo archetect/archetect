@@ -278,6 +278,16 @@ only move one way without a deliberate, reviewable edit.
 CI: `build.yml` runs `prova -s ut` on every branch push; `quality.yml` runs `prova run release`
 nightly and on dispatch. Both install a pinned, checksummed prova.
 
+**Bank baselines on macOS, not in CI.** Every ratcheted metric reads slightly looser on
+macOS/aarch64 than on the Linux runner (measured: 136 clippy findings there against the 138
+banked here; coverage within 0.05pp), so a macOS-banked floor passes both and a Linux-banked
+one turns local runs red for a platform difference nobody can act on.
+
+**Report custody outruns the release.** `report.publish` exists in a dev build of prova but not
+in v0.24.0, which is what CI installs — so all three conducts publish through
+`require("custody")`, which takes custody where the runner supports it and prints the summary
+where it cannot. Delete the shim once the pinned prova has `report`.
+
 ### Reports
 
 A conduct's artifact is kept, not discarded with `target/`: `prova reports` lists what exists

@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Enable Rust dependency caching
         uses: Swatinem/rust-cache@v2
@@ -46,12 +46,15 @@ jobs:
       # Everything: the proofs, the unit tests, the debt ratchets, and layered
       # coverage against its floors — one exit code.
       #
-      # FIRST RUN CAVEAT: the committed baselines in .prova/baselines/ were
-      # banked on macOS/aarch64. Platform-conditional code means the clippy and
-      # coverage numbers can differ here by a little. If this job's first run is
-      # red on a ratchet rather than on a proof, read the printed worklist, then
-      # re-bank deliberately with `prova run release --update-baseline` on a
-      # Linux runner and commit the result — never by loosening the file to make
-      # a red gate green.
+      # RE-BANKING IS MACOS'S JOB, not this runner's. The floors in
+      # .prova/baselines/ are banked on macOS/aarch64, and the platform delta is
+      # real but small — measured on the first green run here: 136 clippy
+      # findings against a 138 floor, coverage within 0.05pp. Every metric is
+      # LOOSER on macOS, so a macOS-banked floor passes both platforms while a
+      # Linux-banked one (136) would turn macOS red at 138 for no reason anyone
+      # could act on.
+      #
+      # So if this job goes red on a ratchet rather than a proof, read the
+      # printed worklist and fix the code. Do NOT run `--update-baseline` here.
       - name: Prove the whole bar
         run: prova run release
