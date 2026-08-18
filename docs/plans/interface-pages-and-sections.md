@@ -171,10 +171,24 @@ answers classifies `interactive` and is the case still open below.
 ## Open promises (authored red, not implemented)
 
 - **Page-at-a-time submission, for INTERACTIVE archetypes only**: the streaming session accepts
-  a whole page's answers in one client message. Needs two-pass page execution (record the page's
-  prompts, batch them, re-execute with the answers seeded) and a decision about bodies whose
-  side effects would then run twice — `catalog.render` in particular, which suppressing writes
-  and exec does not cover.
+  a whole page's answers in one client message.
+
+  The look-ahead comes from the **probe**, not from running the page twice. When the script
+  blocks on a prompt, the server knows from the probe's layout which page it sits in and sends
+  that page's remaining envelopes as one batch; the client answers them together; the server
+  feeds the first answer to the blocked prompt and seeds the rest into the context, so the
+  later `prompt_*` calls resolve from answers and never reach the wire. **The page body runs
+  exactly once.**
+
+  An earlier sketch had the engine execute the body twice — discovery pass, then a real pass
+  with answers seeded. Rejected: a page containing `catalog.render` would render its child
+  twice, and suppressing writes and exec on the discovery pass does not cover it. An authoring
+  surface where adding a page silently doubles what a script does is a footgun no amount of
+  documentation pays for.
+
+  Needs a `ClientMessage` variant carrying a keyed answer map, the prompt handler absorbing the
+  surplus keys, a per-session probe cache, and a fallback to asking individually when the script
+  diverges from the probe.
 
 Flagged `promises = "..."` in the proof suite and listed by `prova owed`.
 
