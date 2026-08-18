@@ -2,10 +2,9 @@
 -- (docs/plans/autodidact.md — the acceptance bar for M0–M3, held by prova.)
 
 -- The binary under proof: built once per file, from this workspace.
-local bin = prova.fixture("archetect-bin", Scope.File, function(ctx)
-	shell.run("cargo build -p archetect", { cwd = prova.root, timeout = "600s", check = true })
-	return prova.root .. "/target/debug/archetect"
-end)
+-- The subject: one build per RUN, shared by every suite, and overridable by the
+-- coverage lane's instrumented build (.prova/packages/subject/init.lua).
+local bin = require("subject").bin
 
 local TOPICS = {
 	"generation", "environment", "rendering", "authoring", "manifest", "prompts",

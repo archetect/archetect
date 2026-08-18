@@ -2,4 +2,63 @@
 # Run `prova` from anywhere in the repo; see `prova learn project`.
 
 [run]
-proofs = ["proofs"]
+proofs   = ["proofs"]
+# One local package: the subject binary every suite drives (`require("subject")`).
+# Not a copy-pasted fixture per file — see .prova/packages/subject/init.lua.
+packages = ".prova/packages"
+
+# The deputed unit-test leg: `prova run ut` conducts `cargo nextest` ONCE, adopts every case
+# into the account, and case-granular readers bind contracts to named unit tests. Behind the
+# `ut` switch because conducting compiles the workspace; `must_run` keeps the WORLD fact, so
+# under this profile a missing nextest FAILS rather than skips.
+[profiles.ut]
+description = "the workspace's unit tests, conducted once via cargo nextest and adopted into the account"
+proofs      = ["ut"]
+switches    = ["ut"]
+must_run    = ["cargo-nextest"]
+
+# The heavy, cargo-based quality gates (clippy findings, the unwrap/expect ratchet) sit behind
+# the `quality` switch — each recompiles the workspace, so they never run in the default `prova`
+# loop. This profile scopes to proofs/quality/ (positive selection: nothing else can creep in)
+# and throws the switch. The fast file-size gate in the same directory carries no switch, so it
+# runs in the default loop too. Ad hoc: `prova -s quality -k clippy`.
+[profiles.quality]
+description = "code-quality ratchets: clippy findings, unwrap/expect in shipped code, file size (recompiles the workspace)"
+proofs      = ["quality"]
+switches    = ["quality"]
+
+# Layered coverage, ratcheted: the unit layer (nextest), the black-box layer (this whole suite
+# driving an INSTRUMENTED archetect), and the merge — with the unit-owed delta worklist. Not
+# part of `all`: the instrumented rebuild plus a second full suite run costs minutes, so CI
+# gives coverage its own leg.
+[profiles.coverage]
+description = "layered coverage, ratcheted: unit (nextest) + black-box (the instrumented CLI the proofs drive) + the whole-bar merge"
+proofs      = ["coverage"]
+switches    = ["coverage"]
+must_run    = ["cargo-llvm-cov", "cargo-nextest"]
+
+# The three tiers answer three DIFFERENT questions, which is why they are three profiles and
+# not one dial:
+#
+#   bare `prova`         is this correct?        seconds — the inner loop
+#   `prova run all`      am I checking in DEBT?  ~a minute — before commit and push
+#   `prova run release`  is the whole bar met?   minutes — before cutting a version
+#
+# The middle one is the one worth explaining. Green proofs say the behavior is right; they say
+# nothing about a `.unwrap()` added to shipping code, a file grown past the size limit, or a
+# clippy finding that rode along. "My proofs pass" is not "this is ready to land", and `all` is
+# where that difference gets caught — by ratchets, so the bar can only move one way without a
+# deliberate, reviewable edit to a committed baseline.
+[profiles.all]
+description = "before you commit: every black-box proof, the unit tests, and the debt ratchets (clippy, unwrap/expect, file size) — green proofs are not the same as ready to land"
+switches    = ["ut", "quality"]
+must_run    = ["cargo-nextest"]
+
+# The last look before a version goes out. `all` plus coverage — the deepest debt signal there
+# is, since untested code is debt whether or not anything is currently broken, and the slowest,
+# which is why it is here rather than in the pre-commit tier. A SUPERSET by construction:
+# `all`'s switches are repeated rather than referenced.
+[profiles.release]
+description = "before you release: everything `all` runs, plus layered coverage against its floor — the whole bar, one exit code"
+switches    = ["ut", "quality", "coverage"]
+must_run    = ["cargo-nextest", "cargo-llvm-cov"]

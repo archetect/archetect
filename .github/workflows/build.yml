@@ -5,6 +5,14 @@ on:
     branches:
       - '**'
 
+env:
+  # The prova this tree develops against. Pinned with its published checksum:
+  # a re-cut release under the same tag would change the bytes, and a test
+  # runner swapped underneath the bar is exactly the change that must not pass
+  # unnoticed.
+  PROVA_VERSION: v0.24.0
+  PROVA_SHA256: a194ed4f64d2cb9b78257037e5f279d85512602ce7769c88aa269b2c1c88aebc
+
 jobs:
   build:
 
@@ -14,8 +22,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Enable Rust dependency caching
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Install prova
+        run: |
+          set -euo pipefail
+          archive="prova-${PROVA_VERSION}-linux-x86_64.tar.gz"
+          curl -fsSLO "https://github.com/prova-rs/prova/releases/download/${PROVA_VERSION}/${archive}"
+          echo "${PROVA_SHA256}  ${archive}" | sha256sum --check --status
+          tar -xzf "${archive}"
+          install -m 0755 "prova-${PROVA_VERSION}-linux-x86_64/prova" /usr/local/bin/prova
+          prova --version
+
       - name: Build
         run: cargo build
 
-      - name: Test
-        run: cargo test
+      # One command, one exit code, both layers. `-s ut` throws the unit-test
+      # switch, so this runs every black-box proof AND conducts `cargo nextest`
+      # over the workspace, adopting each case into the same account — which is
+      # why there is no separate `cargo test` step: a suite that is green while
+      # the unit tests are red would be a second, invisible verdict.
+      #
+      # The debt ratchets (clippy findings, unwrap/expect, coverage) are NOT
+      # here: they recompile the workspace, and their floors are held on their
+      # own cadence — see quality.yml.
+      - name: Prove
+        run: prova -s ut

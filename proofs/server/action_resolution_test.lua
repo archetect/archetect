@@ -15,10 +15,9 @@
 
 local workspace = require("prova.workspace")
 
-local bin = prova.fixture("archetect-bin", Scope.File, function(ctx)
-	shell.run("cargo build -p archetect", { cwd = prova.root, timeout = "600s", check = true })
-	return prova.root .. "/target/debug/archetect"
-end)
+-- The subject: one build per RUN, shared by every suite, and overridable by the
+-- coverage lane's instrumented build (.prova/packages/subject/init.lua).
+local bin = require("subject").bin
 
 -- Two archetypes with distinct markers, addressable both at the top level and through
 -- a source-backed (script-less) sub-catalog — the shape only the strong walker resolves.

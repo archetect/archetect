@@ -211,11 +211,13 @@ offer for download.
 
 ## Testing
 
-Two layers, and they answer different questions.
+Two layers and four tiers. The layers answer different questions (does the shipped binary
+behave? do the pieces?); the tiers decide how much of the bar you are asking for right now.
 
 ### prova — black-box acceptance proofs
 
-**Prova proves what archetect ships.** `.prova.toml` sets `proofs = ["proofs"]`.
+**Prova proves what archetect ships.** `.prova.toml` sets `proofs = ["proofs"]` and declares
+the lanes below.
 
 ```bash
 prova                                   # everything
@@ -245,10 +247,47 @@ runtime-inert and can be retrofitted to any existing proof.
 (`spec = "..."` was prova's older spelling and is refused outright since 0.18 — see
 `prova learn promises`.)
 
+### The four tiers
+
+They answer four different questions, which is why they are four profiles and not one dial:
+
+| Command | Question | Cost |
+|---|---|---|
+| `prova` | is this correct? | seconds — the inner loop |
+| `prova run ut` | do the unit tests hold? | + one `cargo nextest` |
+| `prova run all` | am I checking in DEBT? | ~15s — before commit |
+| `prova run release` | is the whole bar met? | ~35s — before cutting a version |
+
+`prova run --list` prints them with descriptions. The middle one is the one worth explaining:
+green proofs say the behavior is right; they say nothing about a `.unwrap()` added on the way
+there, a file grown past 1,500 lines, or a clippy finding that rode along. `all` is where that
+difference gets caught — by **ratchets** against `.prova/baselines/quality.json`, so the bar can
+only move one way without a deliberate, reviewable edit.
+
+- **`ut`** (`proofs/ut/`) — `cargo nextest` conducted ONCE, every case adopted into the account
+  (`junit.verify`), then case-granular readers bind specific contracts to named unit tests. One
+  `prova` is the whole quality account, not a partial one.
+- **`quality`** (`proofs/quality/`) — clippy findings, `.unwrap()`/`.expect()` in shipped code,
+  and oversized files, each ratcheted. Paid some down? `prova run quality --update-baseline`
+  tightens the floor (it refuses to loosen). The file-size gate carries no switch, so it runs in
+  the default loop too.
+- **`coverage`** (`proofs/coverage/`) — three numbers from one conduct: unit (`cargo llvm-cov
+  nextest`), black-box (the whole suite driving an **instrumented** archetect), and the merge.
+  The delta is the signal — the log names files proven black-box but naked at the unit layer.
+
+CI: `build.yml` runs `prova -s ut` on every branch push; `quality.yml` runs `prova run release`
+nightly and on dispatch. Both install a pinned, checksummed prova.
+
+### Reports
+
+A conduct's artifact is kept, not discarded with `target/`: `prova reports` lists what exists
+(`clippy`, `unit-cases`, `coverage`), `prova reports coverage --kind html` prints one path.
+
 Conventions in this repo:
 
-- A `Scope.File` fixture runs `cargo build -p archetect` and returns `target/debug/archetect`;
-  proofs drive that binary, not library internals.
+- **`require("subject").bin`** is the binary under proof — one `cargo build -p archetect` per
+  RUN, shared by every suite, and overridable via `ARCHETECT_SUBJECT_BIN` (which is how the
+  coverage lane points the suite at an instrumented build). Never re-declare it per file.
 - Servers are spawned with `shell.spawn` on a `net.free_port()`, then `grpc.wait_for`.
 - **prova's gRPC driver is unary-only** — it cannot drive the bidi `StreamingApi`. Prove
   streaming behavior through `archetect connect` via `shell.run` argv instead. That is the
@@ -257,8 +296,12 @@ Conventions in this repo:
 
 ### cargo test — unit and integration
 
+Reachable directly, and also **conducted by prova** as a deputy (`prova run ut`) so its verdicts
+land in the same account as the proofs.
+
 ```bash
 cargo test                          # all workspace tests
+cargo nextest run --workspace       # what the ut lane conducts
 cargo test -p archetect-core        # core only
 cargo test -p archetect-inflections # case conversions
 ```

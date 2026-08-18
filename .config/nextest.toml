@@ -1,0 +1,9 @@
+# The profile prova's unit-test deputy conducts (`proofs/ut/nextest_test.lua`).
+# Its only job is to emit the JUnit artifact prova adopts — one conduct, one
+# account, read by however many proofs bind claims to named cases.
+[profile.prova]
+failure-output = "immediate"
+status-level = "fail"
+
+[profile.prova.junit]
+path = "junit.xml"

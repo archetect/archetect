@@ -5,3 +5,11 @@ Cargo.lock
 /results
 *.swp
 .luarc.json
+
+# prova run state: locks, run records, and report custody copies.
+# `.prova/baselines/` and `.prova/packages/` ARE tracked — they are the bar and
+# the shared fixtures, not run output.
+/.prova/var
+# Run timings are machine-dependent and no ratchet consults them; `--update-baseline`
+# writes this set anyway, so keep it out of the tree rather than churning it per host.
+/.prova/baselines/timings.json

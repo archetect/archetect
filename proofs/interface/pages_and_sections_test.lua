@@ -9,10 +9,9 @@
 
 local workspace = require("prova.workspace")
 
-local bin = prova.fixture("archetect-bin", Scope.File, function(ctx)
-	shell.run("cargo build -p archetect", { cwd = prova.root, timeout = "600s", check = true })
-	return prova.root .. "/target/debug/archetect"
-end)
+-- The subject: one build per RUN, shared by every suite, and overridable by the
+-- coverage lane's instrumented build (.prova/packages/subject/init.lua).
+local bin = require("subject").bin
 
 local ws_fixture = prova.fixture("segment-fixtures", Scope.File, function(ctx)
 	local ws = workspace.create(ctx)
