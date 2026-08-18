@@ -30,8 +30,18 @@ local restricted = prova.fixture("clippy-restrictions", Scope.File, function()
 	}, { cwd = prova.root, timeout = "1800s", idle_timeout = "600s" })
 
 	local counts, sites = {}, {}
+	-- Units cargo actually checked. This is the vacuity signal, and it has to be
+	-- INDEPENDENT of the debt being counted: a lower-is-better ratchet reads a
+	-- broken invocation — wrong flags, a missing toolchain, a cargo error before
+	-- any crate compiles — as zero findings, which is a triumph as far as the
+	-- gate can tell. Counting diagnostics instead would break the day the debt is
+	-- finally paid off, so count artifacts, which cargo emits per unit regardless.
+	local units = 0
 	for line in (out.stdout or ""):gmatch("[^\n]+") do
 		local ok, msg = pcall(json.decode, line)
+		if ok and type(msg) == "table" and msg.reason == "compiler-artifact" then
+			units = units + 1
+		end
 		if ok and type(msg) == "table" and msg.reason == "compiler-message" then
 			local m = msg.message or {}
 			local code = m.code and m.code.code
@@ -47,13 +57,17 @@ local restricted = prova.fixture("clippy-restrictions", Scope.File, function()
 		end
 	end
 	table.sort(sites)
-	return { counts = counts, sites = sites }
+	return { counts = counts, sites = sites, units = units }
 end)
 
 --- Name every site before ratcheting: a failing assertion aborts the body, so a
 --- worklist printed after it is missing on exactly the runs that need it.
 local function gate(t, code, id)
 	local measured = t:use(restricted)
+	t:expect(measured.units > 5, string.format(
+		"clippy checked the workspace (%d units) — a zero-finding read from an invocation "
+			.. "that compiled nothing is not a clean tree, it is a broken gate",
+		measured.units)):equals(true)
 	local prefix = code:gsub("clippy::", "")
 	for _, site in ipairs(measured.sites) do
 		if site:sub(1, #prefix) == prefix then
