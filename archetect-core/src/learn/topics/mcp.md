@@ -8,7 +8,7 @@ MCP mode by design — a render needing `--allow-exec` is a CLI move.
 |---|---|---|
 | `learn { topic? }` / `introspect { filter? }` | `archetect learn` / `introspect` | the knowledge surface; topics also served as resources (`archetect://learn/<topic>`, `archetect://skill`) |
 | `catalog_browse { path?, all? }` / `catalog_search { query, all? }` | `ls` / `search` | read-only, from the startup index; hidden entries excluded unless `all` |
-| `describe { source \| path, explore? }` | `archetect interface` | probe the archetype: prompt envelopes, consulted switches, batch/interactive classification — call BEFORE render to prepare answers/switches |
+| `describe { source \| path, answers?, switches?, explore? }` | `archetect interface` | probe the archetype: prompt envelopes, a `layout` tree of its pages/sections, consulted switches, batch/interactive. Pass `answers` to derive what is STILL unknown — answered prompts drop out and the branches they select resolve, so re-describing with what you have walks a wizard one page at a time |
 | `render { source, destination, answers?, switches?, use_defaults_all? }` | `archetect render` | starts a stateful session; returns `complete`, `error`, or `prompting` + a PromptEnvelope |
 | `catalog_render { path, … }` | bare `archetect <path>` | same session flow, source resolved from the catalog |
 | `respond { value }` / `cancel {}` | (the terminal, inline) | answer the pending prompt / abort the session |
