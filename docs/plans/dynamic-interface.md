@@ -35,6 +35,50 @@ and the runtime admits it cannot enforce agreement. **Explicit goal: delete
 `interface.yaml`.** The interface becomes something you *ask the archetype*, not something
 its author promises.
 
+## 0. Three ways to drive an archetype
+
+Answer-aware derivation (phase 9) turned a binary choice into three, and the third is the one
+a wizard wants:
+
+| Mode | How | Handles dynamism | Can lay out a form |
+|---|---|---|---|
+| **Interactive** | prompt by prompt over `StreamingApi` | yes — the script decides as it goes | no: never sees more than one field ahead |
+| **Big bang** | one `describe`, render the whole interface | no: a prompt that only exists once another is answered cannot be in it | yes |
+| **Hybrid** | `describe` → render the first unfinished page → collect → `describe` again | yes | yes, one page at a time |
+
+The hybrid is a loop of **idempotent queries** — `describe(archetype, answers, switches)` is a
+pure function, no session, no server state — and it terminates because every round either
+answers something or finds nothing left to ask:
+
+```
+answers = {}
+loop:
+  iface = describe(answers)
+  page  = first page in iface.layout with non-empty children   # empty == finished
+  if none: render(answers); done                               # asks nothing
+  answers += collect(page.children)
+```
+
+It copes with both shapes of conditional, which is why it is worth stating as an algorithm
+rather than a convention:
+
+- **cross-page** — a page that only exists down one branch is absent from the layout until an
+  answer selects it, then appears in its declared position.
+- **intra-page** — a prompt revealed by an answer in its OWN page brings that page back
+  non-empty, so the loop stays on the step. It degrades to more rounds, never to breakage.
+
+Two things a client must get right, both proven in
+[`proofs/interface/wizard_loop_test.lua`](../../proofs/interface/wizard_loop_test.lua):
+
+- **A finished page comes back EMPTY, not answered.** Render the layout's pages without
+  checking and every completed step is a blank screen.
+- **Key on the segment `key`, never on index** — pages appear and disappear between rounds.
+
+The loop alone cannot say "step 2 of 4": a page behind an unselected branch is not in the
+layout yet, so the count grows as the user walks. One `--explore` call up front gives the
+superset in declaration order for a progress indicator — exploration for the SHAPE,
+re-derivation for the CONTENT, and the client still never evaluates an `appears_when`.
+
 ## 1. Why this works: the architecture is already right
 
 Every UI is an IO driver consuming the same `ScriptMessage` stream
