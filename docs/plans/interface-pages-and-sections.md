@@ -121,8 +121,12 @@ Every consumer then does what it wants with the same stream:
   nothing is duplicated and nothing can drift.
 - An archetype that declares no containers gets a `layout` of bare `prompt` nodes — one code
   path for the client, whether or not the author paginated.
-- A page whose prompts are all conditionally skipped still appears (empty `children`), because
-  the tree is built from the Begin/End events, not inferred from prompt membership.
+- A page whose prompts are all conditionally skipped still appears (empty `children`): the
+  top-level list is the STEP list, and a review step that asks nothing is still a screen.
+- Everything else is pruned by content. A section holding nothing is not a fieldset, it is
+  noise — and worse, it would make `children` non-empty on a page with nothing left to ask,
+  which is precisely what the wizard loop's termination rule reads. So `#children > 0` means
+  "this step still has something to ask", at the top level, exactly.
 
 `PromptEnvelope` gains `segments` — the breadcrumb of containers a prompt was asked inside,
 outermost first, `[{ kind, key, title }]`. Omitted when empty. The tree serves batch
@@ -155,6 +159,12 @@ envelope at a time can still say "Step 2 of 4 · Ownership".
 - Containers are inert to rendering: `--headless -D` produces identical files.
 - An empty page survives (no prompts inside on the default path).
 - A page whose body errors still reports the error (the stream stays balanced).
+
+`proofs/interface/finished_pages_test.lua` covers the pruning rule that makes the wizard loop's
+termination check sound: a fully-answered page comes back empty however deeply its prompts were
+nested, a partly-answered one keeps the structure around what is left, a declared-empty section
+never ships, and `--explore` still maps a section that only fills in down one branch — pruning
+runs on the MERGED tree, never per run.
 - The terminal render announces titles and help.
 - `archetect connect` shows the same headings over the wire.
 - MCP `describe` carries `layout`.
@@ -197,6 +207,10 @@ Flagged `promises = "..."` in the proof suite and listed by `prova owed`.
 
 ## Status
 
+Empty-container pruning followed 2026-08-19, making the wizard loop's termination check
+sound for archetypes built from sections — 7 proofs in
+`proofs/interface/finished_pages_test.lua`.
+
 Shipped 2026-08-18. 27 proofs in `proofs/interface/pages_and_sections_test.lua` (26 kept,
 1 promised). Touches: `archetect-api` (`SegmentInfo`/`SegmentEnd`/`SegmentRef`, two
 `ScriptMessage` variants, `PromptEnvelope.segments`), `archetect-core` (`Context:page` /
@@ -208,3 +222,7 @@ the same arc.
 
 <!-- backlog: page-batching-over-the-live-session recorded=2026-08-19 -->
 A wizard's Next button costing N round trips is SOLVED for the case that motivated it — not by batching, but by answer-aware derivation. A client describes, renders the step, collects, describes again carrying those answers, and gets back the interface that actually applies; the final render supplies everything at once and asks nothing (proofs/interface/answer_aware_test.lua). That covers conditional archetypes too, because each round resolves the next branch. What is left is narrower and undemonstrated: a client that insists on driving the live StreamingApi still pays one exchange per field. Batching THAT means the server sending a page's remaining envelopes when the script blocks, taking a keyed answer map back, and seeding the surplus into the context — a ClientMessage variant, a per-session probe cache, and a divergence fallback. Note the design constraint if it is ever picked up: the look-ahead must come from the probe, never from re-executing the page body, which an earlier sketch proposed and which would render a catalog.render child twice.
+
+<!-- claim: finished-pages-are-not-empty recorded=2026-08-19 -->
+A page with nothing left to ask must come back with EMPTY `children`, however deeply its prompts were nested — that is the rule the documented wizard loop terminates on, and it has to be true rather than nearly true. It was not: the answered prompts dropped out but the SECTIONS they were declared inside stayed. Measured against 3.5.0 on java-rest-service-archetype with every prompt answered, `source_control` returned `children: []` correctly, `project` returned `[section platform {children: []}, section service {children: []}]`, and `resources` returned four empty sections — so any page built from sections stayed non-empty forever and a client implementing the algorithm as written spun. Nobody hit it because the one client driving the loop walked prompts recursively at any depth instead of checking `children`, a workaround every client would otherwise have to rediscover. The fix is to prune containers by CONTENT rather than document the workaround: a section holding nothing does not ship, at any depth, in any mode. Pages at the top of `layout` are the one exception and survive empty, because that list is also the step list and a review step that asks nothing is still a screen. Pruning runs on the MERGED tree, never per run, so `--explore` still maps a section that is empty on the default path and full down a branch.
+

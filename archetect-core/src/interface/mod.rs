@@ -216,6 +216,36 @@ fn merge_layout(into: &mut Vec<InterfaceNode>, from: &[InterfaceNode]) {
     }
 }
 
+/// Drop the containers that have nothing left to ask.
+///
+/// The wizard loop turns on one rule — *the first page whose `children` are
+/// non-empty; none means finished* — and that rule is only sound if an answered
+/// page comes back empty. It did not: the prompts dropped out as they were
+/// answered, but the SECTIONS they were declared inside stayed behind, so a page
+/// built from sections read as "still has something to ask" forever and a client
+/// implementing the documented algorithm spun.
+///
+/// So containers are pruned by CONTENT, bottom-up. A section holding nothing is
+/// not a fieldset, it is noise — no fields to render and no step to route to.
+///
+/// Pages at the TOP of the layout are the exception and survive empty: that list
+/// is also the step list, and a review step that asks nothing is still a screen.
+/// A page nested inside another container is not a step in that list, so it
+/// prunes like anything else.
+fn prune_empty_containers(nodes: &mut Vec<InterfaceNode>, top_level: bool) {
+    nodes.retain_mut(|node| match node {
+        InterfaceNode::Prompt { .. } => true,
+        InterfaceNode::Page(segment) => {
+            prune_empty_containers(&mut segment.children, false);
+            top_level || !segment.children.is_empty()
+        }
+        InterfaceNode::Section(segment) => {
+            prune_empty_containers(&mut segment.children, false);
+            !segment.children.is_empty()
+        }
+    });
+}
+
 /// The derived interface — the probe's transcript, structured.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DerivedInterface {
@@ -299,11 +329,13 @@ pub fn probe_interface(
         } else {
             ProbeCoverage::Partial
         };
+        let mut layout = build_layout(&baseline.events);
+        prune_empty_containers(&mut layout, true);
         return Ok(DerivedInterface {
             // A single default path never proves batch-safety.
             mode: InterfaceMode::Interactive,
             coverage,
-            layout: build_layout(&baseline.events),
+            layout,
             prompts: baseline
                 .prompts
                 .iter()
@@ -461,10 +493,14 @@ fn explore(
     switches.sort();
     switches.dedup();
 
+    // Prune the MERGED tree, never each run: a section that is empty on the
+    // default path and full down a branch is exactly what exploration exists to
+    // find, and pruning per run would drop it before the merge ever saw it.
     let mut layout: Vec<InterfaceNode> = Vec::new();
     for (_, outcome) in &runs {
         merge_layout(&mut layout, &build_layout(&outcome.events));
     }
+    prune_empty_containers(&mut layout, true);
 
     let first_error = runs.iter().find_map(|(_, o)| o.error.clone());
     Ok(DerivedInterface {

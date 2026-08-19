@@ -14,6 +14,7 @@
 | 7 | REMOVAL of the declared interface: `interface:` / `interface.yaml` are a hard load error naming the migration; `--check` retired with them; docs-site + learn topics + spec swept; clap-cli migrated (validated with `--check --explore` first, then deleted) | **shipped 2026-07-22** (sign-off given) |
 | 8 | Remaining polish: probe-result caching by commit, typed proto carrying rich options over gRPC | planned |
 | 9 | Answer-aware derivation: `-a`/`-A`/`-s` on `interface`, `answers`/`switches` on MCP `describe`, `answers_yaml`/`switches` on gRPC `DescribeArchetype` — the interface describes what is STILL unknown, and progressive re-describe paginates a conditional archetype with no session | **shipped 2026-08-19** (proofs: `proofs/interface/answer_aware_test.lua`) |
+| 10 | Value guards bind the value, not the driver: an empty answer no longer satisfies a required prompt, and `min`/`max` on `prompt_text`/`prompt_int` are enforced on the answer, the default, and a client's response — everywhere `pattern` already was | **shipped 2026-08-19** (proofs: `proofs/interface/required_answers_test.lua`) |
 
 **Removal ripple:** the rust-clap-cli-archetype fix is committed locally but the remote
 `#v1` tag still ships interface.yaml — renders of the REMOTE clap-cli error under the new
@@ -71,7 +72,10 @@ Two things a client must get right, both proven in
 [`proofs/interface/wizard_loop_test.lua`](../../proofs/interface/wizard_loop_test.lua):
 
 - **A finished page comes back EMPTY, not answered.** Render the layout's pages without
-  checking and every completed step is a blank screen.
+  checking and every completed step is a blank screen. Empty means empty at every depth: a
+  section with nothing left in it is pruned rather than shipped, so the check above is a
+  length test and never a recursive walk
+  ([`proofs/interface/finished_pages_test.lua`](../../proofs/interface/finished_pages_test.lua)).
 - **Key on the segment `key`, never on index** — pages appear and disappear between rounds.
 
 The loop alone cannot say "step 2 of 4": a page behind an unselected branch is not in the
@@ -113,6 +117,11 @@ opts, where it stops being a claim and becomes a behavior:
 | `validation: "^[a-z]…"` | `pattern` on `prompt_text` | enforced on every path: interactive, `-a`, answer files, MCP |
 | `options: [{value,label,help}]` | options arrays accept tables alongside strings | terminal + web render labels; value is what's stored/answered |
 | `groups:` | `group = "Identity"` shared opt | envelope carries it; ordering stays script order — *superseded by `context:section`, 2026-08-18* |
+
+"Enforced on every path" is the general rule, not a property of `pattern` — `min`/`max` and
+`optional` caught up on 2026-08-19 (`#empty-answers-satisfy-required-prompts`). A guard that
+holds in one driver and not another is worse than no guard: the author believes they declared
+something, and headless is exactly where nobody is watching.
 
 Plus a free-form `ui = { … }` shared opt: an opaque table recorded into the envelope and
 passed through untouched (widget hints, `advanced = true`, icons). Intrinsic hints belong
@@ -241,3 +250,12 @@ Interface derivation should accept answers and derive the REMAINING prompt surfa
 
 <!-- backlog: interface-compatibility-is-detected recorded=2026-08-19 -->
 Deriving an interface should FAIL LOUDLY when the archetype is not interface-compatible, so a client can fall back to dynamic rendering instead of being handed a form built from invented values. Today the probe answers unanswered prompts with a placeholder, and any envelope computed from an earlier answer silently resolves against it: p6m-archetypes shipped entity_name default='probe', group_id default='probe', module_path default='github.com/probe/probe' and help text reading '(e.g. probe)' to every client, across 23 of 30 archetypes (measured 2026-08-18, fixed archetype-side by asking those optional and deriving after). Nobody noticed because nothing said anything was wrong. Section 9 already recognises the adjacent case — answer-sensitive prompt SETS classify interactive — this extends it to the prompt ENVELOPE, which currently classifies as fine. A candidate rule: an archetype is interface-compatible if probing it, given whatever answers are supplied, requires inventing no values; that one rule covers both an answer-derived envelope and a conditional branch unreachable without an answer. Worth distinguishing 'fixable, move the derivation after the prompt' from 'genuinely conditional interface', since only the first is an author error.
+
+<!-- claim: empty-answers-satisfy-required-prompts recorded=2026-08-19 -->
+A prompt's rules bind the VALUE, not the path it arrived on — so an EMPTY answer does not satisfy a prompt that is not `optional`, and `min`/`max` hold on every input path, exactly as `pattern` already did. Both failed in the direction that looks like success. Measured against 3.5.0 on a p6m archetype: `-a project_name=` rendered modules named -bom, -core and -server, an empty <artifactId>, and placed the project at the destination root instead of in its own directory — exit 0, no warning. This is not hypothetical for the hybrid wizard drive, where a client sends an empty string for a field the user tabbed past, so the guard belongs where every driver meets the script rather than in one driver. The second half was arguably worse because it looked like it worked: `min = 1` accepted that same empty answer, since min/max lived only in the terminal's inquire validator, while `pattern` documented itself as enforced everywhere and was the only guard that actually held. An author who writes `min = 1` reasonably believes they are covered. `prompt_int`'s min/max had the identical hole and is closed with it. Enforcement covers the answer, the archetype's own `default`, and a connected client's response alike: the terminal has always refused these values at the keystroke, and headless mode must not be the way around what an interactive run rejects.
+
+<!-- backlog: prompt-rules-hold-only-for-text-and-int recorded=2026-08-19 -->
+The value guards now hold on every input path for `prompt_text` and `prompt_int` (#empty-answers-satisfy-required-prompts), and for nothing else. `prompt_list` and `prompt_multiselect` both take min/max as an ITEM COUNT and neither is enforced on the answer path — `-a features=[]` satisfies `min = 1` today. `prompt_select` accepts an answer that is not among its options at all, empty string included, which is the same class of hole one step further: the terminal cannot produce such a value and every other driver can. Deferred rather than folded in because select membership is a real design question, not an oversight — `allow_other` exists, and what an out-of-options answer MEANS under it has to be decided before it can be enforced. The list/multiselect half has no such question and is the cheaper half to close.
+
+<!-- backlog: archetype-script-error-is-entirely-dead recorded=2026-08-19 -->
+`ArchetypeScriptError` (archetect-core/src/errors/archetect_script_error.rs) is exported and never constructed — not one of its ~18 variants, anywhere in the workspace. The backlog item that became #empty-answers-satisfy-required-prompts named `answer_not_optional` as an existing fix site; the sweep done to use it found the whole type is dead, so that fix followed the live convention in context.rs instead (`LuaError::RuntimeError` carrying the key and the guidance), keeping one error idiom in the file rather than reviving one variant of a dead enum beside seventeen still-dead ones. Two honest options: adopt the type across the Lua prompt surface, which buys the ErrorType/heading classification it already models and which nothing currently uses, or delete it. Leaving it is the option that keeps costing — it reads as the intended error path to anyone who greps for one.

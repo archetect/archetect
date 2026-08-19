@@ -169,10 +169,10 @@ function Context:section(spec, body) end
 ---@field default? string Default value
 ---@field help? string Help text shown to the user
 ---@field placeholder? string Placeholder text
----@field min? integer Minimum length
----@field max? integer Maximum length
+---@field min? integer Minimum length — enforced on every input path
+---@field max? integer Maximum length — enforced on every input path
 ---@field pattern? string Regex the value must match — enforced on every input path (answers, defaults, interactive), and carried to clients
----@field optional? boolean Whether the prompt can be skipped
+---@field optional? boolean Whether the prompt can be skipped. Without it, an EMPTY value is refused on every path, `-a key=` included
 ---@field cases? CaseSpec|CaseSpec[] Case expansion rules
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.
@@ -181,8 +181,8 @@ function Context:section(spec, body) end
 ---@field default? integer Default value
 ---@field help? string Help text
 ---@field placeholder? string Placeholder text
----@field min? integer Minimum value
----@field max? integer Maximum value
+---@field min? integer Minimum value — enforced on every input path
+---@field max? integer Maximum value — enforced on every input path
 ---@field optional? boolean Whether the prompt can be skipped
 ---@field ui? table Opaque UI metadata table, passed through to clients untouched
 ---@field answer_key? string Pre-answer lookup alias only — the answer is *stored* under the prompt's own key, not under this key. Use when the CLI / YAML supplies a value under a different name than the storage key.

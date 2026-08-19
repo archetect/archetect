@@ -411,6 +411,58 @@ fn validate_pattern(pattern: Option<&str>, key: &str, value: &str) -> LuaResult<
     Ok(())
 }
 
+/// Enforce everything a `prompt_text` declaration promises, against a resolved
+/// value — whatever produced it.
+///
+/// The rules bind the VALUE, not the path it arrived on. `pattern` always
+/// worked that way; `optional` and `min`/`max` did not, and both failed in the
+/// direction that looks like success. An empty answer satisfied a non-optional
+/// prompt, so `-a project_name=` rendered a tree with an empty name in every
+/// slot and exited 0. `min`/`max` lived only in the terminal's inquire
+/// validator, so `min = 1` accepted that same empty answer — an author who
+/// writes it reasonably believes they have declared a rule.
+///
+/// Calling this on the answer, the default, and the client's response is the
+/// whole fix: one guard where every driver meets the script, rather than one
+/// per driver.
+fn validate_text_value(info: &TextPromptInfo, key: &str, value: &str) -> LuaResult<()> {
+    if value.is_empty() && !info.optional {
+        // Like the headless missing-answer error, this IS the interface: what to
+        // supply, and under which key. `-a key=` reads as "skip this"; it is not,
+        // and saying so is the difference between a fix and a guess.
+        return Err(LuaError::RuntimeError(format!(
+            "'{}' (key: '{}') is not optional — an empty value does not answer it (CLI: -a {}=<value>)",
+            info.message, key, key
+        )));
+    }
+    validate_pattern(info.pattern.as_deref(), key, value)?;
+    // An optional prompt left empty is a skip, not a zero-length answer, so it
+    // is not measured against a length it was never meant to satisfy.
+    if !(value.is_empty() && info.optional) {
+        if let Err(message) = archetect_validations::validate_text_length(info.min, info.max, value)
+        {
+            return Err(LuaError::RuntimeError(format!(
+                "{} — key `{}`",
+                message, key
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// The `prompt_int` half of the same rule: `min`/`max` were enforced by the
+/// terminal and by nothing else, so `-a port=80` sailed past a prompt bounded
+/// to the unprivileged range.
+fn validate_int_value(info: &IntPromptInfo, key: &str, value: i64) -> LuaResult<()> {
+    if let Err(message) = archetect_validations::validate_int_size(info.min, info.max, value) {
+        return Err(LuaError::RuntimeError(format!(
+            "{} — key `{}`",
+            message, key
+        )));
+    }
+    Ok(())
+}
+
 /// Extract CaseSpec list from an opts table's "cases" field.
 fn extract_cases(opts: &Option<Table>) -> Vec<CaseSpec> {
     let opts = match opts {
@@ -809,14 +861,14 @@ impl UserData for Context {
 
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::String(answer)) = this.data.get(&answer_key).cloned() {
-                validate_pattern(info.pattern.as_deref(), &key, &answer)?;
+                validate_text_value(&info, &key, &answer)?;
                 this.store_string_with_cases(&key, &answer, &cases);
                 return Ok(Some(answer));
             }
 
             if this.use_default(&key) {
                 if let Some(ref default) = info.default {
-                    validate_pattern(info.pattern.as_deref(), &key, default)?;
+                    validate_text_value(&info, &key, default)?;
                     this.store_string_with_cases(&key, default, &cases);
                     return Ok(Some(default.clone()));
                 }
@@ -829,10 +881,10 @@ impl UserData for Context {
                 )));
             }
 
-            let pattern = info.pattern.clone();
+            let declared = info.clone();
             let response = this.send_prompt(ScriptMessage::PromptForText(info))?;
             if let Some(value) = handle_response_string(response)? {
-                validate_pattern(pattern.as_deref(), &key, &value)?;
+                validate_text_value(&declared, &key, &value)?;
                 this.store_string_with_cases(&key, &value, &cases);
                 Ok(Some(value))
             } else {
@@ -859,6 +911,7 @@ impl UserData for Context {
 
             let answer_key = get_answer_key(&opts, &key);
             if let Some(ContextValue::Integer(v)) = this.data.get(&answer_key).cloned() {
+                validate_int_value(&info, &key, v)?;
                 if answer_key != key {
                     this.data.insert(key, ContextValue::Integer(v));
                 }
@@ -867,6 +920,7 @@ impl UserData for Context {
 
             if this.use_default(&key) {
                 if let Some(default) = info.default {
+                    validate_int_value(&info, &key, default)?;
                     this.data.insert(key, ContextValue::Integer(default));
                     return Ok(Some(default));
                 }
@@ -879,8 +933,10 @@ impl UserData for Context {
                 )));
             }
 
+            let declared = info.clone();
             let response = this.send_prompt(ScriptMessage::PromptForInt(info))?;
             if let Some(value) = handle_response_int(response)? {
+                validate_int_value(&declared, &key, value)?;
                 this.data.insert(key, ContextValue::Integer(value));
                 Ok(Some(value))
             } else {

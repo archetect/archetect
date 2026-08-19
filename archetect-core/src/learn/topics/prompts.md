@@ -6,8 +6,8 @@ error names when unanswered.
 
 | Type | Returns | Options beyond the shared set |
 |---|---|---|
-| `prompt_text` | string | `min`/`max` (length), `pattern` (regex, ENFORCED on every path), `cases` |
-| `prompt_int` | integer | `min`/`max` (value) |
+| `prompt_text` | string | `min`/`max` (length), `pattern` (regex), `cases` — enforced on EVERY input path |
+| `prompt_int` | integer | `min`/`max` (value) — likewise |
 | `prompt_confirm` | boolean | — |
 | `prompt_select` | string | `options` (2nd arg), `allow_other`, `other_label` |
 | `prompt_multiselect` | string[] | `options` (2nd arg), `default` (string[]), `min`/`max` (item count) |
@@ -15,9 +15,10 @@ error names when unanswered.
 | `prompt_editor` | string | — |
 
 Shared options: `default`, `help`, `placeholder`, `optional` (unanswered → nil instead of
-error), `answer_key` (answer under a different key), `cases` (case-variant expansion — see
-`archetect learn cases`), and `ui` (an opaque metadata table carried to clients untouched).
-Grouping is not an option — see pages and sections below.
+error, and the only way an EMPTY value is accepted), `answer_key` (answer under a different
+key), `cases` (case-variant expansion — see `archetect learn cases`), and `ui` (an opaque
+metadata table carried to clients untouched). Grouping is not an option — see pages and
+sections below.
 
 Select/multiselect `options` entries are bare strings or rich tables
 `{ value = "pg", label = "PostgreSQL", help = "Production-grade" }` — the VALUE is the
@@ -26,7 +27,7 @@ contract (what `-a` answers, what `default` names, what is stored); labels are d
 ## Resolution order (same for every type)
 
 1. An **answer** exists for the key (config → `-A` file → `-a` flag; last wins) → used,
-   validated against the type.
+   validated against the type and the prompt's declared rules.
 2. Defaults apply (`--headless`, `-D`, or `-d <key>`) → the prompt's `default`; if `optional`
    and no default → nil.
 3. Otherwise: ask interactively — or under `--headless`, an ERROR that IS the interface:
