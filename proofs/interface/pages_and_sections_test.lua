@@ -86,6 +86,22 @@ context:page("Child Options", function(ctx)
 end)
 ]])
 
+	-- branching: a page that exists only down one branch, declared BETWEEN two
+	-- pages both branches see — so a merge that appends cannot fake the order.
+	ws:write("branching/archetype.yaml", 'description: "Branching"\nrequires:\n  archetect: "3.0.0"\n')
+	ws:write("branching/archetype.lua", [[
+local context = Context.new()
+context:page("Basics", function(ctx)
+  ctx:prompt_select("Persistence:", "persistence", { "none", "postgres" }, { default = "none" })
+end)
+if context:get("persistence") == "postgres" then
+  context:page("Postgres", function(ctx)
+    ctx:prompt_text("Schema:", "schema", { default = "public" })
+  end)
+end
+context:page("Review", function(ctx) end)
+]])
+
 	-- untitled: the author forgot the one required field.
 	ws:write("untitled/archetype.yaml", 'description: "Untitled"\nrequires:\n  archetect: "3.0.0"\n')
 	ws:write("untitled/archetype.lua", [[
@@ -357,6 +373,19 @@ prova.test("exploration folds branch-hidden containers into one tree", {
 	t:expect(shape(derived.layout), "no duplicate pages appear"):equals(
 		"page:service_identity,page:storage,page:review,prompt:telemetry"
 	)
+end)
+
+prova.test("a branch-only page merges into its declared position, not onto the end", {
+	proves = "a wizard using `--explore` for its step list gets that list in the order the "
+		.. "author wrote it. The merge sees the baseline run (Basics, Review) and the "
+		.. "postgres run (Basics, Postgres, Review); appending what is new puts Postgres "
+		.. "AFTER Review, which is not where it was declared and not where a user would "
+		.. "expect to arrive at it. Anchoring each new node against the neighbours both "
+		.. "runs agree on is what keeps declaration order intact.",
+}, function(t)
+	local ws = t:use(ws_fixture)
+	local derived = interface_json(t, ws, "branching", { "--explore" })
+	t:expect(shape(derived.layout)):equals("page:basics,page:postgres,page:review")
 end)
 
 prova.test("a rendered child's pages nest inside the parent's", {

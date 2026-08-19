@@ -175,22 +175,43 @@ fn build_layout(events: &[ProbeEvent]) -> Vec<InterfaceNode> {
     root
 }
 
-/// Union two runs' trees: same-slot containers merge their children, and
-/// anything new appends. Exploration must produce ONE layout — a wizard
-/// cannot render a fork — so a section found only down the `postgres` branch
-/// lands inside the page it was declared in, after what the baseline saw.
+/// Union two runs' trees into one, preserving declaration order.
+///
+/// Exploration must produce ONE layout — a wizard cannot render a fork — so a
+/// section found only down the `postgres` branch has to land inside the page it
+/// was declared in, at the position the author wrote it.
+///
+/// Appending whatever is new is not good enough, and the failure is visible:
+/// with a baseline run of (Basics, Review) and a postgres run of (Basics,
+/// Postgres, Review), appending puts Postgres AFTER Review — last in a wizard's
+/// step list, when the author declared it in the middle. So this walks the
+/// incoming list against the existing one and inserts each new node BEFORE the
+/// next node both runs agree on, which is the ordinary way to merge two
+/// sequences that share anchors.
 fn merge_layout(into: &mut Vec<InterfaceNode>, from: &[InterfaceNode]) {
+    // Where the next unmatched node should land: just past the last node the
+    // two lists agreed on.
+    let mut cursor = 0usize;
     for incoming in from {
-        if let Some(existing) = into.iter_mut().find(|node| node.same_slot_as(incoming)) {
-            match (existing, incoming) {
-                (
+        match into.iter().position(|node| node.same_slot_as(incoming)) {
+            Some(existing_at) => {
+                if let (
                     InterfaceNode::Page(target) | InterfaceNode::Section(target),
                     InterfaceNode::Page(source) | InterfaceNode::Section(source),
-                ) => merge_layout(&mut target.children, &source.children),
-                _ => {}
+                ) = (&mut into[existing_at], incoming)
+                {
+                    merge_layout(&mut target.children, &source.children);
+                }
+                // Anchor: anything new after this belongs after it. Never move
+                // the cursor backwards — a run that revisits an earlier slot
+                // must not drag later insertions up with it.
+                cursor = cursor.max(existing_at + 1);
             }
-        } else {
-            into.push(incoming.clone());
+            None => {
+                let at = cursor.min(into.len());
+                into.insert(at, incoming.clone());
+                cursor = at + 1;
+            }
         }
     }
 }
