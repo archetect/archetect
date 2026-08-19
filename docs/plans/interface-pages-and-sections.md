@@ -170,12 +170,11 @@ answers classifies `interactive` and is the case still open below.
 
 ## Open promises (authored red, not implemented)
 
-- **Page-at-a-time submission, for INTERACTIVE archetypes only** — *held deliberately; the need
-  is not demonstrated.* Measured against the production catalog (2026-08-18, 73 v3 ports): 70
-  classify `interactive`, every one because it aborts on a global removed in the v3 refinement
-  (`switches.` → `archetype.switches.`, and `component.`) — not because its prompt set is
-  dynamic. Patching `switches` in five flipped three straight to `batch`. Of the archetypes that
-  run today, all classify `batch`. Port the catalog, then re-measure.
+- **Page-at-a-time submission, for INTERACTIVE archetypes only** — *held; the need is not
+  demonstrated.* The production catalog (`p6m-archetypes3`, 81 archetypes) probes cleanly —
+  80 of 81 on the default path, the exception being the catalog entry itself. Forms run median
+  2 prompts, max 13. What is not yet measured is how many classify `batch` under `--explore`;
+  do that before building this, since the zero-exchange path already covers the `batch` case.
 
   The look-ahead comes from the **probe**, not from running the page twice. When the script
   blocks on a prompt, the server knows from the probe's layout which page it sits in and sends
