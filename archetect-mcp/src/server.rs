@@ -207,6 +207,15 @@ pub struct DescribeRequest {
     /// prompts and compute batch/interactive. Default false (one
     /// default-path pass).
     pub explore: Option<bool>,
+    /// Answers the caller already has, as a JSON object. Each one DROPS its
+    /// prompt from the result and resolves any branch it selects, so the
+    /// derived interface describes what is still unknown rather than
+    /// everything askable. Supplying `messaging: "kafka"` returns the kafka
+    /// branch's prompts directly, instead of every branch behind an
+    /// `appears_when` predicate for the caller to evaluate.
+    pub answers: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// Switches to enable, opening the prompts they gate.
+    pub switches: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -451,8 +460,16 @@ impl ArchetectMcpServer {
             }
         };
 
+        let mut probe_answers = archetect_api::ContextMap::new();
+        if let Some(obj) = &req.answers {
+            for (k, v) in obj {
+                probe_answers.insert(k.clone(), archetect_api::ContextValue::from(v.clone()));
+            }
+        }
         let options = archetect_core::interface::ProbeOptions {
             explore: req.explore.unwrap_or(false),
+            answers: probe_answers,
+            switches: req.switches.clone().unwrap_or_default().into_iter().collect(),
             ..Default::default()
         };
         let layout_factory = || -> Result<

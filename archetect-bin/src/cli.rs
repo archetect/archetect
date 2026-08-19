@@ -327,6 +327,38 @@ pub fn command() -> Command {
                         .action(ArgAction::SetTrue)
                         .help("Fork the probe at select/confirm branches to map conditional prompts (computes batch/interactive)")
                 )
+                // Answers and switches narrow the probe the way they narrow a
+                // render: a supplied key is never asked, and a switch opens the
+                // branch it gates. Without these the derived interface answers
+                // "what can this archetype be asked?" when the caller's question
+                // is "what must I still ask?" — see
+                // docs/plans/dynamic-interface.md#describe-accepts-answers.
+                .arg(
+                    Arg::new("answer")
+                        .help("Supply a key=value pair the caller already knows — the prompt drops out of the derived interface, and any branch it selects is resolved")
+                        .long_help(VALID_ANSWER_INPUTS)
+                        .long("answer")
+                        .short('a')
+                        .action(ArgAction::Append)
+                        .value_name("prompt key=value")
+                )
+                .arg(
+                    Arg::new("answer-file")
+                        .help("Supply answers from a YAML file — same narrowing as -a")
+                        .long("answer-file")
+                        .short('A')
+                        .action(ArgAction::Append)
+                        .value_name("path")
+                )
+                .arg(
+                    // Id must match what `get_switches` reads.
+                    Arg::new("switches")
+                        .help("Enable a switch, opening the prompts it gates ('<name>=false' disables an inherited one)")
+                        .long("switch")
+                        .short('s')
+                        .action(ArgAction::Append)
+                        .value_name("switch name")
+                )
         )
         .subcommand(
             Command::new("eval")

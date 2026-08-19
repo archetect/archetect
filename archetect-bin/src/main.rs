@@ -158,9 +158,13 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
             // Derivation wants the ARCHETYPE's interface, not "the
             // interface minus whatever this user's config pre-answers" —
             // only explicit -a/-A answers narrow the probe.
+            //
+            // Read from the SUBCOMMAND matches: these flags are declared on
+            // `interface` rather than globally, so `archetect interface X -a k=v`
+            // puts them here and the root matches see nothing.
             let mut explicit_answers = ContextMap::new();
-            load_explicit_answers(&matches, &mut explicit_answers)?;
-            let switches = get_switches(&matches, archetect.configuration())?;
+            load_explicit_answers(args, &mut explicit_answers)?;
+            let switches = get_switches(args, archetect.configuration())?;
             subcommands::handle_interface_subcommand(args, &archetect, explicit_answers, switches)?
         }
         Some(("learn", args)) => subcommands::handle_learn_subcommand(args, &archetect)?,

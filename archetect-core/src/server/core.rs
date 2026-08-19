@@ -294,6 +294,8 @@ impl ArchetectService for ArchetectServiceCore {
         let req = request.into_inner();
         let path = req.path;
         let explore = req.explore;
+        let answers_yaml = req.answers_yaml;
+        let switches: std::collections::HashSet<String> = req.switches.into_iter().collect();
         let archetect = self.prototype.clone();
 
         // Probing executes the archetype's script (against the recording
@@ -310,8 +312,18 @@ impl ArchetectService for ArchetectServiceCore {
                     .ok_or_else(|| format!("catalog entry '{}' has no source", path))?,
                 _ => return Err(format!("'{}' is not a catalog leaf on this server", path)),
             };
+            // A malformed answer document is the caller's error, not a reason
+            // to hand back an interface derived from nothing — say so.
+            let answers: archetect_api::ContextMap = if answers_yaml.trim().is_empty() {
+                archetect_api::ContextMap::new()
+            } else {
+                serde_yaml::from_str(&answers_yaml)
+                    .map_err(|e| format!("answers_yaml is not a YAML mapping: {}", e))?
+            };
             let options = crate::interface::ProbeOptions {
                 explore,
+                answers,
+                switches,
                 ..Default::default()
             };
             let layout_factory = || -> Result<Box<dyn crate::system::SystemLayout>, crate::errors::ArchetectError> {

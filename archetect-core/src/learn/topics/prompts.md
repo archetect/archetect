@@ -35,9 +35,8 @@ contract (what `-a` answers, what `default` names, what is stored); labels are d
 
 ## Pages and sections: where a long form breaks
 
-A thirty-prompt archetype renders as a thirty-field wall unless the author says otherwise.
-`context:page` and `context:section` are how the script says it — containers around the
-prompts a body declares:
+A thirty-prompt archetype is a thirty-field wall unless the author says otherwise. `context:page`
+and `context:section` are containers around the prompts a body declares:
 
 ```lua
 context:page("Service Identity", function(ctx)
@@ -49,19 +48,14 @@ context:page({ title = "Persistence", key = "storage", help = "Where state lives
 end)
 ```
 
-The two verbs are the same container with a different `kind`; archetect carries the distinction
-and refuses to decide what either LOOKS like. A wizard makes a page a step and a section a
-fieldset; the terminal makes both headings; `--answers-template` makes them comment banners.
-Nesting is unrestricted.
+Same container, different `kind`; archetect carries the distinction and refuses to decide what
+either LOOKS like — a wizard step vs a fieldset, both headings on a terminal, comment banners in
+`--answers-template`. Nesting is unrestricted. `title` is required; `key` defaults to its slug
+(`service_identity`) and is what a wizard routes on, so pin one if the title may be reworded.
 
-`title` is required. `key` defaults to a slug of it (`"Service Identity"` → `service_identity`)
-and is what a wizard routes on, so pin one if the title may be reworded. `help` and `ui` behave
-as they do on prompts.
-
-Containers change what a render *looks* like, never what it *produces*, and an archetype that
-declares none behaves exactly as before. They REPLACE the old per-prompt `group = "Identity"`
-label — a string with no extent and nothing that rendered it. Passing `group` is now an error
-naming this syntax.
+Containers change what a render *looks* like, never what it *produces*. They REPLACE the old
+per-prompt `group = "Identity"` label — a string with no extent and nothing that rendered it;
+passing `group` is now an error naming this syntax.
 
 ## The derived interface: ask the archetype, don't trust a file
 
@@ -77,7 +71,15 @@ archetect interface <source|catalog-path>   # human summary
   --json               # for tooling (same shape MCP `describe` returns)
   --answers-template   # fill-in YAML for a zero-prompt `-A` render
   --explore            # fork select/confirm branches: conditional prompts + appears_when
+  -a k=v / -A file     # answers you already have — see below
+  -s <switch>          # open the prompts a switch gates
 ```
+
+**Derive what is still UNKNOWN, not everything askable.** `-a`/`-A` drop the answered prompts and
+resolve any branch they select — `-a messaging=kafka` returns that branch's prompts directly,
+not every branch behind an `appears_when`. So a wizard paginates by describing again with what
+it has, and the final render asks nothing. MCP `describe` takes `answers`/`switches`; gRPC
+`DescribeArchetype` takes `answers_yaml`/`switches`.
 
 Declared interfaces (`interface:` blocks / sibling `interface.yaml`) are GONE — a manifest
 still carrying one is a load ERROR: a declaration is a second copy of what the prompts

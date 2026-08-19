@@ -24,6 +24,18 @@ message DescribeArchetypeRequest {
     // Fork select/confirm branches to map conditional prompts and
     // compute the batch/interactive classification.
     bool explore = 2;
+    // Answers the caller already has, as a YAML mapping. Each one DROPS its
+    // prompt from the derived interface and resolves any branch it selects,
+    // so the result describes what is still unknown rather than everything
+    // askable. This is how a wizard renders page two: submit page one's
+    // answers, get back the interface that actually applies — rather than
+    // every branch behind an `appears_when` predicate each client has to
+    // build an evaluator for. YAML rather than a map<string,string> because
+    // answers are typed (ints, bools, lists) and share the encoding
+    // `Initialize.answers_yaml` already uses.
+    string answers_yaml = 3;
+    // Switches to enable, opening the prompts they gate.
+    repeated string switches = 4;
 }
 
 message DescribeArchetypeResponse {

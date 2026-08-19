@@ -7,6 +7,13 @@ proofs   = ["proofs"]
 # Not a copy-pasted fixture per file — see .prova/packages/subject/init.lua.
 packages = ".prova/packages"
 
+# The prose layer. Plans and specs under docs/ carry the obligations: `<!-- backlog: id -->` for
+# what is captured but not owed, `<!-- claim: id -->` for what is. `prova specs capture` writes
+# here; `prova owed` reconciles the claims against the proofs that cover them.
+[[specs.source]]
+type = "directory"
+path = "docs"
+
 # The deputed unit-test leg: `prova run ut` conducts `cargo nextest` ONCE, adopts every case
 # into the account, and case-granular readers bind contracts to named unit tests. Behind the
 # `ut` switch because conducting compiles the workspace; `must_run` keeps the WORLD fact, so
