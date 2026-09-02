@@ -107,6 +107,18 @@ fn execute<D: ScriptIoHandle, L: SystemLayout>(matches: ArgMatches, driver: D, l
         configuration
     };
 
+    // The pull mode follows the process: the CLI stays lazy (freshness is paid on the path that
+    // needs the source), while the server goes eager — hot paths serve the cache as-is and a
+    // background refresher owns freshness on `updates.refresh_interval`. Setting that interval
+    // to 0 opts a server back into lazy.
+    let configuration = if matches!(matches.subcommand(), Some(("server", _)))
+        && configuration.updates().refresh_interval().num_seconds() > 0
+    {
+        configuration.with_update_strategy(archetect_core::configuration::UpdateStrategy::Eager)
+    } else {
+        configuration
+    };
+
     // If --allow-exec is set (or env var, or config), emit a prominent warning.
     if matches!(
         configuration.shell_exec_policy(),

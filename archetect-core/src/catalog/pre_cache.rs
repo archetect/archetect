@@ -57,6 +57,18 @@ impl PreCacher {
         Ok(self.stats)
     }
 
+    /// One cycle of the eager background refresher: walk the catalog entries, probing each moving
+    /// ref once (gated on `updates.refresh_interval`) and fetching only what moved. Takes entries
+    /// rather than a `Manifest` because the server starts from its configured catalog, which has
+    /// no manifest of its own.
+    pub fn refresh(
+        mut self,
+        entries: &LinkedHashMap<String, CatalogEntry>,
+    ) -> Result<PreCacheStats, ArchetectError> {
+        self.walk(entries, SourceCommand::Refresh)?;
+        Ok(self.stats)
+    }
+
     fn walk(
         &mut self,
         entries: &LinkedHashMap<String, CatalogEntry>,
@@ -100,12 +112,21 @@ impl PreCacher {
             }
         };
 
-        // Execute the cache command (Pull or Invalidate)
+        // Execute the cache command (Pull, Refresh, or Invalidate)
         if let Err(err) = resolved.execute(command) {
             warn!("Failed to {} '{}' ({}): {:?}", command_name(command), name, source, err);
             self.stats.failed += 1;
             return Ok(());
         }
+
+        // A pull/refresh may have moved the ref to a new tree — re-resolve so the manifest walk
+        // below descends into what was just fetched, not the tree from before it.
+        let resolved = match command {
+            SourceCommand::Pull | SourceCommand::Refresh => {
+                self.archetect.new_source(source).unwrap_or(resolved)
+            }
+            _ => resolved,
+        };
 
         self.stats.pulled += 1;
 
@@ -139,6 +160,7 @@ impl PreCacher {
 fn command_name(cmd: SourceCommand) -> &'static str {
     match cmd {
         SourceCommand::Pull => "pull",
+        SourceCommand::Refresh => "refresh",
         SourceCommand::Invalidate => "invalidate",
         SourceCommand::Delete => "delete",
     }

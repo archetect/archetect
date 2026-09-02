@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use archetect_git_cache::{resolve, FetchOptions, Freshness, GitCacheError, RefPin};
+use archetect_git_cache::{resolve, FetchOptions, Freshness, GitCacheError, PullPolicy, RefPin};
 use camino::Utf8PathBuf;
 
 fn git(args: &[&str], cwd: &Path) {
@@ -58,9 +58,9 @@ fn move_remote(remote: &Utf8PathBuf, content: &str) -> String {
     git_out(&["rev-parse", "HEAD"], remote.as_std_path())
 }
 
-fn opts(force: bool, offline: bool, interval: Duration, pin: RefPin) -> FetchOptions {
+fn opts(pull: PullPolicy, offline: bool, interval: Duration, pin: RefPin) -> FetchOptions {
     FetchOptions {
-        force,
+        pull,
         offline,
         interval,
         pin,
@@ -79,7 +79,7 @@ fn absent_cache_clones_and_materializes() {
     let root = scratch("clone");
     let (remote, head) = init_remote(&root, "one");
 
-    let r = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     assert_eq!(r.freshness, Freshness::Cloned);
     assert_eq!(r.oid, head);
     assert_eq!(std::fs::read_to_string(r.tree_dir.join("file.txt")).unwrap(), "one");
@@ -91,10 +91,10 @@ fn within_ttl_uses_cache_with_zero_network() {
     let root = scratch("ttl-fresh");
     let (remote, _head) = init_remote(&root, "one");
 
-    let first = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let first = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     std::fs::remove_dir_all(&remote).unwrap(); // any network touch now would fail
 
-    let r = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     assert_eq!(r.freshness, Freshness::UpToDate { probed: false });
     assert_eq!(r.tree_dir, first.tree_dir); // same immutable tree
     std::fs::remove_dir_all(&root).ok();
@@ -105,14 +105,14 @@ fn ttl_expired_but_remote_unchanged_stays_silent() {
     let root = scratch("ttl-match");
     let (remote, head) = init_remote(&root, "one");
 
-    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     let_ttl_expire();
 
     let r = resolve(
         remote.as_str(),
         None,
         &root,
-        &opts(false, false, EXPIRED, RefPin::Infer),
+        &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer),
     )
     .unwrap();
     assert_eq!(r.freshness, Freshness::UpToDate { probed: true });
@@ -125,7 +125,7 @@ fn ttl_expired_and_remote_moved_updates() {
     let root = scratch("ttl-differ");
     let (remote, first_oid) = init_remote(&root, "one");
 
-    let r1 = resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let r1 = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     let second_oid = move_remote(&remote, "two");
     assert_ne!(first_oid, second_oid);
     let_ttl_expire();
@@ -134,7 +134,7 @@ fn ttl_expired_and_remote_moved_updates() {
         remote.as_str(),
         None,
         &root,
-        &opts(false, false, EXPIRED, RefPin::Infer),
+        &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer),
     )
     .unwrap();
     assert_eq!(r2.freshness, Freshness::Updated);
@@ -144,16 +144,108 @@ fn ttl_expired_and_remote_moved_updates() {
     std::fs::remove_dir_all(&root).ok();
 }
 
+/// IfMissing is the eager hot path: an expired TTL and a moved remote are both ignored — the
+/// cache serves as-is with zero network. The remote is deleted after seeding so any probe or
+/// fetch would error rather than silently pass.
+#[test]
+fn if_missing_serves_cache_without_probing_even_past_ttl() {
+    let root = scratch("ifmissing-hot");
+    let (remote, head) = init_remote(&root, "one");
+
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
+    let_ttl_expire();
+    std::fs::remove_dir_all(&remote).unwrap(); // any network touch now would fail
+
+    let r = resolve(
+        remote.as_str(),
+        None,
+        &root,
+        &opts(PullPolicy::IfMissing, false, EXPIRED, RefPin::Infer),
+    )
+    .unwrap();
+    assert_eq!(r.freshness, Freshness::UpToDate { probed: false });
+    assert_eq!(r.oid, head);
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// A cold miss must still work under IfMissing: an absent mirror clones, an absent ref fetches.
+#[test]
+fn if_missing_still_fetches_what_is_absent() {
+    let root = scratch("ifmissing-cold");
+    let (remote, head) = init_remote(&root, "one");
+
+    // Mirror absent → clone.
+    let r = resolve(
+        remote.as_str(),
+        None,
+        &root,
+        &opts(PullPolicy::IfMissing, false, FRESH, RefPin::Infer),
+    )
+    .unwrap();
+    assert_eq!(r.freshness, Freshness::Cloned);
+    assert_eq!(r.oid, head);
+
+    // Requested ref not in the mirror → fetch to obtain it, even under IfMissing.
+    git(&["tag", "v1"], remote.as_std_path());
+    let r = resolve(
+        remote.as_str(),
+        Some("v1"),
+        &root,
+        &opts(PullPolicy::IfMissing, false, FRESH, RefPin::Infer),
+    )
+    .unwrap();
+    assert_eq!(r.freshness, Freshness::Updated);
+    assert_eq!(r.oid, head);
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// The division of labor that makes eager mode work: a gated refresh (short TTL) picks up a
+/// moved ref and materializes its tree; the IfMissing hot path then serves the NEW tree with no
+/// probe of its own. This is the server's refresher + request-path pair in miniature.
+#[test]
+fn if_missing_serves_what_a_gated_refresh_fetched() {
+    let root = scratch("ifmissing-refresh");
+    let (remote, first) = init_remote(&root, "one");
+
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::IfMissing, false, FRESH, RefPin::Infer)).unwrap();
+    let second = move_remote(&remote, "two");
+    assert_ne!(first, second);
+    let_ttl_expire();
+
+    // The refresher's step: gated, TTL = the refresh cadence (expired here).
+    let refreshed = resolve(
+        remote.as_str(),
+        None,
+        &root,
+        &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer),
+    )
+    .unwrap();
+    assert_eq!(refreshed.freshness, Freshness::Updated);
+
+    // The hot path immediately serves the refreshed tree — no network of its own.
+    std::fs::remove_dir_all(&remote).unwrap();
+    let r = resolve(
+        remote.as_str(),
+        None,
+        &root,
+        &opts(PullPolicy::IfMissing, false, EXPIRED, RefPin::Infer),
+    )
+    .unwrap();
+    assert_eq!(r.oid, second);
+    assert_eq!(std::fs::read_to_string(r.tree_dir.join("file.txt")).unwrap(), "two");
+    std::fs::remove_dir_all(&root).ok();
+}
+
 #[test]
 fn force_updates_regardless_of_ttl() {
     let root = scratch("force");
     let (remote, first) = init_remote(&root, "one");
 
-    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     let second = move_remote(&remote, "two");
     assert_ne!(first, second);
 
-    let r = resolve(remote.as_str(), None, &root, &opts(true, false, FRESH, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Always, false, FRESH, RefPin::Infer)).unwrap();
     assert_eq!(r.freshness, Freshness::Updated);
     assert_eq!(r.oid, second);
     std::fs::remove_dir_all(&root).ok();
@@ -164,12 +256,12 @@ fn offline_uncached_errors_and_cached_uses_cache() {
     let root = scratch("offline");
     let (remote, _head) = init_remote(&root, "one");
 
-    let err = resolve(remote.as_str(), None, &root, &opts(false, true, FRESH, RefPin::Infer)).unwrap_err();
+    let err = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, true, FRESH, RefPin::Infer)).unwrap_err();
     assert!(matches!(err, GitCacheError::OfflineAndNotCached(_)), "got {err:?}");
 
-    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     std::fs::remove_dir_all(&remote).unwrap();
-    let r = resolve(remote.as_str(), None, &root, &opts(false, true, EXPIRED, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, true, EXPIRED, RefPin::Infer)).unwrap();
     assert!(matches!(r.freshness, Freshness::UpToDate { .. }));
     std::fs::remove_dir_all(&root).ok();
 }
@@ -184,7 +276,7 @@ fn immutable_pin_never_probes_past_ttl() {
         remote.as_str(),
         Some("v1"),
         &root,
-        &opts(false, false, FRESH, RefPin::Immutable),
+        &opts(PullPolicy::Gated, false, FRESH, RefPin::Immutable),
     )
     .unwrap();
     std::fs::remove_dir_all(&remote).unwrap();
@@ -194,7 +286,7 @@ fn immutable_pin_never_probes_past_ttl() {
         remote.as_str(),
         Some("v1"),
         &root,
-        &opts(false, false, EXPIRED, RefPin::Immutable),
+        &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Immutable),
     )
     .unwrap();
     assert!(matches!(r.freshness, Freshness::UpToDate { .. }));
@@ -206,7 +298,7 @@ fn missing_requested_ref_forces_fetch_within_ttl() {
     let root = scratch("missing-ref");
     let (remote, _head) = init_remote(&root, "one");
 
-    resolve(remote.as_str(), None, &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     git(&["tag", "v9"], remote.as_std_path());
     let tag_oid = git_out(&["rev-parse", "v9^{commit}"], remote.as_std_path());
 
@@ -214,7 +306,7 @@ fn missing_requested_ref_forces_fetch_within_ttl() {
         remote.as_str(),
         Some("v9"),
         &root,
-        &opts(false, false, FRESH, RefPin::Infer),
+        &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer),
     )
     .unwrap();
     assert_eq!(r.freshness, Freshness::Updated);
@@ -235,7 +327,7 @@ fn inferred_tag_follows_a_move_past_ttl() {
     let (remote, first) = init_remote(&root, "one");
     git(&["tag", "v1"], remote.as_std_path());
 
-    let r1 = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    let r1 = resolve(remote.as_str(), Some("v1"), &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     assert_eq!(r1.oid, first);
 
     let second = retag(&remote, "v1", "two");
@@ -243,7 +335,7 @@ fn inferred_tag_follows_a_move_past_ttl() {
     let_ttl_expire();
 
     // A tag is a symbolic ref: past the TTL it takes the hash gate and follows the move.
-    let r2 = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    let r2 = resolve(remote.as_str(), Some("v1"), &root, &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer)).unwrap();
     assert_eq!(r2.freshness, Freshness::Updated);
     assert_eq!(r2.oid, second);
     assert_eq!(std::fs::read_to_string(r2.tree_dir.join("file.txt")).unwrap(), "two");
@@ -256,11 +348,11 @@ fn inferred_tag_unchanged_probes_silently() {
     let (remote, head) = init_remote(&root, "one");
     git(&["tag", "v1"], remote.as_std_path());
 
-    resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), Some("v1"), &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     let_ttl_expire();
 
     // Unmoved tag past the TTL: one probe, hash matches, no fetch — silent.
-    let r = resolve(remote.as_str(), Some("v1"), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), Some("v1"), &root, &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer)).unwrap();
     assert_eq!(r.freshness, Freshness::UpToDate { probed: true });
     assert_eq!(r.oid, head);
     std::fs::remove_dir_all(&root).ok();
@@ -271,12 +363,12 @@ fn inferred_bare_rev_never_probes() {
     let root = scratch("rev-pin");
     let (remote, first) = init_remote(&root, "one");
 
-    resolve(remote.as_str(), Some(&first), &root, &opts(false, false, FRESH, RefPin::Infer)).unwrap();
+    resolve(remote.as_str(), Some(&first), &root, &opts(PullPolicy::Gated, false, FRESH, RefPin::Infer)).unwrap();
     move_remote(&remote, "two");
     let_ttl_expire();
 
     // A bare commit id is content-addressed: past the TTL it is not even probed.
-    let r = resolve(remote.as_str(), Some(&first), &root, &opts(false, false, EXPIRED, RefPin::Infer)).unwrap();
+    let r = resolve(remote.as_str(), Some(&first), &root, &opts(PullPolicy::Gated, false, EXPIRED, RefPin::Infer)).unwrap();
     assert_eq!(r.freshness, Freshness::UpToDate { probed: false });
     assert_eq!(r.oid, first);
     std::fs::remove_dir_all(&root).ok();

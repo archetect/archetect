@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use archetect_git_cache::{prune, resolve, FetchOptions, RefPin};
+use archetect_git_cache::{prune, resolve, FetchOptions, PullPolicy, RefPin};
 use camino::Utf8PathBuf;
 
 fn git(args: &[&str], cwd: &Path) {
@@ -47,7 +47,7 @@ fn move_remote(remote: &Utf8PathBuf, content: &str) {
 
 fn opts(interval: Duration) -> FetchOptions {
     FetchOptions {
-        force: false,
+        pull: PullPolicy::Gated,
         offline: false,
         interval,
         pin: RefPin::Infer,

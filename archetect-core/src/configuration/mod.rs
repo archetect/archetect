@@ -15,4 +15,4 @@ pub use configuration_security_sections::{ConfigurationSecuritySection, ShellExe
 pub use configuration_server_section::{
     ConfigurationServerSection, ConfigurationServerTlsSection,
 };
-pub use configuration_update_section::ConfigurationUpdateSection;
+pub use configuration_update_section::{ConfigurationUpdateSection, UpdateStrategy};

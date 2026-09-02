@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::Command;
 use std::thread;
 
-use archetect_git_cache::{resolve, FetchOptions, Freshness, RefPin};
+use archetect_git_cache::{resolve, FetchOptions, Freshness, PullPolicy, RefPin};
 use camino::Utf8PathBuf;
 
 fn git(args: &[&str], cwd: &Path) {
@@ -57,7 +57,7 @@ fn concurrent_resolves_into_one_cold_cache_do_not_corrupt() {
             let cache_root = cache_root.clone();
             thread::spawn(move || {
                 let opts = FetchOptions {
-                    force: false,
+                    pull: PullPolicy::Gated,
                     offline: false,
                     interval: std::time::Duration::from_secs(3600),
                     pin: RefPin::Infer,

@@ -10,7 +10,7 @@ use crate::configuration::configuration_security_sections::{
     ConfigurationSecuritySection, ShellExecPolicy,
 };
 use crate::configuration::configuration_server_section::ConfigurationServerSection;
-use crate::configuration::configuration_update_section::ConfigurationUpdateSection;
+use crate::configuration::configuration_update_section::{ConfigurationUpdateSection, UpdateStrategy};
 use crate::manifest::CatalogEntry;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -77,6 +77,15 @@ impl Configuration {
         // In place: replacing the section with `Default` to use its builder would reset a
         // figment-loaded `interval`/`retention` as a side effect of setting one unrelated flag.
         self.updates.set_force(value);
+        self
+    }
+
+    /// Select this process's pull mode — see [`UpdateStrategy`]. Deliberately programmatic
+    /// rather than a config key: the mode follows the process (CLI = lazy, server = eager),
+    /// and eager is only safe where a background refresher exists to own freshness.
+    pub fn with_update_strategy(mut self, strategy: UpdateStrategy) -> Self {
+        // In place, for the same reason as `with_force_update`.
+        self.updates.set_strategy(strategy);
         self
     }
 

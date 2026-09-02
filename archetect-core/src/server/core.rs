@@ -19,6 +19,7 @@ use crate::manifest::CatalogEntry;
 use archetect_api::ScriptMessage;
 
 use crate::archetype::render_context::RenderContext;
+use crate::configuration::UpdateStrategy;
 use crate::errors::ArchetectError;
 use crate::io::AsyncScriptIoHandle;
 use crate::proto::grpc;
@@ -64,6 +65,14 @@ impl ArchetectServiceCoreBuilder {
     }
 
     pub async fn build(self) -> Result<ArchetectServiceCore, ArchetectError> {
+        // Eager mode (set on the configuration by the server entry point): warm the catalog
+        // cache before serving, then keep it fresh in the background, so no request path ever
+        // pauses on the network. Lazy mode skips this and resolves through the gate per request.
+        if self.prototype.configuration().updates().strategy() == UpdateStrategy::Eager
+            && self.prototype.configuration().catalog().is_some()
+        {
+            super::refresh::start(self.prototype.clone()).await?;
+        }
         Ok(ArchetectServiceCore {
             prototype: self.prototype,
             default_action: self.default_action,

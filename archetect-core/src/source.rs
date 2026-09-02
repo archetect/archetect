@@ -71,7 +71,33 @@ impl Source {
                 SourceCommand::Pull => {
                     // Force a refresh; the returned lease is dropped immediately (pre-caching, not
                     // rendering — nothing reads the tree here).
-                    let _ = resolve_git_source(&self.archetect, url, gitref.as_deref(), true)?;
+                    let _ = resolve_git_source_with(
+                        &self.archetect,
+                        url,
+                        gitref.as_deref(),
+                        archetect_git_cache::PullPolicy::Always,
+                        None,
+                    )?;
+                }
+                SourceCommand::Refresh => {
+                    // The eager loop's step: a GATED resolve whose TTL is the refresh cadence, so
+                    // each cycle costs one ls-remote per moving ref and fetches only what moved.
+                    // (A `Pull` here would re-fetch every repo every cycle; the strategy's own
+                    // `IfMissing` would never probe at all.)
+                    let interval = self
+                        .archetect
+                        .configuration()
+                        .updates()
+                        .refresh_interval()
+                        .to_std()
+                        .unwrap_or_else(|_| std::time::Duration::from_secs(300));
+                    let _ = resolve_git_source_with(
+                        &self.archetect,
+                        url,
+                        gitref.as_deref(),
+                        archetect_git_cache::PullPolicy::Gated,
+                        Some(interval),
+                    )?;
                 }
                 SourceCommand::Invalidate | SourceCommand::Delete => {
                     archetect_git_cache::invalidate_all(&cache_root, url)?;
@@ -90,7 +116,11 @@ pub enum SourceContents {
 
 #[derive(Clone, Copy)]
 pub enum SourceCommand {
+    /// Force-fetch, skipping the freshness gate (`cache pull`, pre-caching).
     Pull,
+    /// One step of the eager background loop: a gated probe on the refresh cadence, fetching
+    /// only what actually moved.
+    Refresh,
     Invalidate,
     Delete,
 }
@@ -245,22 +275,54 @@ impl SourceType {
 /// Resolve a git source through the content-addressed cache, returning the immutable tree dir and the
 /// session lease (hold it for as long as the tree is read). The crate owns the `sources/`+`trees/`
 /// layout under the cache dir and the freshness gate; archetect just supplies its config.
+///
+/// The pull policy follows the process's [`UpdateStrategy`](crate::configuration::UpdateStrategy):
+/// lazy resolves through the gate (the cold path pays for freshness); eager serves the cache as-is
+/// (`IfMissing`) and leaves freshness to the background refresher. `-U`/`updates.force` wins over
+/// both.
 fn resolve_git_source(
     archetect: &Archetect,
     url: &str,
     gitref: Option<&str>,
     force_pull: bool,
 ) -> Result<(Utf8PathBuf, Lease), SourceError> {
+    use archetect_git_cache::PullPolicy;
+
+    use crate::configuration::UpdateStrategy;
+
+    let updates = archetect.configuration().updates();
+    let pull = if force_pull || updates.force() {
+        PullPolicy::Always
+    } else if updates.strategy() == UpdateStrategy::Eager {
+        PullPolicy::IfMissing
+    } else {
+        PullPolicy::Gated
+    };
+    resolve_git_source_with(archetect, url, gitref, pull, None)
+}
+
+/// [`resolve_git_source`] with an explicit policy (and optionally a TTL other than
+/// `updates.interval`) — the refresher's entry point, since its gated probes run on the refresh
+/// cadence rather than the lazy TTL.
+fn resolve_git_source_with(
+    archetect: &Archetect,
+    url: &str,
+    gitref: Option<&str>,
+    pull: archetect_git_cache::PullPolicy,
+    interval: Option<std::time::Duration>,
+) -> Result<(Utf8PathBuf, Lease), SourceError> {
     use archetect_git_cache::{FetchOptions, Freshness, RefPin};
 
-    let interval = archetect
-        .configuration()
-        .updates()
-        .interval()
-        .to_std()
-        .unwrap_or_else(|_| std::time::Duration::from_secs(86400));
+    let interval = interval.unwrap_or_else(|| {
+        archetect
+            .configuration()
+            .updates()
+            .interval()
+            .to_std()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(86400))
+    });
     let opts = FetchOptions {
-        force: force_pull || archetect.configuration().updates().force(),
+        pull,
         offline: archetect.is_offline(),
         interval,
         // archetect parses `url#ref` without knowing whether `ref` is a tag or a branch — let the

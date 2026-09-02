@@ -47,14 +47,34 @@ const DEFAULT_REF_SENTINEL: &str = "\0default";
 /// How a [`resolve`] should treat the cache. The caller derives these from its flags/config.
 #[derive(Debug, Clone)]
 pub struct FetchOptions {
-    /// Skip the freshness gate and always fetch (archetect's `-U`, prova's `--update`).
-    pub force: bool,
+    /// When this resolve may go to the network for freshness. [`PullPolicy::Always`] overrides
+    /// `offline` (matching the old `force: bool` precedence).
+    pub pull: PullPolicy,
     /// Never touch the network; error if the requested ref isn't already cached.
     pub offline: bool,
     /// TTL width for the freshness gate — how often a moving ref re-checks the remote.
     pub interval: Duration,
     /// Whether the requested ref can move upstream — governs whether the hash gate probes at all.
     pub pin: RefPin,
+}
+
+/// When a [`resolve`] checks the remote. The two ends exist for the two fundamental consumption
+/// modes: a **lazy** process (the CLI) pays for freshness on the path that needs the source, while
+/// an **eagerly refreshed** process (a server) keeps its request paths free of network pauses by
+/// resolving [`IfMissing`](PullPolicy::IfMissing) and delegating freshness to a background task
+/// that resolves [`Gated`](PullPolicy::Gated) on a short interval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PullPolicy {
+    /// Skip the freshness gate and always fetch (archetect's `-U`, prova's `--update`).
+    Always,
+    /// The lazy default: TTL + hash gate on this resolve. A cold path may pause for one
+    /// `ls-remote` (and a fetch when the remote moved).
+    #[default]
+    Gated,
+    /// Serve the cache as-is: fetch only when the mirror or the requested ref is absent, and
+    /// never probe for movement. The hot path of an eagerly-refreshed process — freshness is
+    /// its background refresher's job, not this resolve's.
+    IfMissing,
 }
 
 /// Whether a ref is expected to move upstream. Only a bare commit id is content-addressed and
@@ -198,7 +218,7 @@ fn resolve_locked(
     } else {
         let repo = Repository::open_bare(sources_dir.as_std_path())?;
         let mut probed_match = false;
-        let do_fetch = if opts.force {
+        let do_fetch = if opts.pull == PullPolicy::Always {
             true
         } else if opts.offline {
             false
@@ -206,6 +226,8 @@ fn resolve_locked(
             true // mirror was cloned empty; the remote likely has content now
         } else if gitref.is_some_and(|g| !ref_exists_local(&repo, g)) {
             true // requested ref isn't in the mirror — fetch to obtain it
+        } else if opts.pull == PullPolicy::IfMissing {
+            false // present is enough: no TTL, no probe — freshness belongs to a refresher
         } else {
             let cfg = meta_config(sources_dir)?;
             let meta = read_meta(&cfg, &slug);
