@@ -7,16 +7,90 @@
 //! binary, falling back to `git` for auth (credential helpers, SSH agent, enterprise TLS).
 
 use std::process::{Command, Stdio};
+use std::sync::Once;
+use std::time::{Duration, Instant};
 
 use camino::Utf8Path;
 use log::debug;
 
 use crate::error::GitCacheError;
 
+/// The IO deadline for network git operations, in milliseconds. Overridable via
+/// `ARCHETECT_GIT_TIMEOUT_MS` (tests use a short one; the value is latched by the first network
+/// operation in the process).
+fn network_timeout_ms() -> u64 {
+    std::env::var("ARCHETECT_GIT_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30_000)
+}
+
+/// Every network-touching operation gets a FINITE deadline. A stalled fetch used to block
+/// forever — and `resolve` runs fetches inside the per-repo write lock, so one stalled fetch
+/// froze every request queued behind that lock until the pod was restarted (archetect-server,
+/// dev + prd, 2026-09-15). libgit2 gets global connect/IO timeouts here; the CLI fallbacks get
+/// HTTP stall detection plus a wall-clock kill in [`run_git_bounded`].
+fn ensure_network_timeouts() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| unsafe {
+        let _ = git2::opts::set_server_connect_timeout_in_milliseconds(10_000);
+        let _ = git2::opts::set_server_timeout_in_milliseconds(network_timeout_ms() as i32);
+    });
+}
+
+/// Config args giving the `git` CLI the same stall discipline libgit2 gets from the opts above:
+/// abort any HTTP transfer that stays under 1KB/s for the IO deadline.
+fn cli_stall_args() -> [String; 4] {
+    let secs = (network_timeout_ms() / 1000).max(1);
+    [
+        "-c".to_string(),
+        "http.lowSpeedLimit=1000".to_string(),
+        "-c".to_string(),
+        format!("http.lowSpeedTime={secs}"),
+    ]
+}
+
+/// Run a `git` command that may touch the network: never prompts, and is killed outright past the
+/// wall clock (4x the IO deadline, floor 30s — a legitimately slow fetch gets minutes; a wedged
+/// one gets killed instead of freezing the caller). Output is polled rather than streamed: every
+/// invocation here produces small output (quiet clones/fetches, single-ref ls-remote), well under
+/// the pipe buffer, so the child can never block on a full pipe while we poll.
+fn run_git_bounded(command: &mut Command) -> Result<std::process::Output, GitCacheError> {
+    command.env("GIT_TERMINAL_PROMPT", "0");
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let deadline = Duration::from_millis(network_timeout_ms().saturating_mul(4).max(30_000));
+    let mut child = command
+        .spawn()
+        .map_err(|e| GitCacheError::Remote(format!("`git` CLI not available: {e}")))?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|e| GitCacheError::Remote(format!("git: {e}")));
+            }
+            Ok(None) => {
+                if start.elapsed() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(GitCacheError::Remote(format!(
+                        "git timed out after {}s and was killed",
+                        deadline.as_secs()
+                    )));
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(e) => return Err(GitCacheError::Remote(format!("git wait failed: {e}"))),
+        }
+    }
+}
+
 /// Clone `url` into `dest` as a **bare mirror** (all branches + tags, no working tree). Tries `git2`
 /// first; on any error, cleans up any partial state and falls back to `git clone --mirror`.
 pub fn clone_mirror(url: &str, dest: &Utf8Path) -> Result<(), GitCacheError> {
     debug!("git-cache clone --mirror {} -> {}", url, dest);
+    ensure_network_timeouts();
 
     match clone_mirror_git2(url, dest) {
         Ok(()) => Ok(()),
@@ -26,6 +100,7 @@ pub fn clone_mirror(url: &str, dest: &Utf8Path) -> Result<(), GitCacheError> {
                 let _ = std::fs::remove_dir_all(dest.as_std_path());
             }
             let mut cmd = Command::new("git");
+            cmd.args(cli_stall_args());
             cmd.args(["clone", "--mirror", "--quiet", url, dest.as_str()]);
             run_git(&mut cmd)
         }
@@ -48,12 +123,14 @@ fn clone_mirror_git2(url: &str, dest: &Utf8Path) -> Result<(), git2::Error> {
 /// fallback.
 pub fn fetch_repo(mirror_dir: &Utf8Path) -> Result<(), GitCacheError> {
     debug!("git-cache fetch {}", mirror_dir);
+    ensure_network_timeouts();
 
     match git2::Repository::open_bare(mirror_dir.as_std_path()).and_then(|repo| fetch_all_refs(&repo)) {
         Ok(()) => Ok(()),
         Err(err) => {
             debug!("git2 fetch failed ({err}); falling back to `git fetch`");
             let mut cmd = Command::new("git");
+            cmd.args(cli_stall_args());
             cmd.args([
                 "--git-dir",
                 mirror_dir.as_str(),
@@ -82,6 +159,7 @@ fn fetch_all_refs(repo: &git2::Repository) -> Result<(), git2::Error> {
 /// fallback. `gitref` may be a short name (`v1`, `main`), a full ref, or `HEAD`.
 pub fn ls_remote(url: &str, gitref: &str) -> Result<Option<String>, GitCacheError> {
     debug!("git-cache ls-remote {} {}", url, gitref);
+    ensure_network_timeouts();
 
     match ls_remote_via_git2(url, gitref) {
         Ok(found) => Ok(found),
@@ -105,10 +183,10 @@ fn ls_remote_via_git2(url: &str, gitref: &str) -> Result<Option<String>, git2::E
 }
 
 fn ls_remote_via_cli(url: &str, gitref: &str) -> Result<Option<String>, GitCacheError> {
-    let output = Command::new("git")
-        .args(["ls-remote", url, gitref])
-        .output()
-        .map_err(|e| GitCacheError::Remote(format!("`git ls-remote` could not run: {e}")))?;
+    let mut cmd = Command::new("git");
+    cmd.args(cli_stall_args());
+    cmd.args(["ls-remote", url, gitref]);
+    let output = run_git_bounded(&mut cmd)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(GitCacheError::Remote(format!(
@@ -223,16 +301,14 @@ fn materialize_via_cli(mirror_dir: &Utf8Path, oid: &str, tree_dir: &Utf8Path) ->
 }
 
 fn run_git(command: &mut Command) -> Result<(), GitCacheError> {
-    match command.output() {
-        Ok(output) => match output.status.code() {
-            Some(0) => Ok(()),
-            Some(code) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                Err(GitCacheError::Remote(format!("git exited {code}: {stderr}")))
-            }
-            None => Err(GitCacheError::Remote("git interrupted by signal".to_owned())),
-        },
-        Err(err) => Err(GitCacheError::Remote(format!("`git` CLI not available: {err}"))),
+    let output = run_git_bounded(command)?;
+    match output.status.code() {
+        Some(0) => Ok(()),
+        Some(code) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(GitCacheError::Remote(format!("git exited {code}: {stderr}")))
+        }
+        None => Err(GitCacheError::Remote("git interrupted by signal".to_owned())),
     }
 }
 

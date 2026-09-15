@@ -23,3 +23,5 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# The resilience tests hold the cache's own write-lock file the way a wedged fetch would.
+fs4 = { version = "0.13", features = ["sync"] }

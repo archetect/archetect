@@ -190,8 +190,63 @@ pub fn resolve(
     let hash = repo_hash(url);
     let sources_dir = cache_root.join("sources").join(&hash);
     let trees_root = cache_root.join("trees").join(&hash);
+
+    // The stale lane (YP6M-3788): an IfMissing resolve — the eager hot path — must never queue
+    // behind a fetch in flight. A refresher fetch holds the write lock for its network duration,
+    // and a STALLED one holds it for the full IO deadline; before this lane existed it held it
+    // forever, and one wedged fetch froze every request behind the lock until the pod was
+    // restarted (archetect-server, dev + prd, 2026-09-15). When the lock is busy and the cache
+    // can already answer — the ref resolves locally and its tree is materialized — serve that,
+    // exactly the staleness IfMissing already accepts. Only a genuine cold miss blocks.
+    if opts.pull == PullPolicy::IfMissing {
+        match try_with_write_lock(&sources_dir, || {
+            resolve_locked(url, gitref, &sources_dir, &trees_root, opts)
+        }) {
+            Some(result) => return result,
+            None => {
+                if let Some(hit) = resolve_stale(&sources_dir, &trees_root, gitref) {
+                    return Ok(hit);
+                }
+                // Cold miss with the lock busy: correctness needs the fetch — wait like anyone.
+            }
+        }
+    }
+
     with_write_lock(&sources_dir, || {
         resolve_locked(url, gitref, &sources_dir, &trees_root, opts)
+    })
+}
+
+/// Answer an [`PullPolicy::IfMissing`] resolve WITHOUT the write lock: local ref resolution against
+/// the mirror plus an already-materialized tree. Read-only against the mirror (per-ref updates are
+/// atomic on git's side; any read error simply declines the lane), and the tree it leases is
+/// immutable by construction. `None` when the cache cannot answer — absent mirror, unknown ref,
+/// unmaterialized tree — and the caller falls back to the blocking path.
+fn resolve_stale(
+    sources_dir: &Utf8Path,
+    trees_root: &Utf8Path,
+    gitref: Option<&str>,
+) -> Option<ResolvedSource> {
+    let repo = Repository::open_bare(sources_dir.as_std_path()).ok()?;
+    if let Some(g) = gitref {
+        if !ref_exists_local(&repo, g) {
+            return None;
+        }
+    }
+    let (oid, resolved_ref) = resolve_oid(&repo, gitref).ok()?;
+    let tree_dir = trees_root.join(&oid);
+    if !tree_dir.exists() {
+        return None;
+    }
+    touch_used(trees_root, &oid, now_ms()).ok()?;
+    let lease = acquire_shared_lease(trees_root, &oid).ok()?;
+    trace!("stale-lane {sources_dir} {resolved_ref} @ {oid} (write lock busy)");
+    Some(ResolvedSource {
+        tree_dir,
+        oid,
+        resolved_ref,
+        freshness: Freshness::UpToDate { probed: false },
+        lease,
     })
 }
 
@@ -649,6 +704,36 @@ fn with_write_lock<T>(
     result
 }
 
+/// [`with_write_lock`], but NON-BLOCKING: `None` when either lock layer is busy. The stale lane's
+/// probe — an [`PullPolicy::IfMissing`] resolve must never queue behind a fetch in flight (which
+/// may be stalled on the network for the full IO deadline).
+fn try_with_write_lock<T>(
+    sources_dir: &Utf8Path,
+    f: impl FnOnce() -> Result<T, GitCacheError>,
+) -> Option<Result<T, GitCacheError>> {
+    let mutex = keyed_mutex(sources_dir);
+    let _in_process = match mutex.try_lock() {
+        Ok(guard) => guard,
+        Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return None,
+    };
+    if let Some(parent) = sources_dir.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent.as_std_path()) {
+            return Some(Err(e.into()));
+        }
+    }
+    let lock_file = match open_lock_file(write_lock_path(sources_dir).as_std_path()) {
+        Ok(file) => file,
+        Err(e) => return Some(Err(e.into())),
+    };
+    if FileExt::try_lock_exclusive(&lock_file).is_err() {
+        return None;
+    }
+    let result = f();
+    let _ = FileExt::unlock(&lock_file);
+    Some(result)
+}
+
 fn keyed_mutex(sources_dir: &Utf8Path) -> Arc<Mutex<()>> {
     static LOCKS: OnceLock<Mutex<HashMap<Utf8PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
     let registry = LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
@@ -660,16 +745,19 @@ fn keyed_mutex(sources_dir: &Utf8Path) -> Arc<Mutex<()>> {
 
 /// Open (creating if needed) the sibling `<name>.lock` for `sources_dir` and take an exclusive
 /// advisory lock. The lock is a sibling so it exists before the mirror is cloned.
+fn write_lock_path(sources_dir: &Utf8Path) -> Utf8PathBuf {
+    let name = sources_dir.file_name().unwrap_or("cache");
+    match sources_dir.parent() {
+        Some(parent) => parent.join(format!("{name}.lock")),
+        None => Utf8PathBuf::from(format!("{sources_dir}.lock")),
+    }
+}
+
 fn acquire_exclusive_lock(sources_dir: &Utf8Path) -> Result<File, GitCacheError> {
     if let Some(parent) = sources_dir.parent() {
         std::fs::create_dir_all(parent.as_std_path())?;
     }
-    let name = sources_dir.file_name().unwrap_or("cache");
-    let lock_path = match sources_dir.parent() {
-        Some(parent) => parent.join(format!("{name}.lock")),
-        None => Utf8PathBuf::from(format!("{sources_dir}.lock")),
-    };
-    let file = open_lock_file(lock_path.as_std_path())?;
+    let file = open_lock_file(write_lock_path(sources_dir).as_std_path())?;
     FileExt::lock_exclusive(&file)?;
     Ok(file)
 }
