@@ -30,7 +30,7 @@ use std::time::{Duration, SystemTime};
 use camino::{Utf8Path, Utf8PathBuf};
 use fs4::fs_std::FileExt;
 use git2::Repository;
-use log::trace;
+use log::{debug, trace};
 
 mod error;
 mod git;
@@ -261,6 +261,13 @@ fn resolve_locked(
     let slug = slug_for(gitref);
 
     // ── Ensure the mirror + decide freshness ────────────────────────────────────────────────
+    // A mirror dir that isn't a repository is what a clone killed before git wrote its metadata
+    // leaves behind. Opening it would fail on every resolve from then on; remove it and treat the
+    // mirror as absent, so it is cloned again (or reported as not cached when offline).
+    if sources_dir.exists() && Repository::open_bare(sources_dir.as_std_path()).is_err() {
+        debug!("git-cache {sources_dir} is not a repository; removing it to clone again");
+        std::fs::remove_dir_all(sources_dir.as_std_path())?;
+    }
     let freshness;
     let mut did_fetch = false;
     if !sources_dir.exists() {

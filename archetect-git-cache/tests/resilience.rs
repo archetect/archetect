@@ -125,3 +125,40 @@ fn if_missing_serves_warm_cache_while_the_write_lock_is_held() {
     let _ = FileExt::unlock(&held);
     std::fs::remove_dir_all(&root).ok();
 }
+
+/// A mirror directory that is not a repository — what a clone killed before git wrote its
+/// metadata leaves behind — is removed and cloned again. Opening it as a mirror fails, so without
+/// this every later resolve of that URL errors until someone deletes the directory by hand.
+#[test]
+fn a_mirror_dir_that_is_not_a_repository_is_recloned() {
+    let root = scratch("leftover");
+    let remote = root.join("remote");
+    std::fs::create_dir_all(&remote).unwrap();
+    std::fs::write(remote.join("file.txt"), "one").unwrap();
+    git(&["init", "-q", "-b", "main"], remote.as_std_path());
+    git(&["add", "."], remote.as_std_path());
+    git(&["commit", "-q", "-m", "first"], remote.as_std_path());
+
+    let warmed = resolve(remote.as_str(), None, &root, &opts(PullPolicy::Gated)).unwrap();
+    let mirror = std::fs::read_dir(root.join("sources").as_std_path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.is_dir())
+        .expect("the warm resolve created the mirror");
+
+    for pull in [PullPolicy::IfMissing, PullPolicy::Gated] {
+        std::fs::remove_dir_all(&mirror).unwrap();
+        std::fs::create_dir_all(mirror.join("objects")).unwrap();
+
+        let r = resolve(remote.as_str(), None, &root, &opts(pull))
+            .unwrap_or_else(|err| panic!("{pull:?} resolve over a leftover mirror: {err}"));
+        assert_eq!(r.freshness, Freshness::Cloned, "{pull:?} cloned the mirror again");
+        assert_eq!(r.oid, warmed.oid);
+        assert_eq!(
+            std::fs::read_to_string(r.tree_dir.join("file.txt")).unwrap(),
+            "one"
+        );
+    }
+    std::fs::remove_dir_all(&root).ok();
+}
