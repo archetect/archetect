@@ -39,6 +39,12 @@ shellexpand = { workspace = true }
 tempfile = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 
+# Never linked to the host's openssl: git2 reaches openssl-sys on unix, and a dynamic link made the
+# v3.6.2 macOS binary run only where Homebrew had openssl@4. `vendored` builds it in, for the one copy
+# cargo unifies (release.yml checks the binary links nothing outside the OS).
+[target.'cfg(unix)'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }
+
 [build-dependencies]
 embed-resource = "3.0.1"
 

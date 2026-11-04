@@ -196,6 +196,21 @@ jobs:
         if: matrix.platform == 'linux' || matrix.platform == 'macos'
         run: strip "$BINARY_PATH"
 
+      # The binary runs on a machine with nothing installed: it links only the OS's own libraries.
+      # v3.6.2's macOS build linked Homebrew's openssl@4 and failed to start anywhere without it.
+      - name: Links only the OS
+        if: matrix.platform == 'linux' || matrix.platform == 'macos'
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            foreign=$(otool -L "$BINARY_PATH" | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)
+          else
+            foreign=$(ldd "$BINARY_PATH" | grep -E 'ssl|crypto|ssh2|git2' || true)
+          fi
+          if [ -n "$foreign" ]; then
+            echo "the release binary links libraries a bare machine lacks:"; echo "$foreign"; exit 1
+          fi
+
       - name: Create Release Archive
         id: create-archive
         shell: bash
@@ -219,6 +234,13 @@ jobs:
           echo "ARCHIVE=${archive}" >> $GITHUB_ENV
           echo "ARCHIVE_PREFIX=${archive_prefix}" >> $GITHUB_ENV
           echo "ARCHIVE_SUM=${archive_sum}" >> $GITHUB_ENV
+
+      # GitHub's signed record of which workflow, commit and runner built this archive: what an
+      # importer (Artichoke's GitHub feed) checks before it trusts the bytes.
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ARCHIVE }}
 
       - name: Upload Release Archive
         env:
