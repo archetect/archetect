@@ -57,6 +57,24 @@ impl PreCacher {
         Ok(self.stats)
     }
 
+    /// Pull `source` ITSELF, then everything reachable from its catalog tree. A catalog's own
+    /// repository is a source like any other: a new entry in it is invisible until the catalog
+    /// is fetched, so `cache pull` on a catalog must fetch the catalog first, then walk the
+    /// tree it now has. A source that cannot be resolved at all is an error, not a skipped leaf.
+    pub fn pull_source(mut self, source: &str) -> Result<PreCacheStats, ArchetectError> {
+        self.archetect.new_source(source)?;
+        self.process_leaf(source, source, SourceCommand::Pull)?;
+        Ok(self.stats)
+    }
+
+    /// Invalidate `source` ITSELF and everything reachable from its catalog tree, so the next
+    /// resolve re-fetches the catalog too (its new entries become visible), not only its children.
+    pub fn invalidate_source(mut self, source: &str) -> Result<PreCacheStats, ArchetectError> {
+        self.archetect.new_source(source)?;
+        self.process_leaf(source, source, SourceCommand::Invalidate)?;
+        Ok(self.stats)
+    }
+
     /// One cycle of the eager background refresher: walk the catalog entries, probing each moving
     /// ref once (gated on `updates.refresh_interval`) and fetching only what moved. Takes entries
     /// rather than a `Manifest` because the server starts from its configured catalog, which has
@@ -389,5 +407,41 @@ mod tests {
 
         // Walks through the group and pulls the leaf
         assert_eq!(stats.pulled, 1);
+    }
+
+    /// `cache pull <catalog>` and `cache invalidate <catalog>` act on the catalog's OWN source,
+    /// not only on its entries: a new entry in a catalog is invisible until the catalog itself is
+    /// fetched again (D, 2026-11-05: `anemnez-product` stayed invisible for the update interval).
+    #[test]
+    fn a_source_is_pulled_and_invalidated_itself_not_only_its_entries() {
+        let (_layout_temp, archetect) = build_archetect();
+        let workspace = TempDir::new().unwrap();
+        let workspace_path = Utf8PathBuf::from(workspace.path().to_str().unwrap());
+        let child_dir = workspace_path.join("child");
+        write_manifest(&child_dir, "description: \"Child\"\nrequires:\n  archetect: \"3.0.0\"\n");
+        let catalog_dir = workspace_path.join("catalog");
+        write_manifest(
+            &catalog_dir,
+            &format!(
+                "description: \"Catalog\"\nrequires:\n  archetect: \"3.0.0\"\ncatalog:\n  one:\n    description: \"First\"\n    source: \"{child_dir}\"\n"
+            ),
+        );
+
+        let pulled = PreCacher::new(archetect.clone()).pull_source(catalog_dir.as_str()).unwrap();
+        assert_eq!(pulled.pulled, 2, "the catalog itself and its one entry");
+        assert_eq!(pulled.manifests_walked, 2, "the catalog's manifest is read from what was pulled");
+        assert_eq!(pulled.failed, 0);
+
+        let invalidated = PreCacher::new(archetect).invalidate_source(catalog_dir.as_str()).unwrap();
+        assert_eq!(invalidated.pulled, 2, "the catalog itself and its one entry");
+        assert_eq!(invalidated.failed, 0);
+    }
+
+    #[test]
+    fn a_source_that_cannot_be_resolved_is_an_error_not_a_skipped_leaf() {
+        let (_layout_temp, archetect) = build_archetect();
+        let missing = "/nonexistent/archetect/catalog-for-a-test";
+        assert!(PreCacher::new(archetect.clone()).pull_source(missing).is_err());
+        assert!(PreCacher::new(archetect).invalidate_source(missing).is_err());
     }
 }

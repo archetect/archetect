@@ -7,7 +7,6 @@ use log::{error, info};
 use archetect_core::Archetect;
 use archetect_core::catalog::PreCacher;
 use archetect_core::errors::ArchetectError;
-use archetect_core::manifest::Manifest;
 
 pub fn handle_cache_subcommand(args: &ArgMatches, archetect: &Archetect) -> Result<(), ArchetectError> {
     match args.subcommand() {
@@ -69,18 +68,10 @@ fn resolve_sources(args: &ArgMatches, archetect: &Archetect) -> Result<Vec<Strin
     Ok(sources)
 }
 
-/// Recursively pull a source and everything reachable from its catalog tree.
+/// Pull a source itself (a catalog's own repository too) and everything reachable from it.
 fn handle_pull(source: &str, archetect: &Archetect) -> Result<(), ArchetectError> {
     info!("Pulling {}", source);
-
-    // Resolve the root source — this triggers an initial clone/fetch if needed
-    let resolved = archetect.new_source(source)?;
-    let root_path = resolved.path()?;
-
-    // Load the root manifest and walk its catalog tree
-    let manifest = Manifest::load(root_path)?;
-    let stats = PreCacher::new(archetect.clone()).pull(&manifest)?;
-
+    let stats = PreCacher::new(archetect.clone()).pull_source(source)?;
     info!(
         "Pre-cache complete: {} pulled, {} skipped, {} failed, {} child manifests walked",
         stats.pulled, stats.skipped, stats.failed, stats.manifests_walked
@@ -88,16 +79,10 @@ fn handle_pull(source: &str, archetect: &Archetect) -> Result<(), ArchetectError
     Ok(())
 }
 
-/// Recursively invalidate the cache for a source and everything reachable.
+/// Invalidate a source itself (a catalog's own repository too) and everything reachable from it.
 fn handle_invalidate(source: &str, archetect: &Archetect) -> Result<(), ArchetectError> {
     info!("Invalidating {}", source);
-
-    let resolved = archetect.new_source(source)?;
-    let root_path = resolved.path()?;
-
-    let manifest = Manifest::load(root_path)?;
-    let stats = PreCacher::new(archetect.clone()).invalidate(&manifest)?;
-
+    let stats = PreCacher::new(archetect.clone()).invalidate_source(source)?;
     info!(
         "Invalidation complete: {} invalidated, {} skipped, {} failed",
         stats.pulled, stats.skipped, stats.failed
@@ -105,26 +90,40 @@ fn handle_invalidate(source: &str, archetect: &Archetect) -> Result<(), Archetec
     Ok(())
 }
 
-/// Wipe the entire cache directory.
+/// Wipe the entire cache directory. Asks first on a terminal; with no terminal to ask on it
+/// refuses out loud (pass `--headless` to clear without asking) rather than doing nothing silently.
 fn handle_clear(archetect: &Archetect) -> Result<(), ArchetectError> {
-    let confirmed = if archetect.is_headless() {
-        // In headless / non-TTY mode, skip the interactive prompt
-        true
-    } else {
+    let cache_dir = archetect.layout().cache_dir();
+    if !archetect.is_headless() {
         let prompt = Confirm::new("Are you sure you want to remove all cached Archetypes and Catalogs?")
             .with_default(false);
-        matches!(prompt.prompt(), Ok(true))
-    };
-
-    if confirmed {
-        let cache_dir = archetect.layout().cache_dir();
-        if cache_dir.exists() {
-            let paths = fs::read_dir(cache_dir)?;
-            for path in paths.flatten() {
-                fs::remove_dir_all(path.path())?;
+        match prompt.prompt() {
+            Ok(true) => {}
+            Ok(false) => {
+                info!("Cache left as it is: {cache_dir}");
+                return Ok(());
             }
-            info!("Cache cleared");
+            Err(err) => {
+                return Err(ArchetectError::ConfigError(format!(
+                    "cache clear asks before removing {cache_dir}, and could not ask ({err}); \
+                     run it with --headless to clear without asking"
+                )));
+            }
         }
     }
+
+    let mut removed = 0usize;
+    if cache_dir.exists() {
+        for path in fs::read_dir(&cache_dir)?.flatten() {
+            let path = path.path();
+            if path.is_dir() {
+                fs::remove_dir_all(&path)?;
+            } else {
+                fs::remove_file(&path)?;
+            }
+            removed += 1;
+        }
+    }
+    info!("Cache cleared: {cache_dir} ({removed} entries removed)");
     Ok(())
 }
