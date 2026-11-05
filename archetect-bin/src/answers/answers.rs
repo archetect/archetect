@@ -80,9 +80,22 @@ pub fn parse_answer_value(raw: &str) -> ContextValue {
         return ContextValue::String(String::new());
     }
 
+    // YAML reads more into a bare value than a person typing `-a` means: `a: b` is a map, `- a` a
+    // list, `x # y` is `x` with a comment. A map or list is taken only when written as one
+    // (`{...}`, `[...]`), and a string only when quoted; anything else unquoted is the text as typed
+    // (D, 2026-11-05: `-a description=Sealed secrets: by reference` was read as a map, so the
+    // text prompt saw no answer).
+    let trimmed = raw.trim_start();
     match serde_yaml::from_str::<ContextValue>(raw) {
+        Ok(ContextValue::Map(map)) if trimmed.starts_with('{') => ContextValue::Map(map),
+        Ok(ContextValue::Array(items)) if trimmed.starts_with('[') => ContextValue::Array(items),
+        Ok(ContextValue::String(text)) if trimmed.starts_with('"') || trimmed.starts_with('\'') => {
+            ContextValue::String(text)
+        }
+        Ok(ContextValue::Map(_) | ContextValue::Array(_) | ContextValue::String(_)) | Err(_) => {
+            ContextValue::String(raw.to_owned())
+        }
         Ok(value) => value,
-        Err(_) => ContextValue::String(raw.to_owned()),
     }
 }
 
@@ -401,5 +414,30 @@ mod tests {
             app.get("name"),
             Some(&ContextValue::String("myapp".to_owned()))
         );
+    }
+
+    // ── a value is what was typed, unless written as YAML ──────────
+
+    #[test]
+    fn a_colon_in_a_plain_value_is_text_not_a_map() {
+        let v = parse_answer_value("Sealed secrets: by reference");
+        assert!(matches!(v, ContextValue::String(ref s) if s == "Sealed secrets: by reference"), "{v:?}");
+        let url = parse_answer_value("git@github.com:anemnez/ladon.git");
+        assert!(matches!(url, ContextValue::String(ref s) if s == "git@github.com:anemnez/ladon.git"), "{url:?}");
+    }
+
+    #[test]
+    fn a_hash_or_a_leading_dash_in_a_plain_value_is_kept() {
+        assert!(matches!(parse_answer_value("issue #42"), ContextValue::String(ref s) if s == "issue #42"));
+        assert!(matches!(parse_answer_value("- not a list"), ContextValue::String(ref s) if s == "- not a list"));
+    }
+
+    #[test]
+    fn written_yaml_still_reads_as_yaml() {
+        assert!(matches!(parse_answer_value("{host: localhost}"), ContextValue::Map(_)));
+        assert!(matches!(parse_answer_value("[a, b]"), ContextValue::Array(_)));
+        assert!(matches!(parse_answer_value("\"a: b\""), ContextValue::String(ref s) if s == "a: b"));
+        assert!(matches!(parse_answer_value("42"), ContextValue::Integer(42)));
+        assert!(matches!(parse_answer_value("true"), ContextValue::Boolean(true)));
     }
 }
